@@ -91,6 +91,7 @@ class Quiz:
     description: str = ""
     questions: list[Question] = field(default_factory=list)
     created: str = ""
+    exam_date: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -98,6 +99,7 @@ class Quiz:
             "name": self.name,
             "description": self.description,
             "created": self.created,
+            "exam_date": self.exam_date,
             "questions": [q.to_dict() for q in self.questions],
         }
 
@@ -109,6 +111,7 @@ class Quiz:
             name=d.get("name", ""),
             description=d.get("description", ""),
             created=d.get("created", ""),
+            exam_date=d.get("exam_date", ""),
             questions=questions,
         )
 

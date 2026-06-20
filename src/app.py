@@ -12,7 +12,7 @@ import customtkinter as ctk
 from .models import (
     Quiz, Question, QuestionType, Option, DragDropPair, DiagramLabel, DataStore
 )
-from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult
+from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
 
 ctk.set_appearance_mode("light")
@@ -616,43 +616,82 @@ class App(ctk.CTk):
 
     # ── AI GENERATE ──
 
+    def _file_dialog_with_pdf(self):
+        return filedialog.askopenfilename(filetypes=[
+            ("Dokumente", "*.pdf *.txt *.md *.csv"),
+            ("PDF", "*.pdf"),
+            ("Text", "*.txt *.md"),
+            ("Alle", "*.*"),
+        ])
+
     def show_ai_generate(self):
         self._clear_main()
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
+        scroll.grid(row=0, column=0, sticky="nsew", padx=40, pady=20)
+        scroll.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(frame, text="KI-Fragengenerierung aus Vorlesungsfolien",
+        ctk.CTkLabel(scroll, text="KI-Fragengenerierung aus Vorlesungsfolien",
                     font=("Arial", 18, "bold"), text_color=COLORS["text"]
                     ).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ctk.CTkLabel(frame, text="Lade eine Textdatei hoch. Die KI liest den Inhalt seitenweise und generiert Prüfungsfragen.",
+        ctk.CTkLabel(scroll, text="Lade eine PDF- oder Textdatei hoch. Die KI liest seitenweise mit Sliding Window und generiert Prüfungsfragen.",
                     font=("Arial", 12), text_color=COLORS["text_light"]
                     ).grid(row=1, column=0, sticky="w", pady=(0, 20))
 
+        # File selection
         file_var = StringVar()
-        file_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         file_frame.grid(row=2, column=0, sticky="ew")
-        file_entry = ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen...")
-        file_entry.grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
+                    ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: file_var.set(filedialog.askopenfilename(
-                         filetypes=[("Textdateien", "*.txt *.md *.csv"), ("Alle", "*.*")]))).grid(row=0, column=1)
+                     command=lambda: file_var.set(self._file_dialog_with_pdf() or "")
+                     ).grid(row=0, column=1)
 
-        ctk.CTkLabel(frame, text="Anzahl Fragen (ca.)", font=("Arial", 13, "bold")
+        # Number of questions
+        ctk.CTkLabel(scroll, text="Anzahl Fragen (ca.)", font=("Arial", 13, "bold")
                     ).grid(row=3, column=0, sticky="w", pady=(15, 0))
         num_var = IntVar(value=20)
-        ctk.CTkOptionMenu(frame, values=["10", "20", "30", "50"],
-                          command=lambda v: num_var.set(int(v)), width=100).grid(row=4, column=0, sticky="w", pady=5)
+        ctk.CTkOptionMenu(scroll, values=["10", "20", "30", "50"],
+                          command=lambda v: num_var.set(int(v)), width=100
+                          ).grid(row=4, column=0, sticky="w", pady=5)
 
-        ctk.CTkLabel(frame, text="Quiz-Name", font=("Arial", 13, "bold")
+        # Quiz name
+        ctk.CTkLabel(scroll, text="Quiz-Name", font=("Arial", 13, "bold")
                     ).grid(row=5, column=0, sticky="w", pady=(10, 0))
-        name_entry = ctk.CTkEntry(frame, width=400, placeholder_text="Name für das Quiz")
+        name_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="Name für das Quiz")
         name_entry.grid(row=6, column=0, sticky="w", pady=5)
 
-        progress_label = ctk.CTkLabel(frame, text="", font=("Arial", 12), text_color=COLORS["primary"])
-        progress_label.grid(row=7, column=0, sticky="w", pady=10)
-        progress_bar = ctk.CTkProgressBar(frame, width=400)
-        progress_bar.grid(row=8, column=0, sticky="w")
+        # ── Slider: Kontext-Größe ──
+        chunk_label = ctk.CTkLabel(scroll, text="Kontext-Größe: 6.000 Zeichen",
+                                   font=("Arial", 13, "bold"), text_color=COLORS["text"])
+        chunk_label.grid(row=7, column=0, sticky="w", pady=(15, 0))
+        ctk.CTkLabel(scroll, text="Wie viel Text pro API-Call gesendet wird (größer = mehr Kontext, aber teurer)",
+                    font=("Arial", 11), text_color=COLORS["text_light"]
+                    ).grid(row=8, column=0, sticky="w")
+        chunk_slider = ctk.CTkSlider(scroll, from_=2000, to=40000, number_of_steps=38, width=400)
+        chunk_slider.set(6000)
+        chunk_slider.configure(command=lambda v: chunk_label.configure(
+            text=f"Kontext-Größe: {int(v):,} Zeichen".replace(",", ".")))
+        chunk_slider.grid(row=9, column=0, sticky="w", pady=5)
+
+        # ── Slider: Temperature ──
+        temp_label = ctk.CTkLabel(scroll, text="Kreativität (Temperature): 0.30",
+                                  font=("Arial", 13, "bold"), text_color=COLORS["text"])
+        temp_label.grid(row=10, column=0, sticky="w", pady=(15, 0))
+        ctk.CTkLabel(scroll, text="Niedrig = präziser, Hoch = kreativer/vielfältiger",
+                    font=("Arial", 11), text_color=COLORS["text_light"]
+                    ).grid(row=11, column=0, sticky="w")
+        temp_slider = ctk.CTkSlider(scroll, from_=0, to=1.0, number_of_steps=20, width=400)
+        temp_slider.set(0.3)
+        temp_slider.configure(command=lambda v: temp_label.configure(
+            text=f"Kreativität (Temperature): {v:.2f}"))
+        temp_slider.grid(row=12, column=0, sticky="w", pady=5)
+
+        # Progress
+        progress_label = ctk.CTkLabel(scroll, text="", font=("Arial", 12), text_color=COLORS["primary"])
+        progress_label.grid(row=13, column=0, sticky="w", pady=10)
+        progress_bar = ctk.CTkProgressBar(scroll, width=400)
+        progress_bar.grid(row=14, column=0, sticky="w")
         progress_bar.set(0)
 
         def generate():
@@ -663,10 +702,14 @@ class App(ctk.CTk):
                 messagebox.showwarning("Hinweis", "Bitte zuerst API-Key in den Einstellungen speichern!")
                 return
 
+            self.ai.chunk_size = int(chunk_slider.get())
+            self.ai.overlap = max(500, self.ai.chunk_size // 6)
+            self.ai.temperature = round(temp_slider.get(), 2)
+
             def run():
                 def progress_cb(current, total):
                     self.after(0, lambda: progress_label.configure(
-                        text=f"Verarbeite Abschnitt {current}/{total}..."))
+                        text=f"Verarbeite Abschnitt {current}/{total} (Rolling Summary aktiv)..."))
                     self.after(0, lambda: progress_bar.set(current / total))
 
                 questions = self.ai.generate_from_slides(file_var.get(), num_var.get(), progress_cb)
@@ -688,8 +731,8 @@ class App(ctk.CTk):
 
             threading.Thread(target=run, daemon=True).start()
 
-        btn_f = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_f.grid(row=9, column=0, sticky="w", pady=15)
+        btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_f.grid(row=15, column=0, sticky="w", pady=15)
         ctk.CTkButton(btn_f, text="Fragen generieren", fg_color=COLORS["success"],
                      command=generate).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_f, text="Zurück", fg_color=COLORS["text_light"],
@@ -699,35 +742,55 @@ class App(ctk.CTk):
 
     def show_ai_import(self):
         self._clear_main()
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
+        scroll.grid(row=0, column=0, sticky="nsew", padx=40, pady=20)
+        scroll.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(frame, text="Fragen aus Dokument importieren",
+        ctk.CTkLabel(scroll, text="Fragen aus Dokument importieren",
                     font=("Arial", 18, "bold"), text_color=COLORS["text"]
                     ).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ctk.CTkLabel(frame, text="Lade ein Übungsskript oder Fragendokument hoch. Die KI erkennt und importiert alle Fragen.",
+        ctk.CTkLabel(scroll, text="Lade ein PDF oder Übungsskript hoch. Die KI erkennt und importiert alle Fragen (parallel).",
                     font=("Arial", 12), text_color=COLORS["text_light"]
                     ).grid(row=1, column=0, sticky="w", pady=(0, 20))
 
         file_var = StringVar()
-        file_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         file_frame.grid(row=2, column=0, sticky="ew")
         ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
                     ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: file_var.set(filedialog.askopenfilename(
-                         filetypes=[("Textdateien", "*.txt *.md *.csv"), ("Alle", "*.*")]))).grid(row=0, column=1)
+                     command=lambda: file_var.set(self._file_dialog_with_pdf() or "")
+                     ).grid(row=0, column=1)
 
-        ctk.CTkLabel(frame, text="Quiz-Name", font=("Arial", 13, "bold")
+        ctk.CTkLabel(scroll, text="Quiz-Name", font=("Arial", 13, "bold")
                     ).grid(row=3, column=0, sticky="w", pady=(15, 0))
-        name_entry = ctk.CTkEntry(frame, width=400, placeholder_text="Name für das importierte Quiz")
+        name_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="Name für das importierte Quiz")
         name_entry.grid(row=4, column=0, sticky="w", pady=5)
 
-        progress_label = ctk.CTkLabel(frame, text="", font=("Arial", 12), text_color=COLORS["primary"])
-        progress_label.grid(row=5, column=0, sticky="w", pady=10)
-        progress_bar = ctk.CTkProgressBar(frame, width=400)
-        progress_bar.grid(row=6, column=0, sticky="w")
+        # ── Slider: Kontext-Größe ──
+        chunk_label = ctk.CTkLabel(scroll, text="Kontext-Größe: 6.000 Zeichen",
+                                   font=("Arial", 13, "bold"), text_color=COLORS["text"])
+        chunk_label.grid(row=5, column=0, sticky="w", pady=(15, 0))
+        chunk_slider = ctk.CTkSlider(scroll, from_=2000, to=40000, number_of_steps=38, width=400)
+        chunk_slider.set(6000)
+        chunk_slider.configure(command=lambda v: chunk_label.configure(
+            text=f"Kontext-Größe: {int(v):,} Zeichen".replace(",", ".")))
+        chunk_slider.grid(row=6, column=0, sticky="w", pady=5)
+
+        # ── Slider: Temperature ──
+        temp_label = ctk.CTkLabel(scroll, text="Kreativität (Temperature): 0.30",
+                                  font=("Arial", 13, "bold"), text_color=COLORS["text"])
+        temp_label.grid(row=7, column=0, sticky="w", pady=(15, 0))
+        temp_slider = ctk.CTkSlider(scroll, from_=0, to=1.0, number_of_steps=20, width=400)
+        temp_slider.set(0.3)
+        temp_slider.configure(command=lambda v: temp_label.configure(
+            text=f"Kreativität (Temperature): {v:.2f}"))
+        temp_slider.grid(row=8, column=0, sticky="w", pady=5)
+
+        progress_label = ctk.CTkLabel(scroll, text="", font=("Arial", 12), text_color=COLORS["primary"])
+        progress_label.grid(row=9, column=0, sticky="w", pady=10)
+        progress_bar = ctk.CTkProgressBar(scroll, width=400)
+        progress_bar.grid(row=10, column=0, sticky="w")
         progress_bar.set(0)
 
         def do_import():
@@ -738,10 +801,14 @@ class App(ctk.CTk):
                 messagebox.showwarning("Hinweis", "Bitte zuerst API-Key in den Einstellungen speichern!")
                 return
 
+            self.ai.chunk_size = int(chunk_slider.get())
+            self.ai.overlap = max(500, self.ai.chunk_size // 6)
+            self.ai.temperature = round(temp_slider.get(), 2)
+
             def run():
                 def progress_cb(current, total):
                     self.after(0, lambda: progress_label.configure(
-                        text=f"Importiere Abschnitt {current}/{total}..."))
+                        text=f"Importiere Abschnitt {current}/{total} (parallel)..."))
                     self.after(0, lambda: progress_bar.set(current / total))
 
                 questions = self.ai.import_questions(file_var.get(), progress_cb)
@@ -763,8 +830,8 @@ class App(ctk.CTk):
 
             threading.Thread(target=run, daemon=True).start()
 
-        btn_f = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_f.grid(row=7, column=0, sticky="w", pady=15)
+        btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_f.grid(row=11, column=0, sticky="w", pady=15)
         ctk.CTkButton(btn_f, text="Fragen importieren", fg_color=COLORS["success"],
                      command=do_import).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_f, text="Zurück", fg_color=COLORS["text_light"],
@@ -775,17 +842,111 @@ class App(ctk.CTk):
     def show_quiz_modes(self, quiz: Quiz):
         self._clear_main()
         self.current_quiz = quiz
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(frame, text=quiz.name, font=("Arial", 20, "bold"),
+        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
+        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        scroll.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(scroll, text=quiz.name, font=("Arial", 20, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ctk.CTkLabel(frame, text=f"{len(quiz.questions)} Fragen", font=("Arial", 13),
-                    text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 20))
+        ctk.CTkLabel(scroll, text=f"{len(quiz.questions)} Fragen", font=("Arial", 13),
+                    text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 10))
 
-        modes = ctk.CTkFrame(frame, fg_color="transparent")
-        modes.grid(row=2, column=0, sticky="ew")
+        # ── Deadline Dashboard ──
+        planner = DeadlinePlanner(self.sr)
+        plan = planner.compute_plan(quiz)
+
+        deadline_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8,
+                                      border_width=2, border_color=COLORS["primary"])
+        deadline_card.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+        deadline_card.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(deadline_card, text="Klausurtermin", font=("Arial", 14, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+
+        date_frame = ctk.CTkFrame(deadline_card, fg_color="transparent")
+        date_frame.grid(row=1, column=0, columnspan=2, padx=15, pady=(0, 5), sticky="w")
+        date_entry = ctk.CTkEntry(date_frame, width=150, placeholder_text="JJJJ-MM-TT")
+        date_entry.grid(row=0, column=0, padx=(0, 10))
+        if quiz.exam_date:
+            date_entry.insert(0, quiz.exam_date)
+
+        def save_date():
+            quiz.exam_date = date_entry.get().strip()
+            existing = [q for q in self.quizzes if q.id == quiz.id]
+            if existing:
+                idx = self.quizzes.index(existing[0])
+                self.quizzes[idx] = quiz
+            self.store.save_quizzes(self.quizzes)
+            self.show_quiz_modes(quiz)
+
+        ctk.CTkButton(date_frame, text="Speichern", width=80, fg_color=COLORS["primary"],
+                     command=save_date).grid(row=0, column=1)
+
+        if plan:
+            urgency_colors = {
+                "critical": COLORS["danger"],
+                "urgent": COLORS["warning"],
+                "normal": COLORS["primary"],
+                "relaxed": COLORS["success"],
+            }
+            urgency_labels = {
+                "critical": "KRITISCH",
+                "urgent": "DRINGEND",
+                "normal": "NORMAL",
+                "relaxed": "ENTSPANNT",
+            }
+            u_color = urgency_colors[plan.urgency]
+            u_label = urgency_labels[plan.urgency]
+
+            dash = ctk.CTkFrame(deadline_card, fg_color="transparent")
+            dash.grid(row=2, column=0, columnspan=2, padx=15, pady=(5, 10), sticky="ew")
+            for c in range(4):
+                dash.grid_columnconfigure(c, weight=1)
+
+            # Days remaining
+            d_frame = ctk.CTkFrame(dash, fg_color=u_color, corner_radius=8)
+            d_frame.grid(row=0, column=0, padx=3, sticky="ew")
+            ctk.CTkLabel(d_frame, text=str(plan.days_remaining), font=("Arial", 24, "bold"),
+                        text_color="white").grid(row=0, column=0, padx=10, pady=(8, 0))
+            ctk.CTkLabel(d_frame, text="Tage", font=("Arial", 10),
+                        text_color="white").grid(row=1, column=0, padx=10, pady=(0, 8))
+
+            # Today's workload
+            t_frame = ctk.CTkFrame(dash, fg_color=COLORS["primary"], corner_radius=8)
+            t_frame.grid(row=0, column=1, padx=3, sticky="ew")
+            ctk.CTkLabel(t_frame, text=str(plan.questions_today), font=("Arial", 24, "bold"),
+                        text_color="white").grid(row=0, column=0, padx=10, pady=(8, 0))
+            ctk.CTkLabel(t_frame, text="Heute", font=("Arial", 10),
+                        text_color="white").grid(row=1, column=0, padx=10, pady=(0, 8))
+
+            # Readiness
+            r_color = COLORS["success"] if plan.readiness_pct >= 80 else COLORS["warning"] if plan.readiness_pct >= 50 else COLORS["danger"]
+            r_frame = ctk.CTkFrame(dash, fg_color=r_color, corner_radius=8)
+            r_frame.grid(row=0, column=2, padx=3, sticky="ew")
+            ctk.CTkLabel(r_frame, text=f"{plan.readiness_pct:.0f}%", font=("Arial", 24, "bold"),
+                        text_color="white").grid(row=0, column=0, padx=10, pady=(8, 0))
+            ctk.CTkLabel(r_frame, text="Bereit", font=("Arial", 10),
+                        text_color="white").grid(row=1, column=0, padx=10, pady=(0, 8))
+
+            # Urgency badge
+            b_frame = ctk.CTkFrame(dash, fg_color=u_color, corner_radius=8)
+            b_frame.grid(row=0, column=3, padx=3, sticky="ew")
+            ctk.CTkLabel(b_frame, text=u_label, font=("Arial", 14, "bold"),
+                        text_color="white").grid(row=0, column=0, padx=10, pady=(8, 0))
+            ctk.CTkLabel(b_frame, text="Status", font=("Arial", 10),
+                        text_color="white").grid(row=1, column=0, padx=10, pady=(0, 8))
+
+            # Box breakdown for today
+            if plan.box_breakdown:
+                bd_text = " | ".join(f"Box {b}: {c}" for b, c in sorted(plan.box_breakdown.items()) if c > 0)
+                ctk.CTkLabel(deadline_card, text=f"Tagespensum: {bd_text}",
+                            font=("Arial", 11), text_color=COLORS["text_light"]
+                            ).grid(row=3, column=0, columnspan=2, padx=15, pady=(0, 10), sticky="w")
+
+        # ── Mode Cards ──
+        modes = ctk.CTkFrame(scroll, fg_color="transparent")
+        modes.grid(row=3, column=0, sticky="ew")
         for i in range(2):
             modes.grid_columnconfigure(i, weight=1)
 
@@ -815,8 +976,8 @@ class App(ctk.CTk):
         # Leitner stats
         qids = [q.id for q in quiz.questions]
         counts = self.sr.get_box_counts(qids)
-        stats = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=8)
-        stats.grid(row=3, column=0, sticky="ew", pady=(20, 0))
+        stats = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+        stats.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         ctk.CTkLabel(stats, text="Lernstand (Leitner-Boxen)", font=("Arial", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, columnspan=5, padx=15, pady=(10, 5), sticky="w")
         labels = ["Box 1\n(Neu)", "Box 2", "Box 3", "Box 4", "Box 5\n(Sicher)"]
@@ -829,8 +990,8 @@ class App(ctk.CTk):
             ctk.CTkLabel(f, text=labels[b - 1], font=("Arial", 10),
                         text_color="white").grid(row=1, column=0, padx=10, pady=(0, 8))
 
-        ctk.CTkButton(frame, text="Zurück zum Menü", fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=4, column=0, sticky="w", pady=15)
+        ctk.CTkButton(scroll, text="Zurück zum Menü", fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=5, column=0, sticky="w", pady=15)
 
     def _start_quiz(self, quiz: Quiz, mode: str, time_limit: int = 0, count: int = 0):
         questions = list(quiz.questions)

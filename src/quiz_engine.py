@@ -1,8 +1,9 @@
 """Quiz engine handling quiz sessions, scoring, and spaced repetition."""
 
+import math
 import random
 import time
-from datetime import datetime
+from datetime import datetime, date
 from dataclasses import dataclass
 from typing import Optional
 from .models import Question, QuestionType, QuestionProgress, Quiz, DataStore
@@ -198,3 +199,113 @@ class SpacedRepetition:
                 seen.add(q.id)
                 result.append(q)
         return result
+
+
+@dataclass
+class DailyPlan:
+    days_remaining: int
+    total_questions: int
+    questions_today: int
+    box_breakdown: dict[int, int]
+    readiness_pct: float
+    urgency: str  # "relaxed", "normal", "urgent", "critical"
+
+
+class DeadlinePlanner:
+    """Calculates daily study workload based on exam date and Leitner progress."""
+
+    def __init__(self, sr: SpacedRepetition):
+        self.sr = sr
+
+    def days_until(self, exam_date_str: str) -> int:
+        if not exam_date_str:
+            return -1
+        try:
+            exam = date.fromisoformat(exam_date_str)
+            return (exam - date.today()).days
+        except ValueError:
+            return -1
+
+    def compute_plan(self, quiz: Quiz) -> Optional[DailyPlan]:
+        days = self.days_until(quiz.exam_date)
+        if days < 0:
+            return None
+
+        questions = quiz.questions
+        total = len(questions)
+        if total == 0:
+            return None
+
+        counts = self.sr.get_box_counts([q.id for q in questions])
+        in_box_5 = counts.get(5, 0)
+        readiness = (in_box_5 / total * 100) if total > 0 else 0
+
+        if days <= 0:
+            urgency = "critical"
+        elif days <= 3:
+            urgency = "critical"
+        elif days <= 7:
+            urgency = "urgent"
+        elif days <= 14:
+            urgency = "normal"
+        else:
+            urgency = "relaxed"
+
+        # How many repetitions needed to move all questions to box 5
+        reps_needed = 0
+        for box in range(1, 5):
+            steps_to_5 = 5 - box
+            reps_needed += counts.get(box, 0) * steps_to_5
+
+        effective_days = max(1, days)
+
+        # Base daily load: spread repetitions evenly
+        base_daily = math.ceil(reps_needed / effective_days)
+
+        # Priority multipliers: when time is short, front-load weak questions
+        if urgency == "critical":
+            multiplier = 2.0
+        elif urgency == "urgent":
+            multiplier = 1.5
+        elif urgency == "normal":
+            multiplier = 1.0
+        else:
+            multiplier = 0.8
+
+        questions_today = min(total, max(5, int(base_daily * multiplier)))
+
+        # Box breakdown for today: prioritize low boxes
+        today_breakdown = {}
+        remaining = questions_today
+        for box in range(1, 6):
+            available = counts.get(box, 0)
+            if urgency in ("critical", "urgent") and box <= 3:
+                take = min(available, remaining)
+            elif box <= 2:
+                take = min(available, int(remaining * 0.6))
+            elif box <= 4:
+                take = min(available, int(remaining * 0.3))
+            else:
+                take = min(available, int(remaining * 0.1))
+            take = min(take, remaining)
+            if take > 0:
+                today_breakdown[box] = take
+                remaining -= take
+        # distribute any remainder to lowest boxes
+        for box in range(1, 6):
+            if remaining <= 0:
+                break
+            available = counts.get(box, 0) - today_breakdown.get(box, 0)
+            take = min(available, remaining)
+            if take > 0:
+                today_breakdown[box] = today_breakdown.get(box, 0) + take
+                remaining -= take
+
+        return DailyPlan(
+            days_remaining=days,
+            total_questions=total,
+            questions_today=questions_today,
+            box_breakdown=today_breakdown,
+            readiness_pct=round(readiness, 1),
+            urgency=urgency,
+        )

@@ -1,28 +1,48 @@
-"""AI service for generating and importing questions via OpenRouter."""
+"""AI service for generating and importing questions via OpenRouter.
+
+Features:
+- PDF text extraction via PyMuPDF
+- Parallel API calls via ThreadPoolExecutor
+- Sliding window chunking with overlap
+- Rolling summary for cross-chunk context
+- Configurable chunk_size and temperature
+"""
 
 import json
-import base64
-import requests
+import concurrent.futures
+import threading
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
+import requests
+
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    fitz = None
+
 from .models import Question, QuestionType, Option, DragDropPair
 
 
 GENERATE_SYSTEM_PROMPT = """Du bist ein Experte für das Erstellen von Prüfungsfragen aus Vorlesungsunterlagen.
-Erstelle hochwertige Fragen in verschiedenen Formaten. Antworte NUR mit validem JSON.
+Erstelle hochwertige Fragen in verschiedenen Formaten.
 
-Ausgabeformat: Eine JSON-Liste von Fragen, jede Frage hat folgende Struktur:
+Dein Output MUSS exakt dieses Format haben – ein JSON-Objekt mit zwei Feldern:
 {
-  "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop",
-  "title": "Kurztitel der Frage",
-  "text": "Der Fragentext",
-  "topic": "Themengebiet",
-  "points": 1-3,
-  "options": [{"text": "Antwort A", "is_correct": false}, ...],  // für single/multiple choice
-  "correct_text": "Richtige Antwort",  // für free_text
-  "blanks": ["Wort1", "Wort2"],  // für fill_blank (die Lücken im Text mit ___ markieren)
-  "drag_drop_pairs": [{"source": "Begriff", "target": "Ziel"}],  // für drag_drop
-  "explanation": "Erklärung der richtigen Antwort"
+  "summary": "Kurze Zusammenfassung (2-3 Sätze) der Kernthemen dieses Abschnitts",
+  "questions": [
+    {
+      "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop",
+      "title": "Kurztitel der Frage",
+      "text": "Der Fragentext",
+      "topic": "Themengebiet",
+      "points": 1-3,
+      "options": [{"text": "Antwort A", "is_correct": false}, ...],
+      "correct_text": "Richtige Antwort",
+      "blanks": ["Wort1", "Wort2"],
+      "drag_drop_pairs": [{"source": "Begriff", "target": "Ziel"}],
+      "explanation": "Erklärung der richtigen Antwort"
+    }
+  ]
 }
 
 Regeln:
@@ -33,32 +53,37 @@ Regeln:
 - Drag & Drop: 3-5 Zuordnungspaare
 - Freitext: Kurze, eindeutige Antworten
 - Alle Fragen auf Deutsch
-- Fragen sollen prüfungsrelevant und anspruchsvoll sein"""
+- Fragen sollen prüfungsrelevant und anspruchsvoll sein
+- Die Zusammenfassung soll die wichtigsten Konzepte/Begriffe des Abschnitts nennen"""
 
 IMPORT_SYSTEM_PROMPT = """Du bist ein Experte für das Importieren von Prüfungsfragen aus Dokumenten.
 Das Dokument enthält bereits fertige Fragen (z.B. aus Übungsskripten).
 Extrahiere ALLE Fragen und konvertiere sie in das folgende JSON-Format.
 
-Ausgabeformat: Eine JSON-Liste von Fragen:
+Dein Output MUSS exakt dieses Format haben:
 {
-  "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop",
-  "title": "Kurztitel der Frage",
-  "text": "Der Fragentext",
-  "topic": "Themengebiet",
-  "points": 1-3,
-  "options": [{"text": "Antwort A", "is_correct": false}, ...],
-  "correct_text": "Richtige Antwort",
-  "blanks": ["Wort1", "Wort2"],
-  "drag_drop_pairs": [{"source": "Begriff", "target": "Ziel"}],
-  "explanation": "Erklärung (falls vorhanden)"
+  "summary": "Kurze Zusammenfassung der gefundenen Fragen-Themen",
+  "questions": [
+    {
+      "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop",
+      "title": "Kurztitel der Frage",
+      "text": "Der Fragentext",
+      "topic": "Themengebiet",
+      "points": 1-3,
+      "options": [{"text": "Antwort A", "is_correct": false}, ...],
+      "correct_text": "Richtige Antwort",
+      "blanks": ["Wort1", "Wort2"],
+      "drag_drop_pairs": [{"source": "Begriff", "target": "Ziel"}],
+      "explanation": "Erklärung (falls vorhanden)"
+    }
+  ]
 }
 
 Regeln:
 - Importiere JEDE einzelne Frage aus dem Dokument
 - Erkenne den Fragetyp automatisch
 - Wenn Antworten gegeben sind, markiere die richtigen
-- Behalte den originalen Fragentext bei
-- Antworte NUR mit validem JSON (eine Liste von Fragen)"""
+- Behalte den originalen Fragentext bei"""
 
 
 class AIService:
@@ -66,8 +91,13 @@ class AIService:
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.chunk_size = 6000
+        self.overlap = 1000
+        self.temperature = 0.3
+        self.max_workers = 4
 
-    def _call_api(self, messages: list[dict], max_tokens: int = 4096) -> Optional[str]:
+    def _call_api(self, messages: list[dict], max_tokens: int = 4096,
+                  temperature: float | None = None) -> Optional[str]:
         if not self.api_key:
             return None
         headers = {
@@ -79,32 +109,53 @@ class AIService:
             "model": self.model,
             "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": 0.3,
+            "temperature": temperature if temperature is not None else self.temperature,
         }
         try:
-            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=120)
+            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=180)
             resp.raise_for_status()
             data = resp.json()
             return data["choices"][0]["message"]["content"]
         except Exception as e:
             return f"ERROR: {e}"
 
-    def _parse_questions(self, response: str) -> list[Question]:
+    def _parse_response(self, response: str) -> tuple[list[Question], str]:
+        """Parse response returning (questions, summary)."""
         if not response or response.startswith("ERROR:"):
-            return []
+            return [], ""
         text = response.strip()
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0]
         elif "```" in text:
             text = text.split("```")[1].split("```")[0]
-        start = text.find("[")
-        end = text.rfind("]") + 1
-        if start == -1 or end == 0:
-            return []
-        try:
-            items = json.loads(text[start:end])
-        except json.JSONDecodeError:
-            return []
+
+        # Try to parse as {summary, questions} object first
+        brace_start = text.find("{")
+        brace_end = text.rfind("}") + 1
+        summary = ""
+        items = []
+
+        if brace_start != -1 and brace_end > 0:
+            try:
+                obj = json.loads(text[brace_start:brace_end])
+                if isinstance(obj, dict) and "questions" in obj:
+                    summary = obj.get("summary", "")
+                    items = obj["questions"]
+                elif isinstance(obj, dict):
+                    items = [obj]
+            except json.JSONDecodeError:
+                pass
+
+        # Fallback: try as plain list
+        if not items:
+            arr_start = text.find("[")
+            arr_end = text.rfind("]") + 1
+            if arr_start != -1 and arr_end > 0:
+                try:
+                    items = json.loads(text[arr_start:arr_end])
+                except json.JSONDecodeError:
+                    return [], summary
+
         questions = []
         for item in items:
             try:
@@ -130,71 +181,141 @@ class AIService:
                 questions.append(q)
             except (KeyError, ValueError):
                 continue
-        return questions
+        return questions, summary
 
-    def _read_file_as_text(self, file_path: str) -> list[str]:
-        """Read file and return content chunks for processing."""
+    # ── File Reading with PDF support ──
+
+    def _read_file_as_text(self, file_path: str) -> str:
+        """Read entire file as text. Supports PDF via PyMuPDF."""
         path = Path(file_path)
         suffix = path.suffix.lower()
-        if suffix == ".txt":
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
-        elif suffix == ".md":
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
-        elif suffix == ".json":
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
-        else:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
 
-        chunk_size = 6000
+        if suffix == ".pdf":
+            if fitz is None:
+                raise RuntimeError("PyMuPDF (fitz) nicht installiert. Bitte 'pip install PyMuPDF' ausführen.")
+            doc = fitz.open(str(path))
+            pages = []
+            for page in doc:
+                pages.append(page.get_text("text"))
+            doc.close()
+            return "\n\n--- Seite ---\n\n".join(pages)
+
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+
+    def _chunk_with_overlap(self, text: str) -> list[str]:
+        """Split text into overlapping chunks (sliding window)."""
+        if len(text) <= self.chunk_size:
+            return [text]
         chunks = []
-        for i in range(0, len(text), chunk_size):
-            chunks.append(text[i:i + chunk_size])
-        return chunks if chunks else [text]
+        step = max(1, self.chunk_size - self.overlap)
+        for start in range(0, len(text), step):
+            chunk = text[start:start + self.chunk_size]
+            if chunk.strip():
+                chunks.append(chunk)
+            if start + self.chunk_size >= len(text):
+                break
+        return chunks
+
+    # ── Generate: Sequential with Rolling Summary ──
 
     def generate_from_slides(self, file_path: str, num_questions: int = 20,
-                              progress_callback=None) -> list[Question]:
-        chunks = self._read_file_as_text(file_path)
-        all_questions = []
+                              progress_callback: Callable | None = None) -> list[Question]:
+        full_text = self._read_file_as_text(file_path)
+        chunks = self._chunk_with_overlap(full_text)
+        if not chunks:
+            return []
+
+        all_questions: list[Question] = []
+        rolling_summary = ""
+        per_chunk = max(3, num_questions // len(chunks))
+
         for i, chunk in enumerate(chunks):
             if progress_callback:
                 progress_callback(i + 1, len(chunks))
-            per_chunk = max(3, num_questions // len(chunks))
+
+            context_prefix = ""
+            if rolling_summary:
+                context_prefix = (
+                    f"Bisheriger Kontext (Zusammenfassung vorheriger Abschnitte):\n"
+                    f"{rolling_summary}\n\n---\n\n"
+                )
+
             messages = [
                 {"role": "system", "content": GENERATE_SYSTEM_PROMPT},
                 {"role": "user", "content": (
-                    f"Hier ist Seite/Abschnitt {i+1} von {len(chunks)} der Vorlesungsfolien:\n\n"
+                    f"{context_prefix}"
+                    f"Hier ist Abschnitt {i+1} von {len(chunks)} der Vorlesungsfolien:\n\n"
                     f"{chunk}\n\n"
                     f"Erstelle {per_chunk} Prüfungsfragen zu diesem Inhalt. "
-                    f"Nutze verschiedene Fragetypen. Antworte NUR mit JSON."
+                    f"Nutze verschiedene Fragetypen. "
+                    f"Antworte mit dem JSON-Objekt (summary + questions)."
                 )},
             ]
             response = self._call_api(messages, max_tokens=4096)
-            questions = self._parse_questions(response)
+            questions, summary = self._parse_response(response)
             all_questions.extend(questions)
+
+            if summary:
+                rolling_summary = (rolling_summary + " " + summary).strip()
+                if len(rolling_summary) > 2000:
+                    rolling_summary = rolling_summary[-2000:]
+
         return all_questions
 
-    def import_questions(self, file_path: str, progress_callback=None) -> list[Question]:
-        chunks = self._read_file_as_text(file_path)
-        all_questions = []
-        for i, chunk in enumerate(chunks):
-            if progress_callback:
-                progress_callback(i + 1, len(chunks))
+    # ── Import: Parallel with ThreadPoolExecutor ──
+
+    def import_questions(self, file_path: str,
+                         progress_callback: Callable | None = None) -> list[Question]:
+        full_text = self._read_file_as_text(file_path)
+        chunks = self._chunk_with_overlap(full_text)
+        if not chunks:
+            return []
+
+        all_questions: list[Question] = [None] * len(chunks)  # type: ignore
+        completed = [0]
+        lock = threading.Lock()
+
+        def process_chunk(idx: int, chunk: str) -> list[Question]:
             messages = [
                 {"role": "system", "content": IMPORT_SYSTEM_PROMPT},
                 {"role": "user", "content": (
-                    f"Hier ist Teil {i+1} von {len(chunks)} des Dokuments mit Übungsfragen:\n\n"
+                    f"Hier ist Teil {idx+1} von {len(chunks)} des Dokuments mit Übungsfragen:\n\n"
                     f"{chunk}\n\n"
-                    f"Importiere ALLE Fragen aus diesem Abschnitt. Antworte NUR mit JSON."
+                    f"Importiere ALLE Fragen aus diesem Abschnitt."
                 )},
             ]
             response = self._call_api(messages, max_tokens=4096)
-            questions = self._parse_questions(response)
-            all_questions.extend(questions)
-        return all_questions
+            questions, _ = self._parse_response(response)
+            with lock:
+                completed[0] += 1
+                if progress_callback:
+                    progress_callback(completed[0], len(chunks))
+            return questions
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(process_chunk, i, chunk): i
+                for i, chunk in enumerate(chunks)
+            }
+            for future in concurrent.futures.as_completed(futures):
+                idx = futures[future]
+                try:
+                    all_questions[idx] = future.result()
+                except Exception:
+                    all_questions[idx] = []
+
+        # Flatten and deduplicate by question text
+        result = []
+        seen_texts = set()
+        for chunk_questions in all_questions:
+            if chunk_questions:
+                for q in chunk_questions:
+                    normalized = q.text.strip().lower()
+                    if normalized not in seen_texts:
+                        seen_texts.add(normalized)
+                        result.append(q)
+        return result
 
     def explain_question(self, question: Question, user_answer: str = "") -> str:
         messages = [
