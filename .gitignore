@@ -4,3 +4,6 @@ data/quizzes.json
 data/progress.json
 data/settings.json
 .env
+build/
+dist/
+*.spec

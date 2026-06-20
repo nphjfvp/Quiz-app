@@ -172,7 +172,8 @@ class App(ctk.CTk):
         info.grid(row=0, column=0, padx=15, pady=10, sticky="w")
         ctk.CTkLabel(info, text=quiz.name, font=("Arial", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(info, text=f"{len(quiz.questions)} Fragen · {quiz.description}",
+        weight_tag = f" · ⚖{quiz.weight:.1f}" if quiz.weight != 1.0 else ""
+        ctk.CTkLabel(info, text=f"{len(quiz.questions)} Fragen{weight_tag} · {quiz.description}",
                     font=("Arial", 11), text_color=COLORS["text_light"]
                     ).grid(row=1, column=0, sticky="w")
 
@@ -282,9 +283,26 @@ class App(ctk.CTk):
         if quiz.description:
             desc_entry.insert(0, quiz.description)
 
+        # Quiz weight
+        ctk.CTkLabel(scroll, text="Quiz-Gewichtung", font=("Arial", 13, "bold")).grid(row=5, column=0, sticky="w")
+        weight_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        weight_frame.grid(row=6, column=0, sticky="w", pady=(3, 15))
+        weight_val = ctk.CTkLabel(weight_frame, text=f"{quiz.weight:.1f}", width=35, font=("Arial", 13, "bold"),
+                                  text_color=COLORS["primary"])
+        weight_val.grid(row=0, column=1, padx=8)
+        def on_weight(v):
+            quiz.weight = round(float(v), 1)
+            weight_val.configure(text=f"{quiz.weight:.1f}")
+        weight_slider = ctk.CTkSlider(weight_frame, from_=1.0, to=5.0, number_of_steps=8, width=200,
+                                       command=on_weight)
+        weight_slider.set(quiz.weight)
+        weight_slider.grid(row=0, column=0)
+        ctk.CTkLabel(weight_frame, text="(1.0 = normal, 5.0 = sehr wichtig)", font=("Arial", 11),
+                    text_color=COLORS["text_light"]).grid(row=0, column=2, padx=5)
+
         # Questions list
         questions_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        questions_frame.grid(row=5, column=0, sticky="ew")
+        questions_frame.grid(row=7, column=0, sticky="ew")
         questions_frame.grid_columnconfigure(0, weight=1)
 
         def refresh_questions():
@@ -328,7 +346,7 @@ class App(ctk.CTk):
 
         # Buttons
         btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_frame.grid(row=6, column=0, sticky="w", pady=15)
+        btn_frame.grid(row=8, column=0, sticky="w", pady=15)
         ctk.CTkButton(btn_frame, text="+ Frage hinzufügen", fg_color=COLORS["success"],
                      command=add_question).grid(row=0, column=0, padx=(0, 10))
 
@@ -1123,7 +1141,7 @@ class App(ctk.CTk):
     def _start_quiz(self, quiz: Quiz, mode: str, time_limit: int = 0, count: int = 0):
         questions = list(quiz.questions)
         if mode == "weak":
-            questions = self.sr.select_weak_questions(questions)
+            questions = self.sr.select_weak_questions(questions, quiz_weight=quiz.weight)
         elif mode == "topic" and count > 0:
             random.shuffle(questions)
             questions = questions[:count]

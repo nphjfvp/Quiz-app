@@ -188,12 +188,12 @@ class SpacedRepetition:
             counts[box] = counts.get(box, 0) + 1
         return counts
 
-    def select_weak_questions(self, questions: list[Question], count: int = 20) -> list[Question]:
+    def select_weak_questions(self, questions: list[Question], count: int = 20,
+                              quiz_weight: float = 1.0) -> list[Question]:
         weighted = []
         for q in questions:
             box = self.get_box(q.id)
-            # lower box = more repetitions; multiply by per-question importance
-            reps = max(1, int(round((6 - box) * getattr(q, "weight", 1.0))))
+            reps = max(1, int(round((6 - box) * getattr(q, "weight", 1.0) * quiz_weight)))
             weighted.extend([q] * reps)
         random.shuffle(weighted)
         seen = set()
@@ -268,7 +268,7 @@ class DeadlinePlanner:
             box = self.sr.get_box(q.id)
             if box < 5:
                 not_mastered += 1
-                reps_needed += (5 - box) * getattr(q, "weight", 1.0)
+                reps_needed += (5 - box) * getattr(q, "weight", 1.0) * getattr(quiz, "weight", 1.0)
 
         if not_mastered == 0:
             # everything already mastered → nothing to do today
