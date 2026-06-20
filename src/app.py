@@ -875,11 +875,128 @@ class App(ctk.CTk):
 
     def _file_dialog_with_pdf(self):
         return filedialog.askopenfilename(filetypes=[
-            ("Dokumente", "*.pdf *.txt *.md *.csv"),
+            ("Dokumente", "*.pdf *.pptx *.docx *.txt *.md *.csv *.png *.jpg"),
             ("PDF", "*.pdf"),
+            ("PowerPoint", "*.pptx"),
+            ("Word", "*.docx"),
+            ("Bilder", "*.png *.jpg *.jpeg"),
             ("Text", "*.txt *.md"),
             ("Alle", "*.*"),
         ])
+
+    def _build_model_selector(self, parent, row_start: int) -> tuple:
+        """Build model dropdown with recommendations. Returns (model_var, next_row)."""
+        from .ai_service import AIService
+        models = AIService.RECOMMENDED_MODELS
+
+        ctk.CTkLabel(parent, text=t("ai.model_select"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=row_start, column=0, sticky="w", pady=(15, 5))
+
+        rec_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        rec_frame.grid(row=row_start + 1, column=0, sticky="w", pady=(0, 5))
+        tags = {"Genauigkeit": t("ai.rec_accuracy"), "Geschwindigkeit": t("ai.rec_speed"), "Kosten": t("ai.rec_cost")}
+        tag_colors = {"Genauigkeit": COLORS["success"], "Geschwindigkeit": COLORS["primary"], "Kosten": COLORS["warning"]}
+        for i, m in enumerate(models[:3]):
+            tag_text = tags.get(m["tag"], m["tag"])
+            color = tag_colors.get(m["tag"], COLORS["primary"])
+            ctk.CTkLabel(rec_frame, text=f"{'🎯' if i==0 else '⚡' if i==1 else '💰'} {tag_text}: {m['name']}",
+                        font=("Arial", 11), text_color=color,
+                        ).grid(row=0, column=i, padx=(0, 15))
+
+        display_names = []
+        model_id_map = {}
+        for m in models:
+            tag = f" [{tags.get(m['tag'], m['tag'])}]" if m["tag"] else ""
+            label = f"{m['name']} ({m['cost']}, {m['speed']}){tag}"
+            display_names.append(label)
+            model_id_map[label] = m["id"]
+
+        settings = self.store.load_settings()
+        current_model = settings.get("model", "deepseek/deepseek-chat")
+        current_in_list = False
+        for label, mid in model_id_map.items():
+            if mid == current_model:
+                current_in_list = True
+                break
+        if not current_in_list:
+            custom_label = f"{current_model} (aktuell)"
+            display_names.append(custom_label)
+            model_id_map[custom_label] = current_model
+
+        model_var = StringVar(value=display_names[2])  # default DeepSeek (cost)
+        for label, mid in model_id_map.items():
+            if mid == current_model:
+                model_var.set(label)
+                break
+
+        menu = ctk.CTkOptionMenu(parent, values=display_names, variable=model_var, width=450)
+        menu.grid(row=row_start + 2, column=0, sticky="w", pady=5)
+
+        return model_var, model_id_map, row_start + 3
+
+    def _build_analysis_panel(self, parent, row: int) -> ctk.CTkFrame:
+        """Build the document analysis display frame. Returns the frame."""
+        analysis_frame = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=8, border_width=1,
+                                      border_color=COLORS["primary"])
+        analysis_frame.grid(row=row, column=0, sticky="ew", pady=(10, 5))
+        analysis_frame.grid_columnconfigure(1, weight=1)
+        analysis_frame.grid_remove()
+        return analysis_frame
+
+    def _run_analysis(self, file_path: str, analysis_frame: ctk.CTkFrame):
+        """Run document analysis in background and populate the frame."""
+        for w in analysis_frame.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(analysis_frame, text=f"  {t('ai.analyzing')}", font=("Arial", 12),
+                    text_color=COLORS["text_light"]).grid(row=0, column=0, columnspan=2, padx=10, pady=8)
+        analysis_frame.grid()
+
+        def run():
+            result = self.ai.analyze_document(file_path)
+            def update():
+                for w in analysis_frame.winfo_children():
+                    w.destroy()
+                ctk.CTkLabel(analysis_frame, text=f"  {t('ai.analysis_title')}", font=("Arial", 13, "bold"),
+                            text_color=COLORS["primary"]).grid(row=0, column=0, columnspan=2, sticky="w", padx=10, pady=(8, 4))
+
+                r = 1
+                topic = result.get("topic", "Unbekannt")
+                complexity = result.get("complexity", "Unbekannt")
+                summary = result.get("summary", "")
+                subtopics = result.get("subtopics", [])
+
+                complexity_colors = {"einfach": COLORS["success"], "mittel": COLORS["warning"],
+                                     "schwer": COLORS["danger"], "sehr schwer": COLORS["danger"]}
+
+                ctk.CTkLabel(analysis_frame, text=f"{t('ai.topic')}:", font=("Arial", 12, "bold"),
+                            text_color=COLORS["text"]).grid(row=r, column=0, sticky="w", padx=(10, 5), pady=2)
+                ctk.CTkLabel(analysis_frame, text=topic, font=("Arial", 12),
+                            text_color=COLORS["text"]).grid(row=r, column=1, sticky="w", pady=2)
+                r += 1
+
+                ctk.CTkLabel(analysis_frame, text=f"{t('ai.complexity')}:", font=("Arial", 12, "bold"),
+                            text_color=COLORS["text"]).grid(row=r, column=0, sticky="w", padx=(10, 5), pady=2)
+                ctk.CTkLabel(analysis_frame, text=complexity, font=("Arial", 12),
+                            text_color=complexity_colors.get(complexity, COLORS["text"])
+                            ).grid(row=r, column=1, sticky="w", pady=2)
+                r += 1
+
+                if subtopics:
+                    ctk.CTkLabel(analysis_frame, text=f"{t('ai.subtopics')}:", font=("Arial", 12, "bold"),
+                                text_color=COLORS["text"]).grid(row=r, column=0, sticky="nw", padx=(10, 5), pady=2)
+                    ctk.CTkLabel(analysis_frame, text=", ".join(subtopics[:6]), font=("Arial", 11),
+                                text_color=COLORS["text_light"], wraplength=400
+                                ).grid(row=r, column=1, sticky="w", pady=2)
+                    r += 1
+
+                if summary:
+                    ctk.CTkLabel(analysis_frame, text=summary, font=("Arial", 11),
+                                text_color=COLORS["text_light"], wraplength=500
+                                ).grid(row=r, column=0, columnspan=2, sticky="w", padx=10, pady=(4, 8))
+
+            self.after(0, update)
+
+        threading.Thread(target=run, daemon=True).start()
 
     def show_ai_generate(self):
         self._clear_main()
@@ -901,7 +1018,7 @@ class App(ctk.CTk):
         ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
                     ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: (file_var.set(self._file_dialog_with_pdf() or ""), update_estimate())
+                     command=lambda: self._on_file_selected_gen(file_var, est_label, chunk_slider, analysis_frame)
                      ).grid(row=0, column=1)
 
         # Estimation display
@@ -909,47 +1026,53 @@ class App(ctk.CTk):
                                 text_color=COLORS["primary"])
         est_label.grid(row=3, column=0, sticky="w", pady=(8, 0))
 
+        # Analysis panel (hidden until file selected)
+        analysis_frame = self._build_analysis_panel(scroll, row=4)
+
+        # Model selector
+        model_var, model_id_map, next_row = self._build_model_selector(scroll, row_start=5)
+
         # Number of questions
         ctk.CTkLabel(scroll, text="Anzahl Fragen (ca.)", font=("Arial", 13, "bold")
-                    ).grid(row=4, column=0, sticky="w", pady=(15, 0))
+                    ).grid(row=next_row, column=0, sticky="w", pady=(15, 0))
         num_var = IntVar(value=20)
         ctk.CTkOptionMenu(scroll, values=["10", "20", "30", "50"],
                           command=lambda v: num_var.set(int(v)), width=100
-                          ).grid(row=5, column=0, sticky="w", pady=5)
+                          ).grid(row=next_row + 1, column=0, sticky="w", pady=5)
 
         # Quiz name
         ctk.CTkLabel(scroll, text="Quiz-Name", font=("Arial", 13, "bold")
-                    ).grid(row=6, column=0, sticky="w", pady=(10, 0))
+                    ).grid(row=next_row + 2, column=0, sticky="w", pady=(10, 0))
         name_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="Name für das Quiz")
-        name_entry.grid(row=7, column=0, sticky="w", pady=5)
+        name_entry.grid(row=next_row + 3, column=0, sticky="w", pady=5)
 
         # ── Slider: Kontext-Größe ──
         chunk_label = ctk.CTkLabel(scroll, text="Kontext-Größe: 6.000 Zeichen",
                                    font=("Arial", 13, "bold"), text_color=COLORS["text"])
-        chunk_label.grid(row=8, column=0, sticky="w", pady=(15, 0))
+        chunk_label.grid(row=next_row + 4, column=0, sticky="w", pady=(15, 0))
         ctk.CTkLabel(scroll, text="Wie viel Text pro API-Call gesendet wird (größer = weniger Aufrufe, aber teurer)",
                     font=("Arial", 11), text_color=COLORS["text_light"]
-                    ).grid(row=9, column=0, sticky="w")
+                    ).grid(row=next_row + 5, column=0, sticky="w")
         chunk_slider = ctk.CTkSlider(scroll, from_=2000, to=40000, number_of_steps=38, width=400)
         chunk_slider.set(6000)
         def on_chunk(v):
             chunk_label.configure(text=f"Kontext-Größe: {int(v):,} Zeichen".replace(",", "."))
             update_estimate()
         chunk_slider.configure(command=on_chunk)
-        chunk_slider.grid(row=10, column=0, sticky="w", pady=5)
+        chunk_slider.grid(row=next_row + 6, column=0, sticky="w", pady=5)
 
         # ── Slider: Temperature ──
         temp_label = ctk.CTkLabel(scroll, text="Kreativität (Temperature): 0.30",
                                   font=("Arial", 13, "bold"), text_color=COLORS["text"])
-        temp_label.grid(row=11, column=0, sticky="w", pady=(15, 0))
+        temp_label.grid(row=next_row + 7, column=0, sticky="w", pady=(15, 0))
         ctk.CTkLabel(scroll, text="Niedrig = präziser, Hoch = kreativer/vielfältiger",
                     font=("Arial", 11), text_color=COLORS["text_light"]
-                    ).grid(row=12, column=0, sticky="w")
+                    ).grid(row=next_row + 8, column=0, sticky="w")
         temp_slider = ctk.CTkSlider(scroll, from_=0, to=1.0, number_of_steps=20, width=400)
         temp_slider.set(0.3)
         temp_slider.configure(command=lambda v: temp_label.configure(
             text=f"Kreativität (Temperature): {v:.2f}"))
-        temp_slider.grid(row=13, column=0, sticky="w", pady=5)
+        temp_slider.grid(row=next_row + 9, column=0, sticky="w", pady=5)
 
         def update_estimate():
             path = file_var.get()
@@ -972,9 +1095,9 @@ class App(ctk.CTk):
 
         # Progress
         progress_label = ctk.CTkLabel(scroll, text="", font=("Arial", 12), text_color=COLORS["primary"])
-        progress_label.grid(row=14, column=0, sticky="w", pady=10)
+        progress_label.grid(row=next_row + 10, column=0, sticky="w", pady=10)
         progress_bar = ctk.CTkProgressBar(scroll, width=400)
-        progress_bar.grid(row=15, column=0, sticky="w")
+        progress_bar.grid(row=next_row + 11, column=0, sticky="w")
         progress_bar.set(0)
 
         def generate():
@@ -985,6 +1108,8 @@ class App(ctk.CTk):
                 messagebox.showwarning("Hinweis", "Bitte zuerst API-Key in den Einstellungen speichern!")
                 return
 
+            selected_model = model_id_map.get(model_var.get(), self.ai.model)
+            self.ai.model = selected_model
             self.ai.chunk_size = int(chunk_slider.get())
             self.ai.overlap = max(500, self.ai.chunk_size // 6)
             self.ai.temperature = round(temp_slider.get(), 2)
@@ -1025,11 +1150,54 @@ class App(ctk.CTk):
             threading.Thread(target=run, daemon=True).start()
 
         btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_f.grid(row=16, column=0, sticky="w", pady=15)
+        btn_f.grid(row=next_row + 12, column=0, sticky="w", pady=15)
         ctk.CTkButton(btn_f, text="Fragen generieren", fg_color=COLORS["success"],
                      command=generate).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_f, text="Zurück", fg_color=COLORS["text_light"],
                      command=self.show_home).grid(row=0, column=1)
+
+    def _on_file_selected_gen(self, file_var, est_label, chunk_slider, analysis_frame):
+        path = self._file_dialog_with_pdf()
+        if not path:
+            return
+        file_var.set(path)
+        self.ai.chunk_size = int(chunk_slider.get())
+        self.ai.overlap = max(500, self.ai.chunk_size // 6)
+        try:
+            est = self.ai.estimate_processing(path, mode="generate")
+            size_kb = est["file_size"] / 1024
+            mins = est["est_total_seconds"] // 60
+            secs = est["est_total_seconds"] % 60
+            est_label.configure(
+                text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
+                     f"{est['num_chunks']} Chunks (sequentiell) · "
+                     f"ca. {mins}:{secs:02d} min".replace(",", "."))
+        except Exception:
+            est_label.configure(text="Schätzung nicht möglich")
+        if self.ai.api_key:
+            self._run_analysis(path, analysis_frame)
+
+    def _on_file_selected_imp(self, file_var, est_label, chunk_slider, analysis_frame):
+        path = self._file_dialog_with_pdf()
+        if not path:
+            return
+        file_var.set(path)
+        self.ai.chunk_size = int(chunk_slider.get())
+        self.ai.overlap = max(500, self.ai.chunk_size // 6)
+        try:
+            est = self.ai.estimate_processing(path, mode="import")
+            size_kb = est["file_size"] / 1024
+            mins = est["est_total_seconds"] // 60
+            secs = est["est_total_seconds"] % 60
+            par_text = "parallel" if est["parallel"] else "sequentiell"
+            est_label.configure(
+                text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
+                     f"{est['num_chunks']} Chunks ({par_text}) · "
+                     f"ca. {mins}:{secs:02d} min".replace(",", "."))
+        except Exception:
+            est_label.configure(text="Schätzung nicht möglich")
+        if self.ai.api_key:
+            self._run_analysis(path, analysis_frame)
 
     # ── AI IMPORT ──
 
@@ -1052,7 +1220,7 @@ class App(ctk.CTk):
         ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
                     ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: (file_var.set(self._file_dialog_with_pdf() or ""), update_estimate())
+                     command=lambda: self._on_file_selected_imp(file_var, est_label, chunk_slider, analysis_frame)
                      ).grid(row=0, column=1)
 
         # Estimation
@@ -1060,32 +1228,38 @@ class App(ctk.CTk):
                                 text_color=COLORS["primary"])
         est_label.grid(row=3, column=0, sticky="w", pady=(8, 0))
 
+        # Analysis panel
+        analysis_frame = self._build_analysis_panel(scroll, row=4)
+
+        # Model selector
+        model_var, model_id_map, next_row = self._build_model_selector(scroll, row_start=5)
+
         ctk.CTkLabel(scroll, text="Quiz-Name", font=("Arial", 13, "bold")
-                    ).grid(row=4, column=0, sticky="w", pady=(15, 0))
+                    ).grid(row=next_row, column=0, sticky="w", pady=(15, 0))
         name_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="Name für das importierte Quiz")
-        name_entry.grid(row=5, column=0, sticky="w", pady=5)
+        name_entry.grid(row=next_row + 1, column=0, sticky="w", pady=5)
 
         # ── Slider: Kontext-Größe ──
         chunk_label = ctk.CTkLabel(scroll, text="Kontext-Größe: 6.000 Zeichen",
                                    font=("Arial", 13, "bold"), text_color=COLORS["text"])
-        chunk_label.grid(row=6, column=0, sticky="w", pady=(15, 0))
+        chunk_label.grid(row=next_row + 2, column=0, sticky="w", pady=(15, 0))
         chunk_slider = ctk.CTkSlider(scroll, from_=2000, to=40000, number_of_steps=38, width=400)
         chunk_slider.set(6000)
         def on_chunk_import(v):
             chunk_label.configure(text=f"Kontext-Größe: {int(v):,} Zeichen".replace(",", "."))
             update_estimate()
         chunk_slider.configure(command=on_chunk_import)
-        chunk_slider.grid(row=7, column=0, sticky="w", pady=5)
+        chunk_slider.grid(row=next_row + 3, column=0, sticky="w", pady=5)
 
         # ── Slider: Temperature ──
         temp_label = ctk.CTkLabel(scroll, text="Kreativität (Temperature): 0.30",
                                   font=("Arial", 13, "bold"), text_color=COLORS["text"])
-        temp_label.grid(row=8, column=0, sticky="w", pady=(15, 0))
+        temp_label.grid(row=next_row + 4, column=0, sticky="w", pady=(15, 0))
         temp_slider = ctk.CTkSlider(scroll, from_=0, to=1.0, number_of_steps=20, width=400)
         temp_slider.set(0.3)
         temp_slider.configure(command=lambda v: temp_label.configure(
             text=f"Kreativität (Temperature): {v:.2f}"))
-        temp_slider.grid(row=9, column=0, sticky="w", pady=5)
+        temp_slider.grid(row=next_row + 5, column=0, sticky="w", pady=5)
 
         def update_estimate():
             path = file_var.get()
@@ -1108,9 +1282,9 @@ class App(ctk.CTk):
                 est_label.configure(text="Schätzung nicht möglich")
 
         progress_label = ctk.CTkLabel(scroll, text="", font=("Arial", 12), text_color=COLORS["primary"])
-        progress_label.grid(row=10, column=0, sticky="w", pady=10)
+        progress_label.grid(row=next_row + 6, column=0, sticky="w", pady=10)
         progress_bar = ctk.CTkProgressBar(scroll, width=400)
-        progress_bar.grid(row=11, column=0, sticky="w")
+        progress_bar.grid(row=next_row + 7, column=0, sticky="w")
         progress_bar.set(0)
 
         def do_import():
@@ -1121,6 +1295,8 @@ class App(ctk.CTk):
                 messagebox.showwarning("Hinweis", "Bitte zuerst API-Key in den Einstellungen speichern!")
                 return
 
+            selected_model = model_id_map.get(model_var.get(), self.ai.model)
+            self.ai.model = selected_model
             self.ai.chunk_size = int(chunk_slider.get())
             self.ai.overlap = max(500, self.ai.chunk_size // 6)
             self.ai.temperature = round(temp_slider.get(), 2)
@@ -1161,7 +1337,7 @@ class App(ctk.CTk):
             threading.Thread(target=run, daemon=True).start()
 
         btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_f.grid(row=12, column=0, sticky="w", pady=15)
+        btn_f.grid(row=next_row + 8, column=0, sticky="w", pady=15)
         ctk.CTkButton(btn_f, text="Fragen importieren", fg_color=COLORS["success"],
                      command=do_import).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_f, text="Zurück", fg_color=COLORS["text_light"],

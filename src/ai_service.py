@@ -327,6 +327,57 @@ class AIService:
                 break
         return chunks
 
+    # ── Model Recommendations ──
+
+    RECOMMENDED_MODELS = [
+        {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "tag": "Genauigkeit", "cost": "$$$", "speed": "mittel"},
+        {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "tag": "Geschwindigkeit", "cost": "$", "speed": "schnell"},
+        {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3", "tag": "Kosten", "cost": "$", "speed": "mittel"},
+        {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "tag": "", "cost": "$", "speed": "schnell"},
+        {"id": "openai/gpt-4o", "name": "GPT-4o", "tag": "", "cost": "$$", "speed": "mittel"},
+        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "tag": "", "cost": "$", "speed": "schnell"},
+        {"id": "meta-llama/llama-3.3-70b-instruct", "name": "Llama 3.3 70B", "tag": "", "cost": "$", "speed": "mittel"},
+        {"id": "mistralai/mistral-large-2411", "name": "Mistral Large", "tag": "", "cost": "$$", "speed": "mittel"},
+    ]
+
+    def analyze_document(self, file_path: str) -> dict:
+        """Quick analysis of document: topic, complexity, language.
+        Returns {topic, complexity, language, summary, num_pages_or_slides}."""
+        try:
+            text = self._read_file_as_text(file_path)
+        except Exception as e:
+            return {"topic": "Unbekannt", "complexity": "Unbekannt", "summary": str(e)}
+
+        sample = text[:3000]
+        messages = [
+            {"role": "system", "content": (
+                "Analysiere das folgende Dokument-Snippet und gib eine kurze Einschätzung. "
+                "Antworte NUR mit diesem JSON-Format:\n"
+                '{"topic": "Hauptthema (z.B. Werkstoffkunde, Mathematik, BWL)", '
+                '"subtopics": ["Unterthema1", "Unterthema2"], '
+                '"complexity": "einfach|mittel|schwer|sehr schwer", '
+                '"language": "de|en|other", '
+                '"summary": "1-2 Sätze Zusammenfassung"}'
+            )},
+            {"role": "user", "content": f"Dokument-Anfang:\n\n{sample}"},
+        ]
+        response = self._call_api(messages, max_tokens=256, temperature=0.0)
+        if not response or response.startswith("ERROR:"):
+            return {"topic": "Unbekannt", "complexity": "Unbekannt", "summary": "Analyse nicht möglich"}
+        try:
+            raw = response.strip()
+            if "```json" in raw:
+                raw = raw.split("```json")[1].split("```")[0]
+            elif "```" in raw:
+                raw = raw.split("```")[1].split("```")[0]
+            brace_s = raw.find("{")
+            brace_e = raw.rfind("}") + 1
+            if brace_s != -1 and brace_e > 0:
+                return json.loads(raw[brace_s:brace_e])
+        except (json.JSONDecodeError, KeyError):
+            pass
+        return {"topic": "Unbekannt", "complexity": "Unbekannt", "summary": response[:200]}
+
     def estimate_processing(self, file_path: str, mode: str = "generate") -> dict:
         """Estimate processing time before starting.
         Returns {file_size, text_length, num_chunks, est_seconds_per_chunk,
