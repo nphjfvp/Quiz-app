@@ -1,5 +1,6 @@
 """Main application UI using CustomTkinter."""
 
+import os
 import random
 import threading
 import time
@@ -8,6 +9,12 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, StringVar, IntVar, BooleanVar
 import tkinter as tk
 import customtkinter as ctk
+
+try:
+    from PIL import Image, ImageTk
+except ImportError:
+    Image = None
+    ImageTk = None
 
 from .models import (
     Quiz, Question, QuestionType, Option, DragDropPair, DiagramLabel, DataStore
@@ -378,8 +385,11 @@ class App(ctk.CTk):
             "Drag & Drop (Zuordnung)": QuestionType.DRAG_DROP.value,
             "Diagramm beschriften": QuestionType.DIAGRAM_LABEL.value,
         }
+        def on_type_change(v):
+            type_var.set(type_options[v])
+            rebuild_options()
         type_menu = ctk.CTkOptionMenu(scroll, values=list(type_options.keys()),
-                                       command=lambda v: type_var.set(type_options[v]), width=250)
+                                       command=on_type_change, width=250)
         reverse_types = {v: k for k, v in type_options.items()}
         type_menu.set(reverse_types.get(question.question_type.value, "Single Choice"))
         type_menu.grid(row=2, column=0, sticky="w", pady=(3, 10))
@@ -405,12 +415,23 @@ class App(ctk.CTk):
         if question.topic:
             topic_entry.insert(0, question.topic)
 
-        # Points
-        ctk.CTkLabel(scroll, text="Punkte", font=("Arial", 13, "bold")).grid(row=9, column=0, sticky="w")
+        # Points + Weight
+        meta = ctk.CTkFrame(scroll, fg_color="transparent")
+        meta.grid(row=9, column=0, sticky="w", pady=(3, 10))
+        ctk.CTkLabel(meta, text="Punkte", font=("Arial", 13, "bold")).grid(row=0, column=0, padx=(0, 8))
         points_var = IntVar(value=question.points)
-        ctk.CTkOptionMenu(scroll, values=["1", "2", "3", "4", "5"],
-                          command=lambda v: points_var.set(int(v)), width=80
-                          ).grid(row=10, column=0, sticky="w", pady=(3, 10))
+        points_menu = ctk.CTkOptionMenu(meta, values=["1", "2", "3", "4", "5"],
+                                        command=lambda v: points_var.set(int(v)), width=70)
+        points_menu.set(str(question.points))
+        points_menu.grid(row=0, column=1, padx=(0, 25))
+
+        weight_label = ctk.CTkLabel(meta, text=f"Wichtigkeit: {question.weight:.1f}x",
+                                    font=("Arial", 13, "bold"), text_color=COLORS["text"])
+        weight_label.grid(row=0, column=2, padx=(0, 8))
+        weight_slider = ctk.CTkSlider(meta, from_=1.0, to=5.0, number_of_steps=8, width=180)
+        weight_slider.set(question.weight)
+        weight_slider.configure(command=lambda v: weight_label.configure(text=f"Wichtigkeit: {v:.1f}x"))
+        weight_slider.grid(row=0, column=3)
 
         # Type-specific fields
         specific_frame = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -498,20 +519,88 @@ class App(ctk.CTk):
             elif qt == QuestionType.DIAGRAM_LABEL.value:
                 ctk.CTkLabel(specific_frame, text="Diagramm-Bild (optional)",
                            font=("Arial", 13, "bold")).grid(row=0, column=0, sticky="w")
-                img_entry = ctk.CTkEntry(specific_frame, width=400, placeholder_text="Pfad zum Bild")
-                img_entry.grid(row=1, column=0, sticky="w", pady=3)
+                img_row = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                img_row.grid(row=1, column=0, sticky="w", pady=3)
+                img_entry = ctk.CTkEntry(img_row, width=340, placeholder_text="Pfad zum Bild")
+                img_entry.grid(row=0, column=0, padx=(0, 8))
                 if question.diagram_image_path:
                     img_entry.insert(0, question.diagram_image_path)
-                ctk.CTkButton(specific_frame, text="Durchsuchen", width=100,
-                            command=lambda: self._browse_image(img_entry)).grid(row=1, column=0, sticky="e", padx=5)
-                ctk.CTkLabel(specific_frame, text="Labels (Name, X-Position %, Y-Position %, je Zeile)",
-                           font=("Arial", 13, "bold")).grid(row=2, column=0, sticky="w", pady=(10, 0))
-                labels_box = ctk.CTkTextbox(specific_frame, width=400, height=80)
-                labels_box.grid(row=3, column=0, sticky="w", pady=5)
-                if question.diagram_labels:
-                    lines = [f"{l.label}, {l.x}, {l.y}" for l in question.diagram_labels]
-                    labels_box.insert("1.0", "\n".join(lines))
-                options_widgets.append(("diagram", img_entry, labels_box))
+
+                # position state: {label_name: [x_frac, y_frac]}
+                positions = {l.label: [l.x, l.y] for l in question.diagram_labels}
+
+                ctk.CTkLabel(specific_frame,
+                           text="Ziehe die Labels an die richtige Stelle im Diagramm:",
+                           font=("Arial", 12), text_color=COLORS["text_light"]
+                           ).grid(row=2, column=0, sticky="w", pady=(10, 2))
+
+                canvas_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                canvas_holder.grid(row=3, column=0, sticky="w", pady=5)
+
+                chip_list_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                chip_list_holder.grid(row=4, column=0, sticky="w", pady=(4, 0))
+
+                def reload_diagram_canvas():
+                    for w in canvas_holder.winfo_children():
+                        w.destroy()
+                    for w in chip_list_holder.winfo_children():
+                        w.destroy()
+                    photo, cw, ch = self._load_diagram_image(img_entry.get().strip())
+                    canvas = tk.Canvas(canvas_holder, width=cw, height=ch, bg="white",
+                                       highlightthickness=1, highlightbackground="#cccccc")
+                    canvas.grid(row=0, column=0)
+                    if photo:
+                        canvas.create_image(0, 0, anchor="nw", image=photo)
+                        canvas.image = photo  # keep reference
+
+                    for name, (fx, fy) in positions.items():
+                        cx, cy = fx * cw, fy * ch
+
+                        def make_drop(nm):
+                            def on_drop(px, py):
+                                positions[nm] = [max(0.0, min(1.0, px / cw)),
+                                                 max(0.0, min(1.0, py / ch))]
+                            return on_drop
+                        self._make_draggable_chip(canvas, cx, cy, name, make_drop(name))
+
+                    # removable list of labels
+                    for i, name in enumerate(list(positions.keys())):
+                        chip = ctk.CTkFrame(chip_list_holder, fg_color="#e8f0fe", corner_radius=12)
+                        chip.grid(row=0, column=i, padx=3)
+                        ctk.CTkLabel(chip, text=name, font=("Arial", 11),
+                                    text_color=COLORS["primary"]).grid(row=0, column=0, padx=(8, 2), pady=2)
+
+                        def remove(nm=name):
+                            positions.pop(nm, None)
+                            reload_diagram_canvas()
+                        ctk.CTkButton(chip, text="✕", width=22, height=22, fg_color=COLORS["danger"],
+                                     command=remove).grid(row=0, column=1, padx=(0, 4), pady=2)
+
+                def browse_and_reload():
+                    self._browse_image(img_entry)
+                    reload_diagram_canvas()
+                ctk.CTkButton(img_row, text="Durchsuchen", width=100,
+                            command=browse_and_reload).grid(row=0, column=1, padx=(0, 6))
+                ctk.CTkButton(img_row, text="Bild laden", width=90, fg_color=COLORS["text_light"],
+                            command=reload_diagram_canvas).grid(row=0, column=2)
+
+                # add new label
+                add_row = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                add_row.grid(row=5, column=0, sticky="w", pady=(8, 0))
+                new_label_entry = ctk.CTkEntry(add_row, width=220, placeholder_text="Neues Label (z.B. Rm)")
+                new_label_entry.grid(row=0, column=0, padx=(0, 8))
+
+                def add_label():
+                    nm = new_label_entry.get().strip()
+                    if nm and nm not in positions:
+                        positions[nm] = [0.5, 0.5]
+                        new_label_entry.delete(0, "end")
+                        reload_diagram_canvas()
+                ctk.CTkButton(add_row, text="+ Label", width=90, fg_color=COLORS["success"],
+                             command=add_label).grid(row=0, column=1)
+
+                reload_diagram_canvas()
+                options_widgets.append(("diagram", img_entry, lambda: positions))
 
         def add_option():
             sync_options()
@@ -552,6 +641,7 @@ class App(ctk.CTk):
             question.text = text_box.get("1.0", "end-1c").strip()
             question.topic = topic_entry.get().strip()
             question.points = points_var.get()
+            question.weight = round(weight_slider.get(), 1)
             question.explanation = expl_box.get("1.0", "end-1c").strip()
 
             if qt in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
@@ -580,16 +670,11 @@ class App(ctk.CTk):
                 for item in options_widgets:
                     if item[0] == "diagram":
                         question.diagram_image_path = item[1].get().strip()
-                        labels_text = item[2].get("1.0", "end-1c").strip()
-                        labels = []
-                        for line in labels_text.split("\n"):
-                            parts = [p.strip() for p in line.split(",")]
-                            if len(parts) >= 3:
-                                try:
-                                    labels.append(DiagramLabel(label=parts[0], x=float(parts[1]), y=float(parts[2])))
-                                except ValueError:
-                                    pass
-                        question.diagram_labels = labels
+                        positions = item[2]()  # {label: [x_frac, y_frac]}
+                        question.diagram_labels = [
+                            DiagramLabel(label=name, x=round(coord[0], 4), y=round(coord[1], 4))
+                            for name, coord in positions.items()
+                        ]
 
             if not question.text:
                 messagebox.showwarning("Hinweis", "Bitte Fragentext eingeben!")
@@ -613,6 +698,48 @@ class App(ctk.CTk):
         if path:
             entry.delete(0, "end")
             entry.insert(0, path)
+
+    def _load_diagram_image(self, image_path, max_w=520, max_h=360):
+        """Load and scale a diagram image. Returns (PhotoImage|None, width, height)."""
+        if image_path and os.path.exists(image_path) and Image is not None:
+            try:
+                img = Image.open(image_path)
+                img.thumbnail((max_w, max_h))
+                return ImageTk.PhotoImage(img), img.width, img.height
+            except Exception:
+                pass
+        return None, max_w, max_h
+
+    def _make_draggable_chip(self, canvas, x, y, text, on_drop):
+        """Create a draggable label chip (rectangle + text) on a canvas.
+        on_drop(center_x, center_y) is called after each drag release."""
+        tag = f"chip{id(text)}_{random.randint(0, 1_000_000)}"
+        tid = canvas.create_text(x, y, text=text, font=("Arial", 10, "bold"),
+                                 fill="white", tags=(tag,))
+        bb = canvas.bbox(tid)
+        pad = 6
+        rid = canvas.create_rectangle(bb[0] - pad, bb[1] - pad, bb[2] + pad, bb[3] + pad,
+                                      fill="#2980b9", outline="#1a5276", width=2, tags=(tag,))
+        canvas.tag_lower(rid, tid)
+        state = {"x": 0, "y": 0}
+
+        def press(e):
+            state["x"], state["y"] = e.x, e.y
+
+        def motion(e):
+            canvas.move(tag, e.x - state["x"], e.y - state["y"])
+            state["x"], state["y"] = e.x, e.y
+
+        def release(e):
+            box = canvas.bbox(tag)
+            cx = (box[0] + box[2]) / 2
+            cy = (box[1] + box[3]) / 2
+            on_drop(cx, cy)
+
+        canvas.tag_bind(tag, "<Button-1>", press)
+        canvas.tag_bind(tag, "<B1-Motion>", motion)
+        canvas.tag_bind(tag, "<ButtonRelease-1>", release)
+        return tag
 
     # ── AI GENERATE ──
 
@@ -1061,6 +1188,7 @@ class App(ctk.CTk):
 
         answer_var = None
         answer_widgets = []
+        diagram_get_positions = None
 
         if q.question_type == QuestionType.SINGLE_CHOICE:
             answer_var = IntVar(value=-1)
@@ -1112,20 +1240,43 @@ class App(ctk.CTk):
                 answer_widgets.append((pair.target, menu))
 
         elif q.question_type == QuestionType.DIAGRAM_LABEL:
-            ctk.CTkLabel(answer_frame, text="Ordne die Labels zu:",
+            ctk.CTkLabel(answer_frame, text="Ziehe die Labels an die richtige Stelle im Diagramm:",
                         font=("Arial", 12, "bold"), text_color=COLORS["text"]
                         ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
-            labels = [l.label for l in q.diagram_labels]
-            random.shuffle(labels)
-            for i, dl in enumerate(q.diagram_labels):
-                f = ctk.CTkFrame(answer_frame, fg_color="transparent")
-                f.grid(row=i + 1, column=0, padx=20, pady=5, sticky="w")
-                ctk.CTkLabel(f, text=f"Position {i+1}:", font=("Arial", 12),
-                            width=150, anchor="w").grid(row=0, column=0, padx=(0, 10))
-                menu = ctk.CTkOptionMenu(f, values=["-- Auswählen --"] + labels, width=200)
-                menu.set("-- Auswählen --")
-                menu.grid(row=0, column=1)
-                answer_widgets.append((dl.label, menu))
+
+            photo, cw, ch = self._load_diagram_image(q.diagram_image_path)
+            pool_h = 55
+            canvas = tk.Canvas(answer_frame, width=cw, height=ch + pool_h, bg="white",
+                               highlightthickness=1, highlightbackground="#cccccc")
+            canvas.grid(row=1, column=0, padx=20, pady=(0, 12))
+            if photo:
+                canvas.create_image(0, 0, anchor="nw", image=photo)
+                canvas.image = photo
+            # divider line between diagram and label pool
+            canvas.create_line(0, ch, cw, ch, fill="#cccccc", dash=(4, 3))
+
+            # placed[label] = [x_frac, y_frac] or None while still in pool
+            placed = {}
+            shuffled = [l.label for l in q.diagram_labels]
+            random.shuffle(shuffled)
+            spacing = max(70, cw // (len(shuffled) + 1)) if shuffled else 70
+            for i, name in enumerate(shuffled):
+                placed[name] = None
+                start_x = spacing * (i + 1)
+                start_y = ch + pool_h / 2
+
+                def make_drop(nm):
+                    def on_drop(px, py):
+                        if py < ch:  # dropped onto the diagram
+                            placed[nm] = [max(0.0, min(1.0, px / cw)),
+                                          max(0.0, min(1.0, py / ch))]
+                        else:  # back in the pool → unplaced
+                            placed[nm] = None
+                    return on_drop
+                self._make_draggable_chip(canvas, start_x, start_y, name, make_drop(name))
+
+            def diagram_get_positions():
+                return {k: v for k, v in placed.items() if v is not None}
 
         # Feedback area (for single mode)
         feedback_frame = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -1140,13 +1291,15 @@ class App(ctk.CTk):
                 return answer_widgets[0].get()
             elif q.question_type == QuestionType.FILL_BLANK:
                 return [e.get() for e in answer_widgets]
-            elif q.question_type in (QuestionType.DRAG_DROP, QuestionType.DIAGRAM_LABEL):
+            elif q.question_type == QuestionType.DRAG_DROP:
                 result = {}
                 for target, menu in answer_widgets:
                     val = menu.get()
                     if val != "-- Auswählen --":
                         result[target] = val
                 return result
+            elif q.question_type == QuestionType.DIAGRAM_LABEL:
+                return diagram_get_positions() if diagram_get_positions else {}
             return None
 
         def submit():

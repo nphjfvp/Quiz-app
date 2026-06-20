@@ -44,6 +44,7 @@ class Question:
     text: str = ""
     points: int = 1
     topic: str = ""
+    weight: float = 1.0
     options: list[Option] = field(default_factory=list)
     correct_text: str = ""
     blanks: list[str] = field(default_factory=list)

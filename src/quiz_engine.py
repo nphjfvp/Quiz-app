@@ -122,15 +122,23 @@ class QuizSession:
         return AnswerResult(q.id, is_correct, round(score, 1), q.points,
                           str(assignments), str({p.target: p.source for p in q.drag_drop_pairs}))
 
-    def _check_diagram_label(self, q: Question, assignments: dict[str, str]) -> AnswerResult:
+    def _check_diagram_label(self, q: Question, placements: dict, tolerance: float = 0.13) -> AnswerResult:
+        """placements: {label: [x_frac, y_frac]}. A label is correct if it was
+        dropped within `tolerance` (euclidean, fractional coords) of its target."""
         correct = 0
         for label in q.diagram_labels:
-            if assignments.get(label.label, "") == label.label:
-                correct += 1
+            pos = placements.get(label.label)
+            if pos:
+                dx = pos[0] - label.x
+                dy = pos[1] - label.y
+                if (dx * dx + dy * dy) ** 0.5 <= tolerance:
+                    correct += 1
         total = max(len(q.diagram_labels), 1)
         score = (correct / total) * q.points
         is_correct = correct == total
-        return AnswerResult(q.id, is_correct, round(score, 1), q.points, str(assignments), "")
+        correct_text = ", ".join(label.label for label in q.diagram_labels)
+        return AnswerResult(q.id, is_correct, round(score, 1), q.points,
+                          f"{correct}/{total} richtig platziert", correct_text)
 
     def submit_answer(self, user_input) -> AnswerResult:
         q = self.current_question
@@ -184,8 +192,9 @@ class SpacedRepetition:
         weighted = []
         for q in questions:
             box = self.get_box(q.id)
-            weight = 6 - box
-            weighted.extend([q] * weight)
+            # lower box = more repetitions; multiply by per-question importance
+            reps = max(1, int(round((6 - box) * getattr(q, "weight", 1.0))))
+            weighted.extend([q] * reps)
         random.shuffle(weighted)
         seen = set()
         result = []
@@ -251,18 +260,30 @@ class DeadlinePlanner:
         else:
             urgency = "relaxed"
 
-        # How many repetitions needed to move all questions to box 5
-        reps_needed = 0
-        for box in range(1, 5):
-            steps_to_5 = 5 - box
-            reps_needed += counts.get(box, 0) * steps_to_5
+        # Weighted repetitions needed to bring every question to box 5.
+        # Important questions (higher weight) count for more "work".
+        reps_needed = 0.0
+        not_mastered = 0
+        for q in questions:
+            box = self.sr.get_box(q.id)
+            if box < 5:
+                not_mastered += 1
+                reps_needed += (5 - box) * getattr(q, "weight", 1.0)
+
+        if not_mastered == 0:
+            # everything already mastered → nothing to do today
+            return DailyPlan(
+                days_remaining=days, total_questions=total, questions_today=0,
+                box_breakdown={}, readiness_pct=round(readiness, 1), urgency=urgency,
+            )
 
         effective_days = max(1, days)
 
-        # Base daily load: spread repetitions evenly
+        # Adaptive base load: total work spread over remaining days.
+        # Many open questions + few days → large; few questions + many days → small.
         base_daily = math.ceil(reps_needed / effective_days)
 
-        # Priority multipliers: when time is short, front-load weak questions
+        # Urgency front-loads weak questions when the exam is near.
         if urgency == "critical":
             multiplier = 2.0
         elif urgency == "urgent":
@@ -272,7 +293,9 @@ class DeadlinePlanner:
         else:
             multiplier = 0.8
 
-        questions_today = min(total, max(5, int(base_daily * multiplier)))
+        # Floor of 1 (not 5) so light schedules stay genuinely light;
+        # never schedule more than the questions that still need work.
+        questions_today = min(not_mastered, max(1, int(round(base_daily * multiplier))))
 
         # Box breakdown for today: prioritize low boxes
         today_breakdown = {}
