@@ -327,6 +327,41 @@ class AIService:
                 break
         return chunks
 
+    def estimate_processing(self, file_path: str, mode: str = "generate") -> dict:
+        """Estimate processing time before starting.
+        Returns {file_size, text_length, num_chunks, est_seconds_per_chunk,
+                 est_total_seconds, parallel}."""
+        import os
+        file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+        try:
+            text = self._read_file_as_text(file_path)
+        except Exception:
+            text = ""
+        text_len = len(text)
+        overlap = max(500, self.chunk_size // 6)
+        if text_len <= self.chunk_size:
+            num_chunks = 1
+        else:
+            step = max(1, self.chunk_size - overlap)
+            num_chunks = max(1, (text_len - self.chunk_size) // step + 2)
+
+        est_per_chunk = 12  # seconds, typical for a 4k-token response
+        if mode == "import":
+            parallel = min(self.max_workers, num_chunks)
+            est_total = max(est_per_chunk, (num_chunks / parallel) * est_per_chunk)
+        else:
+            parallel = 1
+            est_total = num_chunks * est_per_chunk
+
+        return {
+            "file_size": file_size,
+            "text_length": text_len,
+            "num_chunks": num_chunks,
+            "est_seconds_per_chunk": est_per_chunk,
+            "est_total_seconds": int(est_total),
+            "parallel": parallel > 1,
+        }
+
     # ── Generate: Sequential with Rolling Summary ──
 
     def generate_from_slides(self, file_path: str, num_questions: int = 20,
