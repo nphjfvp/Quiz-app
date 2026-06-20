@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from datetime import date
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Optional
@@ -127,6 +128,7 @@ class DataStore:
         self.quizzes_file = self.data_dir / "quizzes.json"
         self.progress_file = self.data_dir / "progress.json"
         self.settings_file = self.data_dir / "settings.json"
+        self.stats_file = self.data_dir / "stats.json"
 
     def load_quizzes(self) -> list[Quiz]:
         if not self.quizzes_file.exists():
@@ -162,3 +164,28 @@ class DataStore:
     def save_settings(self, settings: dict):
         with open(self.settings_file, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
+
+    # ── Study stats: a daily-aggregated log of answers ──
+
+    def load_stats(self) -> dict:
+        """Returns {date_iso: {"answered": int, "correct": int}}."""
+        if not self.stats_file.exists():
+            return {}
+        with open(self.stats_file, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+
+    def save_stats(self, stats: dict):
+        with open(self.stats_file, "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+
+    def log_answer(self, correct: bool):
+        stats = self.load_stats()
+        today = date.today().isoformat()
+        day = stats.setdefault(today, {"answered": 0, "correct": 0})
+        day["answered"] += 1
+        if correct:
+            day["correct"] += 1
+        self.save_stats(stats)
