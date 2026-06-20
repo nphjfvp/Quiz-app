@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+data/quizzes.json
+data/progress.json
+data/settings.json
+.env
