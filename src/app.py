@@ -23,6 +23,7 @@ from .models import (
 )
 from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
+from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
 from .theme import COLORS, apply_theme, is_dark
 from .i18n import t, set_language, get_language
 
@@ -50,6 +51,8 @@ class App(ctk.CTk):
         self.session: QuizSession | None = None
         self.current_quiz: Quiz | None = None
         self.timer_running = False
+        self.fsrs = FSRSScheduler()
+        self._fsrs_data: dict[str, dict] = self.store.load_fsrs()
 
         self._build_ui()
         self.show_home()
@@ -125,6 +128,8 @@ class App(ctk.CTk):
             (t("home.stats"), t("home.stats_sub"), COLORS["primary_dark"], self.show_stats),
             (t("home.pomodoro"), t("home.pomodoro_sub"), COLORS["danger"], self.show_pomodoro),
             (t("home.import_quiz"), t("home.import_quiz_sub"), COLORS["warning"], self.import_quiz_file),
+            (t("random.title"), t("random.sub"), COLORS["danger"], self.show_random_mode),
+            (t("cloze.title"), t("cloze.sub"), COLORS["success"], self.show_cloze_generator),
             (t("home.settings"), t("home.settings_sub"), COLORS["text_light"], self.show_settings),
         ]
         for idx, (title_, desc, color, command) in enumerate(cards):
@@ -277,6 +282,30 @@ class App(ctk.CTk):
         appear_row = ctk.CTkFrame(frame, fg_color="transparent")
         appear_row.grid(row=7, column=0, sticky="w", pady=(5, 15))
 
+        # Feature toggles
+        ctk.CTkLabel(frame, text="Features", font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=6, column=0, sticky="w")
+        feat_row = ctk.CTkFrame(frame, fg_color="transparent")
+        feat_row.grid(row=7, column=0, sticky="w", pady=(5, 15))
+        fsrs_switch = ctk.CTkSwitch(feat_row, text=t("settings.fsrs"))
+        fsrs_switch.grid(row=0, column=0, padx=(0, 20))
+        if settings.get("use_fsrs", False):
+            fsrs_switch.select()
+        img_switch = ctk.CTkSwitch(feat_row, text=t("settings.images"))
+        img_switch.grid(row=0, column=1, padx=(0, 20))
+        if settings.get("enable_images", False):
+            img_switch.select()
+        aival_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_validation"))
+        aival_switch.grid(row=0, column=2, padx=(0, 20))
+        if settings.get("ai_validation", False):
+            aival_switch.select()
+
+        # Appearance & language
+        ctk.CTkLabel(frame, text=t("settings.appearance"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=8, column=0, sticky="w")
+        appear_row = ctk.CTkFrame(frame, fg_color="transparent")
+        appear_row.grid(row=9, column=0, sticky="w", pady=(5, 15))
+
         dark_switch = ctk.CTkSwitch(appear_row, text=t("settings.dark_mode"))
         dark_switch.grid(row=0, column=0, padx=(0, 30))
         if is_dark():
@@ -292,6 +321,9 @@ class App(ctk.CTk):
             s = self.store.load_settings()
             s["api_key"] = api_entry.get().strip()
             s["model"] = model_entry.get().strip() or "deepseek/deepseek-chat"
+            s["use_fsrs"] = bool(fsrs_switch.get())
+            s["enable_images"] = bool(img_switch.get())
+            s["ai_validation"] = bool(aival_switch.get())
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
             self.store.save_settings(s)
@@ -305,7 +337,7 @@ class App(ctk.CTk):
             self.show_home()
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.grid(row=8, column=0, sticky="w")
+        btn_frame.grid(row=10, column=0, sticky="w")
         ctk.CTkButton(btn_frame, text=t("nav.save"), fg_color=COLORS["success"],
                      command=save).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_frame, text=t("nav.back"), fg_color=COLORS["text_light"],
@@ -507,6 +539,27 @@ class App(ctk.CTk):
         weight_slider.set(question.weight)
         weight_slider.configure(command=lambda v: weight_label.configure(text=f"Wichtigkeit: {v:.1f}x"))
         weight_slider.grid(row=0, column=3)
+
+        # Image (for all question types, toggleable)
+        settings = self.store.load_settings()
+        if settings.get("enable_images", False):
+            img_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+            img_frame.grid(row=10, column=0, sticky="w", pady=(3, 10))
+            ctk.CTkLabel(img_frame, text=t("editor.image"), font=("Arial", 13, "bold")
+                        ).grid(row=0, column=0, padx=(0, 10))
+            q_img_entry = ctk.CTkEntry(img_frame, width=340, placeholder_text="Pfad zum Bild")
+            q_img_entry.grid(row=0, column=1, padx=(0, 5))
+            if question.image_path:
+                q_img_entry.insert(0, question.image_path)
+            ctk.CTkButton(img_frame, text=t("editor.image_add"), width=100,
+                         command=lambda: self._browse_image(q_img_entry)).grid(row=0, column=2, padx=3)
+            def remove_img():
+                q_img_entry.delete(0, "end")
+            ctk.CTkButton(img_frame, text=t("editor.image_remove"), width=100,
+                         fg_color=COLORS["danger"],
+                         command=remove_img).grid(row=0, column=3, padx=3)
+        else:
+            q_img_entry = None
 
         # Type-specific fields
         specific_frame = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -718,6 +771,8 @@ class App(ctk.CTk):
             question.points = points_var.get()
             question.weight = round(weight_slider.get(), 1)
             question.explanation = expl_box.get("1.0", "end-1c").strip()
+            if q_img_entry is not None:
+                question.image_path = q_img_entry.get().strip()
 
             if qt in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
                 sync_options()
@@ -1209,8 +1264,62 @@ class App(ctk.CTk):
             ctk.CTkLabel(f, text=labels[b - 1], font=("Arial", 10),
                         text_color="white").grid(row=1, column=0, padx=10, pady=(0, 8))
 
+        # ── Grade Estimation ──
+        grade_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8,
+                                   border_width=2, border_color=COLORS["warning"])
+        grade_card.grid(row=6, column=0, sticky="ew", pady=(10, 0))
+        grade_card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(grade_card, text=t("grade.title"), font=("Arial", 14, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+
+        topic_scores = self._compute_topic_scores(quiz)
+        if topic_scores:
+            overall = sum(s for s in topic_scores.values()) / len(topic_scores) if topic_scores else 0
+            grade = self._pct_to_grade(overall)
+            ctk.CTkLabel(grade_card, text=t("grade.overall", grade=grade),
+                        font=("Arial", 18, "bold"), text_color=COLORS["warning"]
+                        ).grid(row=1, column=0, padx=15, pady=(0, 5), sticky="w")
+            topic_f = ctk.CTkFrame(grade_card, fg_color="transparent")
+            topic_f.grid(row=2, column=0, padx=15, pady=(0, 10), sticky="ew")
+            for i, (topic_name, pct) in enumerate(sorted(topic_scores.items())):
+                g = self._pct_to_grade(pct)
+                color = COLORS["success"] if pct >= 75 else COLORS["warning"] if pct >= 50 else COLORS["danger"]
+                ctk.CTkLabel(topic_f, text=f"{topic_name}: {pct:.0f}% ({g})",
+                            font=("Arial", 12), text_color=color
+                            ).grid(row=i, column=0, sticky="w", pady=1)
+        else:
+            ctk.CTkLabel(grade_card, text=t("grade.no_data"), font=("Arial", 12),
+                        text_color=COLORS["text_light"]).grid(row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+
         ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=6, column=0, sticky="w", pady=15)
+                     command=self.show_home).grid(row=7, column=0, sticky="w", pady=15)
+
+    def _compute_topic_scores(self, quiz: Quiz) -> dict[str, float]:
+        """Compute per-topic mastery % based on Leitner boxes."""
+        topic_data: dict[str, list[int]] = {}
+        for q in quiz.questions:
+            topic_name = q.topic.strip() or "Allgemein"
+            box = self.sr.get_box(q.id)
+            topic_data.setdefault(topic_name, []).append(box)
+        result = {}
+        for topic_name, boxes in topic_data.items():
+            result[topic_name] = (sum(b for b in boxes) / (len(boxes) * 5)) * 100
+        return result
+
+    @staticmethod
+    def _pct_to_grade(pct: float) -> str:
+        """Map percentage to German grade (1.0 = best, 5.0 = fail)."""
+        if pct >= 96: return "1,0"
+        if pct >= 91: return "1,3"
+        if pct >= 86: return "1,7"
+        if pct >= 81: return "2,0"
+        if pct >= 76: return "2,3"
+        if pct >= 71: return "2,7"
+        if pct >= 66: return "3,0"
+        if pct >= 61: return "3,3"
+        if pct >= 56: return "3,7"
+        if pct >= 50: return "4,0"
+        return "5,0"
 
     def _start_quiz(self, quiz: Quiz, mode: str, time_limit: int = 0, count: int = 0,
                     topic: str | None = None):
@@ -1278,6 +1387,21 @@ class App(ctk.CTk):
         ctk.CTkLabel(card, text=q.text, font=("Arial", 13), text_color=COLORS["text"],
                     wraplength=700, justify="left"
                     ).grid(row=1, column=0, padx=20, pady=(5, 15), sticky="w")
+
+        # Question image
+        if q.image_path and os.path.exists(q.image_path):
+            photo, iw, ih = self._load_diagram_image(q.image_path, max_w=600, max_h=300)
+            if photo:
+                img_lbl = ctk.CTkLabel(card, text="", image=ctk.CTkImage(
+                    light_image=Image.open(q.image_path),
+                    size=(iw, ih)
+                ) if Image else None)
+                img_lbl.grid(row=2, column=0, padx=20, pady=(0, 15))
+                if not Image:
+                    img_canvas = tk.Canvas(card, width=iw, height=ih)
+                    img_canvas.grid(row=2, column=0, padx=20, pady=(0, 15))
+                    img_canvas.create_image(0, 0, anchor="nw", image=photo)
+                    img_canvas.image = photo
 
         # Answer area
         answer_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
@@ -1376,9 +1500,25 @@ class App(ctk.CTk):
             def diagram_get_positions():
                 return {k: v for k, v in placed.items() if v is not None}
 
+        # Answer timing
+        _answer_start_ms = int(time.time() * 1000)
+        use_fsrs = self.store.load_settings().get("use_fsrs", False)
+
+        # Confidence selector (FSRS)
+        confidence_var = IntVar(value=3)
+        if use_fsrs:
+            conf_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+            conf_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+            ctk.CTkLabel(conf_frame, text=t("confidence.title"), font=("Arial", 12, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(8, 3), sticky="w")
+            for ci in range(1, 5):
+                ctk.CTkRadioButton(conf_frame, text=t(f"confidence.{ci}"),
+                                   variable=confidence_var, value=ci, font=("Arial", 12)
+                                   ).grid(row=0, column=ci, padx=8, pady=8)
+
         # Feedback area (for single mode)
         feedback_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        feedback_frame.grid(row=3, column=0, sticky="ew")
+        feedback_frame.grid(row=4, column=0, sticky="ew")
 
         def get_answer():
             if q.question_type == QuestionType.SINGLE_CHOICE:
@@ -1402,9 +1542,21 @@ class App(ctk.CTk):
 
         def submit():
             answer = get_answer()
+            answer_time_ms = int(time.time() * 1000) - _answer_start_ms
             result = self.session.submit_answer(answer)
             self.sr.update(q.id, result.is_correct)
             self.store.log_answer(result.is_correct)
+
+            # FSRS update
+            if use_fsrs:
+                card_data = self._fsrs_data.get(q.id)
+                card = fsrs_from_dict(card_data) if card_data else FSRSCard(question_id=q.id)
+                conf = confidence_var.get()
+                rating = 4 if result.is_correct and conf >= 3 else 3 if result.is_correct else 2 if conf >= 2 else 1
+                card = self.fsrs.review(card, rating, answer_time_ms=answer_time_ms,
+                                        confidence=conf / 4.0)
+                self._fsrs_data[q.id] = fsrs_to_dict(card)
+                self.store.save_fsrs(self._fsrs_data)
 
             if self.session.mode in ("single", "weak"):
                 for w in feedback_frame.winfo_children():
@@ -1434,7 +1586,7 @@ class App(ctk.CTk):
 
         # Navigation
         nav = ctk.CTkFrame(scroll, fg_color="transparent")
-        nav.grid(row=4, column=0, sticky="ew", pady=15)
+        nav.grid(row=5, column=0, sticky="ew", pady=15)
 
         if self.session.current_index > 0:
             ctk.CTkButton(nav, text="< Zurück", fg_color=COLORS["text_light"], width=100,
@@ -1537,6 +1689,68 @@ class App(ctk.CTk):
                      ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_f, text=t("nav.back_menu"), fg_color=COLORS["primary"],
                      command=self.show_home).grid(row=0, column=1)
+
+        # AI Summary area
+        ai_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        ai_frame.grid(row=3 + len(self.session.questions), column=0, sticky="ew", pady=(0, 10))
+        ai_frame.grid_columnconfigure(0, weight=1)
+
+        summary_box = ctk.CTkTextbox(ai_frame, width=700, height=200, state="disabled")
+
+        def gen_summary():
+            results_data = []
+            for q2 in self.session.questions:
+                r = self.session.answers.get(q2.id)
+                results_data.append({
+                    "question": q2.title or q2.text[:80],
+                    "topic": q2.topic,
+                    "user_answer": r.user_answer if r else "",
+                    "correct_answer": r.correct_answer if r else "",
+                    "is_correct": r.is_correct if r else False,
+                })
+            summary_label.configure(text=t("summary.loading"))
+            def _run():
+                text = self.ai.generate_summary(results_data)
+                self.after(0, lambda: _show_summary(text))
+            def _show_summary(text):
+                summary_label.configure(text="")
+                summary_box.grid(row=2, column=0, sticky="ew", pady=5)
+                summary_box.configure(state="normal")
+                summary_box.delete("1.0", "end")
+                summary_box.insert("1.0", text)
+                summary_box.configure(state="disabled")
+            threading.Thread(target=_run, daemon=True).start()
+
+        def gen_tutor_prompt():
+            wrong = []
+            for q2 in self.session.questions:
+                r = self.session.answers.get(q2.id)
+                if r and not r.is_correct:
+                    wrong.append({
+                        "question": q2.title or q2.text[:80],
+                        "text": q2.text,
+                        "user_answer": r.user_answer,
+                        "correct_answer": r.correct_answer,
+                        "options": [o.text for o in q2.options] if q2.options else [],
+                    })
+            if not wrong:
+                messagebox.showinfo("Info", "Alles richtig — kein Tutor-Prompt nötig!")
+                return
+            prompt = self.ai.generate_tutor_prompt(wrong)
+            self.clipboard_clear()
+            self.clipboard_append(prompt)
+            messagebox.showinfo(t("summary.copy"), "Prompt in Zwischenablage kopiert!")
+
+        summary_label = ctk.CTkLabel(ai_frame, text="", font=("Arial", 12),
+                                     text_color=COLORS["text_light"])
+        summary_label.grid(row=1, column=0, sticky="w")
+
+        ai_btns = ctk.CTkFrame(ai_frame, fg_color="transparent")
+        ai_btns.grid(row=0, column=0, sticky="w")
+        ctk.CTkButton(ai_btns, text=t("summary.generate"), fg_color=COLORS["primary"],
+                     command=gen_summary).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(ai_btns, text=t("summary.prompt"), fg_color=COLORS["warning"],
+                     command=gen_tutor_prompt).grid(row=0, column=1)
 
     # ── STATISTICS DASHBOARD ──
 
@@ -1810,3 +2024,154 @@ class App(ctk.CTk):
                     text_color=COLORS["success"]).grid(row=0, column=0, pady=40)
         ctk.CTkButton(frame, text=t("nav.back_menu"), fg_color=COLORS["primary"],
                      command=self.show_home).grid(row=1, column=0)
+
+    # ── RANDOM CROSS-QUIZ MODE ──
+
+    def show_random_mode(self):
+        self._clear_main()
+        self.header_subtitle.configure(text=t("random.title"))
+        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
+        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
+        frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(frame, text=t("random.title"), font=("Arial", 22, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, pady=(0, 5))
+        ctk.CTkLabel(frame, text=t("random.sub"), font=("Arial", 13),
+                    text_color=COLORS["text_light"]).grid(row=1, column=0, pady=(0, 20))
+
+        all_questions = [q for quiz in self.quizzes for q in quiz.questions]
+        ctk.CTkLabel(frame, text=f"{len(all_questions)} Fragen verfügbar", font=("Arial", 12),
+                    text_color=COLORS["text"]).grid(row=2, column=0, pady=(0, 15))
+
+        ctk.CTkLabel(frame, text=t("random.count"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=3, column=0)
+        max_q = max(6, len(all_questions))
+        count_var = IntVar(value=min(20, max_q))
+        slider_to = min(100, max_q)
+        count_slider = ctk.CTkSlider(frame, from_=5, to=slider_to,
+                                      number_of_steps=max(1, slider_to - 5),
+                                      width=300)
+        count_slider.set(float(count_var.get()))
+        count_label = ctk.CTkLabel(frame, text=str(count_var.get()), font=("Arial", 14, "bold"),
+                                   text_color=COLORS["primary"])
+        count_label.grid(row=4, column=0, pady=(0, 5))
+        def on_count(v):
+            count_var.set(int(v))
+            count_label.configure(text=str(int(v)))
+        count_slider.configure(command=on_count)
+        count_slider.grid(row=5, column=0, pady=(0, 20))
+
+        def start():
+            if not all_questions:
+                messagebox.showinfo("Hinweis", "Keine Fragen vorhanden.")
+                return
+            n = count_var.get()
+            selected = list(all_questions)
+            random.shuffle(selected)
+            selected = selected[:n]
+            self.current_quiz = Quiz(name=t("random.title"), questions=selected)
+            self.session = QuizSession(selected, mode="single")
+            self._show_question()
+
+        ctk.CTkButton(frame, text=t("random.start"), fg_color=COLORS["success"],
+                     width=160, command=start).grid(row=6, column=0, pady=10)
+        ctk.CTkButton(frame, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     width=160, command=self.show_home).grid(row=7, column=0, pady=5)
+
+    # ── CLOZE TEXT GENERATOR ──
+
+    def show_cloze_generator(self):
+        self._clear_main()
+        self.header_subtitle.configure(text=t("cloze.title"))
+        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
+        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        scroll.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(scroll, text=t("cloze.title"), font=("Arial", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 10))
+        ctk.CTkLabel(scroll, text=t("cloze.sub"), font=("Arial", 13),
+                    text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        ctk.CTkLabel(scroll, text="Quelltext eingeben oder einfügen:", font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=2, column=0, sticky="w")
+        source_box = ctk.CTkTextbox(scroll, width=700, height=150)
+        source_box.grid(row=3, column=0, sticky="ew", pady=(3, 10))
+
+        result_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        result_frame.grid(row=5, column=0, sticky="ew")
+        result_frame.grid_columnconfigure(0, weight=1)
+
+        cloze_state = {"text": "", "answers": [], "entries": []}
+
+        def generate():
+            text = source_box.get("1.0", "end-1c").strip()
+            if not text:
+                messagebox.showwarning("Hinweis", "Bitte Text eingeben!")
+                return
+            progress_lbl.configure(text=t("summary.loading"))
+            def _run():
+                cloze_text, answers = self.ai.generate_cloze_text(text, blank_pct=0.2)
+                self.after(0, lambda: _show(cloze_text, answers))
+            def _show(cloze_text, answers):
+                progress_lbl.configure(text="")
+                cloze_state["text"] = cloze_text
+                cloze_state["answers"] = answers
+                _render_cloze(cloze_text, answers)
+            threading.Thread(target=_run, daemon=True).start()
+
+        def _render_cloze(cloze_text, answers):
+            for w in result_frame.winfo_children():
+                w.destroy()
+            cloze_state["entries"] = []
+            parts = cloze_text.split("___")
+            flow = ctk.CTkFrame(result_frame, fg_color=COLORS["card"], corner_radius=8)
+            flow.grid(row=0, column=0, sticky="ew", pady=10, padx=5)
+            flow.grid_columnconfigure(0, weight=1)
+            text_row = 0
+            for i, part in enumerate(parts):
+                if part.strip():
+                    ctk.CTkLabel(flow, text=part, font=("Arial", 13), text_color=COLORS["text"],
+                                wraplength=650, justify="left"
+                                ).grid(row=text_row, column=0, sticky="w", padx=10, pady=2)
+                    text_row += 1
+                if i < len(answers):
+                    entry = ctk.CTkEntry(flow, width=180, placeholder_text=f"Lücke {i+1}")
+                    entry.grid(row=text_row, column=0, sticky="w", padx=20, pady=3)
+                    cloze_state["entries"].append(entry)
+                    text_row += 1
+
+            check_row = ctk.CTkFrame(result_frame, fg_color="transparent")
+            check_row.grid(row=1, column=0, sticky="w", pady=10)
+            ctk.CTkButton(check_row, text=t("cloze.exact_check"), fg_color=COLORS["primary"],
+                         command=lambda: check_cloze(False)).grid(row=0, column=0, padx=(0, 8))
+            if self.ai.api_key:
+                ctk.CTkButton(check_row, text=t("cloze.ai_check"), fg_color=COLORS["success"],
+                             command=lambda: check_cloze(True)).grid(row=0, column=1, padx=(0, 8))
+            ctk.CTkButton(check_row, text=t("cloze.new_version"), fg_color=COLORS["warning"],
+                         command=generate).grid(row=0, column=2)
+
+        def check_cloze(use_ai):
+            answers = cloze_state["answers"]
+            entries = cloze_state["entries"]
+            correct_count = 0
+            for i, (entry, answer) in enumerate(zip(entries, answers)):
+                user_val = entry.get().strip()
+                if use_ai and self.ai.api_key:
+                    ok = self.ai.ai_validate_answer(f"Lücke {i+1}", answer, user_val)
+                else:
+                    ok = user_val.lower() == answer.lower()
+                color = COLORS["success"] if ok else COLORS["danger"]
+                entry.configure(border_color=color)
+                if ok:
+                    correct_count += 1
+            messagebox.showinfo(t("cloze.check"),
+                              f"{correct_count}/{len(answers)} richtig!")
+
+        progress_lbl = ctk.CTkLabel(scroll, text="", font=("Arial", 12),
+                                    text_color=COLORS["text_light"])
+        progress_lbl.grid(row=4, column=0, sticky="w")
+
+        ctk.CTkButton(scroll, text=t("cloze.generate"), fg_color=COLORS["success"],
+                     command=generate).grid(row=6, column=0, sticky="w", pady=10)
+        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=7, column=0, sticky="w", pady=5)

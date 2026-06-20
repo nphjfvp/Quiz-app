@@ -46,6 +46,7 @@ class Question:
     points: int = 1
     topic: str = ""
     weight: float = 1.0
+    image_path: str = ""
     options: list[Option] = field(default_factory=list)
     correct_text: str = ""
     blanks: list[str] = field(default_factory=list)
@@ -180,6 +181,21 @@ class DataStore:
     def save_stats(self, stats: dict):
         with open(self.stats_file, "w", encoding="utf-8") as f:
             json.dump(stats, f, ensure_ascii=False, indent=2)
+
+    def load_fsrs(self) -> dict:
+        path = self.data_dir / "fsrs.json"
+        if not path.exists():
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+
+    def save_fsrs(self, data: dict):
+        path = self.data_dir / "fsrs.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
     def log_answer(self, correct: bool):
         stats = self.load_stats()
