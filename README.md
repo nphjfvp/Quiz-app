@@ -1,6 +1,6 @@
 # Lerntrainer – Quiz App
 
-Eine Desktop-Quiz-App für Klausurvorbereitung mit KI-gestützter Fragengenerierung.
+Eine Desktop- und Mobile-Quiz-App für Klausurvorbereitung mit KI-gestützter Fragengenerierung und Cloud-Sync zwischen allen Geräten.
 
 ## Features
 
@@ -9,6 +9,7 @@ Eine Desktop-Quiz-App für Klausurvorbereitung mit KI-gestützter Fragengenerier
 - **Multiple Choice** – Mehrere richtige Antworten
 - **Freitext** – Freie Texteingabe
 - **Lückentext** – Fehlende Begriffe ergänzen
+- **Mathe-Formel** – Formeleingabe mit Taschenrechner-Keypad, LaTeX-Vorschau und intelligentem Vergleich
 - **Drag & Drop** – Begriffe zuordnen
 - **Diagramm beschriften** – Labels auf Diagramme zuordnen
 
@@ -22,38 +23,88 @@ Eine Desktop-Quiz-App für Klausurvorbereitung mit KI-gestützter Fragengenerier
 - **Einzelfragen** – Sofortige Korrektur nach jeder Frage
 - **Schwächen üben** – Spaced Repetition (Leitner-System)
 - **Themen-Modus** – 20 zufällige Fragen
+- **Daily Learning** – Täglicher Lernplan basierend auf Klausurterminen
+
+### Mathe-Modus (Desktop)
+- Taschenrechner-Keypad (Ziffern, Operatoren, griechische Buchstaben, LaTeX)
+- LaTeX-Vorschau in Echtzeit
+- Zeichenfläche für Rechenwege (Stylus/Maus)
+- KI-Analyse von handschriftlichen Lösungswegen
+
+### Cloud-Sync
+Synchronisiere Quizzes und Lernfortschritt zwischen Desktop (Windows/Mac/Linux), iPhone, iPad und Android über einen gemeinsamen **Sync-Code**.
 
 ### Leitner-Box System
 Spaced Repetition mit 5 Boxen – schwache Fragen werden häufiger wiederholt.
 
-## Installation
+---
+
+## Desktop-App
+
+### Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Starten
+### Starten
 
 ```bash
 python main.py
 ```
 
-## KI-Einrichtung
+### KI-Einrichtung
 
 1. OpenRouter API-Key besorgen: https://openrouter.ai
-2. In der App unter "Einstellungen" den Key eingeben
+2. In der App unter **Einstellungen** den Key eingeben
 3. Empfohlene Modelle: `deepseek/deepseek-chat`, `google/gemini-2.5-flash`
 
-## Technologie
+### Technologie
 
 - Python 3.11+
 - CustomTkinter (moderne Tkinter-Oberfläche)
 - OpenRouter API für KI-Features
 - JSON-basierte Datenspeicherung
+- Firestore REST-API für Cloud-Sync
 
-## Geplant (nächste Schritte)
+---
 
-- Klausurvorbereitung mit automatischem Lernplan
-- Lernmodus mit Kurzfassungen zu Themen
-- PDF/PPTX-Import für Folien
-- Statistiken und Lernfortschritt über Zeit
+## Mobile-App (Expo / React Native)
+
+Die Mobile-App bietet Quiz spielen, Daily Learning, KI-Chat und Cloud-Sync auf iPhone, iPad und Android.
+
+### Voraussetzungen
+
+- [Node.js](https://nodejs.org/) (v18+)
+- [Expo Go](https://expo.dev/go) auf dem Handy/Tablet (aus App Store / Play Store)
+- Handy und PC im selben WLAN
+
+### Installation & Start
+
+```bash
+cd mobile
+npm install --legacy-peer-deps
+npx expo start
+```
+
+QR-Code mit Expo Go (Android) oder der Kamera-App (iOS) scannen.
+
+### Features
+
+- **Quiz spielen** – Alle Fragetypen (SC, MC, Freitext, Lückentext, Mathe)
+- **Daily Learning** – Täglicher Lernplan mit Klausur-Countdown
+- **KI-Chat** – Fragen stellen, Hilfe und Erklärungen bekommen
+- **Cloud-Sync** – Sync-Code eingeben → Daten mit Desktop teilen
+
+---
+
+## Cloud-Sync einrichten
+
+1. Auf jedem Gerät (Desktop + Mobile) **Einstellungen** öffnen
+2. Unter **Cloud-Sync** denselben Code eingeben (z.B. `mein-geheimer-code-2026`)
+3. Auf dem Hauptgerät: **"In Cloud hochladen"**
+4. Auf den anderen Geräten: **"Aus Cloud laden"**
+
+Danach teilen sich alle Geräte dieselben Quizzes und den Lernfortschritt.
+
+> **Hinweis:** Der Sync-Code ist wie ein Passwort – wer ihn kennt, kann auf deine Daten zugreifen. Wähle einen Code, der nicht leicht zu erraten ist.
