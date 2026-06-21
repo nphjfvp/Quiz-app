@@ -1005,6 +1005,12 @@ class App(ctk.CTk):
         math_switch.grid(row=1, column=1, padx=(0, 20), pady=(8, 0))
         if settings.get("math_mode", False):
             math_switch.select()
+        # ── EXPERIMENTAL: AI Question Creation ── START
+        ai_create_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_question_creation"))
+        ai_create_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0), columnspan=2)
+        if settings.get("ai_question_creation", False):
+            ai_create_switch.select()
+        # ── EXPERIMENTAL: AI Question Creation ── END
 
         # Appearance & language
         ctk.CTkLabel(frame, text=t("settings.appearance"), font=("Arial", 13, "bold"),
@@ -1147,6 +1153,7 @@ class App(ctk.CTk):
             s["ai_validation"] = bool(aival_switch.get())
             s["detailed_answer"] = bool(detailed_switch.get())
             s["math_mode"] = bool(math_switch.get())
+            s["ai_question_creation"] = bool(ai_create_switch.get())  # EXPERIMENTAL
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
             s["use_memory"] = bool(memory_switch.get())
@@ -1328,30 +1335,128 @@ class App(ctk.CTk):
         type_menu.set(reverse_types.get(question.question_type.value, "Single Choice"))
         type_menu.grid(row=2, column=0, sticky="w", pady=(3, 10))
 
+        # ── EXPERIMENTAL: AI Question Creation ── START
+        ai_create_enabled = self.store.load_settings().get("ai_question_creation", False)
+        if ai_create_enabled:
+            ai_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10,
+                                     border_width=2, border_color="#ff9800")
+            ai_frame.grid(row=3, column=0, sticky="ew", pady=(0, 15))
+            ai_frame.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(ai_frame, text=t("ai_create.title"),
+                        font=("Arial", 13, "bold"), text_color="#ff9800"
+                        ).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 5))
+            ai_topic_entry = ctk.CTkEntry(ai_frame, width=450,
+                                           placeholder_text=t("ai_create.topic_ph"))
+            ai_topic_entry.grid(row=1, column=0, sticky="w", padx=12, pady=(0, 5))
+            ai_context_entry = ctk.CTkEntry(ai_frame, width=450,
+                                             placeholder_text=t("ai_create.context_ph"))
+            ai_context_entry.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 5))
+            diff_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
+            diff_frame.grid(row=3, column=0, sticky="w", padx=12, pady=(0, 5))
+            ctk.CTkLabel(diff_frame, text=t("ai_create.difficulty"), font=("Arial", 11)
+                        ).grid(row=0, column=0, padx=(0, 8))
+            diff_var = StringVar(value="mittel")
+            for i, (lbl, val) in enumerate([("Leicht", "leicht"), ("Mittel", "mittel"), ("Schwer", "schwer")]):
+                ctk.CTkRadioButton(diff_frame, text=lbl, variable=diff_var, value=val,
+                                   font=("Arial", 11)).grid(row=0, column=i+1, padx=5)
+            ai_status = ctk.CTkLabel(ai_frame, text="", font=("Arial", 11),
+                                      text_color=COLORS["text_light"])
+            ai_status.grid(row=5, column=0, sticky="w", padx=12, pady=(0, 8))
+
+            def _ai_generate_question():
+                topic_text = ai_topic_entry.get().strip()
+                if not topic_text:
+                    ai_status.configure(text="Bitte Thema eingeben!", text_color=COLORS["danger"])
+                    return
+                if not self.ai.api_key:
+                    ai_status.configure(text="API-Key fehlt!", text_color=COLORS["danger"])
+                    return
+                qt = type_var.get()
+                ai_status.configure(text=t("ai_create.generating"), text_color=COLORS["primary"])
+                ai_gen_btn.configure(state="disabled")
+
+                def run():
+                    result = self.ai.generate_single_question(
+                        topic=topic_text, question_type=qt,
+                        difficulty=diff_var.get(),
+                        context=ai_context_entry.get().strip())
+
+                    def apply():
+                        ai_gen_btn.configure(state="normal")
+                        if not result:
+                            ai_status.configure(text=t("ai_create.error"), text_color=COLORS["danger"])
+                            return
+                        title_entry.delete(0, "end")
+                        title_entry.insert(0, result.get("title", ""))
+                        text_box.delete("1.0", "end")
+                        text_box.insert("1.0", result.get("text", ""))
+                        topic_entry.delete(0, "end")
+                        topic_entry.insert(0, result.get("topic", topic_text))
+                        if qt in ("single_choice", "multiple_choice") and result.get("options"):
+                            options_data.clear()
+                            for o in result["options"]:
+                                options_data.append({"text": o.get("text", ""),
+                                                     "is_correct": o.get("is_correct", False)})
+                            rebuild_options()
+                        elif qt == "free_text" and result.get("correct_text"):
+                            rebuild_options()
+                            for tag, widget in options_widgets:
+                                if tag == "free_text":
+                                    widget.delete(0, "end")
+                                    widget.insert(0, result["correct_text"])
+                        elif qt == "fill_blank" and result.get("blanks"):
+                            rebuild_options()
+                            for tag, widget in options_widgets:
+                                if tag == "blanks":
+                                    widget.delete("1.0", "end")
+                                    widget.insert("1.0", "\n".join(result["blanks"]))
+                        elif qt == "drag_drop" and result.get("drag_drop_pairs"):
+                            question.drag_drop_pairs = []
+                            for p in result["drag_drop_pairs"]:
+                                question.drag_drop_pairs.append(
+                                    DragDropPair(source=p.get("source", ""), target=p.get("target", "")))
+                            rebuild_options()
+                        if result.get("explanation"):
+                            question.explanation = result["explanation"]
+                        ai_status.configure(text=t("ai_create.success"), text_color=COLORS["success"])
+                    self.after(0, apply)
+
+                threading.Thread(target=run, daemon=True).start()
+
+            ai_gen_btn = ctk.CTkButton(ai_frame, text=t("ai_create.generate"),
+                                        fg_color="#ff9800", hover_color="#e68a00",
+                                        font=("Arial", 12, "bold"),
+                                        command=_ai_generate_question)
+            ai_gen_btn.grid(row=4, column=0, sticky="w", padx=12, pady=(0, 5))
+            current_row = 4
+        else:
+            current_row = 3
+        # ── EXPERIMENTAL: AI Question Creation ── END
+
         # Title
-        ctk.CTkLabel(scroll, text="Titel", font=("Arial", 13, "bold")).grid(row=3, column=0, sticky="w")
+        ctk.CTkLabel(scroll, text="Titel", font=("Arial", 13, "bold")).grid(row=current_row, column=0, sticky="w")
         title_entry = ctk.CTkEntry(scroll, width=500, placeholder_text="Kurztitel")
-        title_entry.grid(row=4, column=0, sticky="w", pady=(3, 10))
+        title_entry.grid(row=current_row+1, column=0, sticky="w", pady=(3, 10))
         if question.title:
             title_entry.insert(0, question.title)
 
         # Text
-        ctk.CTkLabel(scroll, text="Fragentext", font=("Arial", 13, "bold")).grid(row=5, column=0, sticky="w")
+        ctk.CTkLabel(scroll, text="Fragentext", font=("Arial", 13, "bold")).grid(row=current_row+2, column=0, sticky="w")
         text_box = ctk.CTkTextbox(scroll, width=600, height=80)
-        text_box.grid(row=6, column=0, sticky="w", pady=(3, 10))
+        text_box.grid(row=current_row+3, column=0, sticky="w", pady=(3, 10))
         if question.text:
             text_box.insert("1.0", question.text)
 
         # Topic
-        ctk.CTkLabel(scroll, text="Thema", font=("Arial", 13, "bold")).grid(row=7, column=0, sticky="w")
+        ctk.CTkLabel(scroll, text="Thema", font=("Arial", 13, "bold")).grid(row=current_row+4, column=0, sticky="w")
         topic_entry = ctk.CTkEntry(scroll, width=300, placeholder_text="z.B. Zugversuch")
-        topic_entry.grid(row=8, column=0, sticky="w", pady=(3, 10))
+        topic_entry.grid(row=current_row+5, column=0, sticky="w", pady=(3, 10))
         if question.topic:
             topic_entry.insert(0, question.topic)
 
         # Points + Weight
         meta = ctk.CTkFrame(scroll, fg_color="transparent")
-        meta.grid(row=9, column=0, sticky="w", pady=(3, 10))
+        meta.grid(row=current_row+6, column=0, sticky="w", pady=(3, 10))
         ctk.CTkLabel(meta, text="Punkte", font=("Arial", 13, "bold")).grid(row=0, column=0, padx=(0, 8))
         points_var = IntVar(value=question.points)
         points_menu = ctk.CTkOptionMenu(meta, values=["1", "2", "3", "4", "5"],
@@ -1371,7 +1476,7 @@ class App(ctk.CTk):
         settings = self.store.load_settings()
         if settings.get("enable_images", False):
             img_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-            img_frame.grid(row=10, column=0, sticky="w", pady=(3, 10))
+            img_frame.grid(row=current_row+7, column=0, sticky="w", pady=(3, 10))
             ctk.CTkLabel(img_frame, text=t("editor.image"), font=("Arial", 13, "bold")
                         ).grid(row=0, column=0, padx=(0, 10))
             q_img_entry = ctk.CTkEntry(img_frame, width=340, placeholder_text="Pfad zum Bild")
@@ -1390,7 +1495,7 @@ class App(ctk.CTk):
 
         # Type-specific fields
         specific_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        specific_frame.grid(row=11, column=0, sticky="ew", pady=10)
+        specific_frame.grid(row=current_row+8, column=0, sticky="ew", pady=10)
         specific_frame.grid_columnconfigure(0, weight=1)
 
         # Options for SC/MC
@@ -1794,9 +1899,9 @@ class App(ctk.CTk):
 
         # Explanation
         ctk.CTkLabel(scroll, text="Erklärung (optional)", font=("Arial", 13, "bold")
-                    ).grid(row=12, column=0, sticky="w")
+                    ).grid(row=current_row+9, column=0, sticky="w")
         expl_box = ctk.CTkTextbox(scroll, width=600, height=60)
-        expl_box.grid(row=13, column=0, sticky="w", pady=(3, 15))
+        expl_box.grid(row=current_row+10, column=0, sticky="w", pady=(3, 15))
         if question.explanation:
             expl_box.insert("1.0", question.explanation)
 
@@ -1868,7 +1973,7 @@ class App(ctk.CTk):
             on_done()
 
         btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_f.grid(row=14, column=0, sticky="w", pady=10)
+        btn_f.grid(row=current_row+11, column=0, sticky="w", pady=10)
         ctk.CTkButton(btn_f, text="Speichern", fg_color=COLORS["success"],
                      command=save_question).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_f, text="Abbrechen", fg_color=COLORS["text_light"],

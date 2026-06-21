@@ -1120,3 +1120,49 @@ Regeln:
             {"role": "user", "content": context},
         ]
         return self._call_api(messages, max_tokens=2048)
+
+    # ── EXPERIMENTAL: AI Question Creation ── START
+    def generate_single_question(self, topic: str, question_type: str,
+                                  difficulty: str = "mittel",
+                                  context: str = "") -> Optional[dict]:
+        type_instructions = {
+            "single_choice": "Erstelle eine Single-Choice-Frage mit genau 4 Optionen. Genau EINE ist korrekt.",
+            "multiple_choice": "Erstelle eine Multiple-Choice-Frage mit genau 4 Optionen. MEHRERE können korrekt sein.",
+            "free_text": "Erstelle eine Freitext-Frage mit einer klaren, kurzen Musterantwort.",
+            "fill_blank": "Erstelle einen Lückentext. Markiere Lücken mit ___. Gib die Lösungen an.",
+            "drag_drop": "Erstelle eine Zuordnungsaufgabe mit 4-6 Paaren (Begriff → Ziel).",
+        }
+        instruction = type_instructions.get(question_type, type_instructions["single_choice"])
+        context_part = f"\n\nZusätzlicher Kontext:\n{context}" if context else ""
+
+        messages = [
+            {"role": "system", "content": (
+                "Du bist ein Experte für Prüfungsfragen. "
+                f"Schwierigkeit: {difficulty}. "
+                f"{instruction}\n\n"
+                "Antworte AUSSCHLIESSLICH mit validem JSON (kein Markdown, keine Erklärung):\n"
+                "{\n"
+                '  "title": "Kurztitel",\n'
+                '  "text": "Vollständiger Fragentext",\n'
+                '  "topic": "Themengebiet",\n'
+                '  "options": [{"text": "...", "is_correct": true/false}, ...],  // nur bei SC/MC\n'
+                '  "correct_text": "...",  // nur bei Freitext\n'
+                '  "blanks": ["...", "..."],  // nur bei Lückentext\n'
+                '  "drag_drop_pairs": [{"source": "...", "target": "..."}, ...],  // nur bei D&D\n'
+                '  "explanation": "Kurze Erklärung der richtigen Antwort"\n'
+                "}"
+            )},
+            {"role": "user", "content": f"Thema: {topic}{context_part}"},
+        ]
+        raw = self._call_api(messages, max_tokens=1500)
+        if not raw:
+            return None
+        import json as _json
+        try:
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
+            return _json.loads(raw)
+        except _json.JSONDecodeError:
+            return None
+    # ── EXPERIMENTAL: AI Question Creation ── END
