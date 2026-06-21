@@ -2042,12 +2042,27 @@ class App(ctk.CTk):
                            ).grid(row=0, column=i, padx=(0, 12))
 
         # Number of questions
-        ctk.CTkLabel(scroll, text="Anzahl Fragen (ca.)", font=("Segoe UI", 13, "bold")
+        ctk.CTkLabel(scroll, text="Anzahl Fragen (1–500)", font=("Segoe UI", 13, "bold")
                     ).grid(row=next_row + 2, column=0, sticky="w", pady=(15, 0))
         num_var = IntVar(value=20)
-        ctk.CTkOptionMenu(scroll, values=["10", "20", "30", "50"],
-                          command=lambda v: num_var.set(int(v)), width=100
-                          ).grid(row=next_row + 3, column=0, sticky="w", pady=5)
+        num_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        num_frame.grid(row=next_row + 3, column=0, sticky="w", pady=5)
+        num_entry = ctk.CTkEntry(num_frame, width=80, font=("Segoe UI", 12),
+                                 placeholder_text="20")
+        num_entry.insert(0, "20")
+        num_entry.grid(row=0, column=0, padx=(0, 10))
+        for preset in ["10", "20", "50", "100"]:
+            ctk.CTkButton(num_frame, text=preset, width=45, height=28, fg_color=COLORS["text_light"],
+                         font=("Segoe UI", 11),
+                         command=lambda v=preset: (num_entry.delete(0, "end"), num_entry.insert(0, v))
+                         ).grid(row=0, column=int(preset) + 1, padx=2)
+
+        def _get_num():
+            try:
+                n = int(num_entry.get())
+                return max(1, min(500, n))
+            except ValueError:
+                return 20
 
         # Quiz name
         ctk.CTkLabel(scroll, text="Quiz-Name", font=("Segoe UI", 13, "bold")
@@ -2142,7 +2157,7 @@ class App(ctk.CTk):
                 selected_types = [k for k, v in qt_vars.items() if v.get()]
                 try:
                     questions = self.ai.generate_from_slides(
-                        file_var.get(), num_var.get(), progress_cb,
+                        file_var.get(), _get_num(), progress_cb,
                         question_types=selected_types or None)
                 except Exception as exc:
                     msg = str(exc)
@@ -3120,9 +3135,8 @@ class App(ctk.CTk):
                          command=lambda: (self.session.next_question(), self._show_question())
                          ).grid(row=0, column=2, padx=(0, 10))
 
-        if self.session.mode == "exam":
-            ctk.CTkButton(nav, text="Auswertung", fg_color=COLORS["danger"], width=120,
-                         command=self._show_results).grid(row=0, column=3)
+        ctk.CTkButton(nav, text="Auswertung", fg_color=COLORS["danger"], width=120,
+                     command=self._show_results).grid(row=0, column=3)
 
         # Mark button
         marked_ids = self.store.load_marked()
