@@ -4,7 +4,7 @@ import os
 import random
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from tkinter import filedialog, messagebox, StringVar, IntVar, BooleanVar
 import tkinter as tk
@@ -95,15 +95,26 @@ class App(ctk.CTk):
         self.timer_running = False
         self.timer_label.grid_forget()
 
+    def _make_screen(self, padx=20, pady=20, max_width=900):
+        """Create a centered, scrollable content area. Returns the inner frame to add widgets to."""
+        outer = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
+        outer.grid(row=0, column=0, sticky="nsew")
+        outer.grid_columnconfigure(0, weight=1)
+        outer.grid_columnconfigure(2, weight=1)
+        inner = ctk.CTkFrame(outer, fg_color="transparent", width=max_width)
+        inner.grid(row=0, column=1, sticky="n", padx=padx, pady=pady)
+        inner.grid_columnconfigure(0, weight=1)
+        inner.grid_propagate(True)
+        inner.configure(width=max_width)
+        return inner
+
     # ── HOME SCREEN ──
 
     def show_home(self):
         self._clear_main()
         self.header_subtitle.configure(text=t("app.subtitle"))
 
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         # Welcome
         welcome = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=12)
@@ -116,9 +127,27 @@ class App(ctk.CTk):
                      font=("Segoe UI", 13), text_color="#d0deff"
                      ).grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
 
+        # Daily Learning Button - prominent at top
+        daily_card = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=12)
+        daily_card.grid(row=1, column=0, sticky="ew", pady=(0, 15))
+        daily_card.grid_columnconfigure(1, weight=1)
+        daily_icon = ctk.CTkLabel(daily_card, text="📅", font=("Segoe UI", 28))
+        daily_icon.grid(row=0, column=0, rowspan=2, padx=(20, 10), pady=15)
+        ctk.CTkLabel(daily_card, text=t("daily.card_title"),
+                     font=("Segoe UI", 17, "bold"), text_color="white"
+                     ).grid(row=0, column=1, padx=5, pady=(15, 0), sticky="w")
+        ctk.CTkLabel(daily_card, text=t("daily.card_desc"),
+                     font=("Segoe UI", 12), text_color="#d0deff"
+                     ).grid(row=1, column=1, padx=5, pady=(0, 15), sticky="w")
+        ctk.CTkButton(daily_card, text=t("daily.start"), width=130, height=36,
+                     corner_radius=8, fg_color="white", text_color=COLORS["primary"],
+                     hover_color="#e0e8ff", font=("Segoe UI", 13, "bold"),
+                     command=self.show_daily
+                     ).grid(row=0, column=2, rowspan=2, padx=20, pady=15)
+
         # Actions (two rows of 4)
         actions = ctk.CTkFrame(scroll, fg_color="transparent")
-        actions.grid(row=1, column=0, sticky="ew", pady=(0, 15))
+        actions.grid(row=2, column=0, sticky="ew", pady=(0, 15))
         for i in range(4):
             actions.grid_columnconfigure(i, weight=1)
 
@@ -141,7 +170,7 @@ class App(ctk.CTk):
         if marked_ids:
             marked_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
                                        border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
-            marked_card.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+            marked_card.grid(row=3, column=0, sticky="ew", pady=(0, 15))
             marked_card.grid_columnconfigure(1, weight=1)
             accent = ctk.CTkFrame(marked_card, fg_color=COLORS["warning"], width=5, corner_radius=3)
             accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
@@ -155,9 +184,9 @@ class App(ctk.CTk):
             ctk.CTkButton(marked_card, text=t("home.open"), width=75, height=30, corner_radius=8,
                          fg_color=COLORS["warning"], font=("Segoe UI", 12, "bold"),
                          command=self.show_marked).grid(row=0, column=2, padx=10, pady=10)
-            quiz_list_start_row = 3
+            quiz_list_start_row = 4
         else:
-            quiz_list_start_row = 2
+            quiz_list_start_row = 3
 
         # Quiz list
         if self.quizzes:
@@ -241,13 +270,252 @@ class App(ctk.CTk):
             self.store.save_quizzes(self.quizzes)
             self.show_home()
 
+    # ── DAILY LEARNING ──
+
+    def show_daily(self):
+        self._clear_main()
+        self.header_subtitle.configure(text=t("daily.title"))
+        scroll = self._make_screen()
+
+        if not self.quizzes:
+            ctk.CTkLabel(scroll, text=t("daily.no_quizzes"),
+                        font=("Segoe UI", 14), text_color=COLORS["text_light"]
+                        ).grid(row=0, column=0, pady=30)
+            ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                         command=self.show_home).grid(row=1, column=0)
+            return
+
+        today = date.today().isoformat()
+        state = self.store.load_daily_state()
+
+        # Reset if new day
+        if state.get("date") != today:
+            state = self._create_daily_plan(today)
+
+        question_ids = state.get("question_ids", [])
+        completed = state.get("completed", [])
+        wrong = state.get("wrong", [])
+        quiz_plans = state.get("quiz_plans", [])
+
+        # Title
+        ctk.CTkLabel(scroll, text=t("daily.title"), font=("Segoe UI", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(scroll, text=t("daily.subtitle"), font=("Segoe UI", 13),
+                    text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        # Progress bar
+        total = len(question_ids)
+        done = len(completed)
+        progress_val = done / total if total > 0 else 0
+        prog_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+        prog_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+        prog_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(prog_frame, text=f"{t('daily.progress')}: {done}/{total}",
+                    font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                    ).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+        pbar = ctk.CTkProgressBar(prog_frame, width=500)
+        pbar.set(progress_val)
+        pbar.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+
+        # Quiz plan list
+        row = 3
+        for plan in quiz_plans:
+            pf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8,
+                             border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+            pf.grid(row=row, column=0, sticky="ew", pady=3)
+            pf.grid_columnconfigure(1, weight=1)
+            accent_color = COLORS["danger"] if plan.get("urgency", 0) > 0.7 else COLORS["primary"]
+            ctk.CTkFrame(pf, fg_color=accent_color, width=4, corner_radius=2
+                        ).grid(row=0, column=0, sticky="ns", padx=(0, 0), pady=6)
+            info_text = f"{plan['quiz_name']} ({t('daily.questions_n', n=plan['count'])})"
+            if plan.get("exam_date"):
+                try:
+                    exam_d = date.fromisoformat(plan["exam_date"])
+                    days_left = (exam_d - date.today()).days
+                    if days_left >= 0:
+                        info_text += f"  ·  {t('daily.exam_in', n=days_left)}"
+                except ValueError:
+                    pass
+            ctk.CTkLabel(pf, text=info_text, font=("Segoe UI", 12),
+                        text_color=COLORS["text"]).grid(row=0, column=1, padx=12, pady=8, sticky="w")
+            row += 1
+
+        # Determine remaining questions
+        remaining = [qid for qid in question_ids if qid not in completed]
+
+        if remaining:
+            # Start learning button
+            ctk.CTkButton(scroll, text=t("daily.start"), fg_color=COLORS["primary"],
+                         font=("Segoe UI", 14, "bold"), height=42, corner_radius=10,
+                         command=lambda: self._start_daily_session(remaining)
+                         ).grid(row=row, column=0, pady=15)
+            row += 1
+        elif done > 0:
+            # Completed!
+            done_frame = ctk.CTkFrame(scroll, fg_color=COLORS["success"], corner_radius=10)
+            done_frame.grid(row=row, column=0, sticky="ew", pady=10)
+            done_frame.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(done_frame, text=t("daily.completed"),
+                        font=("Segoe UI", 16, "bold"), text_color="white"
+                        ).grid(row=0, column=0, padx=20, pady=15)
+            row += 1
+
+            # Wrong answers review
+            if wrong:
+                ctk.CTkLabel(scroll, text=t("daily.wrong_title"),
+                            font=("Segoe UI", 15, "bold"), text_color=COLORS["text"]
+                            ).grid(row=row, column=0, sticky="w", pady=(15, 8))
+                row += 1
+
+                # Build question lookup
+                all_q = {}
+                for quiz in self.quizzes:
+                    for q in quiz.questions:
+                        all_q[q.id] = q
+
+                for wid in wrong:
+                    wq = all_q.get(wid)
+                    if not wq:
+                        continue
+                    wf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8,
+                                     border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+                    wf.grid(row=row, column=0, sticky="ew", pady=3)
+                    wf.grid_columnconfigure(0, weight=1)
+                    ctk.CTkLabel(wf, text=wq.text, font=("Segoe UI", 12),
+                                text_color=COLORS["text"], wraplength=600
+                                ).grid(row=0, column=0, padx=12, pady=(8, 3), sticky="w")
+                    # Show correct answer
+                    correct_text = ""
+                    if wq.question_type == QuestionType.SINGLE_CHOICE:
+                        correct_text = ", ".join(o.text for o in wq.options if o.is_correct)
+                    elif wq.question_type == QuestionType.MULTIPLE_CHOICE:
+                        correct_text = ", ".join(o.text for o in wq.options if o.is_correct)
+                    elif wq.question_type == QuestionType.FREE_TEXT:
+                        correct_text = wq.correct_text
+                    elif wq.question_type == QuestionType.FILL_BLANK:
+                        correct_text = ", ".join(wq.blanks)
+                    if correct_text:
+                        ctk.CTkLabel(wf, text=f"Richtig: {correct_text}",
+                                    font=("Segoe UI", 11), text_color=COLORS["success"]
+                                    ).grid(row=1, column=0, padx=12, pady=(0, 8), sticky="w")
+                    row += 1
+
+                # Retry wrong questions
+                ctk.CTkButton(scroll, text=t("daily.retry"), fg_color=COLORS["warning"],
+                             font=("Segoe UI", 13, "bold"), height=38, corner_radius=8,
+                             command=lambda: self._start_daily_session(wrong)
+                             ).grid(row=row, column=0, pady=10)
+                row += 1
+
+            # Extra learning
+            extra_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+            extra_frame.grid(row=row, column=0, sticky="ew", pady=(15, 5))
+            extra_frame.grid_columnconfigure(1, weight=1)
+            ctk.CTkLabel(extra_frame, text=t("daily.extra"),
+                        font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                        ).grid(row=0, column=0, padx=12, pady=10, sticky="w")
+            extra_entry = ctk.CTkEntry(extra_frame, width=80, placeholder_text=t("daily.extra_hint"))
+            extra_entry.grid(row=0, column=1, padx=5, pady=10)
+
+            def start_extra():
+                try:
+                    count = int(extra_entry.get())
+                except ValueError:
+                    return
+                if count <= 0:
+                    return
+                all_questions = []
+                for quiz in self.quizzes:
+                    all_questions.extend(quiz.questions)
+                random.shuffle(all_questions)
+                extra_ids = [q.id for q in all_questions[:count]]
+                self._start_daily_session(extra_ids)
+
+            ctk.CTkButton(extra_frame, text=t("daily.start"), width=100,
+                         fg_color=COLORS["primary"], command=start_extra
+                         ).grid(row=0, column=2, padx=12, pady=10)
+            row += 1
+
+        # Back button
+        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=row, column=0, pady=15)
+
+    def _create_daily_plan(self, today_str: str) -> dict:
+        today = date.fromisoformat(today_str)
+        plan_questions = []
+        quiz_plans = []
+
+        for quiz in self.quizzes:
+            if not quiz.questions:
+                continue
+            urgency = 1.0
+            if quiz.exam_date:
+                try:
+                    exam = date.fromisoformat(quiz.exam_date)
+                    days_left = (exam - today).days
+                    if days_left < 0:
+                        urgency = 0.1  # past exam
+                    else:
+                        urgency = max(0.2, 1.0 - days_left / 60)
+                except ValueError:
+                    pass
+
+            count = max(3, int(20 * quiz.weight * urgency))
+            # Prioritize weak questions
+            weak = self.sr.select_weak_questions(quiz.questions, quiz_weight=quiz.weight)
+            selected = weak[:count] if len(weak) >= count else weak + quiz.questions[:count - len(weak)]
+            # Avoid duplicates
+            seen = {q.id for q in plan_questions}
+            added = 0
+            for q in selected:
+                if q.id not in seen:
+                    plan_questions.append(q)
+                    seen.add(q.id)
+                    added += 1
+
+            quiz_plans.append({
+                "quiz_id": quiz.id,
+                "quiz_name": quiz.name,
+                "exam_date": quiz.exam_date,
+                "count": added,
+                "urgency": round(urgency, 2),
+            })
+
+        # Cap at 50
+        plan_questions = plan_questions[:50]
+
+        state = {
+            "date": today_str,
+            "question_ids": [q.id for q in plan_questions],
+            "completed": [],
+            "wrong": [],
+            "quiz_plans": quiz_plans,
+            "extra_done": False,
+        }
+        self.store.save_daily_state(state)
+        return state
+
+    def _start_daily_session(self, question_ids):
+        all_questions = {}
+        for quiz in self.quizzes:
+            for q in quiz.questions:
+                all_questions[q.id] = q
+
+        session_questions = [all_questions[qid] for qid in question_ids if qid in all_questions]
+        if not session_questions:
+            messagebox.showinfo("Hinweis", "Keine Fragen für heute!")
+            return
+
+        random.shuffle(session_questions)
+        self.session = QuizSession(session_questions, mode="single")
+        self._daily_mode = True
+        self._show_question()
+
     # ── MARKED QUESTIONS ──
 
     def show_marked(self):
         self._clear_main()
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text=t("marked.title"), font=("Segoe UI", 20, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 10))
@@ -294,9 +562,7 @@ class App(ctk.CTk):
 
     def show_marked_chat(self):
         self._clear_main()
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        frame.grid_columnconfigure(0, weight=1)
+        frame = self._make_screen()
         frame.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(frame, text=t("marked.chat"), font=("Segoe UI", 20, "bold"),
@@ -387,9 +653,7 @@ class App(ctk.CTk):
 
     def show_quick_actions_editor(self):
         self._clear_main()
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        frame = self._make_screen()
 
         ctk.CTkLabel(frame, text=t("qa.title"), font=("Segoe UI", 20, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 15))
@@ -531,9 +795,7 @@ class App(ctk.CTk):
 
     def show_settings(self):
         self._clear_main()
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        frame = self._make_screen()
 
         ctk.CTkLabel(frame, text=t("settings.title"), font=("Arial", 20, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 20))
@@ -665,9 +927,7 @@ class App(ctk.CTk):
         if quiz is None:
             quiz = Quiz(created=datetime.now().isoformat())
 
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text="Quiz bearbeiten" if editing else "Neues Quiz erstellen",
                     font=("Arial", 18, "bold"), text_color=COLORS["text"]
@@ -787,9 +1047,7 @@ class App(ctk.CTk):
         else:
             question = Question()
 
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text="Frage bearbeiten" if editing else "Neue Frage",
                     font=("Arial", 18, "bold"), text_color=COLORS["text"]
@@ -1508,9 +1766,7 @@ class App(ctk.CTk):
 
     def show_ai_generate(self):
         self._clear_main()
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=40, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text="KI-Fragengenerierung aus Vorlesungsfolien",
                     font=("Arial", 18, "bold"), text_color=COLORS["text"]
@@ -1775,9 +2031,7 @@ class App(ctk.CTk):
 
     def show_ai_import(self):
         self._clear_main()
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=40, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text="Fragen aus Dokument importieren",
                     font=("Arial", 18, "bold"), text_color=COLORS["text"]
@@ -1935,9 +2189,7 @@ class App(ctk.CTk):
         self._clear_main()
         self.current_quiz = quiz
 
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text=quiz.name, font=("Arial", 20, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
@@ -2202,9 +2454,7 @@ class App(ctk.CTk):
             text=f"Frage {current}/{total} · {q.points} Punkt{'e' if q.points > 1 else ''}"
         )
 
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=10)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         # Progress bar
         progress = ctk.CTkProgressBar(scroll, width=600)
@@ -2526,6 +2776,15 @@ class App(ctk.CTk):
             self.sr.update(q.id, result.is_correct)
             self.store.log_answer(result.is_correct)
 
+            # Daily mode tracking
+            if getattr(self, '_daily_mode', False):
+                daily = self.store.load_daily_state()
+                if q.id not in daily.get("completed", []):
+                    daily.setdefault("completed", []).append(q.id)
+                if not result.is_correct and q.id not in daily.get("wrong", []):
+                    daily.setdefault("wrong", []).append(q.id)
+                self.store.save_daily_state(daily)
+
             # FSRS update
             if use_fsrs:
                 card_data = self._fsrs_data.get(q.id)
@@ -2717,14 +2976,17 @@ class App(ctk.CTk):
     # ── RESULTS ──
 
     def _show_results(self):
+        was_daily = getattr(self, '_daily_mode', False)
+        self._daily_mode = False
         self._clear_main()
         if not self.session:
-            self.show_home()
+            if was_daily:
+                self.show_daily()
+            else:
+                self.show_home()
             return
 
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         total = self.session.total_score
         maximum = self.session.max_possible_score
@@ -2780,8 +3042,9 @@ class App(ctk.CTk):
                      command=lambda: self._start_quiz(self.current_quiz, self.session.mode,
                                                       self.session.time_limit)
                      ).grid(row=0, column=0, padx=(0, 10))
+        back_cmd = self.show_daily if was_daily else self.show_home
         ctk.CTkButton(btn_f, text=t("nav.back_menu"), fg_color=COLORS["primary"],
-                     command=self.show_home).grid(row=0, column=1)
+                     command=back_cmd).grid(row=0, column=1)
 
         # AI Summary area
         ai_frame = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -2865,9 +3128,7 @@ class App(ctk.CTk):
     def show_stats(self):
         self._clear_main()
         self.header_subtitle.configure(text=t("stats.title"))
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text=t("stats.title"), font=("Arial", 20, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 15))
@@ -2950,9 +3211,7 @@ class App(ctk.CTk):
     def show_pomodoro(self):
         self._clear_main()
         self.header_subtitle.configure(text=t("pomodoro.title"))
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        frame = self._make_screen()
 
         ctk.CTkLabel(frame, text=t("pomodoro.title"), font=("Arial", 22, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, pady=(0, 5))
@@ -3052,9 +3311,7 @@ class App(ctk.CTk):
         q = cards[idx]
         self.header_subtitle.configure(text=f"{t('modes.flashcards')} {idx + 1}/{len(cards)}")
 
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        frame = self._make_screen()
         frame.grid_rowconfigure(1, weight=1)
 
         ctk.CTkLabel(frame, text=t("flash.front"), font=("Arial", 13, "bold"),
@@ -3110,9 +3367,7 @@ class App(ctk.CTk):
 
     def _flash_done(self):
         self._clear_main()
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        frame = self._make_screen()
         ctk.CTkLabel(frame, text=t("flash.done"), font=("Arial", 22, "bold"),
                     text_color=COLORS["success"]).grid(row=0, column=0, pady=40)
         ctk.CTkButton(frame, text=t("nav.back_menu"), fg_color=COLORS["primary"],
@@ -3123,9 +3378,7 @@ class App(ctk.CTk):
     def show_random_mode(self):
         self._clear_main()
         self.header_subtitle.configure(text=t("random.title"))
-        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
-        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
-        frame.grid_columnconfigure(0, weight=1)
+        frame = self._make_screen()
 
         ctk.CTkLabel(frame, text=t("random.title"), font=("Arial", 22, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, pady=(0, 5))
@@ -3176,9 +3429,7 @@ class App(ctk.CTk):
     def show_cloze_generator(self):
         self._clear_main()
         self.header_subtitle.configure(text=t("cloze.title"))
-        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
-        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        scroll.grid_columnconfigure(0, weight=1)
+        scroll = self._make_screen()
 
         ctk.CTkLabel(scroll, text=t("cloze.title"), font=("Arial", 20, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 10))

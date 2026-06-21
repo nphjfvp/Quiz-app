@@ -268,6 +268,22 @@ class DataStore:
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"text": text}, f, ensure_ascii=False, indent=2)
 
+    def load_daily_state(self) -> dict:
+        """Load daily learning state. Returns {"date": "2024-01-01", "completed": [...question_ids], "wrong": [...question_ids], "extra_done": bool}"""
+        path = self.data_dir / "daily.json"
+        if not path.exists():
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+
+    def save_daily_state(self, state: dict):
+        path = self.data_dir / "daily.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+
     def log_answer(self, correct: bool):
         stats = self.load_stats()
         today = date.today().isoformat()
