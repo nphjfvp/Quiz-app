@@ -2293,13 +2293,199 @@ class App(ctk.CTk):
             if f.description:
                 ctk.CTkLabel(card, text=f.description, font=("Segoe UI", 11),
                              text_color=COLORS["text_light"], wraplength=700, justify="left"
-                             ).grid(row=3, column=0, sticky="w", padx=15, pady=(0, 12))
-            else:
-                ctk.CTkLabel(card, text="").grid(row=3, column=0, pady=(0, 6))
+                             ).grid(row=3, column=0, sticky="w", padx=15, pady=(0, 4))
+
+            # Action buttons per formula
+            btn_row = ctk.CTkFrame(card, fg_color="transparent")
+            btn_row.grid(row=4, column=0, sticky="w", padx=15, pady=(2, 12))
+            if f.expression and f.variables:
+                ctk.CTkButton(btn_row, text="Interaktiv", width=90, height=28,
+                             corner_radius=6, fg_color=COLORS["success"],
+                             command=lambda fm=f: self._show_formula_explorer(fm, sheet)
+                             ).grid(row=0, column=0, padx=(0, 5))
+            ctk.CTkButton(btn_row, text="KI erklären", width=90, height=28,
+                         corner_radius=6, fg_color=COLORS["primary"],
+                         command=lambda fm=f: self._show_formula_explain(fm, sheet)
+                         ).grid(row=0, column=1)
             row += 1
 
         ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
                       command=self.show_formula_sheets).grid(row=row, column=0, sticky="w", pady=15)
+
+    def _show_formula_explorer(self, formula: Formula, sheet):
+        """Interactive slider view: adjust variables, see result change live."""
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=formula.name, font=("Segoe UI", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+
+        # Show formula image
+        if formula.latex and can_render_latex():
+            img = render_formula(formula.latex, fontsize=22)
+            if img:
+                ctk_img = ctk.CTkImage(light_image=img, dark_image=img,
+                                       size=(img.width, img.height))
+                lbl = ctk.CTkLabel(scroll, image=ctk_img, text="")
+                lbl.image = ctk_img
+                lbl.grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        # Result display
+        result_var = StringVar(value="–")
+        result_frame = ctk.CTkFrame(scroll, fg_color=COLORS["success"], corner_radius=8)
+        result_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+        result_frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(result_frame, text=f"{formula.result_symbol} =",
+                    font=("Segoe UI", 20, "bold"), text_color="white"
+                    ).grid(row=0, column=0, padx=15, pady=10)
+        result_label = ctk.CTkLabel(result_frame, textvariable=result_var,
+                                   font=("Segoe UI", 24, "bold"), text_color="white")
+        result_label.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+
+        # Sliders for each variable
+        slider_vars = {}
+        slider_entries = {}
+
+        def recalculate(*_):
+            try:
+                local_vars = {}
+                for v in formula.variables:
+                    if v.symbol == formula.result_symbol:
+                        continue
+                    val = slider_vars[v.symbol].get()
+                    local_vars[v.symbol] = val
+                    slider_entries[v.symbol].delete(0, "end")
+                    slider_entries[v.symbol].insert(0, f"{val:.3g}")
+                import math as _math
+                safe = {"__builtins__": {}, "abs": abs, "sqrt": _math.sqrt,
+                        "sin": _math.sin, "cos": _math.cos, "tan": _math.tan,
+                        "log": _math.log, "pi": _math.pi, "e": _math.e,
+                        "exp": _math.exp, "pow": pow}
+                safe.update(local_vars)
+                res = eval(formula.expression, safe)
+                result_var.set(f"{res:.4g}")
+            except Exception:
+                result_var.set("–")
+
+        def on_entry_change(symbol):
+            try:
+                val = float(slider_entries[symbol].get())
+                slider_vars[symbol].set(val)
+                recalculate()
+            except ValueError:
+                pass
+
+        row = 3
+        for v in formula.variables:
+            if v.symbol == formula.result_symbol:
+                continue
+            vf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+            vf.grid(row=row, column=0, sticky="ew", pady=3)
+            vf.grid_columnconfigure(1, weight=1)
+
+            label_text = f"{v.symbol}"
+            if v.name:
+                label_text += f" ({v.name})"
+            if v.unit:
+                label_text += f" [{v.unit}]"
+            ctk.CTkLabel(vf, text=label_text, font=("Segoe UI", 12, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(8, 2), sticky="w")
+
+            sv = tk.DoubleVar(value=1.0)
+            slider_vars[v.symbol] = sv
+
+            slider = ctk.CTkSlider(vf, from_=0.01, to=100, variable=sv,
+                                  command=lambda val, s=v.symbol: recalculate())
+            slider.grid(row=1, column=0, columnspan=2, sticky="ew", padx=15, pady=(0, 2))
+
+            entry = ctk.CTkEntry(vf, width=80, font=("Segoe UI", 12))
+            entry.insert(0, "1.0")
+            entry.grid(row=0, column=1, padx=15, pady=(8, 2), sticky="e")
+            entry.bind("<Return>", lambda e, s=v.symbol: on_entry_change(s))
+            slider_entries[v.symbol] = entry
+
+            row += 1
+
+        recalculate()
+
+        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=lambda: self.show_formula_sheet_view(sheet)
+                     ).grid(row=row, column=0, sticky="w", pady=15)
+
+    def _show_formula_explain(self, formula: Formula, sheet):
+        """AI explanation of a formula with style selection."""
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=formula.name, font=("Segoe UI", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+
+        # Show formula
+        if formula.latex and can_render_latex():
+            img = render_formula(formula.latex, fontsize=20)
+            if img:
+                ctk_img = ctk.CTkImage(light_image=img, dark_image=img,
+                                       size=(img.width, img.height))
+                lbl = ctk.CTkLabel(scroll, image=ctk_img, text="")
+                lbl.image = ctk_img
+                lbl.grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        # Style selector
+        style_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+        style_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        ctk.CTkLabel(style_frame, text="Erklär-Stil wählen:", font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+
+        styles = [
+            ("Brain Rot 🧠", "brain_rot"),
+            ("Wissenschaftlich 🔬", "wissenschaftlich"),
+            ("Klasse 1-4 🎒", "klasse_1_4"),
+            ("Klasse 5-7 📐", "klasse_5_7"),
+            ("Klasse 8-10 🧮", "klasse_8_10"),
+            ("Klasse 11-13 🎓", "klasse_11_13"),
+        ]
+
+        style_var = StringVar(value="wissenschaftlich")
+        btn_frame = ctk.CTkFrame(style_frame, fg_color="transparent")
+        btn_frame.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+        for i, (label, key) in enumerate(styles):
+            ctk.CTkRadioButton(btn_frame, text=label, variable=style_var, value=key,
+                              font=("Segoe UI", 12)).grid(row=i // 3, column=i % 3, padx=10, pady=3, sticky="w")
+
+        # Output area
+        output_box = ctk.CTkTextbox(scroll, width=700, height=350, font=("Segoe UI", 12),
+                                    state="disabled")
+        loading_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12),
+                                    text_color=COLORS["text_light"])
+
+        def generate():
+            loading_label.configure(text="KI generiert Erklärung...")
+            loading_label.grid(row=4, column=0, sticky="w", pady=5)
+            output_box.grid_forget()
+
+            def _run():
+                vars_data = [{"symbol": v.symbol, "name": v.name, "unit": v.unit}
+                            for v in formula.variables]
+                result = self.ai.explain_formula(
+                    formula.name, formula.latex, vars_data, style_var.get())
+                def _show():
+                    loading_label.grid_forget()
+                    output_box.grid(row=4, column=0, sticky="ew", pady=5)
+                    output_box.configure(state="normal")
+                    output_box.delete("1.0", "end")
+                    output_box.insert("1.0", result or "Keine Erklärung erhalten.")
+                    output_box.configure(state="disabled")
+                self.after(0, _show)
+
+            threading.Thread(target=_run, daemon=True).start()
+
+        ctk.CTkButton(scroll, text="Erklärung generieren", fg_color=COLORS["primary"],
+                     height=36, font=("Segoe UI", 13, "bold"),
+                     command=generate).grid(row=3, column=0, sticky="w", pady=5)
+
+        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=lambda: self.show_formula_sheet_view(sheet)
+                     ).grid(row=5, column=0, sticky="w", pady=15)
 
     def show_ai_generate(self):
         self._clear_main()

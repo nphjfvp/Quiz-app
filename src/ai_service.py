@@ -1035,3 +1035,62 @@ Regeln:
         if not response or response.startswith("ERROR:"):
             return "Tutor-Prompt nicht verfügbar."
         return response
+
+    def explain_formula(self, formula_name: str, formula_latex: str,
+                        variables: list[dict], style: str = "wissenschaftlich") -> Optional[str]:
+        style_prompts = {
+            "brain_rot": (
+                "Du bist ein Gen-Z TikTok Creator. Erkläre die Formel so, als wäre sie ein Drama "
+                "zwischen den Variablen. Jede Variable ist ein Charakter mit eigener Persönlichkeit. "
+                "Nutze Slang, Emojis, übertriebene Metaphern. Mach es unterhaltsam und einprägsam. "
+                "Stell jeden Charakter (Variable) einzeln vor mit Name, Rolle und Catchphrase."
+            ),
+            "wissenschaftlich": (
+                "Du bist ein Uni-Professor. Erkläre die Formel und jede Variable wissenschaftlich "
+                "präzise mit korrekter Terminologie. Beschreibe die physikalische/mathematische "
+                "Bedeutung, Einheiten, typische Wertebereiche und Zusammenhänge."
+            ),
+            "klasse_1_4": (
+                "Du bist ein Grundschullehrer. Erkläre die Formel so einfach wie möglich mit "
+                "Alltagsbeispielen (Spielplatz, Bonbons, Tiere). Jede Variable bekommt einen "
+                "einfachen Spitznamen. Keine Fachbegriffe."
+            ),
+            "klasse_5_7": (
+                "Du bist ein engagierter Mathelehrer für die Mittelstufe. Erkläre die Formel mit "
+                "konkreten Beispielen aus dem Alltag von Jugendlichen (Sport, Gaming, Social Media). "
+                "Variablen werden als 'Teammitglieder' vorgestellt."
+            ),
+            "klasse_8_10": (
+                "Du bist ein cooler MINT-Lehrer. Erkläre die Formel anschaulich mit Beispielen "
+                "aus Technik und Natur. Jede Variable wird mit ihrer Rolle im 'Team' erklärt. "
+                "Fachbegriffe werden eingeführt aber einfach erklärt."
+            ),
+            "klasse_11_13": (
+                "Du bist ein Oberstufen-Lehrer der auf die Klausur vorbereitet. Erkläre die Formel "
+                "semi-formal mit Fokus auf Klausur-Relevanz. Zeige typische Fehlerquellen, "
+                "Spezialfälle und Eselsbrücken. Jede Variable mit Einheit und typischen Werten."
+            ),
+        }
+
+        system = style_prompts.get(style, style_prompts["wissenschaftlich"])
+        system += (
+            "\n\nFormat: Markdown. Starte mit einer kurzen Vorstellung der Formel, "
+            "dann stelle JEDE Variable einzeln vor (als eigenen Abschnitt). "
+            "Am Ende: Wie hängen die Variablen zusammen? Was passiert wenn eine steigt/sinkt? "
+            "Nutze $LaTeX$ für Formeln."
+        )
+
+        vars_desc = "\n".join(
+            f"- {v.get('symbol', '?')}: {v.get('name', '')} [{v.get('unit', '')}]"
+            for v in variables
+        )
+
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": (
+                f"Erkläre diese Formel und ihre Variablen:\n\n"
+                f"**{formula_name}**\n$$${formula_latex}$$$\n\n"
+                f"Variablen:\n{vars_desc}"
+            )},
+        ]
+        return self._call_api(messages, max_tokens=2048)
