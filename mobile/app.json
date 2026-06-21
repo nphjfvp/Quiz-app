@@ -25,7 +25,14 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Die App braucht Zugriff auf deine Fotos, um deine handschriftliche Lösung hochzuladen.",
+          "cameraPermission": "Die App braucht Zugriff auf die Kamera, um deine handschriftliche Lösung zu fotografieren."
+        }
+      ]
     ]
   }
 }

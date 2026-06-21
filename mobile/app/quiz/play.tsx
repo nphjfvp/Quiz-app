@@ -10,12 +10,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors } from "../../src/styles/theme";
 import { loadQuizzes, loadProgress, saveProgress } from "../../src/services/storage";
 import { checkAnswer, updateProgress } from "../../src/services/quiz-engine";
-import { getHint, getExplanation } from "../../src/services/ai";
+import { getHint, getExplanation, checkHandwrittenSolution } from "../../src/services/ai";
 import type { Quiz, Question, AnswerResult } from "../../src/types/quiz";
 
 export default function PlayScreen() {
@@ -35,6 +37,10 @@ export default function PlayScreen() {
   const [lastResult, setLastResult] = useState<AnswerResult | null>(null);
   const [aiResponse, setAiResponse] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [solutionImage, setSolutionImage] = useState<string | null>(null);
+  const [solutionBase64, setSolutionBase64] = useState<string | null>(null);
+  const [handwrittenFeedback, setHandwrittenFeedback] = useState("");
+  const [handwrittenLoading, setHandwrittenLoading] = useState(false);
   const progressRef = useRef<Record<string, any>>({});
 
   useEffect(() => {
@@ -71,6 +77,40 @@ export default function PlayScreen() {
     setSubmitted(false);
     setLastResult(null);
     setAiResponse("");
+    setSolutionImage(null);
+    setSolutionBase64(null);
+    setHandwrittenFeedback("");
+  };
+
+  const pickSolutionImage = async (fromCamera: boolean) => {
+    try {
+      const perm = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Berechtigung", "Bitte erlaube den Zugriff auf Kamera/Fotos.");
+        return;
+      }
+      const result = fromCamera
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.6 })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.6 });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.base64) return;
+      setSolutionImage(asset.uri);
+      setSolutionBase64(asset.base64);
+      setHandwrittenFeedback("");
+    } catch (e: any) {
+      Alert.alert("Fehler", `Bild konnte nicht geladen werden: ${e.message}`);
+    }
+  };
+
+  const analyzeHandwritten = async () => {
+    if (!q || !solutionBase64 || handwrittenLoading) return;
+    setHandwrittenLoading(true);
+    const fb = await checkHandwrittenSolution(q.text, solutionBase64);
+    setHandwrittenFeedback(fb ?? "Keine Antwort erhalten. Prüfe API-Key und ob das Modell Bilder unterstützt.");
+    setHandwrittenLoading(false);
   };
 
   const getUserInput = () => {
@@ -220,12 +260,57 @@ export default function PlayScreen() {
             value={textAnswer}
             onChangeText={setTextAnswer}
             editable={!submitted}
-            placeholder={q.question_type === "math_formula" ? "Formel oder Zahl eingeben..." : "Deine Antwort..."}
+            placeholder={q.question_type === "math_formula" ? "Endergebnis eingeben..." : "Deine Antwort..."}
             placeholderTextColor={c.textLight}
             multiline={q.question_type === "math_formula"}
             autoCorrect={q.question_type !== "math_formula"}
             autoCapitalize={q.question_type === "math_formula" ? "none" : "sentences"}
           />
+        )}
+
+        {q.question_type === "math_formula" && (
+          <View style={styles.handwriteBox}>
+            <Text style={[styles.handwriteTitle, { color: c.text }]}>
+              Handschriftliche Lösung
+            </Text>
+            <Text style={[styles.handwriteHint, { color: c.textLight }]}>
+              Rechne die Aufgabe auf Papier, fotografiere deinen Lösungsweg, und die KI prüft alles (Lösungsweg, Rechenfehler, Ergebnis).
+            </Text>
+            <View style={styles.handwriteBtnRow}>
+              <TouchableOpacity
+                style={[styles.handwriteBtn, { backgroundColor: c.primary }]}
+                onPress={() => pickSolutionImage(true)}
+              >
+                <Text style={styles.btnSmallText}>📷 Foto machen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.handwriteBtn, { backgroundColor: c.primaryLight }]}
+                onPress={() => pickSolutionImage(false)}
+              >
+                <Text style={styles.btnSmallText}>🖼 Aus Galerie</Text>
+              </TouchableOpacity>
+            </View>
+
+            {solutionImage && (
+              <View style={{ marginTop: 12 }}>
+                <Image source={{ uri: solutionImage }} style={styles.solutionPreview} resizeMode="contain" />
+                <TouchableOpacity
+                  style={[styles.btn, { backgroundColor: c.success, marginTop: 10, opacity: handwrittenLoading ? 0.6 : 1 }]}
+                  onPress={analyzeHandwritten}
+                  disabled={handwrittenLoading}
+                >
+                  <Text style={styles.btnText}>{handwrittenLoading ? "KI prüft..." : "Lösung von KI prüfen lassen"}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {handwrittenFeedback ? (
+              <View style={[styles.aiCard, { backgroundColor: c.card, borderColor: c.primaryLight, marginHorizontal: 0, marginTop: 12 }]}>
+                <Text style={[styles.aiTitle, { color: c.primary }]}>KI-Feedback zur Lösung</Text>
+                <Text style={[styles.aiText, { color: c.text }]}>{handwrittenFeedback}</Text>
+              </View>
+            ) : null}
+          </View>
         )}
 
         {q.question_type === "fill_blank" && q.blanks.map((_, i) => (
@@ -339,6 +424,12 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 15, flex: 1 },
   textInput: { borderWidth: 1, borderRadius: 10, padding: 14, fontSize: 15, marginTop: 4 },
   mathInput: { minHeight: 80, textAlignVertical: "top" as const, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  handwriteBox: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: "rgba(128,128,128,0.2)" },
+  handwriteTitle: { fontSize: 15, fontWeight: "bold", marginBottom: 4 },
+  handwriteHint: { fontSize: 12, lineHeight: 17, marginBottom: 10 },
+  handwriteBtnRow: { flexDirection: "row", gap: 10 },
+  handwriteBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+  solutionPreview: { width: "100%", height: 220, borderRadius: 10, backgroundColor: "rgba(128,128,128,0.1)" },
   blankRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   blankLabel: { fontSize: 13, marginRight: 8, width: 65 },
   blankInput: { flex: 1, borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14 },

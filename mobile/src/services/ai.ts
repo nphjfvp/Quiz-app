@@ -96,6 +96,39 @@ export async function analyzeMathDrawing(
   ], 1500);
 }
 
+export async function checkHandwrittenSolution(
+  questionText: string,
+  imageBase64: string
+): Promise<string | null> {
+  return callAI([
+    {
+      role: "system",
+      content:
+        "Du bist ein Prüfungs-Tutor für MINT-Fächer. Du bekommst eine handschriftliche " +
+        "Lösung als Bild. Lies sie sorgfältig, prüfe den kompletten Lösungsweg (gegebene " +
+        "Werte, gewählte Formeln, Umstellungen, Rechenschritte, Endergebnis) und gib " +
+        "detailliertes Feedback auf Deutsch im Markdown-Format:\n" +
+        "1. Was war richtig\n" +
+        "2. Wo waren Rechen-/Denkfehler und warum\n" +
+        "3. Korrektes Ergebnis und optimaler Lösungsweg\n" +
+        "Nutze $LaTeX$ für Formeln.",
+    },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: `Aufgabe:\n${questionText}\n\nHier meine handschriftliche Lösung:`,
+        },
+        {
+          type: "image_url",
+          image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+        },
+      ],
+    },
+  ], 2048);
+}
+
 export async function chatWithAI(
   chatHistory: { role: string; content: string }[],
   systemPrompt?: string
