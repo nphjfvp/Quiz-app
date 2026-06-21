@@ -826,13 +826,30 @@ class App(ctk.CTk):
 
         ctk.CTkLabel(frame, text=t("settings.model_hint"),
                     font=("Arial", 11), text_color=COLORS["text_light"]
-                    ).grid(row=5, column=0, sticky="w", pady=(0, 20))
+                    ).grid(row=5, column=0, sticky="w", pady=(0, 10))
 
-        # Appearance & language
-        ctk.CTkLabel(frame, text=t("settings.appearance"), font=("Arial", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=6, column=0, sticky="w")
-        appear_row = ctk.CTkFrame(frame, fg_color="transparent")
-        appear_row.grid(row=7, column=0, sticky="w", pady=(5, 15))
+        # Blocked models
+        ctk.CTkLabel(frame, text=t("settings.blocked_models"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=53, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(frame, text=t("settings.blocked_hint"), font=("Segoe UI", 11),
+                    text_color=COLORS["text_light"], wraplength=500, justify="left"
+                    ).grid(row=54, column=0, sticky="w", pady=(2, 5))
+
+        blocked_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        blocked_frame.grid(row=55, column=0, sticky="w", pady=(0, 15))
+        from .ai_service import AIService as _AIS
+        blocked_set = set(settings.get("disabled_models", []))
+        blocked_vars = {}
+        for i, m in enumerate(_AIS.RECOMMENDED_MODELS):
+            cost = m["cost_in"] + m["cost_out"]
+            cost_label = f"${cost:.1f}/1M"
+            var = BooleanVar(value=(m["id"] in blocked_set))
+            blocked_vars[m["id"]] = var
+            row_i = i // 2
+            col_i = i % 2
+            ctk.CTkSwitch(blocked_frame, text=f"{m['name']} ({cost_label})",
+                         variable=var, font=("Segoe UI", 11)
+                         ).grid(row=row_i, column=col_i, padx=(0, 25), pady=2, sticky="w")
 
         # Feature toggles
         ctk.CTkLabel(frame, text="Features", font=("Arial", 13, "bold"),
@@ -1005,6 +1022,7 @@ class App(ctk.CTk):
             s["language"] = "en" if lang_menu.get() == "English" else "de"
             s["use_memory"] = bool(memory_switch.get())
             s["sync_code"] = cloud_sync.sanitize_code(sync_entry.get())
+            s["disabled_models"] = [mid for mid, var in blocked_vars.items() if var.get()]
             self.store.save_settings(s)
             # Save memory text
             mem = memory_text.get("1.0", "end").strip()
@@ -1977,6 +1995,7 @@ class App(ctk.CTk):
         display_names, model_id_map = self._model_display_list(models)
 
         settings = self.store.load_settings()
+        disabled_models = set(settings.get("disabled_models", []))
         current_model = settings.get("model", "deepseek/deepseek-chat")
         current_in_list = any(mid == current_model for mid in model_id_map.values())
         if not current_in_list:
@@ -1990,8 +2009,59 @@ class App(ctk.CTk):
                 model_var.set(label)
                 break
 
+        # Build model buttons instead of simple dropdown for blocked model support
+        selector_frame = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=8)
+        selector_frame.grid(row=row_start + 2, column=0, sticky="ew", pady=5)
+        selector_frame.grid_columnconfigure(0, weight=1)
+
+        selected_label = ctk.CTkLabel(selector_frame, text=model_var.get(),
+                                     font=("Segoe UI", 12, "bold"), text_color=COLORS["text"])
+        selected_label.grid(row=0, column=0, padx=15, pady=(8, 5), sticky="w")
+
+        models_list_frame = ctk.CTkFrame(selector_frame, fg_color="transparent")
+        models_list_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 8))
+        models_list_frame.grid_columnconfigure(0, weight=1)
+
+        def select_model(label, model_id, model_name, cost):
+            if model_id in disabled_models:
+                return
+            model_var.set(label)
+            selected_label.configure(text=label)
+
+        def confirm_blocked_model(label, model_id, model_name, cost):
+            if messagebox.askyesno(
+                t("settings.blocked_models"),
+                t("settings.model_blocked", name=model_name, cost=f"{cost:.1f}")
+            ):
+                model_var.set(label)
+                selected_label.configure(text=label)
+
+        for i, (label, mid) in enumerate(model_id_map.items()):
+            is_blocked = mid in disabled_models
+            m_info = next((m for m in AIService.RECOMMENDED_MODELS if m["id"] == mid), None)
+            cost = (m_info["cost_in"] + m_info["cost_out"]) if m_info else 0
+            m_name = m_info["name"] if m_info else mid
+
+            btn_color = "#888888" if is_blocked else COLORS["card"]
+            text_color = "#aaaaaa" if is_blocked else COLORS["text"]
+            display = f"🔒 {label}" if is_blocked else label
+
+            btn = ctk.CTkButton(
+                models_list_frame, text=display, anchor="w",
+                fg_color=btn_color, text_color=text_color,
+                hover_color=COLORS["row_neutral"] if not is_blocked else "#888888",
+                font=("Segoe UI", 11), height=28, corner_radius=4,
+                command=lambda l=label, m=mid, n=m_name, c=cost: select_model(l, m, n, c)
+            )
+            btn.grid(row=i, column=0, sticky="ew", pady=1)
+
+            if is_blocked:
+                btn.bind("<Double-Button-1>",
+                        lambda e, l=label, m=mid, n=m_name, c=cost: confirm_blocked_model(l, m, n, c))
+
+        # Keep a hidden CTkOptionMenu for compatibility with existing code that calls .configure()
         menu = ctk.CTkOptionMenu(parent, values=display_names, variable=model_var, width=500)
-        menu.grid(row=row_start + 2, column=0, sticky="w", pady=5)
+        menu.grid_forget()
 
         return model_var, model_id_map, menu, rec_frame, row_start + 3
 

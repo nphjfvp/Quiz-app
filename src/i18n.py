@@ -294,6 +294,10 @@ TRANSLATIONS = {
         "results.back_to_results": "Zurück zur Auswertung",
         "results.mark_for_later": "Zum Wiederholen markieren",
         "results.retry": "Erneut versuchen",
+        "settings.blocked_models": "Gesperrte Modelle",
+        "settings.blocked_hint": "Gesperrte Modelle werden ausgegraut. Nur per Doppelklick + Bestätigung nutzbar.",
+        "settings.model_blocked": "Modell '{name}' ist gesperrt. Trotzdem verwenden? (Kosten: ~${cost}/1M Token)",
+        "settings.model_locked": "(gesperrt)",
     },
     "en": {
         "app.title": "Study Trainer – Quiz App",
@@ -540,5 +544,9 @@ TRANSLATIONS = {
         "results.back_to_results": "Back to results",
         "results.mark_for_later": "Mark for review",
         "results.retry": "Retry",
+        "settings.blocked_models": "Blocked Models",
+        "settings.blocked_hint": "Blocked models are grayed out. Only usable via double-click + confirmation.",
+        "settings.model_blocked": "Model '{name}' is blocked. Use anyway? (Cost: ~${cost}/1M tokens)",
+        "settings.model_locked": "(blocked)",
     },
 }
