@@ -4010,6 +4010,92 @@ class App(ctk.CTk):
                     ctk.CTkLabel(fb, text=f"Richtige Antwort: {result.correct_answer}",
                                 font=("Arial", 12), text_color="white", wraplength=600
                                 ).grid(row=2, column=0, padx=20, pady=(0, 5), sticky="w")
+
+                # KI validation for free text: check if semantically correct
+                if (not result.is_correct and q.question_type == QuestionType.FREE_TEXT
+                        and self.ai.api_key and result.user_answer.strip()):
+                    ki_val_frame = ctk.CTkFrame(feedback_frame, fg_color=COLORS["card"], corner_radius=8)
+                    ki_val_frame.grid(row=3, column=0, sticky="ew", pady=(5, 0))
+                    ki_val_frame.grid_columnconfigure(0, weight=1)
+                    ki_val_label = ctk.CTkLabel(ki_val_frame, text="KI prüft ob deine Antwort inhaltlich richtig ist...",
+                                               font=("Segoe UI", 12), text_color=COLORS["text_light"])
+                    ki_val_label.grid(row=0, column=0, padx=15, pady=10, sticky="w")
+
+                    def _ki_validate_freetext(frame=ki_val_frame):
+                        msgs = [
+                            {"role": "system", "content": (
+                                "Du bist ein Prüfer. Vergleiche die Antwort des Studenten mit der Musterlösung. "
+                                "Prüfe NUR auf inhaltliche Richtigkeit und Rechtschreibung. "
+                                "Wenn die Antwort inhaltlich korrekt ist (auch wenn anders formuliert), "
+                                "antworte mit GENAU diesem Format:\n"
+                                "ERGEBNIS: RICHTIG\n[kurze Begründung]\n\n"
+                                "Wenn die Antwort inhaltlich falsch ist:\n"
+                                "ERGEBNIS: FALSCH\n[kurze Erklärung was falsch war]\n\n"
+                                "Sei fair — Synonyme und Umformulierungen zählen als richtig."
+                            )},
+                            {"role": "user", "content": (
+                                f"Frage: {q.text}\n"
+                                f"Musterlösung: {q.correct_text}\n"
+                                f"Antwort des Studenten: {result.user_answer}"
+                            )},
+                        ]
+                        resp = self.ai._call_api(msgs, max_tokens=512)
+                        def _show_ki_result(r=resp):
+                            for w in frame.winfo_children():
+                                w.destroy()
+                            if not r:
+                                return
+                            is_ki_correct = "ERGEBNIS: RICHTIG" in r.upper() or "ERGEBNIS:RICHTIG" in r.upper()
+                            feedback_text = r.replace("ERGEBNIS: RICHTIG", "").replace("ERGEBNIS: FALSCH", "").strip()
+
+                            if is_ki_correct:
+                                ctk.CTkLabel(frame, text="KI: Deine Antwort ist inhaltlich richtig!",
+                                            font=("Segoe UI", 13, "bold"), text_color=COLORS["success"]
+                                            ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
+                                if feedback_text:
+                                    ctk.CTkLabel(frame, text=feedback_text, font=("Segoe UI", 11),
+                                                text_color=COLORS["text"], wraplength=600, justify="left"
+                                                ).grid(row=1, column=0, padx=15, pady=(0, 5), sticky="w")
+
+                                def accept_answer():
+                                    result.is_correct = True
+                                    result.score = q.points
+                                    self.sr.update(q.id, True)
+                                    for w in frame.winfo_children():
+                                        w.destroy()
+                                    ctk.CTkLabel(frame, text="Antwort als richtig gewertet!",
+                                                font=("Segoe UI", 12, "bold"), text_color=COLORS["success"]
+                                                ).grid(row=0, column=0, padx=15, pady=10, sticky="w")
+                                    fb.configure(fg_color=COLORS["success"])
+                                    for w in fb.winfo_children():
+                                        if hasattr(w, 'configure'):
+                                            try:
+                                                w.configure(text="Richtig! (von KI bestätigt)")
+                                                break
+                                            except Exception:
+                                                pass
+
+                                btn_row = ctk.CTkFrame(frame, fg_color="transparent")
+                                btn_row.grid(row=2, column=0, padx=15, pady=(0, 10), sticky="w")
+                                ctk.CTkButton(btn_row, text="Als richtig werten",
+                                             fg_color=COLORS["success"], width=150, height=32,
+                                             font=("Segoe UI", 12, "bold"),
+                                             command=accept_answer).grid(row=0, column=0, padx=(0, 10))
+                                ctk.CTkButton(btn_row, text="Falsch lassen",
+                                             fg_color=COLORS["text_light"], width=120, height=32,
+                                             command=lambda: frame.grid_forget()
+                                             ).grid(row=0, column=1)
+                            else:
+                                ctk.CTkLabel(frame, text="KI: Deine Antwort ist inhaltlich nicht korrekt.",
+                                            font=("Segoe UI", 12, "bold"), text_color=COLORS["danger"]
+                                            ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
+                                if feedback_text:
+                                    ctk.CTkLabel(frame, text=feedback_text, font=("Segoe UI", 11),
+                                                text_color=COLORS["text"], wraplength=600, justify="left"
+                                                ).grid(row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+                        self.after(0, _show_ki_result)
+                    threading.Thread(target=_ki_validate_freetext, daemon=True).start()
+
                 if q.explanation:
                     ctk.CTkLabel(fb, text=q.explanation, font=("Arial", 11),
                                 text_color="white", wraplength=600
@@ -4212,6 +4298,40 @@ class App(ctk.CTk):
         ctk.CTkButton(ai_help_btns, text=t("ai_help.explain"), fg_color=COLORS["primary"],
                      width=120, height=28, font=("Segoe UI", 11), command=ask_ai_explain
                      ).grid(row=0, column=1)
+
+        # Free chat input
+        _chat_history = []
+        chat_input_frame = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
+        chat_input_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
+        chat_input_frame.grid_columnconfigure(0, weight=1)
+        chat_entry = ctk.CTkEntry(chat_input_frame, placeholder_text="Eigene Frage stellen...",
+                                  font=("Segoe UI", 12))
+        chat_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+        def send_free_chat(event=None):
+            msg = chat_entry.get().strip()
+            if not msg:
+                return
+            chat_entry.delete(0, "end")
+            _chat_history.append({"role": "user", "content": msg})
+            _set_ai_response(t("ai_help.loading"))
+            def run():
+                prefix = _get_memory_prefix()
+                system = (prefix + "Du bist ein hilfreicher Tutor. Der Student arbeitet an einer Quizfrage "
+                         "und hat eine eigene Frage. Verrate NICHT die Antwort direkt, "
+                         "hilf ihm stattdessen beim Verstehen. Nutze $LaTeX$ für Formeln.\n\n"
+                         f"Aktuelle Quizfrage: {q.text}")
+                msgs = [{"role": "system", "content": system}] + _chat_history
+                resp = self.ai._call_api(msgs, max_tokens=1024)
+                answer = resp or "Keine Antwort erhalten."
+                _chat_history.append({"role": "assistant", "content": answer})
+                self.after(0, lambda: _set_ai_response(answer))
+            threading.Thread(target=run, daemon=True).start()
+
+        chat_entry.bind("<Return>", send_free_chat)
+        ctk.CTkButton(chat_input_frame, text=t("chat.send"), width=70, height=28,
+                     fg_color=COLORS["success"], font=("Segoe UI", 11),
+                     command=send_free_chat).grid(row=0, column=1)
 
         # Quick action buttons
         quick_actions = self.store.load_quick_actions()
