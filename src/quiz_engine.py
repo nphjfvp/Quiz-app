@@ -142,18 +142,38 @@ class QuizSession:
         return AnswerResult(q.id, is_correct, round(score, 1), q.points,
                           f"{correct}/{total} richtig platziert", correct_text)
 
+    @staticmethod
+    def _point_in_polygon(px, py, polygon_points):
+        """Ray casting algorithm for point-in-polygon test."""
+        n = len(polygon_points)
+        inside = False
+        j = n - 1
+        for i in range(n):
+            xi, yi = polygon_points[i]
+            xj, yj = polygon_points[j]
+            if ((yi > py) != (yj > py)) and (px < (xj - xi) * (py - yi) / (yj - yi) + xi):
+                inside = not inside
+            j = i
+        return inside
+
     def _check_mark_image(self, q: Question, click_pos: dict) -> AnswerResult:
         """click_pos: {"x": float, "y": float} normalized 0-1.
-        Check if click is within any of q.mark_regions."""
+        Check if click is within any of q.mark_regions (circle or polygon)."""
         if not click_pos or click_pos.get("x") is None:
             return AnswerResult(q.id, False, 0, q.points, "Keine Markierung", "")
         cx, cy = click_pos.get("x", -1), click_pos.get("y", -1)
         for region in getattr(q, "mark_regions", []):
-            rx, ry, rr = region.get("x", 0), region.get("y", 0), region.get("radius", 0.05)
-            dist = ((cx - rx) ** 2 + (cy - ry) ** 2) ** 0.5
-            if dist <= rr:
-                return AnswerResult(q.id, True, q.points, q.points,
-                                  f"({cx:.2f}, {cy:.2f})", "Korrekte Region getroffen")
+            if region.get("type") == "polygon":
+                pts = region.get("points", [])
+                if len(pts) >= 3 and self._point_in_polygon(cx, cy, pts):
+                    return AnswerResult(q.id, True, q.points, q.points,
+                                      f"({cx:.2f}, {cy:.2f})", "Korrekte Region getroffen")
+            else:
+                rx, ry, rr = region.get("x", 0), region.get("y", 0), region.get("radius", 0.05)
+                dist = ((cx - rx) ** 2 + (cy - ry) ** 2) ** 0.5
+                if dist <= rr:
+                    return AnswerResult(q.id, True, q.points, q.points,
+                                      f"({cx:.2f}, {cy:.2f})", "Korrekte Region getroffen")
         return AnswerResult(q.id, False, 0, q.points,
                           f"({cx:.2f}, {cy:.2f})", "Keine korrekte Region getroffen")
 

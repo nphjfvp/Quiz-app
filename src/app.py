@@ -1238,21 +1238,40 @@ class App(ctk.CTk):
                 canvas_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
                 canvas_holder.grid(row=3, column=0, sticky="w", pady=5)
 
+                dl_zoom_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                dl_zoom_holder.grid(row=4, column=0, sticky="w", pady=2)
+
                 chip_list_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
-                chip_list_holder.grid(row=4, column=0, sticky="w", pady=(4, 0))
+                chip_list_holder.grid(row=5, column=0, sticky="w", pady=(4, 0))
 
                 def reload_diagram_canvas():
                     for w in canvas_holder.winfo_children():
                         w.destroy()
+                    for w in dl_zoom_holder.winfo_children():
+                        w.destroy()
                     for w in chip_list_holder.winfo_children():
                         w.destroy()
-                    photo, cw, ch = self._load_diagram_image(img_entry.get().strip())
-                    canvas = tk.Canvas(canvas_holder, width=cw, height=ch, bg="white",
-                                       highlightthickness=1, highlightbackground="#cccccc")
+
+                    img_path = img_entry.get().strip()
+                    canvas, ctrl_frame, s2i, zstate = self._make_zoomable_canvas(
+                        canvas_holder, img_path, max_w=520, max_h=360)
                     canvas.grid(row=0, column=0)
-                    if photo:
-                        canvas.create_image(0, 0, anchor="nw", image=photo)
-                        canvas.image = photo  # keep reference
+                    # Place zoom controls
+                    ctrl_frame.grid_forget()
+                    ctrl_new = ctk.CTkFrame(dl_zoom_holder, fg_color="transparent")
+                    ctrl_new.grid(row=0, column=0, sticky="w")
+                    ctk.CTkButton(ctrl_new, text="+", width=35, height=28,
+                                  command=lambda: (zstate.update({"scale": min(5.0, zstate["scale"] * 1.3)}), zstate["_redraw"]())
+                                  ).grid(row=0, column=0, padx=2)
+                    ctk.CTkButton(ctrl_new, text="-", width=35, height=28,
+                                  command=lambda: (zstate.update({"scale": max(0.2, zstate["scale"] / 1.3)}), zstate["_redraw"]())
+                                  ).grid(row=0, column=1, padx=2)
+                    ctk.CTkButton(ctrl_new, text="Reset", width=50, height=28,
+                                  command=lambda: (zstate.update({"scale": 1.0, "offset_x": 0, "offset_y": 0}), zstate["_redraw"]())
+                                  ).grid(row=0, column=2, padx=2)
+
+                    cw = zstate["base_w"]
+                    ch = zstate["base_h"]
 
                     for name, (fx, fy) in positions.items():
                         cx, cy = fx * cw, fy * ch
@@ -1287,7 +1306,7 @@ class App(ctk.CTk):
 
                 # add new label
                 add_row = ctk.CTkFrame(specific_frame, fg_color="transparent")
-                add_row.grid(row=5, column=0, sticky="w", pady=(8, 0))
+                add_row.grid(row=6, column=0, sticky="w", pady=(8, 0))
                 new_label_entry = ctk.CTkEntry(add_row, width=220, placeholder_text="Neues Label (z.B. Rm)")
                 new_label_entry.grid(row=0, column=0, padx=(0, 8))
 
@@ -1324,58 +1343,148 @@ class App(ctk.CTk):
                            font=("Arial", 12), text_color=COLORS["text_light"]
                            ).grid(row=2, column=0, sticky="w", pady=(10, 2))
 
+                # Drawing mode selection
+                draw_mode_var = StringVar(value="circle")
+                mode_frame = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                mode_frame.grid(row=3, column=0, sticky="w", pady=3)
+                ctk.CTkRadioButton(mode_frame, text="Kreis", variable=draw_mode_var,
+                                  value="circle", font=("Arial", 12)
+                                  ).grid(row=0, column=0, padx=(0, 15))
+                ctk.CTkRadioButton(mode_frame, text="Freihand", variable=draw_mode_var,
+                                  value="freehand", font=("Arial", 12)
+                                  ).grid(row=0, column=1)
+
                 mi_canvas_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
-                mi_canvas_holder.grid(row=3, column=0, sticky="w", pady=5)
+                mi_canvas_holder.grid(row=4, column=0, sticky="w", pady=5)
+
+                mi_zoom_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                mi_zoom_holder.grid(row=5, column=0, sticky="w", pady=2)
 
                 radius_var = StringVar(value="0.05")
                 rad_frame = ctk.CTkFrame(specific_frame, fg_color="transparent")
-                rad_frame.grid(row=4, column=0, sticky="w", pady=3)
+                rad_frame.grid(row=6, column=0, sticky="w", pady=3)
                 ctk.CTkLabel(rad_frame, text="Radius:", font=("Arial", 12)).grid(row=0, column=0, padx=(0, 5))
                 rad_entry = ctk.CTkEntry(rad_frame, width=60, placeholder_text="0.05")
                 rad_entry.insert(0, "0.05")
                 rad_entry.grid(row=0, column=1, padx=(0, 10))
 
                 region_list_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
-                region_list_holder.grid(row=5, column=0, sticky="w", pady=3)
+                region_list_holder.grid(row=7, column=0, sticky="w", pady=3)
+
+                # Freehand drawing state
+                freehand_state = {"drawing": False, "points": [], "line_ids": []}
 
                 def reload_mark_canvas():
                     for w in mi_canvas_holder.winfo_children():
                         w.destroy()
+                    for w in mi_zoom_holder.winfo_children():
+                        w.destroy()
                     for w in region_list_holder.winfo_children():
                         w.destroy()
-                    photo, cw, ch = self._load_diagram_image(mi_img_entry.get().strip(), max_w=500, max_h=350)
-                    mi_canvas = tk.Canvas(mi_canvas_holder, width=cw, height=ch, bg="white",
-                                          highlightthickness=1, highlightbackground="#cccccc")
+
+                    img_path = mi_img_entry.get().strip()
+                    mi_canvas, ctrl_frame, s2i, zstate = self._make_zoomable_canvas(
+                        mi_canvas_holder, img_path, max_w=500, max_h=350)
                     mi_canvas.grid(row=0, column=0)
-                    if photo:
-                        mi_canvas.create_image(0, 0, anchor="nw", image=photo)
-                        mi_canvas.image = photo
+                    ctrl_frame.grid(row=0, column=0, sticky="w")
+                    # Re-parent ctrl_frame into zoom holder
+                    ctrl_frame.grid_forget()
+                    ctrl_frame_new = ctk.CTkFrame(mi_zoom_holder, fg_color="transparent")
+                    ctrl_frame_new.grid(row=0, column=0, sticky="w")
+                    ctk.CTkButton(ctrl_frame_new, text="+", width=35, height=28,
+                                  command=lambda: (zstate.update({"scale": min(5.0, zstate["scale"] * 1.3)}), zstate["_redraw"]())
+                                  ).grid(row=0, column=0, padx=2)
+                    ctk.CTkButton(ctrl_frame_new, text="-", width=35, height=28,
+                                  command=lambda: (zstate.update({"scale": max(0.2, zstate["scale"] / 1.3)}), zstate["_redraw"]())
+                                  ).grid(row=0, column=1, padx=2)
+                    ctk.CTkButton(ctrl_frame_new, text="Reset", width=50, height=28,
+                                  command=lambda: (zstate.update({"scale": 1.0, "offset_x": 0, "offset_y": 0}), zstate["_redraw"]())
+                                  ).grid(row=0, column=2, padx=2)
+
+                    cw = zstate["base_w"]
+                    ch = zstate["base_h"]
 
                     # Draw existing regions
                     for reg in mark_regions_data:
-                        rx, ry, rr = reg["x"] * cw, reg["y"] * ch, reg.get("radius", 0.05) * max(cw, ch)
-                        mi_canvas.create_oval(rx - rr, ry - rr, rx + rr, ry + rr,
-                                              outline="red", width=2, dash=(3, 2))
+                        if reg.get("type") == "polygon":
+                            pts = reg.get("points", [])
+                            if len(pts) >= 3:
+                                flat = []
+                                for px, py in pts:
+                                    flat.extend([px * cw, py * ch])
+                                mi_canvas.create_polygon(*flat, outline="blue", width=2,
+                                                         fill="", dash=(3, 2))
+                        else:
+                            rx, ry = reg["x"] * cw, reg["y"] * ch
+                            rr = reg.get("radius", 0.05) * max(cw, ch)
+                            mi_canvas.create_oval(rx - rr, ry - rr, rx + rr, ry + rr,
+                                                  outline="red", width=2, dash=(3, 2))
+
+                    freehand_state["drawing"] = False
+                    freehand_state["points"] = []
+                    freehand_state["line_ids"] = []
 
                     def on_click(e):
-                        try:
-                            rad = float(rad_entry.get())
-                        except ValueError:
-                            rad = 0.05
-                        mark_regions_data.append({
-                            "x": round(e.x / cw, 4),
-                            "y": round(e.y / ch, 4),
-                            "radius": round(rad, 4)
-                        })
-                        reload_mark_canvas()
+                        if draw_mode_var.get() == "circle":
+                            nx, ny = s2i(e.x, e.y)
+                            try:
+                                rad = float(rad_entry.get())
+                            except ValueError:
+                                rad = 0.05
+                            mark_regions_data.append({
+                                "x": round(nx, 4),
+                                "y": round(ny, 4),
+                                "radius": round(rad, 4)
+                            })
+                            reload_mark_canvas()
+                        else:
+                            # Freehand: start drawing
+                            freehand_state["drawing"] = True
+                            freehand_state["points"] = [(e.x, e.y)]
+                            freehand_state["line_ids"] = []
+
+                    def on_motion(e):
+                        if draw_mode_var.get() == "freehand" and freehand_state["drawing"]:
+                            pts = freehand_state["points"]
+                            if pts:
+                                lid = mi_canvas.create_line(pts[-1][0], pts[-1][1], e.x, e.y,
+                                                            fill="blue", width=2)
+                                freehand_state["line_ids"].append(lid)
+                            freehand_state["points"].append((e.x, e.y))
+
+                    def on_release(e):
+                        if draw_mode_var.get() == "freehand" and freehand_state["drawing"]:
+                            freehand_state["drawing"] = False
+                            pts = freehand_state["points"]
+                            if len(pts) >= 3:
+                                # Convert to normalized points
+                                norm_pts = []
+                                for px, py in pts:
+                                    nx, ny = s2i(px, py)
+                                    norm_pts.append([round(nx, 4), round(ny, 4)])
+                                mark_regions_data.append({
+                                    "type": "polygon",
+                                    "points": norm_pts
+                                })
+                                reload_mark_canvas()
+                            else:
+                                # Too few points, clean up lines
+                                for lid in freehand_state["line_ids"]:
+                                    mi_canvas.delete(lid)
 
                     mi_canvas.bind("<Button-1>", on_click)
+                    mi_canvas.bind("<B1-Motion>", on_motion)
+                    mi_canvas.bind("<ButtonRelease-1>", on_release)
 
                     # Show region list
                     for i, reg in enumerate(mark_regions_data):
                         chip = ctk.CTkFrame(region_list_holder, fg_color="#fde8e8", corner_radius=10)
                         chip.grid(row=0, column=i, padx=3)
-                        ctk.CTkLabel(chip, text=f"({reg['x']:.2f}, {reg['y']:.2f})",
+                        if reg.get("type") == "polygon":
+                            label = f"Polygon ({len(reg.get('points', []))}P)"
+                        else:
+                            label = f"({reg['x']:.2f}, {reg['y']:.2f})"
+                        ctk.CTkLabel(chip, text=label,
                                     font=("Arial", 10), text_color="#c0392b"
                                     ).grid(row=0, column=0, padx=(6, 2), pady=2)
 
@@ -1503,6 +1612,115 @@ class App(ctk.CTk):
             except Exception:
                 pass
         return None, max_w, max_h
+
+    @staticmethod
+    def _point_in_polygon(px, py, polygon_points):
+        """Ray casting algorithm for point-in-polygon test."""
+        n = len(polygon_points)
+        inside = False
+        j = n - 1
+        for i in range(n):
+            xi, yi = polygon_points[i]
+            xj, yj = polygon_points[j]
+            if ((yi > py) != (yj > py)) and (px < (xj - xi) * (py - yi) / (yj - yi) + xi):
+                inside = not inside
+            j = i
+        return inside
+
+    def _make_zoomable_canvas(self, parent, image_path, max_w=600, max_h=400):
+        """Create a canvas with zoom and pan for an image.
+        Returns (canvas, ctrl_frame, screen_to_image_fn, zoom_state)."""
+        photo, cw, ch = self._load_diagram_image(image_path, max_w=max_w, max_h=max_h)
+
+        zoom_state = {"scale": 1.0, "offset_x": 0, "offset_y": 0,
+                      "dragging": False, "last_x": 0, "last_y": 0,
+                      "base_w": cw, "base_h": ch}
+
+        canvas = tk.Canvas(parent, width=cw, height=ch, bg="white",
+                          highlightthickness=1, highlightbackground="#cccccc")
+
+        if photo:
+            canvas.create_image(0, 0, anchor="nw", image=photo, tags="bg_image")
+            canvas.image = photo
+
+        # Store original PIL image for re-rendering at different zoom levels
+        original_img = None
+        if image_path and os.path.exists(image_path) and Image is not None:
+            try:
+                original_img = Image.open(image_path)
+            except Exception:
+                pass
+
+        def _redraw():
+            canvas.delete("bg_image")
+            if original_img and ImageTk:
+                s = zoom_state["scale"]
+                new_w = int(zoom_state["base_w"] * s)
+                new_h = int(zoom_state["base_h"] * s)
+                if new_w > 0 and new_h > 0:
+                    resized = original_img.resize((new_w, new_h), Image.LANCZOS)
+                    new_photo = ImageTk.PhotoImage(resized)
+                    canvas.create_image(zoom_state["offset_x"], zoom_state["offset_y"],
+                                       anchor="nw", image=new_photo, tags="bg_image")
+                    canvas.tag_lower("bg_image")
+                    canvas._zoom_photo = new_photo  # prevent GC
+
+        zoom_state["_redraw"] = _redraw
+
+        def on_scroll(e):
+            if e.delta > 0 or e.num == 4:
+                zoom_state["scale"] = min(5.0, zoom_state["scale"] * 1.15)
+            else:
+                zoom_state["scale"] = max(0.2, zoom_state["scale"] / 1.15)
+            _redraw()
+
+        def on_right_press(e):
+            zoom_state["dragging"] = True
+            zoom_state["last_x"] = e.x
+            zoom_state["last_y"] = e.y
+
+        def on_right_motion(e):
+            if zoom_state["dragging"]:
+                dx = e.x - zoom_state["last_x"]
+                dy = e.y - zoom_state["last_y"]
+                zoom_state["offset_x"] += dx
+                zoom_state["offset_y"] += dy
+                zoom_state["last_x"] = e.x
+                zoom_state["last_y"] = e.y
+                _redraw()
+
+        def on_right_release(e):
+            zoom_state["dragging"] = False
+
+        canvas.bind("<MouseWheel>", on_scroll)
+        canvas.bind("<Button-4>", on_scroll)
+        canvas.bind("<Button-5>", on_scroll)
+        canvas.bind("<Button-3>", on_right_press)
+        canvas.bind("<B3-Motion>", on_right_motion)
+        canvas.bind("<ButtonRelease-3>", on_right_release)
+
+        # Zoom controls
+        ctrl_frame = ctk.CTkFrame(parent, fg_color="transparent")
+        ctk.CTkButton(ctrl_frame, text="+", width=35, height=28,
+                      command=lambda: (zoom_state.update({"scale": min(5.0, zoom_state["scale"] * 1.3)}), _redraw())
+                      ).grid(row=0, column=0, padx=2)
+        ctk.CTkButton(ctrl_frame, text="-", width=35, height=28,
+                      command=lambda: (zoom_state.update({"scale": max(0.2, zoom_state["scale"] / 1.3)}), _redraw())
+                      ).grid(row=0, column=1, padx=2)
+        ctk.CTkButton(ctrl_frame, text="Reset", width=50, height=28,
+                      command=lambda: (zoom_state.update({"scale": 1.0, "offset_x": 0, "offset_y": 0}), _redraw())
+                      ).grid(row=0, column=2, padx=2)
+
+        def screen_to_image(sx, sy):
+            """Convert screen coords to original image coords (0-1 normalized)."""
+            s = zoom_state["scale"]
+            bw = zoom_state["base_w"]
+            bh = zoom_state["base_h"]
+            ix = (sx - zoom_state["offset_x"]) / (bw * s) if bw > 0 else 0
+            iy = (sy - zoom_state["offset_y"]) / (bh * s) if bh > 0 else 0
+            return max(0, min(1, ix)), max(0, min(1, iy))
+
+        return canvas, ctrl_frame, screen_to_image, zoom_state
 
     def _render_rich_text(self, parent, text: str, font=("Segoe UI", 13),
                          text_color=None, wraplength=700, **grid_kw):
@@ -2694,13 +2912,12 @@ class App(ctk.CTk):
                         text_color=COLORS["text"]).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
 
             img_path = q.image_path or q.diagram_image_path
-            photo, cw, ch = self._load_diagram_image(img_path, max_w=600, max_h=400)
-            mark_canvas = tk.Canvas(answer_frame, width=cw, height=ch, bg="white",
-                                    highlightthickness=1, highlightbackground="#cccccc")
+            mark_canvas, mark_ctrl, mark_s2i, mark_zstate = self._make_zoomable_canvas(
+                answer_frame, img_path, max_w=600, max_h=400)
             mark_canvas.grid(row=1, column=0, padx=20, pady=10)
-            if photo:
-                mark_canvas.create_image(0, 0, anchor="nw", image=photo)
-                mark_canvas.image = photo
+            mark_ctrl.grid(row=2, column=0, padx=20, sticky="w")
+            cw = mark_zstate["base_w"]
+            ch = mark_zstate["base_h"]
 
             click_pos = {"x": None, "y": None}
             marker_id = {"id": None}
@@ -2711,8 +2928,9 @@ class App(ctk.CTk):
                 r = 12
                 marker_id["id"] = mark_canvas.create_oval(e.x - r, e.y - r, e.x + r, e.y + r,
                                                             outline="red", width=3, fill="")
-                click_pos["x"] = e.x / cw  # normalized 0-1
-                click_pos["y"] = e.y / ch
+                nx, ny = mark_s2i(e.x, e.y)
+                click_pos["x"] = nx
+                click_pos["y"] = ny
 
             mark_canvas.bind("<Button-1>", on_canvas_click)
             answer_widgets.append(("mark_image", click_pos, q.mark_regions, mark_canvas))
