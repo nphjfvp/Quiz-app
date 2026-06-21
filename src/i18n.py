@@ -222,6 +222,10 @@ TRANSLATIONS = {
         "daily.questions_n": "{n} Fragen",
         "daily.card_title": "Daily Learning",
         "daily.card_desc": "Dein täglicher Lernplan basierend auf Klausurterminen",
+        "settings.math_mode": "Mathe-Modus",
+        "math.input_placeholder": "Formel oder Zahl eingeben...",
+        "math.preview": "Vorschau:",
+        "math.keypad": "Taschenrechner",
     },
     "en": {
         "app.title": "Study Trainer – Quiz App",
@@ -396,5 +400,9 @@ TRANSLATIONS = {
         "daily.questions_n": "{n} questions",
         "daily.card_title": "Daily Learning",
         "daily.card_desc": "Your daily study plan based on exam dates",
+        "settings.math_mode": "Math mode",
+        "math.input_placeholder": "Enter formula or number...",
+        "math.preview": "Preview:",
+        "math.keypad": "Calculator",
     },
 }

@@ -63,6 +63,8 @@ Dein Output MUSS exakt dieses Format haben – ein JSON-Objekt mit zwei Feldern:
       "points": 1-3,
       "options": [{{"text": "Antwort A", "is_correct": false}}, ...],
       "correct_text": "Richtige Antwort",
+      "correct_formula": "LaTeX-Formel der Lösung (nur bei math_formula)",
+      "tolerance": 0.0,
       "blanks": ["Wort1", "Wort2"],
       "drag_drop_pairs": [{{"source": "Begriff", "target": "Zuordnung"}}],
       "explanation": "Erklärung der richtigen Antwort"
@@ -85,6 +87,7 @@ TYPE_RULES = {
     "fill_blank": "- Lückentext: Setze ___ (drei Unterstriche) für jede Lücke, blanks-Array enthält die Lösungen",
     "drag_drop": "- Drag & Drop: MINDESTENS 4-6 Zuordnungspaare als drag_drop_pairs (source → target), z.B. Begriff → Definition, Eigenschaft → Material",
     "diagram_label": "- Diagramm: Beschriftung von Positionen, diagram_labels mit label/x/y",
+    "math_formula": '- Mathe-Formel: Die Frage stellt eine Rechenaufgabe oder fordert eine Formel. correct_text enthält die Lösung als LaTeX (z.B. "\\\\frac{a}{b}", "x^2 + 1", "42"). Das Feld "tolerance" (float, optional, default 0) gibt die erlaubte numerische Abweichung an (0 = exakt).',
 }
 
 def _build_generate_prompt(question_types: list[str] | None = None) -> str:
@@ -279,6 +282,9 @@ class AIService:
                 elif qt == QuestionType.DRAG_DROP:
                     q.drag_drop_pairs = [DragDropPair(source=p["source"], target=p["target"])
                                          for p in item.get("drag_drop_pairs", [])]
+                elif qt == QuestionType.MATH_FORMULA:
+                    q.correct_formula = item.get("correct_formula", item.get("correct_text", ""))
+                    q.tolerance = float(item.get("tolerance", 0))
                 questions.append(q)
             except (KeyError, ValueError):
                 continue

@@ -846,9 +846,13 @@ class App(ctk.CTk):
         if settings.get("ai_validation", False):
             aival_switch.select()
         detailed_switch = ctk.CTkSwitch(feat_row, text=t("settings.detailed_answer"))
-        detailed_switch.grid(row=1, column=0, columnspan=3, padx=(0, 20), pady=(8, 0))
+        detailed_switch.grid(row=1, column=0, padx=(0, 20), pady=(8, 0))
         if settings.get("detailed_answer", False):
             detailed_switch.select()
+        math_switch = ctk.CTkSwitch(feat_row, text=t("settings.math_mode"))
+        math_switch.grid(row=1, column=1, padx=(0, 20), pady=(8, 0))
+        if settings.get("math_mode", False):
+            math_switch.select()
 
         # Appearance & language
         ctk.CTkLabel(frame, text=t("settings.appearance"), font=("Arial", 13, "bold"),
@@ -901,6 +905,7 @@ class App(ctk.CTk):
             s["enable_images"] = bool(img_switch.get())
             s["ai_validation"] = bool(aival_switch.get())
             s["detailed_answer"] = bool(detailed_switch.get())
+            s["math_mode"] = bool(math_switch.get())
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
             s["use_memory"] = bool(memory_switch.get())
@@ -1069,6 +1074,7 @@ class App(ctk.CTk):
             "Drag & Drop (Zuordnung)": QuestionType.DRAG_DROP.value,
             "Diagramm beschriften": QuestionType.DIAGRAM_LABEL.value,
             "Markieren (Bild)": QuestionType.MARK_IMAGE.value,
+            "Mathe-Formel": QuestionType.MATH_FORMULA.value,
         }
         def on_type_change(v):
             type_var.set(type_options[v])
@@ -1503,6 +1509,22 @@ class App(ctk.CTk):
                 reload_mark_canvas()
                 options_widgets.append(("mark_image", mi_img_entry, lambda: mark_regions_data))
 
+            elif qt == QuestionType.MATH_FORMULA.value:
+                ctk.CTkLabel(specific_frame, text="Korrekte Formel / Lösung (LaTeX oder Zahl)",
+                           font=("Arial", 13, "bold")).grid(row=0, column=0, sticky="w")
+                mf_entry = ctk.CTkEntry(specific_frame, width=500,
+                                         placeholder_text="z.B. \\frac{1}{2} oder 42 oder x^2+1")
+                mf_entry.grid(row=1, column=0, sticky="w", pady=5)
+                if question.correct_formula:
+                    mf_entry.insert(0, question.correct_formula)
+                ctk.CTkLabel(specific_frame, text="Toleranz (0 = exakt)",
+                           font=("Arial", 12), text_color=COLORS["text_light"]
+                           ).grid(row=2, column=0, sticky="w", pady=(5, 0))
+                tol_entry = ctk.CTkEntry(specific_frame, width=100, placeholder_text="0.0")
+                tol_entry.grid(row=3, column=0, sticky="w", pady=3)
+                tol_entry.insert(0, str(question.tolerance))
+                options_widgets.append(("math_formula", mf_entry, tol_entry))
+
         def add_option():
             sync_options()
             options_data.append({"text": "", "is_correct": False})
@@ -1583,6 +1605,14 @@ class App(ctk.CTk):
                     if item[0] == "mark_image":
                         question.image_path = item[1].get().strip()
                         question.mark_regions = item[2]()
+            elif qt == QuestionType.MATH_FORMULA:
+                for item in options_widgets:
+                    if item[0] == "math_formula":
+                        question.correct_formula = item[1].get().strip()
+                        try:
+                            question.tolerance = float(item[2].get())
+                        except ValueError:
+                            question.tolerance = 0.0
 
             if not question.text:
                 messagebox.showwarning("Hinweis", "Bitte Fragentext eingeben!")
@@ -2033,6 +2063,7 @@ class App(ctk.CTk):
             ("Freitext", "free_text"),
             ("Lückentext", "fill_blank"),
             ("Drag & Drop", "drag_drop"),
+            ("Mathe-Formel", "math_formula"),
         ]
         qt_vars = {}
         for i, (label, key) in enumerate(QUESTION_TYPES_UI):
@@ -2955,6 +2986,71 @@ class App(ctk.CTk):
             mark_canvas.bind("<Button-1>", on_canvas_click)
             answer_widgets.append(("mark_image", click_pos, q.mark_regions, mark_canvas))
 
+        elif q.question_type == QuestionType.MATH_FORMULA:
+            ctk.CTkLabel(answer_frame, text=t("math.keypad"),
+                        font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
+                        ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
+
+            math_entry = ctk.CTkEntry(answer_frame, width=500, font=("Segoe UI", 14),
+                                       placeholder_text=t("math.input_placeholder"))
+            math_entry.grid(row=1, column=0, padx=20, pady=(0, 5), sticky="w")
+            answer_widgets.append(math_entry)
+
+            preview_label = ctk.CTkLabel(answer_frame, text="", font=("Segoe UI", 11),
+                                          text_color=COLORS["text_light"])
+            preview_label.grid(row=2, column=0, padx=20, pady=(0, 5), sticky="w")
+            preview_img_label = ctk.CTkLabel(answer_frame, text="")
+            preview_img_label.grid(row=3, column=0, padx=20, pady=(0, 5), sticky="w")
+
+            def _update_math_preview(*_args):
+                raw = math_entry.get().strip()
+                if not raw:
+                    preview_label.configure(text="")
+                    preview_img_label.configure(text="", image=None)
+                    return
+                preview_label.configure(text=f"{t('math.preview')} {raw}")
+                if can_render_latex():
+                    formula = raw
+                    for c in ("$", "$$"):
+                        if formula.startswith(c) and formula.endswith(c):
+                            formula = formula[len(c):-len(c)]
+                    img = render_formula(formula, fontsize=18,
+                                         text_color=COLORS.get("text", "#000"))
+                    if img:
+                        from PIL import ImageTk as _ITk
+                        photo = _ITk.PhotoImage(img)
+                        preview_img_label.configure(image=photo, text="")
+                        preview_img_label.image = photo
+                        return
+                preview_img_label.configure(text="", image=None)
+
+            math_entry.bind("<KeyRelease>", _update_math_preview)
+
+            keypad_frame = ctk.CTkFrame(answer_frame, fg_color="transparent")
+            keypad_frame.grid(row=4, column=0, padx=20, pady=(0, 10), sticky="w")
+            keypad_buttons = [
+                ("7", "7"), ("8", "8"), ("9", "9"), ("÷", "/"), ("√", "\\sqrt{"),
+                ("4", "4"), ("5", "5"), ("6", "6"), ("×", "\\cdot "), ("^", "^"),
+                ("1", "1"), ("2", "2"), ("3", "3"), ("-", "-"), ("π", "\\pi"),
+                ("0", "0"), (".", "."), ("(", "("), (")", ")"), ("+", "+"),
+                ("x", "x"), ("y", "y"), ("=", "="), ("⌫", "BACKSPACE"), ("frac", "\\frac{}{"),
+            ]
+            for idx, (display, insert_val) in enumerate(keypad_buttons):
+                row_i, col_i = divmod(idx, 5)
+                def _on_key(val=insert_val):
+                    if val == "BACKSPACE":
+                        cur = math_entry.get()
+                        if cur:
+                            math_entry.delete(len(cur) - 1, "end")
+                    else:
+                        math_entry.insert("end", val)
+                    _update_math_preview()
+                ctk.CTkButton(keypad_frame, text=display, width=50, height=36,
+                             font=("Segoe UI", 13), fg_color=COLORS.get("input_bg", "#e8e8e8"),
+                             text_color=COLORS.get("text", "#000"), hover_color=COLORS.get("card_hover", "#ddd"),
+                             command=_on_key
+                             ).grid(row=row_i, column=col_i, padx=2, pady=2)
+
         # Answer timing
         _answer_start_ms = int(time.time() * 1000)
         use_fsrs = self.store.load_settings().get("use_fsrs", False)
@@ -3018,6 +3114,11 @@ class App(ctk.CTk):
                     if isinstance(item, tuple) and len(item) == 4 and item[0] == "mark_image":
                         return {"x": item[1]["x"], "y": item[1]["y"]}
                 return None
+            elif q.question_type == QuestionType.MATH_FORMULA:
+                for item in answer_widgets:
+                    if hasattr(item, 'get') and not isinstance(item, tuple):
+                        return item.get()
+                return ""
             return None
 
         def submit():

@@ -76,6 +76,8 @@ class QuizSession:
             return self._check_diagram_label(question, user_input)
         elif qt == QuestionType.MARK_IMAGE:
             return self._check_mark_image(question, user_input)
+        elif qt == QuestionType.MATH_FORMULA:
+            return self._check_math_formula(question, user_input)
         return AnswerResult(question.id, False, 0, question.points, str(user_input), "")
 
     def _check_single_choice(self, q: Question, selected_index: int) -> AnswerResult:
@@ -176,6 +178,58 @@ class QuizSession:
                                       f"({cx:.2f}, {cy:.2f})", "Korrekte Region getroffen")
         return AnswerResult(q.id, False, 0, q.points,
                           f"({cx:.2f}, {cy:.2f})", "Keine korrekte Region getroffen")
+
+    @staticmethod
+    def _normalize_math(expr: str) -> str:
+        """Strip LaTeX wrappers and whitespace for comparison."""
+        import re as _re
+        e = expr.strip()
+        for prefix in ("$$", "$"):
+            if e.startswith(prefix) and e.endswith(prefix):
+                e = e[len(prefix):-len(prefix)]
+        e = e.replace(" ", "")
+        e = _re.sub(r'\\frac\{([^}]*)\}\{([^}]*)\}', r'((\1)/(\2))', e)
+        e = e.replace("{", "").replace("}", "")
+        e = e.replace("\\cdot", "*").replace("\\times", "*")
+        e = e.replace("\\left", "").replace("\\right", "")
+        e = e.replace("\\sqrt", "sqrt").replace("\\pi", "pi")
+        e = e.replace("^", "**")
+        return e.lower()
+
+    @staticmethod
+    def _eval_math(expr: str) -> float | None:
+        """Safely evaluate a simple math expression to a float."""
+        cleaned = QuizSession._normalize_math(expr)
+        cleaned = cleaned.replace("pi", str(math.pi))
+        import re as _re
+        cleaned = _re.sub(r'sqrt\(([^)]+)\)', r'((\1)**0.5)', cleaned)
+        cleaned = _re.sub(r'sqrt([0-9.]+)', r'((\1)**0.5)', cleaned)
+        allowed = set("0123456789.+-*/() ")
+        if not all(c in allowed for c in cleaned):
+            return None
+        try:
+            return float(eval(cleaned, {"__builtins__": {}}, {}))
+        except Exception:
+            return None
+
+    def _check_math_formula(self, q: Question, answer: str) -> AnswerResult:
+        if not answer or not answer.strip():
+            return AnswerResult(q.id, False, 0, q.points, "", q.correct_formula)
+        user_norm = self._normalize_math(answer)
+        correct_norm = self._normalize_math(q.correct_formula)
+        if user_norm == correct_norm:
+            return AnswerResult(q.id, True, q.points, q.points, answer, q.correct_formula)
+        tol = q.tolerance if q.tolerance > 0 else 0.001
+        user_val = self._eval_math(answer)
+        correct_val = self._eval_math(q.correct_formula)
+        if user_val is not None and correct_val is not None:
+            if correct_val == 0:
+                is_correct = abs(user_val) < tol
+            else:
+                is_correct = abs(user_val - correct_val) / max(abs(correct_val), 1e-10) < tol
+            if is_correct:
+                return AnswerResult(q.id, True, q.points, q.points, answer, q.correct_formula)
+        return AnswerResult(q.id, False, 0, q.points, answer, q.correct_formula)
 
     def submit_answer(self, user_input) -> AnswerResult:
         q = self.current_question
