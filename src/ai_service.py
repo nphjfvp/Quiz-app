@@ -330,15 +330,59 @@ class AIService:
     # ── Model Recommendations ──
 
     RECOMMENDED_MODELS = [
-        {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "tag": "Genauigkeit", "cost": "$$$", "speed": "mittel"},
-        {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "tag": "Geschwindigkeit", "cost": "$", "speed": "schnell"},
-        {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3", "tag": "Kosten", "cost": "$", "speed": "mittel"},
-        {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "tag": "", "cost": "$", "speed": "schnell"},
-        {"id": "openai/gpt-4o", "name": "GPT-4o", "tag": "", "cost": "$$", "speed": "mittel"},
-        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "tag": "", "cost": "$", "speed": "schnell"},
-        {"id": "meta-llama/llama-3.3-70b-instruct", "name": "Llama 3.3 70B", "tag": "", "cost": "$", "speed": "mittel"},
-        {"id": "mistralai/mistral-large-2411", "name": "Mistral Large", "tag": "", "cost": "$$", "speed": "mittel"},
+        {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "cost_in": 3.0, "cost_out": 15.0, "speed": "mittel",
+         "strengths": ["MINT", "Informatik", "Logik", "Programmierung", "Jura"]},
+        {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.15, "cost_out": 0.6, "speed": "schnell",
+         "strengths": ["Medizin", "Gesundheit", "Biologie", "Naturwissenschaften", "Sprachen"]},
+        {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3", "cost_in": 0.27, "cost_out": 1.10, "speed": "mittel",
+         "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
+        {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 0.80, "cost_out": 4.0, "speed": "schnell",
+         "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
+        {"id": "openai/gpt-4o", "name": "GPT-4o", "cost_in": 2.50, "cost_out": 10.0, "speed": "mittel",
+         "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
+        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "cost_in": 0.15, "cost_out": 0.6, "speed": "schnell",
+         "strengths": ["Allgemeinwissen", "Sprachen"]},
+        {"id": "meta-llama/llama-3.3-70b-instruct", "name": "Llama 3.3 70B", "cost_in": 0.20, "cost_out": 0.20, "speed": "mittel",
+         "strengths": ["Informatik", "Programmierung"]},
+        {"id": "mistralai/mistral-large-2411", "name": "Mistral Large", "cost_in": 2.0, "cost_out": 6.0, "speed": "mittel",
+         "strengths": ["Sprachen", "Literatur", "Europäische Geschichte"]},
     ]
+
+    @classmethod
+    def rank_models_for_topic(cls, topic: str) -> list[dict]:
+        """Return models sorted by relevance to the given topic.
+        Top 3 get dynamic tags: Empfehlung, Geschwindigkeit, Kosten."""
+        topic_lower = topic.lower()
+        scored = []
+        for m in cls.RECOMMENDED_MODELS:
+            score = 0
+            for s in m.get("strengths", []):
+                if s.lower() in topic_lower or topic_lower in s.lower():
+                    score += 10
+                words_s = set(s.lower().split())
+                words_t = set(topic_lower.split())
+                score += len(words_s & words_t) * 3
+            scored.append((score, m))
+
+        scored.sort(key=lambda x: -x[0])
+        best_accuracy = scored[0][1]
+        fastest = min(cls.RECOMMENDED_MODELS, key=lambda m: 0 if m["speed"] == "schnell" else 1)
+        cheapest = min(cls.RECOMMENDED_MODELS, key=lambda m: m["cost_in"] + m["cost_out"])
+
+        result = []
+        used_ids = set()
+        for tag, model in [("Empfehlung", best_accuracy), ("Geschwindigkeit", fastest), ("Kosten", cheapest)]:
+            entry = {**model, "tag": tag}
+            if model["id"] not in used_ids:
+                result.append(entry)
+                used_ids.add(model["id"])
+
+        for _, m in scored:
+            if m["id"] not in used_ids:
+                result.append({**m, "tag": ""})
+                used_ids.add(m["id"])
+
+        return result
 
     def analyze_document(self, file_path: str) -> dict:
         """Quick analysis of document: topic, complexity, language.
@@ -378,6 +422,15 @@ class AIService:
             pass
         return {"topic": "Unbekannt", "complexity": "Unbekannt", "summary": response[:200]}
 
+    @classmethod
+    def _cost_label(cls, cost_in: float, cost_out: float) -> str:
+        total = cost_in + cost_out
+        if total < 1.0:
+            return "$"
+        if total < 5.0:
+            return "$$"
+        return "$$$"
+
     def estimate_processing(self, file_path: str, mode: str = "generate") -> dict:
         """Estimate processing time before starting.
         Returns {file_size, text_length, num_chunks, est_seconds_per_chunk,
@@ -404,6 +457,17 @@ class AIService:
             parallel = 1
             est_total = num_chunks * est_per_chunk
 
+        # Cost estimation: ~1 token per 4 chars input, ~1000 tokens output per chunk
+        input_tokens = (text_len / 4) + (num_chunks * 200)  # text + system prompt overhead
+        output_tokens = num_chunks * 1000
+        model_info = next((m for m in self.RECOMMENDED_MODELS if m["id"] == self.model), None)
+        if model_info:
+            cost_in = model_info["cost_in"]
+            cost_out = model_info["cost_out"]
+        else:
+            cost_in, cost_out = 1.0, 3.0  # conservative default
+        est_cost = (input_tokens / 1_000_000) * cost_in + (output_tokens / 1_000_000) * cost_out
+
         return {
             "file_size": file_size,
             "text_length": text_len,
@@ -411,6 +475,7 @@ class AIService:
             "est_seconds_per_chunk": est_per_chunk,
             "est_total_seconds": int(est_total),
             "parallel": parallel > 1,
+            "est_cost_usd": round(est_cost, 4),
         }
 
     # ── Generate: Sequential with Rolling Summary ──
@@ -538,14 +603,23 @@ class AIService:
 
     # ── New methods ──
 
-    def generate_cloze_text(self, text: str, blank_pct: float = 0.2) -> tuple[str, list[str]]:
-        """Ask AI to create a cloze/fill-blank version of the text.
-        Returns (text_with_blanks, list_of_correct_words).
-        blank_pct controls roughly what fraction of key terms to blank out."""
+    def generate_cloze_text(self, text: str, blank_pct: float = 0.2,
+                            min_chars: int = 0, max_chars: int = 0) -> tuple[str, list[str]]:
+        """Create a cloze/fill-blank version.
+        min_chars/max_chars: if >0, instruct AI to produce text in that range.
+        Returns (text_with_blanks, list_of_correct_words)."""
+        length_hint = ""
+        if min_chars > 0 and max_chars > 0:
+            length_hint = (f"Der Lückentext soll zwischen {min_chars} und {max_chars} Zeichen lang sein. "
+                          f"Kürze oder erweitere den Text entsprechend, aber behalte die wichtigsten Inhalte bei. ")
+        elif max_chars > 0:
+            length_hint = f"Der Lückentext soll maximal {max_chars} Zeichen lang sein. "
+
         messages = [
             {"role": "system", "content": (
                 "Du bist ein Experte für Lückentexte. Erstelle einen Lückentext aus dem gegebenen Text. "
                 "Ersetze wichtige Fachbegriffe durch '___'. "
+                f"{length_hint}"
                 "Antworte mit exakt diesem JSON-Format:\n"
                 '{"cloze_text": "Text mit ___ Lücken", "answers": ["Wort1", "Wort2"]}\n'
                 "Die Reihenfolge der answers muss der Reihenfolge der Lücken im Text entsprechen."
@@ -556,7 +630,12 @@ class AIService:
                 f"{text}"
             )},
         ]
-        response = self._call_api(messages, max_tokens=2048)
+        max_tokens = 2048
+        if max_chars > 3000:
+            max_tokens = 4096
+        if max_chars > 6000:
+            max_tokens = 8192
+        response = self._call_api(messages, max_tokens=max_tokens)
         if not response or response.startswith("ERROR:"):
             return text, []
         try:

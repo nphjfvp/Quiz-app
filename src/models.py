@@ -197,6 +197,23 @@ class DataStore:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
+    def load_source_texts(self) -> dict:
+        path = self.data_dir / "source_texts.json"
+        if not path.exists():
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return {}
+
+    def save_source_text(self, filename: str, text: str):
+        texts = self.load_source_texts()
+        texts[filename] = text
+        path = self.data_dir / "source_texts.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(texts, f, ensure_ascii=False, indent=2)
+
     def log_answer(self, correct: bool):
         stats = self.load_stats()
         today = date.today().isoformat()

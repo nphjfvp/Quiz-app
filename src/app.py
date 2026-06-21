@@ -884,55 +884,99 @@ class App(ctk.CTk):
             ("Alle", "*.*"),
         ])
 
-    def _build_model_selector(self, parent, row_start: int) -> tuple:
-        """Build model dropdown with recommendations. Returns (model_var, next_row)."""
+    def _build_model_selector(self, parent, row_start: int, topic: str = "") -> tuple:
+        """Build model dropdown with recommendations. Returns (model_var, model_id_map, menu_widget, rec_frame, next_row)."""
         from .ai_service import AIService
-        models = AIService.RECOMMENDED_MODELS
+
+        if topic:
+            models = AIService.rank_models_for_topic(topic)
+        else:
+            models = []
+            for m in AIService.RECOMMENDED_MODELS:
+                models.append({**m, "tag": ""})
+            models[0]["tag"] = "Empfehlung"
+            fastest = min(range(len(models)), key=lambda i: 0 if models[i]["speed"] == "schnell" else 1)
+            cheapest = min(range(len(models)), key=lambda i: models[i]["cost_in"] + models[i]["cost_out"])
+            if not models[fastest].get("tag"):
+                models[fastest]["tag"] = "Geschwindigkeit"
+            if not models[cheapest].get("tag"):
+                models[cheapest]["tag"] = "Kosten"
 
         ctk.CTkLabel(parent, text=t("ai.model_select"), font=("Arial", 13, "bold"),
                     text_color=COLORS["text"]).grid(row=row_start, column=0, sticky="w", pady=(15, 5))
 
         rec_frame = ctk.CTkFrame(parent, fg_color="transparent")
         rec_frame.grid(row=row_start + 1, column=0, sticky="w", pady=(0, 5))
-        tags = {"Genauigkeit": t("ai.rec_accuracy"), "Geschwindigkeit": t("ai.rec_speed"), "Kosten": t("ai.rec_cost")}
-        tag_colors = {"Genauigkeit": COLORS["success"], "Geschwindigkeit": COLORS["primary"], "Kosten": COLORS["warning"]}
-        for i, m in enumerate(models[:3]):
-            tag_text = tags.get(m["tag"], m["tag"])
-            color = tag_colors.get(m["tag"], COLORS["primary"])
-            ctk.CTkLabel(rec_frame, text=f"{'🎯' if i==0 else '⚡' if i==1 else '💰'} {tag_text}: {m['name']}",
-                        font=("Arial", 11), text_color=color,
-                        ).grid(row=0, column=i, padx=(0, 15))
+        self._populate_rec_badges(rec_frame, models)
 
-        display_names = []
-        model_id_map = {}
-        for m in models:
-            tag = f" [{tags.get(m['tag'], m['tag'])}]" if m["tag"] else ""
-            label = f"{m['name']} ({m['cost']}, {m['speed']}){tag}"
-            display_names.append(label)
-            model_id_map[label] = m["id"]
+        display_names, model_id_map = self._model_display_list(models)
 
         settings = self.store.load_settings()
         current_model = settings.get("model", "deepseek/deepseek-chat")
-        current_in_list = False
-        for label, mid in model_id_map.items():
-            if mid == current_model:
-                current_in_list = True
-                break
+        current_in_list = any(mid == current_model for mid in model_id_map.values())
         if not current_in_list:
             custom_label = f"{current_model} (aktuell)"
             display_names.append(custom_label)
             model_id_map[custom_label] = current_model
 
-        model_var = StringVar(value=display_names[2])  # default DeepSeek (cost)
+        model_var = StringVar(value=display_names[0])
         for label, mid in model_id_map.items():
             if mid == current_model:
                 model_var.set(label)
                 break
 
-        menu = ctk.CTkOptionMenu(parent, values=display_names, variable=model_var, width=450)
+        menu = ctk.CTkOptionMenu(parent, values=display_names, variable=model_var, width=500)
         menu.grid(row=row_start + 2, column=0, sticky="w", pady=5)
 
-        return model_var, model_id_map, row_start + 3
+        return model_var, model_id_map, menu, rec_frame, row_start + 3
+
+    def _populate_rec_badges(self, frame, models):
+        for w in frame.winfo_children():
+            w.destroy()
+        tags_map = {"Empfehlung": (t("ai.rec_accuracy"), "🎯", COLORS["success"]),
+                    "Geschwindigkeit": (t("ai.rec_speed"), "⚡", COLORS["primary"]),
+                    "Kosten": (t("ai.rec_cost"), "💰", COLORS["warning"])}
+        col = 0
+        for m in models[:3]:
+            tag = m.get("tag", "")
+            if tag in tags_map:
+                label_text, icon, color = tags_map[tag]
+                ctk.CTkLabel(frame, text=f"{icon} {label_text}: {m['name']}",
+                            font=("Arial", 11), text_color=color,
+                            ).grid(row=0, column=col, padx=(0, 15))
+                col += 1
+
+    def _model_display_list(self, models):
+        from .ai_service import AIService
+        tags_t = {"Empfehlung": t("ai.rec_accuracy"), "Geschwindigkeit": t("ai.rec_speed"), "Kosten": t("ai.rec_cost")}
+        display_names = []
+        model_id_map = {}
+        for m in models:
+            cost_sym = AIService._cost_label(m["cost_in"], m["cost_out"])
+            cost_cents = f"~${m['cost_in'] + m['cost_out']:.1f}/1M"
+            tag = f" [{tags_t.get(m.get('tag', ''), m.get('tag', ''))}]" if m.get("tag") else ""
+            label = f"{m['name']} ({cost_sym} {cost_cents}, {m['speed']}){tag}"
+            display_names.append(label)
+            model_id_map[label] = m["id"]
+        return display_names, model_id_map
+
+    def _update_model_selector_for_topic(self, topic, model_var, model_id_map, menu, rec_frame):
+        from .ai_service import AIService
+        models = AIService.rank_models_for_topic(topic)
+        self._populate_rec_badges(rec_frame, models)
+        display_names, new_map = self._model_display_list(models)
+        model_id_map.clear()
+        model_id_map.update(new_map)
+
+        settings = self.store.load_settings()
+        current_model = settings.get("model", "deepseek/deepseek-chat")
+        if not any(mid == current_model for mid in model_id_map.values()):
+            custom_label = f"{current_model} (aktuell)"
+            display_names.append(custom_label)
+            model_id_map[custom_label] = current_model
+
+        menu.configure(values=display_names)
+        model_var.set(display_names[0])
 
     def _build_analysis_panel(self, parent, row: int) -> ctk.CTkFrame:
         """Build the document analysis display frame. Returns the frame."""
@@ -943,8 +987,10 @@ class App(ctk.CTk):
         analysis_frame.grid_remove()
         return analysis_frame
 
-    def _run_analysis(self, file_path: str, analysis_frame: ctk.CTkFrame):
-        """Run document analysis in background and populate the frame."""
+    def _run_analysis(self, file_path: str, analysis_frame: ctk.CTkFrame,
+                      model_selector_state: tuple = None):
+        """Run document analysis in background and populate the frame.
+        model_selector_state: (model_var, model_id_map, menu, rec_frame) to update recommendations."""
         for w in analysis_frame.winfo_children():
             w.destroy()
         ctk.CTkLabel(analysis_frame, text=f"  {t('ai.analyzing')}", font=("Arial", 12),
@@ -994,6 +1040,10 @@ class App(ctk.CTk):
                                 text_color=COLORS["text_light"], wraplength=500
                                 ).grid(row=r, column=0, columnspan=2, sticky="w", padx=10, pady=(4, 8))
 
+                if model_selector_state and topic and topic != "Unbekannt":
+                    mv, mid_map, menu_w, rf = model_selector_state
+                    self._update_model_selector_for_topic(topic, mv, mid_map, menu_w, rf)
+
             self.after(0, update)
 
         threading.Thread(target=run, daemon=True).start()
@@ -1018,7 +1068,8 @@ class App(ctk.CTk):
         ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
                     ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: self._on_file_selected_gen(file_var, est_label, chunk_slider, analysis_frame)
+                     command=lambda: self._on_file_selected_gen(file_var, est_label, chunk_slider, analysis_frame,
+                                                                (model_var, model_id_map, model_menu, model_rec_frame))
                      ).grid(row=0, column=1)
 
         # Estimation display
@@ -1030,7 +1081,7 @@ class App(ctk.CTk):
         analysis_frame = self._build_analysis_panel(scroll, row=4)
 
         # Model selector
-        model_var, model_id_map, next_row = self._build_model_selector(scroll, row_start=5)
+        model_var, model_id_map, model_menu, model_rec_frame, next_row = self._build_model_selector(scroll, row_start=5)
 
         # Number of questions
         ctk.CTkLabel(scroll, text="Anzahl Fragen (ca.)", font=("Arial", 13, "bold")
@@ -1089,7 +1140,8 @@ class App(ctk.CTk):
                 est_label.configure(
                     text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
                          f"{est['num_chunks']} Chunks (sequentiell) · "
-                         f"ca. {mins}:{secs:02d} min".replace(",", "."))
+                         f"ca. {mins}:{secs:02d} min · "
+                         f"~${est.get('est_cost_usd', 0):.3f}".replace(",", "."))
             except Exception:
                 est_label.configure(text="Schätzung nicht möglich")
 
@@ -1156,13 +1208,15 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_f, text="Zurück", fg_color=COLORS["text_light"],
                      command=self.show_home).grid(row=0, column=1)
 
-    def _on_file_selected_gen(self, file_var, est_label, chunk_slider, analysis_frame):
+    def _on_file_selected_gen(self, file_var, est_label, chunk_slider, analysis_frame,
+                              model_selector_state=None):
         path = self._file_dialog_with_pdf()
         if not path:
             return
         file_var.set(path)
         self.ai.chunk_size = int(chunk_slider.get())
         self.ai.overlap = max(500, self.ai.chunk_size // 6)
+        self._save_source_text_bg(path)
         try:
             est = self.ai.estimate_processing(path, mode="generate")
             size_kb = est["file_size"] / 1024
@@ -1171,19 +1225,22 @@ class App(ctk.CTk):
             est_label.configure(
                 text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
                      f"{est['num_chunks']} Chunks (sequentiell) · "
-                     f"ca. {mins}:{secs:02d} min".replace(",", "."))
+                     f"ca. {mins}:{secs:02d} min · "
+                     f"~${est.get('est_cost_usd', 0):.3f}".replace(",", "."))
         except Exception:
             est_label.configure(text="Schätzung nicht möglich")
         if self.ai.api_key:
-            self._run_analysis(path, analysis_frame)
+            self._run_analysis(path, analysis_frame, model_selector_state)
 
-    def _on_file_selected_imp(self, file_var, est_label, chunk_slider, analysis_frame):
+    def _on_file_selected_imp(self, file_var, est_label, chunk_slider, analysis_frame,
+                              model_selector_state=None):
         path = self._file_dialog_with_pdf()
         if not path:
             return
         file_var.set(path)
         self.ai.chunk_size = int(chunk_slider.get())
         self.ai.overlap = max(500, self.ai.chunk_size // 6)
+        self._save_source_text_bg(path)
         try:
             est = self.ai.estimate_processing(path, mode="import")
             size_kb = est["file_size"] / 1024
@@ -1193,11 +1250,24 @@ class App(ctk.CTk):
             est_label.configure(
                 text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
                      f"{est['num_chunks']} Chunks ({par_text}) · "
-                     f"ca. {mins}:{secs:02d} min".replace(",", "."))
+                     f"ca. {mins}:{secs:02d} min · "
+                     f"~${est.get('est_cost_usd', 0):.3f}".replace(",", "."))
         except Exception:
             est_label.configure(text="Schätzung nicht möglich")
         if self.ai.api_key:
-            self._run_analysis(path, analysis_frame)
+            self._run_analysis(path, analysis_frame, model_selector_state)
+
+    def _save_source_text_bg(self, file_path: str):
+        """Save extracted text from uploaded file in background for cloze reuse."""
+        def run():
+            try:
+                text = self.ai._read_file_as_text(file_path)
+                if text and not text.startswith("[IMAGE:"):
+                    name = Path(file_path).name
+                    self.store.save_source_text(name, text)
+            except Exception:
+                pass
+        threading.Thread(target=run, daemon=True).start()
 
     # ── AI IMPORT ──
 
@@ -1220,7 +1290,8 @@ class App(ctk.CTk):
         ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
                     ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: self._on_file_selected_imp(file_var, est_label, chunk_slider, analysis_frame)
+                     command=lambda: self._on_file_selected_imp(file_var, est_label, chunk_slider, analysis_frame,
+                                                                (model_var, model_id_map, model_menu, model_rec_frame))
                      ).grid(row=0, column=1)
 
         # Estimation
@@ -1232,7 +1303,7 @@ class App(ctk.CTk):
         analysis_frame = self._build_analysis_panel(scroll, row=4)
 
         # Model selector
-        model_var, model_id_map, next_row = self._build_model_selector(scroll, row_start=5)
+        model_var, model_id_map, model_menu, model_rec_frame, next_row = self._build_model_selector(scroll, row_start=5)
 
         ctk.CTkLabel(scroll, text="Quiz-Name", font=("Arial", 13, "bold")
                     ).grid(row=next_row, column=0, sticky="w", pady=(15, 0))
@@ -2341,13 +2412,114 @@ class App(ctk.CTk):
         ctk.CTkLabel(scroll, text=t("cloze.sub"), font=("Arial", 13),
                     text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 15))
 
+        # Source selection: stored slides or manual text
+        source_texts = self.store.load_source_texts()
+        source_names = list(source_texts.keys())
+        row = 2
+
+        if source_names:
+            ctk.CTkLabel(scroll, text="Quelle auswählen:", font=("Arial", 13, "bold"),
+                        text_color=COLORS["text"]).grid(row=row, column=0, sticky="w")
+            row += 1
+            source_var = StringVar(value="Eigener Text")
+            options = ["Eigener Text"] + source_names
+            source_menu = ctk.CTkOptionMenu(scroll, values=options, variable=source_var, width=400,
+                                           command=lambda v: _on_source_change(v))
+            source_menu.grid(row=row, column=0, sticky="w", pady=5)
+            row += 1
+        else:
+            source_var = StringVar(value="Eigener Text")
+
         ctk.CTkLabel(scroll, text="Quelltext eingeben oder einfügen:", font=("Arial", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=2, column=0, sticky="w")
+                    text_color=COLORS["text"]).grid(row=row, column=0, sticky="w")
+        row += 1
         source_box = ctk.CTkTextbox(scroll, width=700, height=150)
-        source_box.grid(row=3, column=0, sticky="ew", pady=(3, 10))
+        source_box.grid(row=row, column=0, sticky="ew", pady=(3, 10))
+        row += 1
+
+        def _on_source_change(name):
+            source_box.delete("1.0", "end")
+            if name != "Eigener Text" and name in source_texts:
+                text = source_texts[name]
+                if len(text) > 10000:
+                    text = text[:10000]
+                source_box.insert("1.0", text)
+
+        # Length presets
+        LENGTH_PRESETS = {
+            "Sehr kurz": (200, 500),
+            "Kurz": (500, 1200),
+            "Mittel": (1200, 2500),
+            "Lang": (2500, 5000),
+            "Sehr lang": (5000, 10000),
+        }
+        MIN_CHARS_ABS = 100
+        MAX_CHARS_ABS = 15000
+        MIN_GAP = 200
+
+        ctk.CTkLabel(scroll, text="Textlänge:", font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=row, column=0, sticky="w", pady=(10, 0))
+        row += 1
+
+        length_var = StringVar(value="Mittel")
+        preset_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        preset_frame.grid(row=row, column=0, sticky="w", pady=5)
+        for i, name in enumerate(LENGTH_PRESETS):
+            ctk.CTkRadioButton(preset_frame, text=name, variable=length_var, value=name,
+                              command=lambda: _on_length_change()
+                              ).grid(row=0, column=i, padx=(0, 12))
+        row += 1
+
+        # Advanced checkbox
+        advanced_var = BooleanVar(value=False)
+        ctk.CTkCheckBox(scroll, text="Erweitert (eigene Länge)", variable=advanced_var,
+                       command=lambda: _toggle_advanced()
+                       ).grid(row=row, column=0, sticky="w", pady=(5, 0))
+        row += 1
+
+        adv_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        adv_frame.grid(row=row, column=0, sticky="w", pady=5)
+        row += 1
+
+        ctk.CTkLabel(adv_frame, text="Min:", font=("Arial", 12)).grid(row=0, column=0, padx=(0, 5))
+        min_entry = ctk.CTkEntry(adv_frame, width=80, placeholder_text=str(MIN_CHARS_ABS))
+        min_entry.grid(row=0, column=1, padx=(0, 15))
+        min_entry.insert(0, "1200")
+        ctk.CTkLabel(adv_frame, text="Max:", font=("Arial", 12)).grid(row=0, column=2, padx=(0, 5))
+        max_entry = ctk.CTkEntry(adv_frame, width=80, placeholder_text=str(MAX_CHARS_ABS))
+        max_entry.grid(row=0, column=3, padx=(0, 10))
+        max_entry.insert(0, "2500")
+        ctk.CTkLabel(adv_frame, text="Zeichen", font=("Arial", 11),
+                    text_color=COLORS["text_light"]).grid(row=0, column=4)
+        adv_frame.grid_remove()
+
+        def _toggle_advanced():
+            if advanced_var.get():
+                adv_frame.grid()
+            else:
+                adv_frame.grid_remove()
+
+        def _on_length_change():
+            preset = LENGTH_PRESETS.get(length_var.get(), (1200, 2500))
+            min_entry.delete(0, "end")
+            min_entry.insert(0, str(preset[0]))
+            max_entry.delete(0, "end")
+            max_entry.insert(0, str(preset[1]))
+
+        def _get_length_params():
+            if advanced_var.get():
+                try:
+                    mn = max(MIN_CHARS_ABS, int(min_entry.get()))
+                    mx = max(mn + MIN_GAP, int(max_entry.get()))
+                    mx = min(mx, MAX_CHARS_ABS)
+                    return mn, mx
+                except ValueError:
+                    pass
+            preset = LENGTH_PRESETS.get(length_var.get(), (1200, 2500))
+            return preset
 
         result_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        result_frame.grid(row=5, column=0, sticky="ew")
+        result_frame.grid(row=row + 1, column=0, sticky="ew")
         result_frame.grid_columnconfigure(0, weight=1)
 
         cloze_state = {"text": "", "answers": [], "entries": []}
@@ -2358,8 +2530,10 @@ class App(ctk.CTk):
                 messagebox.showwarning("Hinweis", "Bitte Text eingeben!")
                 return
             progress_lbl.configure(text=t("summary.loading"))
+            min_c, max_c = _get_length_params()
             def _run():
-                cloze_text, answers = self.ai.generate_cloze_text(text, blank_pct=0.2)
+                cloze_text, answers = self.ai.generate_cloze_text(
+                    text, blank_pct=0.2, min_chars=min_c, max_chars=max_c)
                 self.after(0, lambda: _show(cloze_text, answers))
             def _show(cloze_text, answers):
                 progress_lbl.configure(text="")
@@ -2418,9 +2592,11 @@ class App(ctk.CTk):
 
         progress_lbl = ctk.CTkLabel(scroll, text="", font=("Arial", 12),
                                     text_color=COLORS["text_light"])
-        progress_lbl.grid(row=4, column=0, sticky="w")
+        progress_lbl.grid(row=row, column=0, sticky="w")
 
-        ctk.CTkButton(scroll, text=t("cloze.generate"), fg_color=COLORS["success"],
-                     command=generate).grid(row=6, column=0, sticky="w", pady=10)
-        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=7, column=0, sticky="w", pady=5)
+        btn_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_row.grid(row=row + 2, column=0, sticky="w", pady=10)
+        ctk.CTkButton(btn_row, text=t("cloze.generate"), fg_color=COLORS["success"],
+                     command=generate).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(btn_row, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=0, column=1)
