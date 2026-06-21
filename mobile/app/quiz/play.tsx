@@ -8,6 +8,8 @@ import {
   ScrollView,
   useColorScheme,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors } from "../../src/styles/theme";
@@ -150,7 +152,8 @@ export default function PlayScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: c.bg }]}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={100}>
+    <ScrollView style={[styles.container, { backgroundColor: c.bg }]} keyboardShouldPersistTaps="handled">
       {/* Progress */}
       <View style={styles.progressRow}>
         <View style={[styles.progressBg, { backgroundColor: c.border }]}>
@@ -209,12 +212,19 @@ export default function PlayScreen() {
 
         {(q.question_type === "free_text" || q.question_type === "math_formula") && (
           <TextInput
-            style={[styles.textInput, { color: c.text, borderColor: c.border, backgroundColor: c.inputBg }]}
+            style={[
+              styles.textInput,
+              { color: c.text, borderColor: c.border, backgroundColor: c.inputBg },
+              q.question_type === "math_formula" && styles.mathInput,
+            ]}
             value={textAnswer}
             onChangeText={setTextAnswer}
             editable={!submitted}
             placeholder={q.question_type === "math_formula" ? "Formel oder Zahl eingeben..." : "Deine Antwort..."}
             placeholderTextColor={c.textLight}
+            multiline={q.question_type === "math_formula"}
+            autoCorrect={q.question_type !== "math_formula"}
+            autoCapitalize={q.question_type === "math_formula" ? "none" : "sentences"}
           />
         )}
 
@@ -308,6 +318,7 @@ export default function PlayScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -327,6 +338,7 @@ const styles = StyleSheet.create({
   checkbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: "#ccc", marginRight: 12 },
   optionText: { fontSize: 15, flex: 1 },
   textInput: { borderWidth: 1, borderRadius: 10, padding: 14, fontSize: 15, marginTop: 4 },
+  mathInput: { minHeight: 80, textAlignVertical: "top" as const, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   blankRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   blankLabel: { fontSize: 13, marginRight: 8, width: 65 },
   blankInput: { flex: 1, borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 14 },
