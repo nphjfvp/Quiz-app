@@ -1,20 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import {
-  getFirestore,
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  deleteDoc,
-} from "firebase/firestore";
-import {
-  initializeAuth,
-  getAuth,
-  getReactNativePersistence,
-  signInAnonymously,
-  type Auth,
-} from "firebase/auth";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Quiz, QuestionProgress, DailyState } from "../types/quiz";
 
@@ -30,82 +15,82 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
-// React Native braucht initializeAuth mit AsyncStorage-Persistenz.
-// Falls Auth schon initialisiert wurde (Hot Reload), getAuth verwenden.
-let auth: Auth;
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch {
-  auth = getAuth(app);
+// ── Sync-Code: geteilter Schluessel ueber alle Geraete ──
+const SYNC_CODE_KEY = "lerntrainer_sync_code";
+let cachedCode: string | null = null;
+
+function sanitizeCode(code: string): string {
+  return (code || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+}
+
+export async function getSyncCode(): Promise<string> {
+  if (cachedCode !== null) return cachedCode;
+  cachedCode = (await AsyncStorage.getItem(SYNC_CODE_KEY)) ?? "";
+  return cachedCode;
+}
+
+export async function setSyncCode(code: string): Promise<void> {
+  cachedCode = sanitizeCode(code);
+  await AsyncStorage.setItem(SYNC_CODE_KEY, cachedCode);
 }
 
 export function isConfigured(): boolean {
   return !firebaseConfig.apiKey.startsWith("YOUR_");
 }
 
-export async function ensureAuth(): Promise<string | null> {
-  if (!isConfigured()) return null;
-  try {
-    if (!auth.currentUser) {
-      await signInAnonymously(auth);
+export async function hasSyncCode(): Promise<boolean> {
+  return sanitizeCode(await getSyncCode()).length > 0;
+}
+
+// Dokument synced/{code}/data/{name} mit einem String-Feld "payload".
+async function dataDocRef(name: string) {
+  const code = sanitizeCode(await getSyncCode());
+  if (!code) return null;
+  return doc(db, "synced", code, "data", name);
+}
+
+async function pushPayload(name: string, data: unknown): Promise<void> {
+  const ref = await dataDocRef(name);
+  if (!ref) return;
+  await setDoc(ref, { payload: JSON.stringify(data) });
+}
+
+async function pullPayload<T>(name: string): Promise<T | null> {
+  const ref = await dataDocRef(name);
+  if (!ref) return null;
+  const snap = await getDoc(ref);
+  if (snap.exists() && typeof snap.data().payload === "string") {
+    try {
+      return JSON.parse(snap.data().payload) as T;
+    } catch {
+      return null;
     }
-    return auth.currentUser?.uid ?? null;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 export async function syncQuizzes(quizzes: Quiz[]): Promise<void> {
-  const uid = await ensureAuth();
-  if (!uid) return;
-  const ref = doc(db, "users", uid, "data", "quizzes");
-  await setDoc(ref, { quizzes: quizzes.map((q) => JSON.parse(JSON.stringify(q))) });
+  await pushPayload("quizzes", quizzes);
 }
 
 export async function fetchQuizzes(): Promise<Quiz[] | null> {
-  const uid = await ensureAuth();
-  if (!uid) return null;
-  const ref = doc(db, "users", uid, "data", "quizzes");
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    return snap.data().quizzes as Quiz[];
-  }
-  return null;
+  return pullPayload<Quiz[]>("quizzes");
 }
 
 export async function syncProgress(
   progress: Record<string, QuestionProgress>
 ): Promise<void> {
-  const uid = await ensureAuth();
-  if (!uid) return;
-  const ref = doc(db, "users", uid, "data", "progress");
-  await setDoc(ref, { progress });
+  await pushPayload("progress", progress);
 }
 
 export async function fetchProgress(): Promise<Record<string, QuestionProgress> | null> {
-  const uid = await ensureAuth();
-  if (!uid) return null;
-  const ref = doc(db, "users", uid, "data", "progress");
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    return snap.data().progress as Record<string, QuestionProgress>;
-  }
-  return null;
+  return pullPayload<Record<string, QuestionProgress>>("progress");
 }
 
 export async function syncDailyState(state: DailyState): Promise<void> {
-  const uid = await ensureAuth();
-  if (!uid) return;
-  const ref = doc(db, "users", uid, "data", "daily");
-  await setDoc(ref, state);
+  await pushPayload("daily", state);
 }
 
 export async function fetchDailyState(): Promise<DailyState | null> {
-  const uid = await ensureAuth();
-  if (!uid) return null;
-  const ref = doc(db, "users", uid, "data", "daily");
-  const snap = await getDoc(ref);
-  return snap.exists() ? (snap.data() as DailyState) : null;
+  return pullPayload<DailyState>("daily");
 }

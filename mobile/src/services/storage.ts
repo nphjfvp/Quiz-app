@@ -68,17 +68,40 @@ export async function saveMarked(ids: string[]): Promise<void> {
 
 export async function pullFromCloud(): Promise<boolean> {
   if (!firebase.isConfigured()) return false;
+  if (!(await firebase.hasSyncCode())) return false;
   try {
-    const [cloudQuizzes, cloudProgress] = await Promise.all([
+    const [cloudQuizzes, cloudProgress, cloudDaily] = await Promise.all([
       firebase.fetchQuizzes(),
       firebase.fetchProgress(),
+      firebase.fetchDailyState(),
     ]);
+    // Nichts in der Cloud fuer diesen Code
+    if (!cloudQuizzes && !cloudProgress && !cloudDaily) return false;
     if (cloudQuizzes) {
       await AsyncStorage.setItem(KEYS.quizzes, JSON.stringify(cloudQuizzes));
     }
     if (cloudProgress) {
       await AsyncStorage.setItem(KEYS.progress, JSON.stringify(cloudProgress));
     }
+    if (cloudDaily) {
+      await AsyncStorage.setItem(KEYS.daily, JSON.stringify(cloudDaily));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function pushToCloud(): Promise<boolean> {
+  if (!firebase.isConfigured()) return false;
+  if (!(await firebase.hasSyncCode())) return false;
+  try {
+    const quizzes = await loadQuizzes();
+    const progress = await loadProgress();
+    await firebase.syncQuizzes(quizzes);
+    await firebase.syncProgress(progress);
+    const daily = await loadDailyState();
+    if (daily) await firebase.syncDailyState(daily);
     return true;
   } catch {
     return false;

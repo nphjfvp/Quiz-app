@@ -27,6 +27,7 @@ from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as
 from .theme import COLORS, apply_theme, is_dark
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
+from . import cloud_sync
 
 ctk.set_default_color_theme("blue")
 
@@ -897,6 +898,95 @@ class App(ctk.CTk):
                      command=self.show_quick_actions_editor
                      ).grid(row=15, column=0, sticky="w", pady=(5, 15))
 
+        # ── Cloud-Sync (geteilter Sync-Code mit der Mobile-App) ──
+        ctk.CTkLabel(frame, text=t("sync.title"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=16, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(frame, text=t("sync.hint"), font=("Segoe UI", 11),
+                    text_color=COLORS["text_light"], wraplength=500, justify="left"
+                    ).grid(row=17, column=0, sticky="w", pady=(2, 5))
+        sync_entry = ctk.CTkEntry(frame, placeholder_text=t("sync.code_placeholder"), width=300)
+        sync_entry.grid(row=18, column=0, sticky="w", pady=(0, 8))
+        if settings.get("sync_code"):
+            sync_entry.insert(0, settings["sync_code"])
+
+        sync_status = ctk.CTkLabel(frame, text="", font=("Segoe UI", 11),
+                                   text_color=COLORS["text_light"])
+        sync_status.grid(row=20, column=0, sticky="w", pady=(2, 10))
+
+        def _cloud_upload():
+            code = cloud_sync.sanitize_code(sync_entry.get())
+            if not code:
+                sync_status.configure(text=t("sync.no_code"), text_color=COLORS["danger"])
+                return
+            s = self.store.load_settings()
+            s["sync_code"] = code
+            self.store.save_settings(s)
+            sync_status.configure(text=t("sync.uploading"), text_color=COLORS["text_light"])
+            self.update_idletasks()
+
+            def work():
+                quizzes_data = [q.to_dict() for q in self.quizzes]
+                from dataclasses import asdict as _asdict
+                progress_data = {k: _asdict(v) for k, v in self.store.load_progress().items()}
+                daily_data = self.store.load_daily_state()
+                ok = cloud_sync.upload(code, "quizzes", quizzes_data)
+                ok = cloud_sync.upload(code, "progress", progress_data) and ok
+                cloud_sync.upload(code, "daily", daily_data)
+
+                def done():
+                    if ok:
+                        sync_status.configure(text=t("sync.uploaded"), text_color=COLORS["success"])
+                    else:
+                        sync_status.configure(text=t("sync.error"), text_color=COLORS["danger"])
+                self.after(0, done)
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _cloud_download():
+            code = cloud_sync.sanitize_code(sync_entry.get())
+            if not code:
+                sync_status.configure(text=t("sync.no_code"), text_color=COLORS["danger"])
+                return
+            if not messagebox.askyesno(t("sync.title"), t("sync.confirm_download")):
+                return
+            s = self.store.load_settings()
+            s["sync_code"] = code
+            self.store.save_settings(s)
+            sync_status.configure(text=t("sync.downloading"), text_color=COLORS["text_light"])
+            self.update_idletasks()
+
+            def work():
+                quizzes_data = cloud_sync.download(code, "quizzes")
+                progress_data = cloud_sync.download(code, "progress")
+                daily_data = cloud_sync.download(code, "daily")
+
+                def done():
+                    if quizzes_data is None and progress_data is None:
+                        sync_status.configure(text=t("sync.nothing"), text_color=COLORS["danger"])
+                        return
+                    if quizzes_data is not None:
+                        self.quizzes = [Quiz.from_dict(q) for q in quizzes_data]
+                        self.store.save_quizzes(self.quizzes)
+                    if progress_data is not None:
+                        from .models import QuestionProgress as _QP
+                        prog = {k: _QP(**v) for k, v in progress_data.items()}
+                        self.store.save_progress(prog)
+                    if daily_data:
+                        self.store.save_daily_state(daily_data)
+                    sync_status.configure(text=t("sync.downloaded"), text_color=COLORS["success"])
+                self.after(0, done)
+
+            threading.Thread(target=work, daemon=True).start()
+
+        sync_btn_row = ctk.CTkFrame(frame, fg_color="transparent")
+        sync_btn_row.grid(row=19, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkButton(sync_btn_row, text=t("sync.upload"), fg_color=COLORS["primary"],
+                     font=("Segoe UI", 12), width=180, command=_cloud_upload
+                     ).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(sync_btn_row, text=t("sync.download"), fg_color=COLORS["primary_light"],
+                     font=("Segoe UI", 12), width=180, command=_cloud_download
+                     ).grid(row=0, column=1)
+
         def save():
             s = self.store.load_settings()
             s["api_key"] = api_entry.get().strip()
@@ -909,6 +999,7 @@ class App(ctk.CTk):
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
             s["use_memory"] = bool(memory_switch.get())
+            s["sync_code"] = cloud_sync.sanitize_code(sync_entry.get())
             self.store.save_settings(s)
             # Save memory text
             mem = memory_text.get("1.0", "end").strip()
@@ -923,7 +1014,7 @@ class App(ctk.CTk):
             self.show_home()
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.grid(row=16, column=0, sticky="w")
+        btn_frame.grid(row=21, column=0, sticky="w", pady=(10, 0))
         ctk.CTkButton(btn_frame, text=t("nav.save"), fg_color=COLORS["success"],
                      command=save).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_frame, text=t("nav.back"), fg_color=COLORS["text_light"],
