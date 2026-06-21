@@ -135,16 +135,39 @@ class App(ctk.CTk):
         for idx, (title_, desc, color, command) in enumerate(cards):
             self._action_card(actions, idx % 4, idx // 4, title_, desc, color, command)
 
+        # Marked questions card
+        marked_ids = self.store.load_marked()
+        if marked_ids:
+            marked_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
+                                       border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+            marked_card.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+            marked_card.grid_columnconfigure(1, weight=1)
+            accent = ctk.CTkFrame(marked_card, fg_color=COLORS["warning"], width=5, corner_radius=3)
+            accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
+            mc_info = ctk.CTkFrame(marked_card, fg_color="transparent")
+            mc_info.grid(row=0, column=1, padx=15, pady=(10, 2), sticky="w")
+            ctk.CTkLabel(mc_info, text=t("marked.card_title"), font=("Segoe UI", 15, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
+            ctk.CTkLabel(mc_info, text=t("marked.count", n=len(marked_ids)),
+                        font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                        ).grid(row=1, column=0, sticky="w")
+            ctk.CTkButton(marked_card, text=t("home.open"), width=75, height=30, corner_radius=8,
+                         fg_color=COLORS["warning"], font=("Segoe UI", 12, "bold"),
+                         command=self.show_marked).grid(row=0, column=2, padx=10, pady=10)
+            quiz_list_start_row = 3
+        else:
+            quiz_list_start_row = 2
+
         # Quiz list
         if self.quizzes:
             ctk.CTkLabel(scroll, text=t("home.your_quizzes"), font=("Arial", 16, "bold"),
-                        text_color=COLORS["text"]).grid(row=2, column=0, sticky="w", pady=(10, 10))
+                        text_color=COLORS["text"]).grid(row=quiz_list_start_row, column=0, sticky="w", pady=(10, 10))
             for i, quiz in enumerate(self.quizzes):
-                self._quiz_card(scroll, quiz, row=3 + i)
+                self._quiz_card(scroll, quiz, row=quiz_list_start_row + 1 + i)
         else:
             ctk.CTkLabel(scroll, text=t("home.no_quizzes"),
                         font=("Arial", 13), text_color=COLORS["text_light"]
-                        ).grid(row=2, column=0, pady=30)
+                        ).grid(row=quiz_list_start_row, column=0, pady=30)
 
     def _action_card(self, parent, col, row, title, desc, color, command):
         card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
@@ -216,6 +239,251 @@ class App(ctk.CTk):
             self.quizzes = [q for q in self.quizzes if q.id != quiz.id]
             self.store.save_quizzes(self.quizzes)
             self.show_home()
+
+    # ── MARKED QUESTIONS ──
+
+    def show_marked(self):
+        self._clear_main()
+        scroll = ctk.CTkScrollableFrame(self.main_frame, fg_color=COLORS["bg"])
+        scroll.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        scroll.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(scroll, text=t("marked.title"), font=("Segoe UI", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        marked_ids = self.store.load_marked()
+        marked_questions = []
+        for quiz in self.quizzes:
+            for q in quiz.questions:
+                if q.id in marked_ids:
+                    marked_questions.append(q)
+
+        if not marked_questions:
+            ctk.CTkLabel(scroll, text=t("marked.none"), font=("Segoe UI", 13),
+                        text_color=COLORS["text_light"]).grid(row=1, column=0, pady=30)
+        else:
+            for i, q in enumerate(marked_questions):
+                rf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+                rf.grid(row=1 + i, column=0, sticky="ew", pady=3)
+                rf.grid_columnconfigure(0, weight=1)
+                ctk.CTkLabel(rf, text=q.text, font=("Segoe UI", 12),
+                            text_color=COLORS["text"], wraplength=600, justify="left"
+                            ).grid(row=0, column=0, padx=15, pady=10, sticky="w")
+
+                def unmark(qid=q.id):
+                    mids = self.store.load_marked()
+                    if qid in mids:
+                        mids.remove(qid)
+                        self.store.save_marked(mids)
+                    self.show_marked()
+
+                ctk.CTkButton(rf, text=t("marked.unmark"), fg_color=COLORS["danger"],
+                             width=80, height=28, font=("Segoe UI", 11),
+                             command=unmark).grid(row=0, column=1, padx=10, pady=10)
+
+        btn_row = 2 + len(marked_questions)
+        btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_f.grid(row=btn_row, column=0, sticky="w", pady=15)
+        if marked_questions:
+            ctk.CTkButton(btn_f, text=t("marked.chat"), fg_color=COLORS["primary"],
+                         font=("Segoe UI", 12, "bold"), command=self.show_marked_chat
+                         ).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(btn_f, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=0, column=1)
+
+    def show_marked_chat(self):
+        self._clear_main()
+        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
+        frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(frame, text=t("marked.chat"), font=("Segoe UI", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 10))
+
+        chat_scroll = ctk.CTkScrollableFrame(frame, fg_color=COLORS["card"], corner_radius=8)
+        chat_scroll.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
+        chat_scroll.grid_columnconfigure(0, weight=1)
+
+        chat_history = []
+        marked_ids = self.store.load_marked()
+        marked_questions = []
+        for quiz in self.quizzes:
+            for q in quiz.questions:
+                if q.id in marked_ids:
+                    marked_questions.append(q)
+
+        context = "Markierte Fragen:\n" + "\n".join(f"- {q.text}" for q in marked_questions)
+        uploaded_content = {"text": ""}
+
+        settings = self.store.load_settings()
+        if settings.get("use_memory"):
+            memory = self.store.load_memory()
+            if memory:
+                context = f"Lernprofil des Studenten:\n{memory}\n\n{context}"
+
+        msg_row = {"idx": 0}
+
+        def add_message(role, text):
+            bg = COLORS["primary"] if role == "user" else COLORS["card_hover"]
+            tc = "white" if role == "user" else COLORS["text"]
+            anchor = "e" if role == "user" else "w"
+            mf = ctk.CTkFrame(chat_scroll, fg_color=bg, corner_radius=8)
+            mf.grid(row=msg_row["idx"], column=0, sticky=anchor, pady=3, padx=10)
+            ctk.CTkLabel(mf, text=text, font=("Segoe UI", 12), text_color=tc,
+                        wraplength=500, justify="left").grid(row=0, column=0, padx=12, pady=8)
+            msg_row["idx"] += 1
+
+        def upload_file():
+            path = filedialog.askopenfilename(filetypes=[("Text", "*.txt"), ("All", "*.*")])
+            if path:
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        uploaded_content["text"] = f.read()
+                    add_message("user", f"[Datei hochgeladen: {Path(path).name}]")
+                except Exception as e:
+                    add_message("user", f"[Fehler: {e}]")
+
+        def send_message():
+            user_text = input_entry.get("1.0", "end").strip()
+            if not user_text:
+                return
+            input_entry.delete("1.0", "end")
+            add_message("user", user_text)
+            chat_history.append({"role": "user", "content": user_text})
+
+            def run():
+                sys_content = f"Du bist ein hilfreicher Lern-Tutor. Kontext:\n{context}"
+                if uploaded_content["text"]:
+                    sys_content += f"\n\nHochgeladenes Dokument:\n{uploaded_content['text']}"
+                msgs = [{"role": "system", "content": sys_content}] + chat_history
+                resp = self.ai._call_api(msgs, max_tokens=2048)
+                answer = resp or "Keine Antwort erhalten."
+                chat_history.append({"role": "assistant", "content": answer})
+                self.after(0, lambda: add_message("assistant", answer))
+            threading.Thread(target=run, daemon=True).start()
+
+        input_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        input_frame.grid(row=2, column=0, sticky="ew", pady=(0, 5))
+        input_frame.grid_columnconfigure(0, weight=1)
+
+        input_entry = ctk.CTkTextbox(input_frame, height=50, font=("Segoe UI", 12),
+                                     fg_color=COLORS["input_bg"])
+        input_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        ctk.CTkButton(input_frame, text=t("chat.send"), fg_color=COLORS["primary"],
+                     width=80, font=("Segoe UI", 12, "bold"), command=send_message
+                     ).grid(row=0, column=1, padx=(0, 5))
+        ctk.CTkButton(input_frame, text=t("marked.upload"), fg_color=COLORS["text_light"],
+                     width=100, font=("Segoe UI", 11), command=upload_file
+                     ).grid(row=0, column=2)
+
+        btn_f = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_f.grid(row=3, column=0, sticky="w", pady=5)
+        ctk.CTkButton(btn_f, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=self.show_marked).grid(row=0, column=0)
+
+    # ── QUICK ACTIONS EDITOR ──
+
+    def show_quick_actions_editor(self):
+        self._clear_main()
+        frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS["bg"])
+        frame.grid(row=0, column=0, sticky="nsew", padx=40, pady=30)
+        frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(frame, text=t("qa.title"), font=("Segoe UI", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 15))
+
+        actions = self.store.load_quick_actions()
+
+        list_frame = ctk.CTkScrollableFrame(frame, fg_color="transparent", height=200)
+        list_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        list_frame.grid_columnconfigure(0, weight=1)
+
+        for i, qa in enumerate(actions):
+            rf = ctk.CTkFrame(list_frame, fg_color=COLORS["card"], corner_radius=8)
+            rf.grid(row=i, column=0, sticky="ew", pady=3)
+            rf.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(rf, text=qa["name"], font=("Segoe UI", 13, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(8, 2), sticky="w")
+            ctk.CTkLabel(rf, text=qa.get("user_story", "")[:80], font=("Segoe UI", 11),
+                        text_color=COLORS["text_light"]).grid(row=1, column=0, padx=15, pady=(0, 8), sticky="w")
+
+            def delete_qa(idx=i):
+                acts = self.store.load_quick_actions()
+                if idx < len(acts):
+                    acts.pop(idx)
+                    self.store.save_quick_actions(acts)
+                self.show_quick_actions_editor()
+
+            ctk.CTkButton(rf, text=t("qa.delete"), fg_color=COLORS["danger"],
+                         width=70, height=28, font=("Segoe UI", 11),
+                         command=delete_qa).grid(row=0, column=1, rowspan=2, padx=10, pady=8)
+
+        # New button form
+        if len(actions) < 8:
+            form = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=8)
+            form.grid(row=2, column=0, sticky="ew", pady=10)
+            form.grid_columnconfigure(0, weight=1)
+
+            ctk.CTkLabel(form, text=t("qa.new"), font=("Segoe UI", 14, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+
+            ctk.CTkLabel(form, text=t("qa.name"), font=("Segoe UI", 12),
+                        text_color=COLORS["text"]).grid(row=1, column=0, padx=15, sticky="w")
+            name_entry = ctk.CTkEntry(form, width=400, font=("Segoe UI", 12),
+                                      placeholder_text="z.B. Eselsbrücken")
+            name_entry.grid(row=2, column=0, padx=15, pady=(2, 8), sticky="w")
+
+            ctk.CTkLabel(form, text=t("qa.story"), font=("Segoe UI", 12),
+                        text_color=COLORS["text"]).grid(row=3, column=0, padx=15, sticky="w")
+            story_entry = ctk.CTkTextbox(form, height=80, width=500, font=("Segoe UI", 12),
+                                         fg_color=COLORS["input_bg"])
+            story_entry.grid(row=4, column=0, padx=15, pady=(2, 8), sticky="w")
+
+            slider_frame = ctk.CTkFrame(form, fg_color="transparent")
+            slider_frame.grid(row=5, column=0, padx=15, pady=(0, 5), sticky="w")
+            ctk.CTkLabel(slider_frame, text=t("qa.creativity"), font=("Segoe UI", 12),
+                        text_color=COLORS["text"]).grid(row=0, column=0, padx=(0, 10))
+            temp_slider = ctk.CTkSlider(slider_frame, from_=0, to=1, number_of_steps=10, width=200)
+            temp_slider.set(0.7)
+            temp_slider.grid(row=0, column=1, padx=(0, 10))
+            ai_decides_var = BooleanVar(value=False)
+            ctk.CTkCheckBox(slider_frame, text=t("qa.ai_decides"), variable=ai_decides_var,
+                           font=("Segoe UI", 11)).grid(row=0, column=2)
+
+            status_lbl = ctk.CTkLabel(form, text="", font=("Segoe UI", 11),
+                                      text_color=COLORS["text_light"])
+            status_lbl.grid(row=7, column=0, padx=15, pady=(0, 10), sticky="w")
+
+            def save_new():
+                name = name_entry.get().strip()
+                story = story_entry.get("1.0", "end").strip()
+                if not name or not story:
+                    return
+                temp = 0.7 if ai_decides_var.get() else temp_slider.get()
+                status_lbl.configure(text=t("qa.generating"))
+
+                def run():
+                    msgs = [{"role": "system", "content": "Du bist ein Experte für Prompt Engineering. Erstelle einen optimierten System-Prompt für einen Lern-Tutor-Button. Der Prompt soll präzise beschreiben, was der Tutor tun soll, wenn er eine Quiz-Frage als Kontext bekommt. Antworte NUR mit dem fertigen Prompt, ohne Erklärung."},
+                            {"role": "user", "content": f"Button-Name: {name}\nBeschreibung / User Story: {story}"}]
+                    resp = self.ai._call_api(msgs, max_tokens=512)
+                    prompt = resp or story
+                    action = {"name": name, "prompt": prompt, "temperature": temp, "user_story": story}
+                    acts = self.store.load_quick_actions()
+                    acts.append(action)
+                    self.store.save_quick_actions(acts)
+                    self.after(0, self.show_quick_actions_editor)
+                threading.Thread(target=run, daemon=True).start()
+
+            ctk.CTkButton(form, text=t("qa.save"), fg_color=COLORS["success"],
+                         font=("Segoe UI", 12, "bold"), command=save_new
+                         ).grid(row=6, column=0, padx=15, pady=(0, 5), sticky="w")
+        else:
+            ctk.CTkLabel(frame, text=t("qa.max_reached"), font=("Segoe UI", 12),
+                        text_color=COLORS["warning"]).grid(row=2, column=0, sticky="w", pady=10)
+
+        ctk.CTkButton(frame, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=self.show_settings).grid(row=3, column=0, sticky="w", pady=10)
 
     # ── EXPORT / IMPORT QUIZ AS JSON ──
 
@@ -332,6 +600,32 @@ class App(ctk.CTk):
         lang_menu.set("English" if get_language() == "en" else "Deutsch")
         lang_menu.grid(row=0, column=2)
 
+        # Learning profile / memory
+        ctk.CTkLabel(frame, text=t("memory.title"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=10, column=0, sticky="w", pady=(10, 0))
+        memory_switch = ctk.CTkSwitch(frame, text=t("memory.enable"), font=("Segoe UI", 12))
+        memory_switch.grid(row=11, column=0, sticky="w", pady=(5, 5))
+        if settings.get("use_memory", False):
+            memory_switch.select()
+
+        ctk.CTkLabel(frame, text=t("memory.template"), font=("Segoe UI", 11),
+                    text_color=COLORS["text_light"], wraplength=500, justify="left"
+                    ).grid(row=12, column=0, sticky="w", pady=(5, 5))
+        memory_text = ctk.CTkTextbox(frame, height=120, width=500, font=("Segoe UI", 12),
+                                     fg_color=COLORS["input_bg"])
+        memory_text.grid(row=13, column=0, sticky="w", pady=(0, 10))
+        existing_memory = self.store.load_memory()
+        if existing_memory:
+            memory_text.insert("1.0", existing_memory)
+
+        # Quick actions editor link
+        ctk.CTkLabel(frame, text=t("qa.title"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=14, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkButton(frame, text=t("qa.title"), fg_color=COLORS["primary_light"],
+                     font=("Segoe UI", 12), width=200,
+                     command=self.show_quick_actions_editor
+                     ).grid(row=15, column=0, sticky="w", pady=(5, 15))
+
         def save():
             s = self.store.load_settings()
             s["api_key"] = api_entry.get().strip()
@@ -341,7 +635,11 @@ class App(ctk.CTk):
             s["ai_validation"] = bool(aival_switch.get())
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
+            s["use_memory"] = bool(memory_switch.get())
             self.store.save_settings(s)
+            # Save memory text
+            mem = memory_text.get("1.0", "end").strip()
+            self.store.save_memory(mem)
             self.ai.api_key = s["api_key"]
             self.ai.model = s["model"]
             apply_theme(s["dark_mode"])
@@ -352,7 +650,7 @@ class App(ctk.CTk):
             self.show_home()
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.grid(row=10, column=0, sticky="w")
+        btn_frame.grid(row=16, column=0, sticky="w")
         ctk.CTkButton(btn_frame, text=t("nav.save"), fg_color=COLORS["success"],
                      command=save).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_frame, text=t("nav.back"), fg_color=COLORS["text_light"],
@@ -1185,9 +1483,9 @@ class App(ctk.CTk):
 
         # Progress
         progress_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12), text_color=COLORS["primary"])
-        progress_label.grid(row=next_row + 12, column=0, sticky="w", pady=10)
+        progress_label.grid(row=next_row + 13, column=0, sticky="w", pady=10)
         progress_bar = ctk.CTkProgressBar(scroll, width=400)
-        progress_bar.grid(row=next_row + 13, column=0, sticky="w")
+        progress_bar.grid(row=next_row + 14, column=0, sticky="w")
         progress_bar.set(0)
 
         def generate():
@@ -1251,7 +1549,7 @@ class App(ctk.CTk):
             threading.Thread(target=run, daemon=True).start()
 
         btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_f.grid(row=next_row + 12, column=0, sticky="w", pady=15)
+        btn_f.grid(row=next_row + 15, column=0, sticky="w", pady=15)
         ctk.CTkButton(btn_f, text="Fragen generieren", fg_color=COLORS["success"],
                      command=generate).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_f, text="Zurück", fg_color=COLORS["text_light"],
@@ -1997,6 +2295,113 @@ class App(ctk.CTk):
         if self.session.mode == "exam":
             ctk.CTkButton(nav, text="Auswertung", fg_color=COLORS["danger"], width=120,
                          command=self._show_results).grid(row=0, column=3)
+
+        # Mark button
+        marked_ids = self.store.load_marked()
+        is_marked = q.id in marked_ids
+        mark_text = t("marked.btn_marked") if is_marked else t("marked.btn")
+        mark_color = COLORS["warning"] if is_marked else COLORS["text_light"]
+
+        def toggle_mark():
+            mids = self.store.load_marked()
+            if q.id in mids:
+                mids.remove(q.id)
+                mark_btn.configure(text=t("marked.btn"), fg_color=COLORS["text_light"])
+            else:
+                mids.append(q.id)
+                mark_btn.configure(text=t("marked.btn_marked"), fg_color=COLORS["warning"])
+            self.store.save_marked(mids)
+
+        mark_btn = ctk.CTkButton(nav, text=mark_text, fg_color=mark_color, width=100,
+                                 font=("Segoe UI", 12), command=toggle_mark)
+        mark_btn.grid(row=0, column=5, padx=(10, 0))
+
+        # AI Help button
+        ai_help_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        ai_help_frame.grid(row=6, column=0, sticky="ew")
+        ai_help_visible = {"shown": False}
+        ai_help_inner = ctk.CTkFrame(ai_help_frame, fg_color=COLORS["card"], corner_radius=8)
+
+        def toggle_ai_help():
+            if ai_help_visible["shown"]:
+                ai_help_inner.grid_forget()
+                ai_help_visible["shown"] = False
+            else:
+                ai_help_inner.grid(row=1, column=0, sticky="ew", pady=(5, 0))
+                ai_help_inner.grid_columnconfigure(0, weight=1)
+                ai_help_visible["shown"] = True
+
+        ctk.CTkButton(nav, text=t("ai_help.title"), fg_color=COLORS["primary_light"], width=100,
+                     font=("Segoe UI", 12), command=toggle_ai_help
+                     ).grid(row=0, column=6, padx=(10, 0))
+
+        # AI help inner content
+        ai_help_btns = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
+        ai_help_btns.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        ai_response_lbl = ctk.CTkLabel(ai_help_inner, text="", font=("Segoe UI", 12),
+                                       text_color=COLORS["text"], wraplength=650, justify="left")
+        ai_response_lbl.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+
+        def _get_memory_prefix():
+            settings = self.store.load_settings()
+            if settings.get("use_memory"):
+                memory = self.store.load_memory()
+                if memory:
+                    return f"Lernprofil des Studenten:\n{memory}\n\n"
+            return ""
+
+        def ask_ai_hint():
+            ai_response_lbl.configure(text=t("ai_help.loading"))
+            def run():
+                prefix = _get_memory_prefix()
+                msgs = [{"role": "system", "content": prefix + "Du bist ein hilfreicher Tutor. Gib einen Hinweis zur folgenden Frage, aber verrate NICHT die Antwort. Hilf dem Studenten, selbst auf die Lösung zu kommen."},
+                        {"role": "user", "content": f"Frage: {q.text}"}]
+                resp = self.ai._call_api(msgs, max_tokens=512)
+                self.after(0, lambda: ai_response_lbl.configure(text=resp or "Keine Antwort erhalten."))
+            threading.Thread(target=run, daemon=True).start()
+
+        def ask_ai_explain():
+            ai_response_lbl.configure(text=t("ai_help.loading"))
+            def run():
+                prefix = _get_memory_prefix()
+                msgs = [{"role": "system", "content": prefix + "Du bist ein hilfreicher Tutor. Erkläre das Konzept hinter der folgenden Frage ausführlich, aber verrate NICHT die richtige Antwort direkt."},
+                        {"role": "user", "content": f"Frage: {q.text}"}]
+                resp = self.ai._call_api(msgs, max_tokens=1024)
+                self.after(0, lambda: ai_response_lbl.configure(text=resp or "Keine Antwort erhalten."))
+            threading.Thread(target=run, daemon=True).start()
+
+        ctk.CTkButton(ai_help_btns, text=t("ai_help.hint"), fg_color=COLORS["primary"],
+                     width=120, height=28, font=("Segoe UI", 11), command=ask_ai_hint
+                     ).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(ai_help_btns, text=t("ai_help.explain"), fg_color=COLORS["primary"],
+                     width=120, height=28, font=("Segoe UI", 11), command=ask_ai_explain
+                     ).grid(row=0, column=1)
+
+        # Quick action buttons
+        quick_actions = self.store.load_quick_actions()
+        if quick_actions:
+            qa_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+            qa_frame.grid(row=7, column=0, sticky="ew", pady=5)
+
+            def run_quick_action(action):
+                ai_help_inner.grid(row=1, column=0, sticky="ew", pady=(5, 0))
+                ai_help_inner.grid_columnconfigure(0, weight=1)
+                ai_help_visible["shown"] = True
+                ai_response_lbl.configure(text=t("ai_help.loading"))
+                def run():
+                    prefix = _get_memory_prefix()
+                    msgs = [{"role": "system", "content": prefix + action["prompt"]},
+                            {"role": "user", "content": f"Frage: {q.text}"}]
+                    temp = action.get("temperature", 0.7)
+                    resp = self.ai._call_api(msgs, max_tokens=1024, temperature=temp)
+                    self.after(0, lambda: ai_response_lbl.configure(text=resp or "Keine Antwort erhalten."))
+                threading.Thread(target=run, daemon=True).start()
+
+            for i, qa in enumerate(quick_actions):
+                ctk.CTkButton(qa_frame, text=qa["name"], width=100, height=28,
+                              fg_color=COLORS["primary_light"], font=("Segoe UI", 11),
+                              command=lambda a=qa: run_quick_action(a)
+                              ).grid(row=0, column=i, padx=3)
 
     def _update_timer(self):
         if not self.timer_running or not self.session:

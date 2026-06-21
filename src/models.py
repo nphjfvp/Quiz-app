@@ -214,6 +214,58 @@ class DataStore:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(texts, f, ensure_ascii=False, indent=2)
 
+    # ── Marked questions ──
+
+    def load_marked(self) -> list[str]:
+        path = self.data_dir / "marked.json"
+        if not path.exists():
+            return []
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
+
+    def save_marked(self, ids: list[str]):
+        path = self.data_dir / "marked.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(ids, f, ensure_ascii=False, indent=2)
+
+    # ── Quick actions ──
+
+    def load_quick_actions(self) -> list[dict]:
+        path = self.data_dir / "quick_actions.json"
+        if not path.exists():
+            return []
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
+
+    def save_quick_actions(self, actions: list[dict]):
+        path = self.data_dir / "quick_actions.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(actions, f, ensure_ascii=False, indent=2)
+
+    # ── Memory / learning profile ──
+
+    def load_memory(self) -> str:
+        path = self.data_dir / "memory.json"
+        if not path.exists():
+            return ""
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+                return data.get("text", "")
+            except json.JSONDecodeError:
+                return ""
+
+    def save_memory(self, text: str):
+        path = self.data_dir / "memory.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"text": text}, f, ensure_ascii=False, indent=2)
+
     def log_answer(self, correct: bool):
         stats = self.load_stats()
         today = date.today().isoformat()
