@@ -48,38 +48,54 @@ except ImportError:
 from .models import Question, QuestionType, Option, DragDropPair
 
 
-GENERATE_SYSTEM_PROMPT = """Du bist ein Experte für das Erstellen von Prüfungsfragen aus Vorlesungsunterlagen.
+GENERATE_SYSTEM_PROMPT_BASE = """Du bist ein Experte für das Erstellen von Prüfungsfragen aus Vorlesungsunterlagen.
 Erstelle hochwertige Fragen in verschiedenen Formaten.
 
 Dein Output MUSS exakt dieses Format haben – ein JSON-Objekt mit zwei Feldern:
-{
+{{
   "summary": "Kurze Zusammenfassung (2-3 Sätze) der Kernthemen dieses Abschnitts",
   "questions": [
-    {
-      "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop",
+    {{
+      "question_type": "{types_str}",
       "title": "Kurztitel der Frage",
       "text": "Der Fragentext",
       "topic": "Themengebiet",
       "points": 1-3,
-      "options": [{"text": "Antwort A", "is_correct": false}, ...],
+      "options": [{{"text": "Antwort A", "is_correct": false}}, ...],
       "correct_text": "Richtige Antwort",
       "blanks": ["Wort1", "Wort2"],
-      "drag_drop_pairs": [{"source": "Begriff", "target": "Ziel"}],
+      "drag_drop_pairs": [{{"source": "Begriff", "target": "Zuordnung"}}],
       "explanation": "Erklärung der richtigen Antwort"
-    }
+    }}
   ]
-}
+}}
 
 Regeln:
-- Erstelle einen Mix aus verschiedenen Fragetypen
-- Single Choice: genau eine richtige Antwort, 3-4 Optionen
-- Multiple Choice: 1-3 richtige Antworten, 4-5 Optionen
-- Lückentext: Markiere Lücken im Text mit ___ (drei Unterstriche)
-- Drag & Drop: 3-5 Zuordnungspaare
-- Freitext: Kurze, eindeutige Antworten
+- Erstelle Fragen NUR von diesen Typen: {types_list}
+{types_rules}
 - Alle Fragen auf Deutsch
 - Fragen sollen prüfungsrelevant und anspruchsvoll sein
-- Die Zusammenfassung soll die wichtigsten Konzepte/Begriffe des Abschnitts nennen"""
+- Die Zusammenfassung soll die wichtigsten Konzepte/Begriffe des Abschnitts nennen
+- WICHTIG: Verteile die Fragen gleichmäßig auf die erlaubten Fragetypen!"""
+
+TYPE_RULES = {
+    "single_choice": "- Single Choice: genau eine richtige Antwort, 3-4 Optionen",
+    "multiple_choice": "- Multiple Choice: 1-3 richtige Antworten, 4-5 Optionen",
+    "free_text": "- Freitext: Kurze, eindeutige Antworten",
+    "fill_blank": "- Lückentext: Setze ___ (drei Unterstriche) für jede Lücke, blanks-Array enthält die Lösungen",
+    "drag_drop": "- Drag & Drop: MINDESTENS 4-6 Zuordnungspaare als drag_drop_pairs (source → target), z.B. Begriff → Definition, Eigenschaft → Material",
+    "diagram_label": "- Diagramm: Beschriftung von Positionen, diagram_labels mit label/x/y",
+}
+
+def _build_generate_prompt(question_types: list[str] | None = None) -> str:
+    if not question_types:
+        question_types = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop"]
+    types_str = '" | "'.join(question_types)
+    types_list = ", ".join(question_types)
+    types_rules = "\n".join(TYPE_RULES.get(t, "") for t in question_types if t in TYPE_RULES)
+    return GENERATE_SYSTEM_PROMPT_BASE.format(
+        types_str=types_str, types_list=types_list, types_rules=types_rules
+    )
 
 IMPORT_SYSTEM_PROMPT = """Du bist ein Experte für das Importieren von Prüfungsfragen aus Dokumenten.
 Das Dokument enthält bereits fertige Fragen (z.B. aus Übungsskripten).
@@ -448,7 +464,8 @@ class AIService:
             return "$$"
         return "$$$"
 
-    def estimate_processing(self, file_path: str, mode: str = "generate") -> dict:
+    def estimate_processing(self, file_path: str, mode: str = "generate",
+                            model_override: str = "") -> dict:
         """Estimate processing time before starting.
         Returns {file_size, text_length, num_chunks, est_seconds_per_chunk,
                  est_total_seconds, parallel}."""
@@ -477,7 +494,8 @@ class AIService:
         # Cost estimation: ~1 token per 4 chars input, ~1000 tokens output per chunk
         input_tokens = (text_len / 4) + (num_chunks * 200)  # text + system prompt overhead
         output_tokens = num_chunks * 1000
-        model_info = next((m for m in self.RECOMMENDED_MODELS if m["id"] == self.model), None)
+        lookup_model = model_override or self.model
+        model_info = next((m for m in self.RECOMMENDED_MODELS if m["id"] == lookup_model), None)
         if model_info:
             cost_in = model_info["cost_in"]
             cost_out = model_info["cost_out"]
@@ -498,12 +516,14 @@ class AIService:
     # ── Generate: Sequential with Rolling Summary ──
 
     def generate_from_slides(self, file_path: str, num_questions: int = 20,
-                              progress_callback: Callable | None = None) -> list[Question]:
+                              progress_callback: Callable | None = None,
+                              question_types: list[str] | None = None) -> list[Question]:
         full_text = self._read_file_as_text(file_path)
         chunks = self._chunk_with_overlap(full_text)
         if not chunks:
             return []
 
+        system_prompt = _build_generate_prompt(question_types)
         all_questions: list[Question] = []
         rolling_summary = ""
         per_chunk = max(3, num_questions // len(chunks))
@@ -520,7 +540,7 @@ class AIService:
                 )
 
             messages = [
-                {"role": "system", "content": GENERATE_SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": (
                     f"{context_prefix}"
                     f"Hier ist Abschnitt {i+1} von {len(chunks)} der Vorlesungsfolien:\n\n"
@@ -634,17 +654,21 @@ class AIService:
 
         messages = [
             {"role": "system", "content": (
-                "Du bist ein Experte für Lückentexte. Erstelle einen Lückentext aus dem gegebenen Text. "
-                "Ersetze wichtige Fachbegriffe durch '___'. "
+                "Du bist ein Experte für Lernmaterial. Erstelle eine EIGENE Zusammenfassung des gegebenen "
+                "Textes als Lückentext. KOPIERE NICHT den Originaltext! Schreibe einen neuen, "
+                "zusammenhängenden Fließtext, der die wichtigsten Konzepte erklärt. "
+                "Ersetze dann wichtige Fachbegriffe, Zahlen und Schlüsselwörter durch '___'. "
+                "Jede Lücke '___' muss GENAU EIN Wort oder eine kurze Wortgruppe (max 3 Wörter) ersetzen. "
                 f"{length_hint}"
                 "Antworte mit exakt diesem JSON-Format:\n"
-                '{"cloze_text": "Text mit ___ Lücken", "answers": ["Wort1", "Wort2"]}\n'
+                '{"cloze_text": "Zusammenfassender Text mit ___ Lücken", "answers": ["Wort1", "Wort2"]}\n'
                 "Die Reihenfolge der answers muss der Reihenfolge der Lücken im Text entsprechen."
             )},
             {"role": "user", "content": (
-                f"Erstelle einen Lückentext aus folgendem Text. "
-                f"Etwa {int(blank_pct * 100)}% der Schlüsselbegriffe sollen als Lücken erscheinen.\n\n"
-                f"{text}"
+                f"Erstelle eine lernfreundliche Zusammenfassung als Lückentext. "
+                f"Etwa {int(blank_pct * 100)}% der Schlüsselbegriffe sollen als Lücken erscheinen. "
+                f"Schreibe einen NEUEN zusammenfassenden Text, nicht den Originaltext kopieren!\n\n"
+                f"Quelltext:\n{text}"
             )},
         ]
         max_tokens = 2048

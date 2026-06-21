@@ -61,21 +61,21 @@ class App(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        self.header = ctk.CTkFrame(self, fg_color=COLORS["primary"], corner_radius=0, height=60)
+        self.header = ctk.CTkFrame(self, fg_color=COLORS["header_bg"], corner_radius=0, height=70)
         self.header.grid(row=0, column=0, sticky="ew")
         self.header.grid_columnconfigure(1, weight=1)
 
         self.header_title = ctk.CTkLabel(
-            self.header, text=t("app.header"), font=("Arial", 20, "bold"),
+            self.header, text=f"  {t('app.header')}", font=("Segoe UI", 22, "bold"),
             text_color="white"
         )
-        self.header_title.grid(row=0, column=0, padx=20, pady=10)
+        self.header_title.grid(row=0, column=0, padx=(20, 5), pady=15)
 
         self.header_subtitle = ctk.CTkLabel(
             self.header, text=t("app.subtitle"),
-            font=("Arial", 12), text_color="#d4e6f1"
+            font=("Segoe UI", 12), text_color="#b8c6ff"
         )
-        self.header_subtitle.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+        self.header_subtitle.grid(row=0, column=1, padx=10, pady=15, sticky="w")
 
         self.timer_label = ctk.CTkLabel(
             self.header, text="", font=("Arial", 14, "bold"),
@@ -105,15 +105,15 @@ class App(ctk.CTk):
         scroll.grid_columnconfigure(0, weight=1)
 
         # Welcome
-        welcome = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
-        welcome.grid(row=0, column=0, sticky="ew", pady=(0, 15))
+        welcome = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=12)
+        welcome.grid(row=0, column=0, sticky="ew", pady=(0, 20))
         welcome.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(welcome, text=t("home.welcome"),
-                     font=("Arial", 18, "bold"), text_color=COLORS["text"]
-                     ).grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
+        ctk.CTkLabel(welcome, text=f"  {t('home.welcome')}",
+                     font=("Segoe UI", 20, "bold"), text_color="white"
+                     ).grid(row=0, column=0, padx=25, pady=(20, 5), sticky="w")
         ctk.CTkLabel(welcome, text=t("home.welcome_sub"),
-                     font=("Arial", 13), text_color=COLORS["text_light"]
-                     ).grid(row=1, column=0, padx=20, pady=(0, 15), sticky="w")
+                     font=("Segoe UI", 13), text_color="#d0deff"
+                     ).grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
 
         # Actions (two rows of 4)
         actions = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -147,53 +147,68 @@ class App(ctk.CTk):
                         ).grid(row=2, column=0, pady=30)
 
     def _action_card(self, parent, col, row, title, desc, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=8,
-                           border_width=2, border_color=color)
-        card.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
+                           border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+        card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(card, text=title, font=("Arial", 14, "bold"),
-                    text_color=color).grid(row=0, column=0, padx=15, pady=(12, 3))
-        ctk.CTkLabel(card, text=desc, font=("Arial", 11),
-                    text_color=COLORS["text_light"], wraplength=150
-                    ).grid(row=1, column=0, padx=15, pady=(0, 8))
-        ctk.CTkButton(card, text=t("home.open"), fg_color=color, width=100,
-                     command=command).grid(row=2, column=0, padx=15, pady=(0, 12))
+
+        color_bar = ctk.CTkFrame(card, fg_color=color, corner_radius=6, height=4)
+        color_bar.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 0))
+
+        ctk.CTkLabel(card, text=title, font=("Segoe UI", 14, "bold"),
+                    text_color=COLORS["text"]).grid(row=1, column=0, padx=15, pady=(10, 3))
+        ctk.CTkLabel(card, text=desc, font=("Segoe UI", 11),
+                    text_color=COLORS["text_light"], wraplength=160
+                    ).grid(row=2, column=0, padx=15, pady=(0, 10))
+        ctk.CTkButton(card, text=t("home.open"), fg_color=color, hover_color=color,
+                     corner_radius=8, width=110, height=32,
+                     font=("Segoe UI", 12, "bold"),
+                     command=command).grid(row=3, column=0, padx=15, pady=(0, 14))
 
     def _quiz_card(self, parent, quiz: Quiz, row: int):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=8)
-        card.grid(row=row, column=0, sticky="ew", pady=4)
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
+                           border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+        card.grid(row=row, column=0, sticky="ew", pady=5)
         card.grid_columnconfigure(1, weight=1)
 
-        info = ctk.CTkFrame(card, fg_color="transparent")
-        info.grid(row=0, column=0, padx=15, pady=10, sticky="w")
-        ctk.CTkLabel(info, text=quiz.name, font=("Arial", 14, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
-        weight_tag = f" · ⚖{quiz.weight:.1f}" if quiz.weight != 1.0 else ""
-        ctk.CTkLabel(info, text=f"{len(quiz.questions)} Fragen{weight_tag} · {quiz.description}",
-                    font=("Arial", 11), text_color=COLORS["text_light"]
-                    ).grid(row=1, column=0, sticky="w")
+        accent = ctk.CTkFrame(card, fg_color=COLORS["primary"], width=5, corner_radius=3)
+        accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
 
-        # Leitner boxes
+        info = ctk.CTkFrame(card, fg_color="transparent")
+        info.grid(row=0, column=1, padx=15, pady=(10, 2), sticky="w")
+        ctk.CTkLabel(info, text=quiz.name, font=("Segoe UI", 15, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
+        weight_tag = f"  ⚖ {quiz.weight:.1f}" if quiz.weight != 1.0 else ""
+        desc_text = f"{len(quiz.questions)} Fragen{weight_tag}"
+        if quiz.description:
+            desc_text += f"  ·  {quiz.description}"
+        ctk.CTkLabel(info, text=desc_text, font=("Segoe UI", 11),
+                    text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w")
+
         qids = [q.id for q in quiz.questions]
         counts = self.sr.get_box_counts(qids)
         boxes_frame = ctk.CTkFrame(card, fg_color="transparent")
-        boxes_frame.grid(row=0, column=1, padx=10, pady=10)
+        boxes_frame.grid(row=0, column=2, padx=10, pady=10)
         for b in range(1, 6):
             c = counts.get(b, 0)
             lbl = ctk.CTkLabel(boxes_frame, text=str(c), width=28, height=28,
                               corner_radius=14, fg_color=COLORS[f"box{b}"],
-                              text_color="white", font=("Arial", 11, "bold"))
+                              text_color="white", font=("Segoe UI", 11, "bold"))
             lbl.grid(row=0, column=b - 1, padx=2)
 
         btns = ctk.CTkFrame(card, fg_color="transparent")
-        btns.grid(row=0, column=2, padx=10, pady=10)
-        ctk.CTkButton(btns, text=t("card.learn"), width=70, fg_color=COLORS["primary"],
+        btns.grid(row=0, column=3, padx=10, pady=10)
+        ctk.CTkButton(btns, text=t("card.learn"), width=75, height=30, corner_radius=8,
+                     fg_color=COLORS["primary"], font=("Segoe UI", 12, "bold"),
                      command=lambda q=quiz: self.show_quiz_modes(q)).grid(row=0, column=0, padx=3)
-        ctk.CTkButton(btns, text=t("card.edit"), width=80, fg_color=COLORS["text_light"],
+        ctk.CTkButton(btns, text=t("card.edit"), width=75, height=30, corner_radius=8,
+                     fg_color=COLORS["text_light"],
                      command=lambda q=quiz: self.show_edit_quiz(q)).grid(row=0, column=1, padx=3)
-        ctk.CTkButton(btns, text=t("card.export"), width=60, fg_color=COLORS["success"],
+        ctk.CTkButton(btns, text=t("card.export"), width=65, height=30, corner_radius=8,
+                     fg_color=COLORS["success"],
                      command=lambda q=quiz: self.export_quiz_file(q)).grid(row=0, column=2, padx=3)
-        ctk.CTkButton(btns, text="X", width=30, fg_color=COLORS["danger"],
+        ctk.CTkButton(btns, text="✕", width=30, height=30, corner_radius=8,
+                     fg_color=COLORS["danger"],
                      command=lambda q=quiz: self._delete_quiz(q)).grid(row=0, column=3, padx=3)
 
     def _delete_quiz(self, quiz: Quiz):
@@ -1083,47 +1098,68 @@ class App(ctk.CTk):
         # Model selector
         model_var, model_id_map, model_menu, model_rec_frame, next_row = self._build_model_selector(scroll, row_start=5)
 
+        model_menu.configure(command=lambda _: update_estimate())
+
+        # Question type selection
+        ctk.CTkLabel(scroll, text="Fragetypen auswählen:", font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=next_row, column=0, sticky="w", pady=(15, 5))
+        qt_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        qt_frame.grid(row=next_row + 1, column=0, sticky="w")
+        QUESTION_TYPES_UI = [
+            ("Single Choice", "single_choice"),
+            ("Multiple Choice", "multiple_choice"),
+            ("Freitext", "free_text"),
+            ("Lückentext", "fill_blank"),
+            ("Drag & Drop", "drag_drop"),
+        ]
+        qt_vars = {}
+        for i, (label, key) in enumerate(QUESTION_TYPES_UI):
+            var = BooleanVar(value=True)
+            qt_vars[key] = var
+            ctk.CTkCheckBox(qt_frame, text=label, variable=var, font=("Segoe UI", 12),
+                           ).grid(row=0, column=i, padx=(0, 12))
+
         # Number of questions
-        ctk.CTkLabel(scroll, text="Anzahl Fragen (ca.)", font=("Arial", 13, "bold")
-                    ).grid(row=next_row, column=0, sticky="w", pady=(15, 0))
+        ctk.CTkLabel(scroll, text="Anzahl Fragen (ca.)", font=("Segoe UI", 13, "bold")
+                    ).grid(row=next_row + 2, column=0, sticky="w", pady=(15, 0))
         num_var = IntVar(value=20)
         ctk.CTkOptionMenu(scroll, values=["10", "20", "30", "50"],
                           command=lambda v: num_var.set(int(v)), width=100
-                          ).grid(row=next_row + 1, column=0, sticky="w", pady=5)
+                          ).grid(row=next_row + 3, column=0, sticky="w", pady=5)
 
         # Quiz name
-        ctk.CTkLabel(scroll, text="Quiz-Name", font=("Arial", 13, "bold")
-                    ).grid(row=next_row + 2, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(scroll, text="Quiz-Name", font=("Segoe UI", 13, "bold")
+                    ).grid(row=next_row + 4, column=0, sticky="w", pady=(10, 0))
         name_entry = ctk.CTkEntry(scroll, width=400, placeholder_text="Name für das Quiz")
-        name_entry.grid(row=next_row + 3, column=0, sticky="w", pady=5)
+        name_entry.grid(row=next_row + 5, column=0, sticky="w", pady=5)
 
         # ── Slider: Kontext-Größe ──
         chunk_label = ctk.CTkLabel(scroll, text="Kontext-Größe: 6.000 Zeichen",
-                                   font=("Arial", 13, "bold"), text_color=COLORS["text"])
-        chunk_label.grid(row=next_row + 4, column=0, sticky="w", pady=(15, 0))
+                                   font=("Segoe UI", 13, "bold"), text_color=COLORS["text"])
+        chunk_label.grid(row=next_row + 6, column=0, sticky="w", pady=(15, 0))
         ctk.CTkLabel(scroll, text="Wie viel Text pro API-Call gesendet wird (größer = weniger Aufrufe, aber teurer)",
-                    font=("Arial", 11), text_color=COLORS["text_light"]
-                    ).grid(row=next_row + 5, column=0, sticky="w")
+                    font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                    ).grid(row=next_row + 7, column=0, sticky="w")
         chunk_slider = ctk.CTkSlider(scroll, from_=2000, to=40000, number_of_steps=38, width=400)
         chunk_slider.set(6000)
         def on_chunk(v):
             chunk_label.configure(text=f"Kontext-Größe: {int(v):,} Zeichen".replace(",", "."))
             update_estimate()
         chunk_slider.configure(command=on_chunk)
-        chunk_slider.grid(row=next_row + 6, column=0, sticky="w", pady=5)
+        chunk_slider.grid(row=next_row + 8, column=0, sticky="w", pady=5)
 
         # ── Slider: Temperature ──
         temp_label = ctk.CTkLabel(scroll, text="Kreativität (Temperature): 0.30",
-                                  font=("Arial", 13, "bold"), text_color=COLORS["text"])
-        temp_label.grid(row=next_row + 7, column=0, sticky="w", pady=(15, 0))
+                                  font=("Segoe UI", 13, "bold"), text_color=COLORS["text"])
+        temp_label.grid(row=next_row + 9, column=0, sticky="w", pady=(15, 0))
         ctk.CTkLabel(scroll, text="Niedrig = präziser, Hoch = kreativer/vielfältiger",
-                    font=("Arial", 11), text_color=COLORS["text_light"]
-                    ).grid(row=next_row + 8, column=0, sticky="w")
+                    font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                    ).grid(row=next_row + 10, column=0, sticky="w")
         temp_slider = ctk.CTkSlider(scroll, from_=0, to=1.0, number_of_steps=20, width=400)
         temp_slider.set(0.3)
         temp_slider.configure(command=lambda v: temp_label.configure(
             text=f"Kreativität (Temperature): {v:.2f}"))
-        temp_slider.grid(row=next_row + 9, column=0, sticky="w", pady=5)
+        temp_slider.grid(row=next_row + 11, column=0, sticky="w", pady=5)
 
         def update_estimate():
             path = file_var.get()
@@ -1132,8 +1168,10 @@ class App(ctk.CTk):
                 return
             self.ai.chunk_size = int(chunk_slider.get())
             self.ai.overlap = max(500, self.ai.chunk_size // 6)
+            selected_model = model_id_map.get(model_var.get(), self.ai.model)
             try:
-                est = self.ai.estimate_processing(path, mode="generate")
+                est = self.ai.estimate_processing(path, mode="generate",
+                                                  model_override=selected_model)
                 size_kb = est["file_size"] / 1024
                 mins = est["est_total_seconds"] // 60
                 secs = est["est_total_seconds"] % 60
@@ -1146,10 +1184,10 @@ class App(ctk.CTk):
                 est_label.configure(text="Schätzung nicht möglich")
 
         # Progress
-        progress_label = ctk.CTkLabel(scroll, text="", font=("Arial", 12), text_color=COLORS["primary"])
-        progress_label.grid(row=next_row + 10, column=0, sticky="w", pady=10)
+        progress_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12), text_color=COLORS["primary"])
+        progress_label.grid(row=next_row + 12, column=0, sticky="w", pady=10)
         progress_bar = ctk.CTkProgressBar(scroll, width=400)
-        progress_bar.grid(row=next_row + 11, column=0, sticky="w")
+        progress_bar.grid(row=next_row + 13, column=0, sticky="w")
         progress_bar.set(0)
 
         def generate():
@@ -1179,8 +1217,11 @@ class App(ctk.CTk):
                         progress_bar.set(c / t)
                     ))
 
+                selected_types = [k for k, v in qt_vars.items() if v.get()]
                 try:
-                    questions = self.ai.generate_from_slides(file_var.get(), num_var.get(), progress_cb)
+                    questions = self.ai.generate_from_slides(
+                        file_var.get(), num_var.get(), progress_cb,
+                        question_types=selected_types or None)
                 except Exception as exc:
                     msg = str(exc)
                     self.after(0, lambda m=msg: (
@@ -1225,8 +1266,13 @@ class App(ctk.CTk):
         self.ai.chunk_size = int(chunk_slider.get())
         self.ai.overlap = max(500, self.ai.chunk_size // 6)
         self._save_source_text_bg(path)
+        selected_model = ""
+        if model_selector_state:
+            mv, mid_map = model_selector_state[0], model_selector_state[1]
+            selected_model = mid_map.get(mv.get(), self.ai.model)
         try:
-            est = self.ai.estimate_processing(path, mode="generate")
+            est = self.ai.estimate_processing(path, mode="generate",
+                                              model_override=selected_model)
             size_kb = est["file_size"] / 1024
             mins = est["est_total_seconds"] // 60
             secs = est["est_total_seconds"] % 60
@@ -1249,8 +1295,13 @@ class App(ctk.CTk):
         self.ai.chunk_size = int(chunk_slider.get())
         self.ai.overlap = max(500, self.ai.chunk_size // 6)
         self._save_source_text_bg(path)
+        selected_model = ""
+        if model_selector_state:
+            mv, mid_map = model_selector_state[0], model_selector_state[1]
+            selected_model = mid_map.get(mv.get(), self.ai.model)
         try:
-            est = self.ai.estimate_processing(path, mode="import")
+            est = self.ai.estimate_processing(path, mode="import",
+                                              model_override=selected_model)
             size_kb = est["file_size"] / 1024
             mins = est["est_total_seconds"] // 60
             secs = est["est_total_seconds"] % 60
@@ -1347,8 +1398,10 @@ class App(ctk.CTk):
                 return
             self.ai.chunk_size = int(chunk_slider.get())
             self.ai.overlap = max(500, self.ai.chunk_size // 6)
+            selected_model = model_id_map.get(model_var.get(), self.ai.model)
             try:
-                est = self.ai.estimate_processing(path, mode="import")
+                est = self.ai.estimate_processing(path, mode="import",
+                                                  model_override=selected_model)
                 size_kb = est["file_size"] / 1024
                 mins = est["est_total_seconds"] // 60
                 secs = est["est_total_seconds"] % 60
@@ -1356,9 +1409,12 @@ class App(ctk.CTk):
                 est_label.configure(
                     text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
                          f"{est['num_chunks']} Chunks ({par_text}) · "
-                         f"ca. {mins}:{secs:02d} min".replace(",", "."))
+                         f"ca. {mins}:{secs:02d} min · "
+                         f"~${est.get('est_cost_usd', 0):.3f}".replace(",", "."))
             except Exception:
                 est_label.configure(text="Schätzung nicht möglich")
+
+        model_menu.configure(command=lambda _: update_estimate())
 
         progress_label = ctk.CTkLabel(scroll, text="", font=("Arial", 12), text_color=COLORS["primary"])
         progress_label.grid(row=next_row + 6, column=0, sticky="w", pady=10)
@@ -2563,21 +2619,45 @@ class App(ctk.CTk):
                 w.destroy()
             cloze_state["entries"] = []
             parts = cloze_text.split("___")
-            flow = ctk.CTkFrame(result_frame, fg_color=COLORS["card"], corner_radius=8)
+            flow = ctk.CTkFrame(result_frame, fg_color=COLORS["card"], corner_radius=12,
+                               border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
             flow.grid(row=0, column=0, sticky="ew", pady=10, padx=5)
-            flow.grid_columnconfigure(0, weight=1)
-            text_row = 0
+
+            text_widget = ctk.CTkTextbox(flow, width=680, height=max(200, len(parts) * 30),
+                                         fg_color=COLORS["card"], text_color=COLORS["text"],
+                                         font=("Segoe UI", 13), wrap="word", state="disabled")
+            text_widget.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+
+            blank_frame = ctk.CTkFrame(flow, fg_color="transparent")
+            blank_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
+            blank_frame.grid_columnconfigure((0, 1, 2), weight=1)
+
+            preview_text = ""
             for i, part in enumerate(parts):
-                if part.strip():
-                    ctk.CTkLabel(flow, text=part, font=("Arial", 13), text_color=COLORS["text"],
-                                wraplength=650, justify="left"
-                                ).grid(row=text_row, column=0, sticky="w", padx=10, pady=2)
-                    text_row += 1
+                preview_text += part
                 if i < len(answers):
-                    entry = ctk.CTkEntry(flow, width=180, placeholder_text=f"Lücke {i+1}")
-                    entry.grid(row=text_row, column=0, sticky="w", padx=20, pady=3)
-                    cloze_state["entries"].append(entry)
-                    text_row += 1
+                    preview_text += f" [  {i+1}  ] "
+
+            text_widget.configure(state="normal")
+            text_widget.delete("1.0", "end")
+            text_widget.insert("1.0", preview_text)
+            text_widget.configure(state="disabled")
+
+            ctk.CTkLabel(blank_frame, text="Lücken ausfüllen:", font=("Segoe UI", 13, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, columnspan=3, sticky="w", pady=(5, 8))
+
+            for i, answer in enumerate(answers):
+                r = 1 + i // 3
+                c = i % 3
+                entry_frame = ctk.CTkFrame(blank_frame, fg_color="transparent")
+                entry_frame.grid(row=r, column=c, sticky="w", padx=5, pady=3)
+                ctk.CTkLabel(entry_frame, text=f"[{i+1}]", font=("Segoe UI", 12, "bold"),
+                            text_color=COLORS["primary"], width=30
+                            ).grid(row=0, column=0, padx=(0, 4))
+                entry = ctk.CTkEntry(entry_frame, width=160, placeholder_text=f"Lücke {i+1}",
+                                    corner_radius=8, border_color=COLORS.get("border", "#e0e4f0"))
+                entry.grid(row=0, column=1)
+                cloze_state["entries"].append(entry)
 
             check_row = ctk.CTkFrame(result_frame, fg_color="transparent")
             check_row.grid(row=1, column=0, sticky="w", pady=10)
