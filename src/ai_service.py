@@ -45,7 +45,10 @@ try:
 except ImportError:
     DocxDocument = None
 
-from .models import Question, QuestionType, Option, DragDropPair
+from .models import (
+    Question, QuestionType, Option, DragDropPair,
+    Formula, FormulaVariable, FormulaSheet,
+)
 
 
 GENERATE_SYSTEM_PROMPT_BASE = """Du bist ein Experte für das Erstellen von Prüfungsfragen aus Vorlesungsunterlagen.
@@ -630,6 +633,191 @@ class AIService:
                         seen_texts.add(normalized)
                         result.append(q)
         return result
+
+    # ── Formula sheet (FoSa) extraction ──
+
+    FORMULA_SYSTEM_PROMPT = r"""Du bist ein Experte für MINT-Fächer (Mathematik, Physik, Elektrotechnik,
+Mechanik, Chemie usw.). Aus dem gegebenen Dokumentabschnitt sollst du ALLE
+relevanten Formeln extrahieren bzw. ableiten, die man zum Lösen der enthaltenen
+Aufgaben braucht – auch nach Variablen umgestellte Varianten.
+
+Dein Output MUSS exakt dieses JSON-Format haben:
+{
+  "summary": "Kurze Zusammenfassung der behandelten Themen/Formeln",
+  "formulas": [
+    {
+      "name": "Name der Formel (z.B. abc-Formel, Ohmsches Gesetz)",
+      "category": "Mathematik | Physik | Elektrotechnik | Mechanik | Chemie | ...",
+      "latex": "Anzeige-LaTeX der Formel, z.B. x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+      "template": "Gleiches LaTeX, aber jede EINGABE-Variable in {{symbol}} gewrappt, z.B. x = \\frac{-{{b}} \\pm \\sqrt{{{b}}^2 - 4{{a}}{{c}}}}{2{{a}}}",
+      "expression": "Python-auswertbarer Ausdruck für das Ergebnis mit den Symbolen, z.B. (-b + (b**2 - 4*a*c)**0.5) / (2*a)",
+      "result_symbol": "Symbol das berechnet wird, z.B. x",
+      "variables": [
+        {"symbol": "a", "name": "Koeffizient a", "unit": ""},
+        {"symbol": "b", "name": "Koeffizient b", "unit": ""},
+        {"symbol": "c", "name": "Koeffizient c", "unit": ""}
+      ],
+      "description": "Wann/wofür man die Formel benutzt"
+    }
+  ]
+}
+
+Regeln:
+- Extrahiere JEDE relevante Formel, keine Duplikate.
+- "expression" MUSS gültiges Python sein (nutze ** für Potenz, math-freie Ausdrücke wie x**0.5 für Wurzel). Wenn nicht eindeutig auswertbar (z.B. ± oder Vektoren), setze "expression": "".
+- "template" muss exakt die gleichen Symbole wie "variables" als {{symbol}} enthalten.
+- Symbole in expression/template müssen mit den "variables"-Symbolen übereinstimmen.
+- Alles auf Deutsch (außer Formelsymbole)."""
+
+    def _parse_formulas(self, response: str) -> tuple[list[Formula], str]:
+        if not response or response.startswith("ERROR:"):
+            return [], ""
+        text = response.strip()
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        brace_s = text.find("{")
+        brace_e = text.rfind("}") + 1
+        if brace_s == -1 or brace_e <= 0:
+            return [], ""
+        raw = text[brace_s:brace_e]
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            try:
+                obj = json.loads(self._repair_json(raw))
+            except json.JSONDecodeError:
+                return [], ""
+        summary = obj.get("summary", "")
+        formulas = []
+        for item in obj.get("formulas", []):
+            try:
+                variables = [
+                    FormulaVariable(
+                        symbol=str(v.get("symbol", "")),
+                        name=v.get("name", ""),
+                        unit=v.get("unit", ""),
+                    )
+                    for v in item.get("variables", [])
+                ]
+                formulas.append(Formula(
+                    name=item.get("name", ""),
+                    category=item.get("category", ""),
+                    latex=item.get("latex", ""),
+                    template=item.get("template", ""),
+                    expression=item.get("expression", ""),
+                    result_symbol=item.get("result_symbol", ""),
+                    variables=variables,
+                    description=item.get("description", ""),
+                ))
+            except (KeyError, ValueError, TypeError):
+                continue
+        return formulas, summary
+
+    def build_formula_sheet(self, file_path: str, name: str = "",
+                            progress_callback: Callable | None = None) -> FormulaSheet:
+        """Analyze a document and build a FormulaSheet (FoSa) covering all
+        formulas needed for the contained problems – math, physics, E-tech etc."""
+        import datetime
+        full_text = self._read_file_as_text(file_path)
+        chunks = self._chunk_with_overlap(full_text)
+
+        all_formulas: list[Formula] = []
+        seen: set[str] = set()
+        rolling_summary = ""
+
+        for i, chunk in enumerate(chunks):
+            if progress_callback:
+                progress_callback(i + 1, len(chunks))
+            context_prefix = ""
+            if rolling_summary:
+                context_prefix = (
+                    f"Bereits erfasste Formeln/Themen:\n{rolling_summary}\n\n---\n\n"
+                )
+            messages = [
+                {"role": "system", "content": self.FORMULA_SYSTEM_PROMPT},
+                {"role": "user", "content": (
+                    f"{context_prefix}"
+                    f"Abschnitt {i+1} von {len(chunks)} des Dokuments:\n\n{chunk}\n\n"
+                    "Extrahiere alle relevanten Formeln im geforderten JSON-Format. "
+                    "Lass bereits erfasste Formeln weg."
+                )},
+            ]
+            response = self._call_api(messages, max_tokens=4096)
+            formulas, summary = self._parse_formulas(response)
+            for f in formulas:
+                key = (f.name.strip().lower(), f.latex.strip())
+                key_str = "|".join(key)
+                if key_str not in seen and f.name.strip():
+                    seen.add(key_str)
+                    all_formulas.append(f)
+            if summary:
+                rolling_summary = (rolling_summary + " " + summary).strip()[-2000:]
+
+        sheet_name = name or Path(file_path).stem
+        subject = all_formulas[0].category if all_formulas else ""
+        return FormulaSheet(
+            name=sheet_name,
+            subject=subject,
+            formulas=all_formulas,
+            created=datetime.date.today().isoformat(),
+        )
+
+    def check_solution_path(self, problem_text: str, steps: list[dict],
+                            final_answer: str = "") -> str:
+        """Check a worked solution (list of {formula, inputs, result} steps)
+        and give detailed feedback: what was right, where errors occurred, why.
+        Returns markdown feedback."""
+        steps_text = "\n".join(
+            f"Schritt {i+1}: Formel '{s.get('formula', '')}', "
+            f"Eingaben: {s.get('inputs', '')}, Ergebnis: {s.get('result', '')}"
+            for i, s in enumerate(steps)
+        )
+        messages = [
+            {"role": "system", "content": (
+                "Du bist ein Prüfungs-Tutor für MINT-Fächer. Prüfe den Lösungsweg eines "
+                "Studenten Schritt für Schritt: Formelwahl, eingesetzte Werte, Rechenfehler "
+                "und das Endergebnis. Gib detailliertes, konstruktives Feedback auf Deutsch "
+                "im Markdown-Format: 1) Was war richtig, 2) Wo waren Fehler und warum, "
+                "3) Korrekter Lösungsweg falls nötig."
+            )},
+            {"role": "user", "content": (
+                f"Aufgabe:\n{problem_text}\n\nMein Lösungsweg:\n{steps_text}\n\n"
+                f"Mein Endergebnis: {final_answer}\n\nBitte prüfe alles und gib Feedback."
+            )},
+        ]
+        response = self._call_api(messages, max_tokens=2048)
+        return response if response and not response.startswith("ERROR:") else "Feedback nicht verfügbar."
+
+    def check_handwritten_solution(self, problem_text: str, image_path: str) -> str:
+        """Vision-based check of a handwritten solution photo/screenshot.
+        Analyzes solution path, calculation errors, and final answer.
+        Returns markdown feedback. Requires a vision-capable model."""
+        try:
+            with open(image_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode("ascii")
+        except OSError as e:
+            return f"Bild konnte nicht gelesen werden: {e}"
+        suffix = Path(image_path).suffix.lower().lstrip(".") or "png"
+        if suffix == "jpg":
+            suffix = "jpeg"
+        messages = [
+            {"role": "system", "content": (
+                "Du bist ein Prüfungs-Tutor für MINT-Fächer. Du bekommst eine "
+                "handschriftliche Lösung als Bild. Lies sie sorgfältig, prüfe den "
+                "kompletten Lösungsweg (gegebene Werte, gewählte Formeln, Umstellungen, "
+                "Rechenschritte, Endergebnis) und gib detailliertes Feedback auf Deutsch "
+                "im Markdown-Format: 1) Was war richtig, 2) Wo waren Rechen-/Denkfehler "
+                "und warum, 3) korrektes Ergebnis und optimaler Lösungsweg."
+            )},
+            {"role": "user", "content": [
+                {"type": "text", "text": f"Aufgabe:\n{problem_text}\n\nHier meine handschriftliche Lösung:"},
+                {"type": "image_url", "image_url": {"url": f"data:image/{suffix};base64,{encoded}"}},
+            ]},
+        ]
+        response = self._call_api(messages, max_tokens=2048)
+        return response if response and not response.startswith("ERROR:") else "Feedback nicht verfügbar."
 
     def explain_question(self, question: Question, user_answer: str = "") -> str:
         messages = [

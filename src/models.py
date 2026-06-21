@@ -75,6 +75,74 @@ class Question:
         return cls(**d)
 
 
+@dataclass
+class FormulaVariable:
+    """A single variable inside a formula, e.g. a, b, c in the abc-formula."""
+    symbol: str = ""          # e.g. "a", "U", "F"
+    name: str = ""            # human label, e.g. "Spannung"
+    unit: str = ""            # e.g. "V", "m/s", "" for dimensionless
+
+
+@dataclass
+class Formula:
+    """A formula in the digital formula sheet (FoSa).
+
+    `latex` is the display form. `template` is the same formula with each
+    variable wrapped in {{symbol}} placeholders so the UI can render empty
+    input fields, e.g. "x = \\frac{-{{b}} \\pm \\sqrt{{{b}}^2 - 4{{a}}{{c}}}}{2{{a}}}".
+    `expression` is a plain-python evaluable form (using the symbols) so the
+    result can be computed once the user enters values, e.g.
+    "(-b + (b**2 - 4*a*c)**0.5) / (2*a)".
+    """
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""            # e.g. "abc-Formel", "Ohmsches Gesetz"
+    category: str = ""        # e.g. "Mathematik", "Physik", "E-Technik"
+    latex: str = ""           # display LaTeX
+    template: str = ""        # LaTeX with {{symbol}} placeholders for inputs
+    expression: str = ""      # python-evaluable expression for the result
+    result_symbol: str = ""   # symbol the expression solves for, e.g. "x"
+    variables: list[FormulaVariable] = field(default_factory=list)
+    description: str = ""     # when/how the formula is used
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Formula":
+        d = d.copy()
+        d["variables"] = [FormulaVariable(**v) for v in d.get("variables", [])]
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class FormulaSheet:
+    """A collection of formulas (Formelsammlung) for one subject/document."""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""            # e.g. "Physik 1 – Mechanik"
+    subject: str = ""         # e.g. "Physik"
+    formulas: list[Formula] = field(default_factory=list)
+    created: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "subject": self.subject,
+            "created": self.created,
+            "formulas": [f.to_dict() for f in self.formulas],
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "FormulaSheet":
+        return cls(
+            id=d.get("id", str(uuid.uuid4())),
+            name=d.get("name", ""),
+            subject=d.get("subject", ""),
+            created=d.get("created", ""),
+            formulas=[Formula.from_dict(f) for f in d.get("formulas", [])],
+        )
+
+
 class LeitnerBox(int, Enum):
     BOX_1 = 1
     BOX_2 = 2
@@ -218,6 +286,24 @@ class DataStore:
         path = self.data_dir / "source_texts.json"
         with open(path, "w", encoding="utf-8") as f:
             json.dump(texts, f, ensure_ascii=False, indent=2)
+
+    # ── Formula sheets (FoSa) ──
+
+    def load_formula_sheets(self) -> list[FormulaSheet]:
+        path = self.data_dir / "formula_sheets.json"
+        if not path.exists():
+            return []
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                return []
+        return [FormulaSheet.from_dict(s) for s in data]
+
+    def save_formula_sheets(self, sheets: list[FormulaSheet]):
+        path = self.data_dir / "formula_sheets.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump([s.to_dict() for s in sheets], f, ensure_ascii=False, indent=2)
 
     # ── Marked questions ──
 
