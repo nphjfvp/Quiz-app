@@ -7,3 +7,4 @@ data/settings.json
 build/
 dist/
 *.spec
+mobile/node_modules/
