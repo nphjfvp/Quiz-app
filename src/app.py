@@ -3051,6 +3051,105 @@ class App(ctk.CTk):
                              command=_on_key
                              ).grid(row=row_i, column=col_i, padx=2, pady=2)
 
+            # ── Stylus / Drawing canvas for full solution path ──
+            draw_sep = ctk.CTkFrame(answer_frame, fg_color=COLORS.get("border", "#ddd"), height=1)
+            draw_sep.grid(row=5, column=0, sticky="ew", padx=20, pady=(10, 5))
+
+            draw_header = ctk.CTkFrame(answer_frame, fg_color="transparent")
+            draw_header.grid(row=6, column=0, padx=20, sticky="w")
+            ctk.CTkLabel(draw_header, text=t("math.draw_title"),
+                        font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
+                        ).grid(row=0, column=0, padx=(0, 10))
+
+            pen_sizes = {"Fein": 2, "Normal": 3, "Dick": 5}
+            pen_var = StringVar(value="Normal")
+            for ci, (label, _) in enumerate(pen_sizes.items()):
+                ctk.CTkRadioButton(draw_header, text=label, variable=pen_var, value=label,
+                                   font=("Segoe UI", 11)).grid(row=0, column=ci + 1, padx=4)
+
+            pen_color_var = StringVar(value="black")
+            color_frame = ctk.CTkFrame(draw_header, fg_color="transparent")
+            color_frame.grid(row=0, column=len(pen_sizes) + 1, padx=(10, 0))
+            for ci, (cname, cval) in enumerate([("Schwarz", "black"), ("Blau", "#2563eb"), ("Rot", "#dc2626")]):
+                ctk.CTkRadioButton(color_frame, text=cname, variable=pen_color_var, value=cval,
+                                   font=("Segoe UI", 11)).grid(row=0, column=ci, padx=3)
+
+            draw_canvas_w, draw_canvas_h = 600, 300
+            draw_canvas = tk.Canvas(answer_frame, width=draw_canvas_w, height=draw_canvas_h,
+                                     bg="white", highlightthickness=1,
+                                     highlightbackground=COLORS.get("border", "#ccc"),
+                                     cursor="pencil")
+            draw_canvas.grid(row=7, column=0, padx=20, pady=5)
+
+            draw_state = {"lines": [], "last_x": None, "last_y": None, "has_drawing": False}
+
+            def _draw_press(e):
+                draw_state["last_x"] = e.x
+                draw_state["last_y"] = e.y
+
+            def _draw_motion(e):
+                if draw_state["last_x"] is not None:
+                    pw = pen_sizes.get(pen_var.get(), 3)
+                    pc = pen_color_var.get()
+                    line_id = draw_canvas.create_line(
+                        draw_state["last_x"], draw_state["last_y"], e.x, e.y,
+                        fill=pc, width=pw, capstyle=tk.ROUND, smooth=True)
+                    draw_state["lines"].append(line_id)
+                    draw_state["last_x"] = e.x
+                    draw_state["last_y"] = e.y
+                    draw_state["has_drawing"] = True
+
+            def _draw_release(e):
+                draw_state["last_x"] = None
+                draw_state["last_y"] = None
+
+            draw_canvas.bind("<Button-1>", _draw_press)
+            draw_canvas.bind("<B1-Motion>", _draw_motion)
+            draw_canvas.bind("<ButtonRelease-1>", _draw_release)
+
+            draw_btns = ctk.CTkFrame(answer_frame, fg_color="transparent")
+            draw_btns.grid(row=8, column=0, padx=20, sticky="w", pady=(0, 5))
+
+            def _clear_drawing():
+                draw_canvas.delete("all")
+                draw_state["lines"].clear()
+                draw_state["has_drawing"] = False
+
+            ctk.CTkButton(draw_btns, text=t("math.clear_canvas"), width=100, height=28,
+                         fg_color=COLORS.get("text_light", "#888"),
+                         command=_clear_drawing).grid(row=0, column=0, padx=(0, 8))
+
+            def _canvas_to_base64():
+                """Save canvas as PNG and return base64."""
+                import io
+                draw_canvas.update()
+                ps = draw_canvas.postscript(colormode="color")
+                try:
+                    from PIL import Image as _PILImg
+                    img = _PILImg.open(io.BytesIO(ps.encode("utf-8")))
+                except Exception:
+                    try:
+                        import subprocess, tempfile
+                        with tempfile.NamedTemporaryFile(suffix=".ps", delete=False) as tmp:
+                            tmp.write(ps.encode("utf-8"))
+                            ps_path = tmp.name
+                        png_path = ps_path.replace(".ps", ".png")
+                        subprocess.run(["gs", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m",
+                                        f"-sOutputFile={png_path}", "-r150", ps_path],
+                                       capture_output=True, timeout=10)
+                        from PIL import Image as _PILImg
+                        img = _PILImg.open(png_path)
+                    except Exception:
+                        return None
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                import base64
+                return base64.b64encode(buf.read()).decode("utf-8")
+
+            # Store references for AI analysis after submit
+            answer_widgets.append(("math_drawing", draw_state, _canvas_to_base64))
+
         # Answer timing
         _answer_start_ms = int(time.time() * 1000)
         use_fsrs = self.store.load_settings().get("use_fsrs", False)
@@ -3214,6 +3313,61 @@ class App(ctk.CTk):
                                                        row=1, column=0, padx=15, pady=(0, 10), sticky="w")
                             self.after(0, _show)
                         threading.Thread(target=_check_detailed, daemon=True).start()
+
+                # Analyze math drawing (solution path) if present
+                if q.question_type == QuestionType.MATH_FORMULA and self.ai.api_key:
+                    drawing_b64 = None
+                    for item in answer_widgets:
+                        if isinstance(item, tuple) and len(item) == 3 and item[0] == "math_drawing":
+                            if item[1].get("has_drawing"):
+                                drawing_b64 = item[2]()
+                    if drawing_b64:
+                        draw_fb = ctk.CTkFrame(feedback_frame, fg_color=COLORS["card"], corner_radius=8)
+                        draw_fb.grid(row=2, column=0, sticky="ew", pady=(5, 0))
+                        draw_fb.grid_columnconfigure(0, weight=1)
+                        draw_lbl = ctk.CTkLabel(draw_fb, text=t("math.analyzing_drawing"),
+                                                 font=("Segoe UI", 12), text_color=COLORS["text_light"])
+                        draw_lbl.grid(row=0, column=0, padx=15, pady=10, sticky="w")
+
+                        def _analyze_drawing(b64=drawing_b64, frame=draw_fb):
+                            correct = q.correct_formula
+                            msgs = [
+                                {"role": "system", "content": (
+                                    "Du bist ein Mathe-Tutor. Der Student hat seinen Rechenweg "
+                                    "handschriftlich aufgeschrieben. Analysiere das Bild Schritt für Schritt:\n"
+                                    "1. Erkenne die handschriftliche Rechnung\n"
+                                    "2. Prüfe jeden einzelnen Rechenschritt\n"
+                                    "3. Markiere GENAU wo der erste Fehler passiert (falls vorhanden)\n"
+                                    "4. Erkläre was falsch war und wie es richtig wäre\n"
+                                    "5. Bewerte den Gesamtansatz\n"
+                                    "Nutze $LaTeX$ für Formeln in deiner Antwort."
+                                )},
+                                {"role": "user", "content": [
+                                    {"type": "text", "text": (
+                                        f"Aufgabe: {q.text}\n"
+                                        f"Korrekte Lösung: {correct}\n"
+                                        f"Eingegebene Antwort: {result.user_answer}\n"
+                                        "Hier ist der handschriftliche Rechenweg des Studenten:"
+                                    )},
+                                    {"type": "image_url", "image_url": {
+                                        "url": f"data:image/png;base64,{b64}"
+                                    }},
+                                ]},
+                            ]
+                            resp = self.ai._call_api(msgs, max_tokens=1500)
+                            def _show_draw(r=resp):
+                                for w in frame.winfo_children():
+                                    w.destroy()
+                                ctk.CTkLabel(frame, text=t("math.drawing_feedback"),
+                                             font=("Segoe UI", 13, "bold"),
+                                             text_color=COLORS["primary"]
+                                             ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
+                                self._render_rich_text(frame, r or "Keine Antwort erhalten.",
+                                                       font=("Segoe UI", 12),
+                                                       text_color=COLORS["text"], wraplength=650,
+                                                       row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+                            self.after(0, _show_draw)
+                        threading.Thread(target=_analyze_drawing, daemon=True).start()
             else:
                 self.session.next_question()
                 self._show_question()

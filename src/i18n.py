@@ -226,6 +226,10 @@ TRANSLATIONS = {
         "math.input_placeholder": "Formel oder Zahl eingeben...",
         "math.preview": "Vorschau:",
         "math.keypad": "Taschenrechner",
+        "math.draw_title": "Rechenweg zeichnen (Stylus/Maus):",
+        "math.clear_canvas": "Löschen",
+        "math.analyzing_drawing": "KI analysiert deinen Rechenweg...",
+        "math.drawing_feedback": "KI-Analyse deines Rechenwegs:",
     },
     "en": {
         "app.title": "Study Trainer – Quiz App",
@@ -404,5 +408,9 @@ TRANSLATIONS = {
         "math.input_placeholder": "Enter formula or number...",
         "math.preview": "Preview:",
         "math.keypad": "Calculator",
+        "math.draw_title": "Draw solution path (stylus/mouse):",
+        "math.clear_canvas": "Clear",
+        "math.analyzing_drawing": "AI is analyzing your solution path...",
+        "math.drawing_feedback": "AI analysis of your solution path:",
     },
 }
