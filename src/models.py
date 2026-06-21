@@ -143,6 +143,27 @@ class FormulaSheet:
         )
 
 
+@dataclass
+class Folder:
+    """A folder grouping multiple quizzes (e.g. all PDFs for one exam)."""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = ""
+    quiz_ids: list[str] = field(default_factory=list)
+    created: str = ""
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "name": self.name, "quiz_ids": self.quiz_ids, "created": self.created}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Folder":
+        return cls(
+            id=d.get("id", str(uuid.uuid4())),
+            name=d.get("name", ""),
+            quiz_ids=d.get("quiz_ids", []),
+            created=d.get("created", ""),
+        )
+
+
 class LeitnerBox(int, Enum):
     BOX_1 = 1
     BOX_2 = 2
@@ -286,6 +307,24 @@ class DataStore:
         path = self.data_dir / "source_texts.json"
         with open(path, "w", encoding="utf-8") as f:
             json.dump(texts, f, ensure_ascii=False, indent=2)
+
+    # ── Folders ──
+
+    def load_folders(self) -> list[Folder]:
+        path = self.data_dir / "folders.json"
+        if not path.exists():
+            return []
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                return []
+        return [Folder.from_dict(d) for d in data]
+
+    def save_folders(self, folders: list[Folder]):
+        path = self.data_dir / "folders.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump([f.to_dict() for f in folders], f, ensure_ascii=False, indent=2)
 
     # ── Formula sheets (FoSa) ──
 
