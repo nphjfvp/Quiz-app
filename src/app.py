@@ -3296,7 +3296,8 @@ class App(ctk.CTk):
                 step_widgets: list[dict] = []
 
                 def _render_step(step_idx: int, formula: Formula):
-                    """Build UI for one solution step with the given formula."""
+                    """Build UI for one solution step with the given formula.
+                    Hybrid layout: full formula image on top, inline fill-in row below."""
                     step_frame = ctk.CTkFrame(steps_container, fg_color=COLORS["card"],
                                               corner_radius=10, border_width=1,
                                               border_color=COLORS.get("border", "#e0e4f0"))
@@ -3308,7 +3309,7 @@ class App(ctk.CTk):
                                  text_color=COLORS["primary"]
                                  ).grid(row=0, column=0, padx=15, pady=(10, 4), sticky="w")
 
-                    # Show rendered LaTeX of the formula
+                    # Row 1: Full formula as rendered image (reference)
                     if formula.latex and can_render_latex():
                         img = render_formula(formula.latex, fontsize=16,
                                              text_color=COLORS.get("text", "#000"))
@@ -3323,33 +3324,99 @@ class App(ctk.CTk):
                                      font=("Consolas", 13), text_color=COLORS["text"]
                                      ).grid(row=1, column=0, padx=15, pady=4, sticky="w")
 
-                    # Variable input fields
+                    # Row 2: Inline fill-in row — split template at {{var}} placeholders
+                    # and place Entry widgets where the variables go
                     var_entries: dict[str, ctk.CTkEntry] = {}
-                    vars_frame = ctk.CTkFrame(step_frame, fg_color="transparent")
-                    vars_frame.grid(row=2, column=0, padx=15, pady=5, sticky="w")
-                    for vi, v in enumerate(formula.variables):
-                        lbl_text = f"{v.symbol}"
-                        if v.name:
-                            lbl_text += f" ({v.name})"
-                        if v.unit:
-                            lbl_text += f" [{v.unit}]"
-                        ctk.CTkLabel(vars_frame, text=lbl_text + ":",
-                                     font=("Segoe UI", 12), text_color=COLORS["text"]
-                                     ).grid(row=vi, column=0, padx=(0, 8), pady=2, sticky="w")
-                        e = ctk.CTkEntry(vars_frame, width=150, font=("Segoe UI", 12),
-                                         placeholder_text=v.symbol)
-                        e.grid(row=vi, column=1, pady=2)
-                        var_entries[v.symbol] = e
+                    inline_frame = ctk.CTkFrame(step_frame, fg_color=COLORS.get("input_bg", "#f0f0f0"),
+                                                corner_radius=8)
+                    inline_frame.grid(row=2, column=0, padx=15, pady=(4, 5), sticky="w")
+
+                    template = formula.template or ""
+                    var_symbols = {v.symbol for v in formula.variables}
+
+                    if template and "{{" in template:
+                        # Parse template: split on {{symbol}} placeholders
+                        import re as _re
+                        parts = _re.split(r'\{\{(\w+)\}\}', template)
+                        col = 0
+                        for pi, part in enumerate(parts):
+                            if pi % 2 == 0:
+                                # Static LaTeX segment — render as small image or plain text
+                                segment = part.strip()
+                                if not segment:
+                                    continue
+                                if can_render_latex() and any(c in segment for c in ('\\', '^', '_', '{')):
+                                    seg_img = render_formula(segment, fontsize=14,
+                                                             text_color=COLORS.get("text", "#000"))
+                                    if seg_img:
+                                        ci = ctk.CTkImage(light_image=seg_img, dark_image=seg_img,
+                                                          size=(seg_img.width, seg_img.height))
+                                        sl = ctk.CTkLabel(inline_frame, image=ci, text="")
+                                        sl.image = ci
+                                        sl.grid(row=0, column=col, padx=2, pady=6)
+                                        col += 1
+                                        continue
+                                # Plain text fallback
+                                plain = latex_to_plain(f"${segment}$") if ('\\' in segment) else segment
+                                if plain.strip():
+                                    ctk.CTkLabel(inline_frame, text=plain,
+                                                 font=("Consolas", 14), text_color=COLORS["text"]
+                                                 ).grid(row=0, column=col, padx=2, pady=6)
+                                    col += 1
+                            else:
+                                # Variable placeholder — insert Entry widget
+                                sym = part
+                                v_info = next((v for v in formula.variables if v.symbol == sym), None)
+                                ph = sym
+                                if v_info and v_info.unit:
+                                    ph = f"{sym} [{v_info.unit}]"
+                                e = ctk.CTkEntry(inline_frame, width=80, font=("Segoe UI", 13),
+                                                 placeholder_text=ph, justify="center",
+                                                 border_width=2, border_color=COLORS["primary"],
+                                                 corner_radius=6)
+                                e.grid(row=0, column=col, padx=3, pady=6)
+                                var_entries[sym] = e
+                                col += 1
+                    else:
+                        # No template — fall back to labeled fields
+                        for vi, v in enumerate(formula.variables):
+                            lbl_text = f"{v.symbol}"
+                            if v.name:
+                                lbl_text += f" ({v.name})"
+                            if v.unit:
+                                lbl_text += f" [{v.unit}]"
+                            ctk.CTkLabel(inline_frame, text=lbl_text + " =",
+                                         font=("Segoe UI", 12), text_color=COLORS["text"]
+                                         ).grid(row=vi, column=0, padx=(8, 4), pady=3, sticky="w")
+                            e = ctk.CTkEntry(inline_frame, width=120, font=("Segoe UI", 12),
+                                             placeholder_text=v.symbol, border_width=2,
+                                             border_color=COLORS["primary"], corner_radius=6)
+                            e.grid(row=vi, column=1, padx=(0, 8), pady=3)
+                            var_entries[v.symbol] = e
+
+                    # Variable legend (small, below the inline row)
+                    if formula.variables:
+                        legend_parts = [
+                            f"{v.symbol}: {v.name}" + (f" [{v.unit}]" if v.unit else "")
+                            for v in formula.variables if v.name
+                        ]
+                        if legend_parts:
+                            ctk.CTkLabel(step_frame, text="  ·  ".join(legend_parts),
+                                         font=("Segoe UI", 10), text_color=COLORS["text_light"],
+                                         wraplength=700, justify="left"
+                                         ).grid(row=3, column=0, padx=15, pady=(0, 2), sticky="w")
 
                     # Result field
                     res_frame = ctk.CTkFrame(step_frame, fg_color="transparent")
-                    res_frame.grid(row=3, column=0, padx=15, pady=(5, 10), sticky="w")
+                    res_frame.grid(row=4, column=0, padx=15, pady=(5, 10), sticky="w")
                     res_sym = formula.result_symbol or "Ergebnis"
                     ctk.CTkLabel(res_frame, text=f"{res_sym} =",
                                  font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
                                  ).grid(row=0, column=0, padx=(0, 8))
                     result_entry = ctk.CTkEntry(res_frame, width=200, font=("Segoe UI", 13),
-                                                placeholder_text=t("math.enter_result"))
+                                                placeholder_text=t("math.enter_result"),
+                                                border_width=2, border_color=COLORS["success"],
+                                                corner_radius=6)
                     result_entry.grid(row=0, column=1)
 
                     step_data = {
