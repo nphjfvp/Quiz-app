@@ -845,6 +845,10 @@ class App(ctk.CTk):
         aival_switch.grid(row=0, column=2, padx=(0, 20))
         if settings.get("ai_validation", False):
             aival_switch.select()
+        detailed_switch = ctk.CTkSwitch(feat_row, text=t("settings.detailed_answer"))
+        detailed_switch.grid(row=1, column=0, columnspan=3, padx=(0, 20), pady=(8, 0))
+        if settings.get("detailed_answer", False):
+            detailed_switch.select()
 
         # Appearance & language
         ctk.CTkLabel(frame, text=t("settings.appearance"), font=("Arial", 13, "bold"),
@@ -896,6 +900,7 @@ class App(ctk.CTk):
             s["use_fsrs"] = bool(fsrs_switch.get())
             s["enable_images"] = bool(img_switch.get())
             s["ai_validation"] = bool(aival_switch.get())
+            s["detailed_answer"] = bool(detailed_switch.get())
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
             s["use_memory"] = bool(memory_switch.get())
@@ -2951,9 +2956,22 @@ class App(ctk.CTk):
                                    variable=confidence_var, value=ci, font=("Arial", 12)
                                    ).grid(row=0, column=ci, padx=8, pady=8)
 
+        # Optional detailed answer
+        use_detailed = self.store.load_settings().get("detailed_answer", False)
+        detailed_entry = None
+        if use_detailed:
+            det_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+            det_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+            det_frame.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(det_frame, text=t("detailed.label"), font=("Segoe UI", 12, "bold"),
+                        text_color=COLORS["text_light"]).grid(row=0, column=0, padx=15, pady=(8, 3), sticky="w")
+            detailed_entry = ctk.CTkTextbox(det_frame, height=70, font=("Segoe UI", 12),
+                                            fg_color=COLORS["input_bg"])
+            detailed_entry.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+
         # Feedback area (for single mode)
         feedback_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        feedback_frame.grid(row=4, column=0, sticky="ew")
+        feedback_frame.grid(row=5, column=0, sticky="ew")
 
         def get_answer():
             if q.question_type == QuestionType.SINGLE_CHOICE:
@@ -3036,13 +3054,57 @@ class App(ctk.CTk):
                                 text_color="white", wraplength=600
                                 ).grid(row=3, column=0, padx=20, pady=(0, 10), sticky="w")
                 submit_btn.configure(state="disabled")
+
+                # Analyze detailed answer if provided
+                if detailed_entry:
+                    det_text = detailed_entry.get("1.0", "end").strip()
+                    if det_text and self.ai.api_key:
+                        det_fb = ctk.CTkFrame(feedback_frame, fg_color=COLORS["card"], corner_radius=8)
+                        det_fb.grid(row=1, column=0, sticky="ew", pady=(5, 0))
+                        det_fb.grid_columnconfigure(0, weight=1)
+                        det_lbl = ctk.CTkLabel(det_fb, text=t("detailed.checking"),
+                                               font=("Segoe UI", 12), text_color=COLORS["text_light"])
+                        det_lbl.grid(row=0, column=0, padx=15, pady=10, sticky="w")
+
+                        def _check_detailed(user_text=det_text, frame=det_fb):
+                            correct = result.correct_answer if not result.is_correct else "korrekt beantwortet"
+                            msgs = [
+                                {"role": "system", "content": (
+                                    "Du bist ein strenger aber fairer Tutor. Analysiere die ausführliche "
+                                    "Antwort des Studenten. Prüfe auf:\n"
+                                    "1. Korrektheit der Aussagen\n"
+                                    "2. Denkfehler oder Missverständnisse\n"
+                                    "3. Vollständigkeit\n"
+                                    "4. Was gut war\n"
+                                    "Gib konstruktives Feedback. Nutze $LaTeX$ für Formeln."
+                                )},
+                                {"role": "user", "content": (
+                                    f"Frage: {q.text}\n"
+                                    f"Richtige Antwort: {correct}\n"
+                                    f"Ausführliche Antwort des Studenten:\n{user_text}"
+                                )},
+                            ]
+                            resp = self.ai._call_api(msgs, max_tokens=1024)
+                            def _show(r=resp):
+                                for w in frame.winfo_children():
+                                    w.destroy()
+                                ctk.CTkLabel(frame, text=t("detailed.feedback_title"),
+                                             font=("Segoe UI", 13, "bold"),
+                                             text_color=COLORS["primary"]
+                                             ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
+                                self._render_rich_text(frame, r or "Keine Antwort erhalten.",
+                                                       font=("Segoe UI", 12),
+                                                       text_color=COLORS["text"], wraplength=650,
+                                                       row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+                            self.after(0, _show)
+                        threading.Thread(target=_check_detailed, daemon=True).start()
             else:
                 self.session.next_question()
                 self._show_question()
 
         # Navigation
         nav = ctk.CTkFrame(scroll, fg_color="transparent")
-        nav.grid(row=5, column=0, sticky="ew", pady=15)
+        nav.grid(row=6, column=0, sticky="ew", pady=15)
 
         if self.session.current_index > 0:
             ctk.CTkButton(nav, text="< Zurück", fg_color=COLORS["text_light"], width=100,
@@ -3084,7 +3146,7 @@ class App(ctk.CTk):
 
         # AI Help button
         ai_help_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        ai_help_frame.grid(row=6, column=0, sticky="ew")
+        ai_help_frame.grid(row=7, column=0, sticky="ew")
         ai_help_visible = {"shown": False}
         ai_help_inner = ctk.CTkFrame(ai_help_frame, fg_color=COLORS["card"], corner_radius=8)
 
@@ -3154,7 +3216,7 @@ class App(ctk.CTk):
         quick_actions = self.store.load_quick_actions()
         if quick_actions:
             qa_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-            qa_frame.grid(row=7, column=0, sticky="ew", pady=5)
+            qa_frame.grid(row=8, column=0, sticky="ew", pady=5)
 
             def run_quick_action(action):
                 ai_help_inner.grid(row=1, column=0, sticky="ew", pady=(5, 0))
