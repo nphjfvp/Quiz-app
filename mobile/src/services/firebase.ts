@@ -12,13 +12,12 @@ import { getAuth, signInAnonymously } from "firebase/auth";
 import type { Quiz, QuestionProgress, DailyState } from "../types/quiz";
 
 const firebaseConfig = {
-  // Replace with your Firebase project config
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyBzslbApoDz0UWusBpS10DEGWY7cvIUK5s",
+  authDomain: "quiz-test-37d87.firebaseapp.com",
+  projectId: "quiz-test-37d87",
+  storageBucket: "quiz-test-37d87.firebasestorage.app",
+  messagingSenderId: "800484076229",
+  appId: "1:800484076229:web:1f2088ec15354a1ab2deac",
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
