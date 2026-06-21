@@ -35,6 +35,7 @@ jobs:
           --hidden-import customtkinter --hidden-import PIL
           --hidden-import fitz --hidden-import pypdf
           --hidden-import pptx --hidden-import docx
+          --hidden-import matplotlib --hidden-import matplotlib.backends.backend_agg
           --collect-all customtkinter
           main.py
 

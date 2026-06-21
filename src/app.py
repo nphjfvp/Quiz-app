@@ -26,6 +26,7 @@ from .ai_service import AIService
 from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
 from .theme import COLORS, apply_theme, is_dark
 from .i18n import t, set_language, get_language
+from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
 
 ctk.set_default_color_theme("blue")
 
@@ -330,8 +331,8 @@ class App(ctk.CTk):
             anchor = "e" if role == "user" else "w"
             mf = ctk.CTkFrame(chat_scroll, fg_color=bg, corner_radius=8)
             mf.grid(row=msg_row["idx"], column=0, sticky=anchor, pady=3, padx=10)
-            ctk.CTkLabel(mf, text=text, font=("Segoe UI", 12), text_color=tc,
-                        wraplength=500, justify="left").grid(row=0, column=0, padx=12, pady=8)
+            self._render_rich_text(mf, text, font=("Segoe UI", 12), text_color=tc,
+                                   wraplength=500, row=0, column=0, padx=12, pady=8)
             msg_row["idx"] += 1
 
         def upload_file():
@@ -1244,6 +1245,58 @@ class App(ctk.CTk):
             except Exception:
                 pass
         return None, max_w, max_h
+
+    def _render_rich_text(self, parent, text: str, font=("Segoe UI", 13),
+                         text_color=None, wraplength=700, **grid_kw):
+        """Render text that may contain LaTeX ($...$) formulas.
+        If LaTeX found and matplotlib available: uses tk.Text with embedded images.
+        Otherwise: falls back to CTkLabel with plain-text formulas."""
+        tc = text_color or COLORS["text"]
+        if not has_latex(text):
+            lbl = ctk.CTkLabel(parent, text=text, font=font, text_color=tc,
+                               wraplength=wraplength, justify="left")
+            if grid_kw:
+                lbl.grid(**grid_kw)
+            return lbl
+
+        if not can_render_latex():
+            plain = latex_to_plain(text)
+            lbl = ctk.CTkLabel(parent, text=plain, font=font, text_color=tc,
+                               wraplength=wraplength, justify="left")
+            if grid_kw:
+                lbl.grid(**grid_kw)
+            return lbl
+
+        parts = split_text_and_formulas(text)
+        tw = tk.Text(parent, wrap="word", font=font, fg=tc,
+                     bg=COLORS.get("card", "#ffffff"), bd=0, highlightthickness=0,
+                     padx=4, pady=4, width=wraplength // 8, height=1)
+        tw.configure(state="normal")
+        self._latex_images = getattr(self, "_latex_images", [])
+        for part in parts:
+            if part["type"] == "text":
+                tw.insert("end", part["content"])
+            else:
+                img = render_formula(part["content"], fontsize=font[1], text_color=tc)
+                if img:
+                    if ImageTk:
+                        photo = ImageTk.PhotoImage(img)
+                    else:
+                        photo = None
+                    if photo:
+                        self._latex_images.append(photo)
+                        tw.image_create("end", image=photo, padx=2)
+                    else:
+                        tw.insert("end", latex_to_plain(f"${part['content']}$"))
+                else:
+                    tw.insert("end", latex_to_plain(f"${part['content']}$"))
+        tw.configure(state="disabled")
+        tw.update_idletasks()
+        line_count = int(tw.index("end-1c").split(".")[0])
+        tw.configure(height=max(1, line_count))
+        if grid_kw:
+            tw.grid(**grid_kw)
+        return tw
 
     def _make_draggable_chip(self, canvas, x, y, text, on_drop):
         """Create a draggable label chip (rectangle + text) on a canvas.
@@ -2166,9 +2219,8 @@ class App(ctk.CTk):
         if q.title:
             ctk.CTkLabel(card, text=q.title, font=("Arial", 16, "bold"),
                         text_color=COLORS["text"]).grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
-        ctk.CTkLabel(card, text=q.text, font=("Arial", 13), text_color=COLORS["text"],
-                    wraplength=700, justify="left"
-                    ).grid(row=1, column=0, padx=20, pady=(5, 15), sticky="w")
+        self._render_rich_text(card, q.text, font=("Segoe UI", 13), text_color=COLORS["text"],
+                              wraplength=700, row=1, column=0, padx=20, pady=(5, 15), sticky="w")
 
         # Question image
         if q.image_path and os.path.exists(q.image_path):
@@ -2575,9 +2627,16 @@ class App(ctk.CTk):
         # AI help inner content
         ai_help_btns = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
         ai_help_btns.grid(row=0, column=0, padx=10, pady=10, sticky="w")
-        ai_response_lbl = ctk.CTkLabel(ai_help_inner, text="", font=("Segoe UI", 12),
-                                       text_color=COLORS["text"], wraplength=650, justify="left")
-        ai_response_lbl.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+        ai_response_frame = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
+        ai_response_frame.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+        ai_response_frame.grid_columnconfigure(0, weight=1)
+
+        def _set_ai_response(text):
+            for w in ai_response_frame.winfo_children():
+                w.destroy()
+            self._render_rich_text(ai_response_frame, text, font=("Segoe UI", 12),
+                                   text_color=COLORS["text"], wraplength=650,
+                                   row=0, column=0, sticky="w")
 
         def _get_memory_prefix():
             settings = self.store.load_settings()
@@ -2588,23 +2647,23 @@ class App(ctk.CTk):
             return ""
 
         def ask_ai_hint():
-            ai_response_lbl.configure(text=t("ai_help.loading"))
+            _set_ai_response(t("ai_help.loading"))
             def run():
                 prefix = _get_memory_prefix()
                 msgs = [{"role": "system", "content": prefix + "Du bist ein hilfreicher Tutor. Gib einen Hinweis zur folgenden Frage, aber verrate NICHT die Antwort. Hilf dem Studenten, selbst auf die Lösung zu kommen."},
                         {"role": "user", "content": f"Frage: {q.text}"}]
                 resp = self.ai._call_api(msgs, max_tokens=512)
-                self.after(0, lambda: ai_response_lbl.configure(text=resp or "Keine Antwort erhalten."))
+                self.after(0, lambda: _set_ai_response(resp or "Keine Antwort erhalten."))
             threading.Thread(target=run, daemon=True).start()
 
         def ask_ai_explain():
-            ai_response_lbl.configure(text=t("ai_help.loading"))
+            _set_ai_response(t("ai_help.loading"))
             def run():
                 prefix = _get_memory_prefix()
                 msgs = [{"role": "system", "content": prefix + "Du bist ein hilfreicher Tutor. Erkläre das Konzept hinter der folgenden Frage ausführlich, aber verrate NICHT die richtige Antwort direkt."},
                         {"role": "user", "content": f"Frage: {q.text}"}]
                 resp = self.ai._call_api(msgs, max_tokens=1024)
-                self.after(0, lambda: ai_response_lbl.configure(text=resp or "Keine Antwort erhalten."))
+                self.after(0, lambda: _set_ai_response(resp or "Keine Antwort erhalten."))
             threading.Thread(target=run, daemon=True).start()
 
         ctk.CTkButton(ai_help_btns, text=t("ai_help.hint"), fg_color=COLORS["primary"],
@@ -2624,14 +2683,14 @@ class App(ctk.CTk):
                 ai_help_inner.grid(row=1, column=0, sticky="ew", pady=(5, 0))
                 ai_help_inner.grid_columnconfigure(0, weight=1)
                 ai_help_visible["shown"] = True
-                ai_response_lbl.configure(text=t("ai_help.loading"))
+                _set_ai_response(t("ai_help.loading"))
                 def run():
                     prefix = _get_memory_prefix()
                     msgs = [{"role": "system", "content": prefix + action["prompt"]},
                             {"role": "user", "content": f"Frage: {q.text}"}]
                     temp = action.get("temperature", 0.7)
                     resp = self.ai._call_api(msgs, max_tokens=1024, temperature=temp)
-                    self.after(0, lambda: ai_response_lbl.configure(text=resp or "Keine Antwort erhalten."))
+                    self.after(0, lambda: _set_ai_response(resp or "Keine Antwort erhalten."))
                 threading.Thread(target=run, daemon=True).start()
 
             for i, qa in enumerate(quick_actions):
