@@ -41,6 +41,7 @@ class App(ctk.CTk):
 
         self.store = DataStore(str(Path(__file__).parent.parent / "data"))
         self.quizzes = self.store.load_quizzes()
+        self.formula_sheets = self.store.load_formula_sheets()
         self.sr = SpacedRepetition(self.store)
         settings = self.store.load_settings()
         apply_theme(settings.get("dark_mode", False))
@@ -161,6 +162,7 @@ class App(ctk.CTk):
             (t("home.import_quiz"), t("home.import_quiz_sub"), COLORS["warning"], self.import_quiz_file),
             (t("random.title"), t("random.sub"), COLORS["danger"], self.show_random_mode),
             (t("cloze.title"), t("cloze.sub"), COLORS["success"], self.show_cloze_generator),
+            (t("fosa.title"), t("fosa.sub"), COLORS["primary"], self.show_formula_sheets),
             (t("home.settings"), t("home.settings_sub"), COLORS["text_light"], self.show_settings),
         ]
         for idx, (title_, desc, color, command) in enumerate(cards):
@@ -2107,6 +2109,194 @@ class App(ctk.CTk):
             self.after(0, update)
 
         threading.Thread(target=run, daemon=True).start()
+
+    # ── FORMULA SHEET (FoSa) ──
+
+    def show_formula_sheets(self):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=t("fosa.title"), font=("Arial", 18, "bold"),
+                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(scroll, text=t("fosa.intro"), font=("Arial", 12),
+                     text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        ctk.CTkButton(scroll, text=t("fosa.new"), fg_color=COLORS["success"],
+                      command=self.show_create_formula_sheet
+                      ).grid(row=2, column=0, sticky="w", pady=(0, 15))
+
+        if not self.formula_sheets:
+            ctk.CTkLabel(scroll, text=t("fosa.empty"), font=("Arial", 13),
+                         text_color=COLORS["text_light"]).grid(row=3, column=0, pady=30)
+        else:
+            for i, sheet in enumerate(self.formula_sheets):
+                card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
+                                    border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+                card.grid(row=3 + i, column=0, sticky="ew", pady=5)
+                card.grid_columnconfigure(1, weight=1)
+                ctk.CTkFrame(card, fg_color=COLORS["primary"], width=5, corner_radius=3
+                             ).grid(row=0, column=0, rowspan=2, sticky="ns", pady=8)
+                info = ctk.CTkFrame(card, fg_color="transparent")
+                info.grid(row=0, column=1, padx=15, pady=10, sticky="w")
+                ctk.CTkLabel(info, text=sheet.name, font=("Segoe UI", 15, "bold"),
+                             text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
+                sub = sheet.subject + "  ·  " if sheet.subject else ""
+                ctk.CTkLabel(info, text=f"{sub}{t('fosa.count', n=len(sheet.formulas))}",
+                             font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                             ).grid(row=1, column=0, sticky="w")
+                btns = ctk.CTkFrame(card, fg_color="transparent")
+                btns.grid(row=0, column=2, padx=10, pady=10)
+                ctk.CTkButton(btns, text=t("home.open"), width=75, height=30, corner_radius=8,
+                              fg_color=COLORS["primary"], font=("Segoe UI", 12, "bold"),
+                              command=lambda s=sheet: self.show_formula_sheet_view(s)
+                              ).grid(row=0, column=0, padx=3)
+                ctk.CTkButton(btns, text="✕", width=30, height=30, corner_radius=8,
+                              fg_color=COLORS["danger"],
+                              command=lambda s=sheet: self._delete_formula_sheet(s)
+                              ).grid(row=0, column=1, padx=3)
+
+        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                      command=self.show_home).grid(row=3 + len(self.formula_sheets) + 1,
+                                                   column=0, sticky="w", pady=15)
+
+    def _delete_formula_sheet(self, sheet):
+        if messagebox.askyesno(t("fosa.title"), t("fosa.delete_confirm", name=sheet.name)):
+            self.formula_sheets = [s for s in self.formula_sheets if s.id != sheet.id]
+            self.store.save_formula_sheets(self.formula_sheets)
+            self.show_formula_sheets()
+
+    def show_create_formula_sheet(self):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=t("fosa.new"), font=("Arial", 18, "bold"),
+                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(scroll, text=t("fosa.new_sub"), font=("Arial", 12),
+                     text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 20))
+
+        file_var = StringVar()
+        file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        file_frame.grid(row=2, column=0, sticky="ew")
+        ctk.CTkEntry(file_frame, textvariable=file_var, width=400,
+                     placeholder_text=t("fosa.pick_file")).grid(row=0, column=0, padx=(0, 10))
+
+        def pick():
+            path = self._file_dialog_with_pdf()
+            if path:
+                file_var.set(path)
+                if not name_entry.get().strip():
+                    name_entry.insert(0, Path(path).stem)
+        ctk.CTkButton(file_frame, text=t("fosa.browse"), width=100, command=pick
+                      ).grid(row=0, column=1)
+
+        ctk.CTkLabel(scroll, text=t("fosa.name"), font=("Segoe UI", 13, "bold")
+                     ).grid(row=3, column=0, sticky="w", pady=(15, 0))
+        name_entry = ctk.CTkEntry(scroll, width=400, placeholder_text=t("fosa.name_ph"))
+        name_entry.grid(row=4, column=0, sticky="w", pady=5)
+
+        progress_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12),
+                                      text_color=COLORS["primary"])
+        progress_label.grid(row=5, column=0, sticky="w", pady=10)
+        progress_bar = ctk.CTkProgressBar(scroll, width=400)
+        progress_bar.grid(row=6, column=0, sticky="w")
+        progress_bar.set(0)
+
+        def build():
+            if not file_var.get():
+                messagebox.showwarning("Hinweis", t("fosa.no_file"))
+                return
+            if not self.ai.api_key:
+                messagebox.showwarning("Hinweis", t("fosa.no_key"))
+                return
+
+            def run():
+                def progress_cb(current, total):
+                    self.after(0, lambda c=current, tt=total: (
+                        progress_label.configure(text=t("fosa.progress", c=c, t=tt)),
+                        progress_bar.set(c / tt),
+                    ))
+                try:
+                    sheet = self.ai.build_formula_sheet(
+                        file_var.get(), name=name_entry.get().strip(),
+                        progress_callback=progress_cb)
+                except Exception as exc:
+                    msg = str(exc)
+                    self.after(0, lambda m=msg: messagebox.showerror("Fehler", m))
+                    return
+
+                def done():
+                    if sheet.formulas:
+                        self.formula_sheets.append(sheet)
+                        self.store.save_formula_sheets(self.formula_sheets)
+                        messagebox.showinfo(t("fosa.title"),
+                                            t("fosa.done", n=len(sheet.formulas)))
+                        self.show_formula_sheet_view(sheet)
+                    else:
+                        progress_label.configure(text=t("fosa.none"))
+                self.after(0, done)
+
+            threading.Thread(target=run, daemon=True).start()
+
+        btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_f.grid(row=7, column=0, sticky="w", pady=15)
+        ctk.CTkButton(btn_f, text=t("fosa.generate"), fg_color=COLORS["success"],
+                      command=build).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(btn_f, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                      command=self.show_formula_sheets).grid(row=0, column=1)
+
+    def show_formula_sheet_view(self, sheet):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=sheet.name, font=("Arial", 18, "bold"),
+                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 2))
+        sub = sheet.subject + "  ·  " if sheet.subject else ""
+        ctk.CTkLabel(scroll, text=f"{sub}{t('fosa.count', n=len(sheet.formulas))}",
+                     font=("Arial", 12), text_color=COLORS["text_light"]
+                     ).grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        row = 2
+        for f in sheet.formulas:
+            card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
+                                border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+            card.grid(row=row, column=0, sticky="ew", pady=6)
+            card.grid_columnconfigure(0, weight=1)
+            head = f.name
+            if f.category:
+                head += f"   [{f.category}]"
+            ctk.CTkLabel(card, text=head, font=("Segoe UI", 14, "bold"),
+                         text_color=COLORS["text"]).grid(row=0, column=0, sticky="w",
+                                                         padx=15, pady=(12, 4))
+            # LaTeX (rendered if possible, else plain)
+            if f.latex:
+                img = render_formula(f.latex, fontsize=18) if can_render_latex() else None
+                if img is not None:
+                    ctk_img = ctk.CTkImage(light_image=img, dark_image=img,
+                                           size=(img.width, img.height))
+                    lbl = ctk.CTkLabel(card, image=ctk_img, text="")
+                    lbl.image = ctk_img
+                    lbl.grid(row=1, column=0, sticky="w", padx=15, pady=4)
+                else:
+                    ctk.CTkLabel(card, text=latex_to_plain(f"${f.latex}$"),
+                                 font=("Consolas", 13), text_color=COLORS["text"]
+                                 ).grid(row=1, column=0, sticky="w", padx=15, pady=4)
+            if f.variables:
+                vars_txt = "  ·  ".join(
+                    f"{v.symbol}: {v.name}" + (f" [{v.unit}]" if v.unit else "")
+                    for v in f.variables)
+                ctk.CTkLabel(card, text=vars_txt, font=("Segoe UI", 11),
+                             text_color=COLORS["text_light"], wraplength=700, justify="left"
+                             ).grid(row=2, column=0, sticky="w", padx=15, pady=(2, 4))
+            if f.description:
+                ctk.CTkLabel(card, text=f.description, font=("Segoe UI", 11),
+                             text_color=COLORS["text_light"], wraplength=700, justify="left"
+                             ).grid(row=3, column=0, sticky="w", padx=15, pady=(0, 12))
+            else:
+                ctk.CTkLabel(card, text="").grid(row=3, column=0, pady=(0, 6))
+            row += 1
+
+        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                      command=self.show_formula_sheets).grid(row=row, column=0, sticky="w", pady=15)
 
     def show_ai_generate(self):
         self._clear_main()
