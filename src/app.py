@@ -804,6 +804,7 @@ class App(ctk.CTk):
             "Lückentext": QuestionType.FILL_BLANK.value,
             "Drag & Drop (Zuordnung)": QuestionType.DRAG_DROP.value,
             "Diagramm beschriften": QuestionType.DIAGRAM_LABEL.value,
+            "Markieren (Bild)": QuestionType.MARK_IMAGE.value,
         }
         def on_type_change(v):
             type_var.set(type_options[v])
@@ -1043,6 +1044,92 @@ class App(ctk.CTk):
                 reload_diagram_canvas()
                 options_widgets.append(("diagram", img_entry, lambda: positions))
 
+            elif qt == QuestionType.MARK_IMAGE.value:
+                ctk.CTkLabel(specific_frame, text="Bild für Markierungsfrage",
+                           font=("Arial", 13, "bold")).grid(row=0, column=0, sticky="w")
+                mi_img_row = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                mi_img_row.grid(row=1, column=0, sticky="w", pady=3)
+                mi_img_entry = ctk.CTkEntry(mi_img_row, width=340, placeholder_text="Pfad zum Bild")
+                mi_img_entry.grid(row=0, column=0, padx=(0, 8))
+                if question.image_path:
+                    mi_img_entry.insert(0, question.image_path)
+                ctk.CTkButton(mi_img_row, text="Durchsuchen", width=100,
+                            command=lambda: self._browse_image(mi_img_entry)
+                            ).grid(row=0, column=1)
+
+                # Region definitions
+                mark_regions_data = list(getattr(question, "mark_regions", []))
+
+                ctk.CTkLabel(specific_frame,
+                           text="Klicke auf das Bild, um korrekte Regionen zu definieren:",
+                           font=("Arial", 12), text_color=COLORS["text_light"]
+                           ).grid(row=2, column=0, sticky="w", pady=(10, 2))
+
+                mi_canvas_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                mi_canvas_holder.grid(row=3, column=0, sticky="w", pady=5)
+
+                radius_var = StringVar(value="0.05")
+                rad_frame = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                rad_frame.grid(row=4, column=0, sticky="w", pady=3)
+                ctk.CTkLabel(rad_frame, text="Radius:", font=("Arial", 12)).grid(row=0, column=0, padx=(0, 5))
+                rad_entry = ctk.CTkEntry(rad_frame, width=60, placeholder_text="0.05")
+                rad_entry.insert(0, "0.05")
+                rad_entry.grid(row=0, column=1, padx=(0, 10))
+
+                region_list_holder = ctk.CTkFrame(specific_frame, fg_color="transparent")
+                region_list_holder.grid(row=5, column=0, sticky="w", pady=3)
+
+                def reload_mark_canvas():
+                    for w in mi_canvas_holder.winfo_children():
+                        w.destroy()
+                    for w in region_list_holder.winfo_children():
+                        w.destroy()
+                    photo, cw, ch = self._load_diagram_image(mi_img_entry.get().strip(), max_w=500, max_h=350)
+                    mi_canvas = tk.Canvas(mi_canvas_holder, width=cw, height=ch, bg="white",
+                                          highlightthickness=1, highlightbackground="#cccccc")
+                    mi_canvas.grid(row=0, column=0)
+                    if photo:
+                        mi_canvas.create_image(0, 0, anchor="nw", image=photo)
+                        mi_canvas.image = photo
+
+                    # Draw existing regions
+                    for reg in mark_regions_data:
+                        rx, ry, rr = reg["x"] * cw, reg["y"] * ch, reg.get("radius", 0.05) * max(cw, ch)
+                        mi_canvas.create_oval(rx - rr, ry - rr, rx + rr, ry + rr,
+                                              outline="red", width=2, dash=(3, 2))
+
+                    def on_click(e):
+                        try:
+                            rad = float(rad_entry.get())
+                        except ValueError:
+                            rad = 0.05
+                        mark_regions_data.append({
+                            "x": round(e.x / cw, 4),
+                            "y": round(e.y / ch, 4),
+                            "radius": round(rad, 4)
+                        })
+                        reload_mark_canvas()
+
+                    mi_canvas.bind("<Button-1>", on_click)
+
+                    # Show region list
+                    for i, reg in enumerate(mark_regions_data):
+                        chip = ctk.CTkFrame(region_list_holder, fg_color="#fde8e8", corner_radius=10)
+                        chip.grid(row=0, column=i, padx=3)
+                        ctk.CTkLabel(chip, text=f"({reg['x']:.2f}, {reg['y']:.2f})",
+                                    font=("Arial", 10), text_color="#c0392b"
+                                    ).grid(row=0, column=0, padx=(6, 2), pady=2)
+
+                        def remove_reg(idx=i):
+                            mark_regions_data.pop(idx)
+                            reload_mark_canvas()
+                        ctk.CTkButton(chip, text="X", width=20, height=20,
+                                     fg_color=COLORS["danger"], command=remove_reg
+                                     ).grid(row=0, column=1, padx=(0, 4), pady=2)
+
+                reload_mark_canvas()
+                options_widgets.append(("mark_image", mi_img_entry, lambda: mark_regions_data))
+
         def add_option():
             sync_options()
             options_data.append({"text": "", "is_correct": False})
@@ -1118,6 +1205,11 @@ class App(ctk.CTk):
                             DiagramLabel(label=name, x=round(coord[0], 4), y=round(coord[1], 4))
                             for name, coord in positions.items()
                         ]
+            elif qt == QuestionType.MARK_IMAGE:
+                for item in options_widgets:
+                    if item[0] == "mark_image":
+                        question.image_path = item[1].get().strip()
+                        question.mark_regions = item[2]()
 
             if not question.text:
                 messagebox.showwarning("Hinweis", "Bitte Fragentext eingeben!")
@@ -2137,19 +2229,124 @@ class App(ctk.CTk):
 
         elif q.question_type == QuestionType.DRAG_DROP:
             ctk.CTkLabel(answer_frame, text="Ordne die Begriffe zu:",
-                        font=("Arial", 12, "bold"), text_color=COLORS["text"]
+                        font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
                         ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
+
             sources = [p.source for p in q.drag_drop_pairs]
+            targets = [p.target for p in q.drag_drop_pairs]
             random.shuffle(sources)
-            for i, pair in enumerate(q.drag_drop_pairs):
-                f = ctk.CTkFrame(answer_frame, fg_color="transparent")
-                f.grid(row=i + 1, column=0, padx=20, pady=5, sticky="w")
-                ctk.CTkLabel(f, text=f"{pair.target}:", font=("Arial", 12, "bold"),
-                            width=200, anchor="w").grid(row=0, column=0, padx=(0, 10))
-                menu = ctk.CTkOptionMenu(f, values=["-- Auswählen --"] + sources, width=200)
-                menu.set("-- Auswählen --")
-                menu.grid(row=0, column=1)
-                answer_widgets.append((pair.target, menu))
+
+            # Canvas-based drag & drop with snap zones
+            row_height = 40
+            target_width = 200
+            zone_width = 150
+            pool_height = 50
+            canvas_width = 600
+            canvas_height = len(targets) * row_height + pool_height + 20
+
+            dnd_canvas = tk.Canvas(answer_frame, width=canvas_width, height=canvas_height,
+                                   bg=COLORS.get("canvas_bg", "white"), highlightthickness=0)
+            dnd_canvas.grid(row=1, column=0, padx=20, pady=(0, 12))
+
+            # Draw targets and drop zones
+            dnd_drop_zones = {}  # target -> zone info
+            dnd_assignments = {}  # target -> source or None
+
+            for i, target in enumerate(targets):
+                y = 20 + i * row_height
+                dnd_canvas.create_text(10, y + row_height // 2, text=f"{target}:",
+                                      font=("Segoe UI", 11, "bold"), anchor="w",
+                                      fill=COLORS.get("text", "black"))
+                zx = target_width + 20
+                zy = y + 5
+                zone_rect = dnd_canvas.create_rectangle(
+                    zx, zy, zx + zone_width, zy + row_height - 10,
+                    outline="#888", dash=(4, 2), width=2, fill=""
+                )
+                dnd_drop_zones[target] = {
+                    "x": zx + zone_width // 2, "y": zy + (row_height - 10) // 2,
+                    "rect_id": zone_rect, "left": zx, "top": zy,
+                    "right": zx + zone_width, "bottom": zy + row_height - 10
+                }
+                dnd_assignments[target] = None
+
+            # Divider
+            pool_y = len(targets) * row_height + 20
+            dnd_canvas.create_line(0, pool_y, canvas_width, pool_y, fill="#ccc", dash=(4, 3))
+
+            # Source chips
+            dnd_chip_assignments = {}  # chip_tag -> target or None
+            spacing = max(80, canvas_width // (len(sources) + 1))
+
+            for i, source in enumerate(sources):
+                sx = spacing * (i + 1)
+                if sx > canvas_width - 40:
+                    sx = 20 + (i * 90) % (canvas_width - 40)
+                sy = pool_y + pool_height // 2
+
+                chip_tag = f"dndchip_{i}"
+                dnd_chip_assignments[chip_tag] = None
+
+                tid = dnd_canvas.create_text(sx, sy, text=source, font=("Segoe UI", 10, "bold"),
+                                             fill="white", tags=(chip_tag,))
+                bb = dnd_canvas.bbox(tid)
+                pad = 6
+                rid = dnd_canvas.create_rectangle(bb[0] - pad, bb[1] - pad, bb[2] + pad, bb[3] + pad,
+                                                  fill="#2980b9", outline="#1a5276", width=2, tags=(chip_tag,))
+                dnd_canvas.tag_lower(rid, tid)
+
+                def make_dnd_handlers(tag, src):
+                    drag = {"x": 0, "y": 0}
+
+                    def press(e):
+                        drag["x"], drag["y"] = e.x, e.y
+                        dnd_canvas.tag_raise(tag)
+
+                    def motion(e):
+                        dnd_canvas.move(tag, e.x - drag["x"], e.y - drag["y"])
+                        drag["x"], drag["y"] = e.x, e.y
+
+                    def release(e):
+                        box = dnd_canvas.bbox(tag)
+                        if not box:
+                            return
+                        cx = (box[0] + box[2]) / 2
+                        cy = (box[1] + box[3]) / 2
+
+                        prev_target = dnd_chip_assignments.get(tag)
+                        if prev_target:
+                            dnd_assignments[prev_target] = None
+                            dnd_canvas.itemconfig(dnd_drop_zones[prev_target]["rect_id"],
+                                                  outline="#888", fill="")
+
+                        snapped = False
+                        for tgt, zone in dnd_drop_zones.items():
+                            if (zone["left"] - 30 < cx < zone["right"] + 30 and
+                                zone["top"] - 15 < cy < zone["bottom"] + 15):
+                                snap_x = zone["x"] - cx
+                                snap_y = zone["y"] - cy
+                                dnd_canvas.move(tag, snap_x, snap_y)
+                                for other_tag, other_tgt in dnd_chip_assignments.items():
+                                    if other_tgt == tgt and other_tag != tag:
+                                        dnd_chip_assignments[other_tag] = None
+                                dnd_assignments[tgt] = src
+                                dnd_chip_assignments[tag] = tgt
+                                dnd_canvas.itemconfig(zone["rect_id"],
+                                                      outline=COLORS.get("primary", "#3366cc"),
+                                                      fill=COLORS.get("card_hover", "#f0f3ff"))
+                                snapped = True
+                                break
+                        if not snapped:
+                            dnd_chip_assignments[tag] = None
+
+                    return press, motion, release
+
+                p, m, r = make_dnd_handlers(chip_tag, source)
+                dnd_canvas.tag_bind(chip_tag, "<Button-1>", p)
+                dnd_canvas.tag_bind(chip_tag, "<B1-Motion>", m)
+                dnd_canvas.tag_bind(chip_tag, "<ButtonRelease-1>", r)
+
+            answer_widgets.append(("dnd_canvas", dnd_assignments))
 
         elif q.question_type == QuestionType.DIAGRAM_LABEL:
             ctk.CTkLabel(answer_frame, text="Ziehe die Labels an die richtige Stelle im Diagramm:",
@@ -2190,6 +2387,34 @@ class App(ctk.CTk):
             def diagram_get_positions():
                 return {k: v for k, v in placed.items() if v is not None}
 
+        elif q.question_type == QuestionType.MARK_IMAGE:
+            ctk.CTkLabel(answer_frame, text=q.text, font=("Segoe UI", 13, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
+
+            img_path = q.image_path or q.diagram_image_path
+            photo, cw, ch = self._load_diagram_image(img_path, max_w=600, max_h=400)
+            mark_canvas = tk.Canvas(answer_frame, width=cw, height=ch, bg="white",
+                                    highlightthickness=1, highlightbackground="#cccccc")
+            mark_canvas.grid(row=1, column=0, padx=20, pady=10)
+            if photo:
+                mark_canvas.create_image(0, 0, anchor="nw", image=photo)
+                mark_canvas.image = photo
+
+            click_pos = {"x": None, "y": None}
+            marker_id = {"id": None}
+
+            def on_canvas_click(e):
+                if marker_id["id"]:
+                    mark_canvas.delete(marker_id["id"])
+                r = 12
+                marker_id["id"] = mark_canvas.create_oval(e.x - r, e.y - r, e.x + r, e.y + r,
+                                                            outline="red", width=3, fill="")
+                click_pos["x"] = e.x / cw  # normalized 0-1
+                click_pos["y"] = e.y / ch
+
+            mark_canvas.bind("<Button-1>", on_canvas_click)
+            answer_widgets.append(("mark_image", click_pos, q.mark_regions, mark_canvas))
+
         # Answer timing
         _answer_start_ms = int(time.time() * 1000)
         use_fsrs = self.store.load_settings().get("use_fsrs", False)
@@ -2220,14 +2445,26 @@ class App(ctk.CTk):
             elif q.question_type == QuestionType.FILL_BLANK:
                 return [e.get() for e in answer_widgets]
             elif q.question_type == QuestionType.DRAG_DROP:
+                for item in answer_widgets:
+                    if isinstance(item, tuple) and len(item) == 2 and item[0] == "dnd_canvas":
+                        return dict(item[1])
+                # Fallback for old-style menus (shouldn't happen)
                 result = {}
-                for target, menu in answer_widgets:
-                    val = menu.get()
-                    if val != "-- Auswählen --":
-                        result[target] = val
+                for item in answer_widgets:
+                    if isinstance(item, tuple) and len(item) == 2:
+                        target, menu = item
+                        if hasattr(menu, 'get'):
+                            val = menu.get()
+                            if val != "-- Auswählen --":
+                                result[target] = val
                 return result
             elif q.question_type == QuestionType.DIAGRAM_LABEL:
                 return diagram_get_positions() if diagram_get_positions else {}
+            elif q.question_type == QuestionType.MARK_IMAGE:
+                for item in answer_widgets:
+                    if isinstance(item, tuple) and len(item) == 4 and item[0] == "mark_image":
+                        return {"x": item[1]["x"], "y": item[1]["y"]}
+                return None
             return None
 
         def submit():
@@ -2995,63 +3232,142 @@ class App(ctk.CTk):
             preset = LENGTH_PRESETS.get(length_var.get(), (1200, 2500))
             return preset
 
+        # Phase 2+3 container
         result_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         result_frame.grid(row=row + 1, column=0, sticky="ew")
         result_frame.grid_columnconfigure(0, weight=1)
 
-        cloze_state = {"text": "", "answers": [], "entries": []}
+        cloze_state = {"summary": "", "keywords": [], "entries": [],
+                       "hidden_words": [], "mode": "freetext"}
 
-        def generate():
+        def analyze():
             text = source_box.get("1.0", "end-1c").strip()
             if not text:
                 messagebox.showwarning("Hinweis", "Bitte Text eingeben!")
                 return
             progress_lbl.configure(text=t("summary.loading"))
             min_c, max_c = _get_length_params()
+
             def _run():
-                cloze_text, answers = self.ai.generate_cloze_text(
-                    text, blank_pct=0.2, min_chars=min_c, max_chars=max_c)
-                self.after(0, lambda: _show(cloze_text, answers))
-            def _show(cloze_text, answers):
-                progress_lbl.configure(text="")
-                cloze_state["text"] = cloze_text
-                cloze_state["answers"] = answers
-                _render_cloze(cloze_text, answers)
+                result = self.ai.analyze_keywords(text, min_chars=min_c, max_chars=max_c)
+                self.after(0, lambda: _show_phase2(result))
+
             threading.Thread(target=_run, daemon=True).start()
 
-        def _render_cloze(cloze_text, answers):
+        def _show_phase2(result):
+            progress_lbl.configure(text="")
             for w in result_frame.winfo_children():
                 w.destroy()
+            summary = result.get("summary", "")
+            keywords = result.get("keywords", [])
+            # Sort keywords by index position
+            keywords.sort(key=lambda k: k.get("index", 0))
+            cloze_state["summary"] = summary
+            cloze_state["keywords"] = keywords
+
+            phase2 = ctk.CTkFrame(result_frame, fg_color=COLORS["card"], corner_radius=12,
+                                  border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+            phase2.grid(row=0, column=0, sticky="ew", pady=10, padx=5)
+            phase2.grid_columnconfigure(0, weight=1)
+
+            n_kw = len(keywords)
+            ctk.CTkLabel(phase2, text=f"{n_kw} relevante Wörter gefunden",
+                        font=("Segoe UI", 14, "bold"), text_color=COLORS["primary"]
+                        ).grid(row=0, column=0, padx=15, pady=(12, 5), sticky="w")
+
+            # Slider: how many to hide
+            hide_var = IntVar(value=min(n_kw, max(1, n_kw // 2)))
+            slider_label = ctk.CTkLabel(phase2, text=f"Wörter verstecken: {hide_var.get()}",
+                                        font=("Segoe UI", 12), text_color=COLORS["text"])
+            slider_label.grid(row=1, column=0, padx=15, pady=(5, 0), sticky="w")
+
+            def on_slider(val):
+                hide_var.set(int(val))
+                slider_label.configure(text=f"Wörter verstecken: {int(val)}")
+
+            if n_kw > 0:
+                slider = ctk.CTkSlider(phase2, from_=0, to=n_kw, number_of_steps=n_kw,
+                                       width=400, command=on_slider)
+                slider.set(hide_var.get())
+                slider.grid(row=2, column=0, padx=15, pady=5, sticky="w")
+
+            # Mode selection
+            mode_var = StringVar(value="freetext")
+            mode_frame = ctk.CTkFrame(phase2, fg_color="transparent")
+            mode_frame.grid(row=3, column=0, padx=15, pady=5, sticky="w")
+            ctk.CTkRadioButton(mode_frame, text="Freitext (schwer)", variable=mode_var,
+                              value="freetext", font=("Segoe UI", 12)
+                              ).grid(row=0, column=0, padx=(0, 20))
+            ctk.CTkRadioButton(mode_frame, text="Drag & Drop (einfach)", variable=mode_var,
+                              value="dragdrop", font=("Segoe UI", 12)
+                              ).grid(row=0, column=1)
+
+            # Start button
+            ctk.CTkButton(phase2, text="Lückentext starten", fg_color=COLORS["success"],
+                         font=("Segoe UI", 13, "bold"),
+                         command=lambda: _start_exercise(hide_var.get(), mode_var.get())
+                         ).grid(row=4, column=0, padx=15, pady=(8, 12), sticky="w")
+
+        def _start_exercise(num_hide, mode):
+            summary = cloze_state["summary"]
+            keywords = cloze_state["keywords"]
+            # Pick the first num_hide keywords (sorted by position)
+            hidden = keywords[:num_hide]
+            cloze_state["hidden_words"] = [kw["word"] for kw in hidden]
+            cloze_state["mode"] = mode
+
+            for w in result_frame.winfo_children():
+                w.destroy()
+
+            if mode == "freetext":
+                _render_freetext(summary, hidden)
+            else:
+                _render_dragdrop(summary, hidden)
+
+        def _render_freetext(summary, hidden_keywords):
+            """Render cloze exercise in free text mode."""
             cloze_state["entries"] = []
-            parts = cloze_text.split("___")
             flow = ctk.CTkFrame(result_frame, fg_color=COLORS["card"], corner_radius=12,
                                border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
             flow.grid(row=0, column=0, sticky="ew", pady=10, padx=5)
+            flow.grid_columnconfigure(0, weight=1)
 
-            text_widget = ctk.CTkTextbox(flow, width=680, height=max(200, len(parts) * 30),
+            # Build display text with numbered blanks
+            display_text = summary
+            # Replace keywords from end to start to preserve indices
+            replacements = []
+            for i, kw in enumerate(sorted(hidden_keywords, key=lambda k: k["index"], reverse=True)):
+                word = kw["word"]
+                idx = kw["index"]
+                display_text = display_text[:idx] + f"[{i+1}]" + display_text[idx + len(word):]
+            # Re-number in forward order
+            display_text = summary
+            sorted_kws = sorted(hidden_keywords, key=lambda k: k["index"], reverse=True)
+            for i, kw in enumerate(sorted_kws):
+                blank_num = len(sorted_kws) - i
+                word = kw["word"]
+                idx = kw["index"]
+                display_text = display_text[:idx] + f"[ {blank_num} ]" + display_text[idx + len(word):]
+
+            text_widget = ctk.CTkTextbox(flow, width=680, height=max(200, len(hidden_keywords) * 20 + 100),
                                          fg_color=COLORS["card"], text_color=COLORS["text"],
                                          font=("Segoe UI", 13), wrap="word", state="disabled")
             text_widget.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+            text_widget.configure(state="normal")
+            text_widget.delete("1.0", "end")
+            text_widget.insert("1.0", display_text)
+            text_widget.configure(state="disabled")
 
+            # Entry fields
             blank_frame = ctk.CTkFrame(flow, fg_color="transparent")
             blank_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
             blank_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-            preview_text = ""
-            for i, part in enumerate(parts):
-                preview_text += part
-                if i < len(answers):
-                    preview_text += f" [  {i+1}  ] "
-
-            text_widget.configure(state="normal")
-            text_widget.delete("1.0", "end")
-            text_widget.insert("1.0", preview_text)
-            text_widget.configure(state="disabled")
-
             ctk.CTkLabel(blank_frame, text="Lücken ausfüllen:", font=("Segoe UI", 13, "bold"),
                         text_color=COLORS["text"]).grid(row=0, column=0, columnspan=3, sticky="w", pady=(5, 8))
 
-            for i, answer in enumerate(answers):
+            forward_kws = sorted(hidden_keywords, key=lambda k: k["index"])
+            for i, kw in enumerate(forward_kws):
                 r = 1 + i // 3
                 c = i % 3
                 entry_frame = ctk.CTkFrame(blank_frame, fg_color="transparent")
@@ -3064,32 +3380,250 @@ class App(ctk.CTk):
                 entry.grid(row=0, column=1)
                 cloze_state["entries"].append(entry)
 
-            check_row = ctk.CTkFrame(result_frame, fg_color="transparent")
+            # Buttons
+            _render_check_buttons(result_frame, forward_kws)
+
+        def _render_dragdrop(summary, hidden_keywords):
+            """Render cloze exercise in drag & drop mode on a Canvas."""
+            forward_kws = sorted(hidden_keywords, key=lambda k: k["index"])
+            words_to_hide = [kw["word"] for kw in forward_kws]
+
+            flow = ctk.CTkFrame(result_frame, fg_color=COLORS["card"], corner_radius=12,
+                               border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+            flow.grid(row=0, column=0, sticky="ew", pady=10, padx=5)
+            flow.grid_columnconfigure(0, weight=1)
+
+            canvas_width = 680
+            line_height = 22
+            pool_height = 60
+
+            # Build text segments with blanks
+            segments = []  # list of (text, is_blank, blank_index_or_None)
+            last_end = 0
+            for i, kw in enumerate(forward_kws):
+                idx = kw["index"]
+                word = kw["word"]
+                if idx > last_end:
+                    segments.append((summary[last_end:idx], False, None))
+                segments.append((word, True, i))
+                last_end = idx + len(word)
+            if last_end < len(summary):
+                segments.append((summary[last_end:], False, None))
+
+            # Estimate canvas height (rough: 80 chars per line)
+            total_chars = len(summary)
+            est_lines = max(5, total_chars // 70 + 3)
+            canvas_height = est_lines * line_height + pool_height + 30
+
+            canvas_bg = COLORS.get("canvas_bg", "white")
+            dnd_canvas = tk.Canvas(flow, width=canvas_width, height=canvas_height,
+                                   bg=canvas_bg, highlightthickness=0)
+            dnd_canvas.grid(row=0, column=0, padx=10, pady=10)
+
+            # Render text with drop zones
+            x_cursor = 10
+            y_cursor = 15
+            max_x = canvas_width - 20
+            drop_zones = {}  # blank_index -> {"x", "y", "width", "rect_id", "word"}
+            assignments = {}  # blank_index -> chip_tag or None
+
+            font_spec = ("Segoe UI", 11)
+            blank_font = ("Segoe UI", 11, "bold")
+
+            for text_part, is_blank, blank_idx in segments:
+                if is_blank:
+                    # Measure blank width
+                    blank_label = f"[{blank_idx+1}]"
+                    # Use a wider zone
+                    zone_w = max(60, len(text_part) * 9 + 20)
+                    zone_h = line_height
+                    if x_cursor + zone_w > max_x:
+                        x_cursor = 10
+                        y_cursor += line_height + 4
+                    zx = x_cursor
+                    zy = y_cursor - 2
+                    rect_id = dnd_canvas.create_rectangle(
+                        zx, zy, zx + zone_w, zy + zone_h,
+                        outline="#888", dash=(4, 2), width=2, fill=""
+                    )
+                    # Label inside zone
+                    label_id = dnd_canvas.create_text(
+                        zx + zone_w // 2, zy + zone_h // 2,
+                        text=blank_label, font=("Segoe UI", 9),
+                        fill="#aaa"
+                    )
+                    drop_zones[blank_idx] = {
+                        "x": zx + zone_w // 2, "y": zy + zone_h // 2,
+                        "left": zx, "top": zy, "right": zx + zone_w, "bottom": zy + zone_h,
+                        "rect_id": rect_id, "label_id": label_id, "word": text_part
+                    }
+                    assignments[blank_idx] = None
+                    x_cursor += zone_w + 4
+                else:
+                    # Render plain text word by word
+                    words = text_part.split(" ")
+                    for wi, w in enumerate(words):
+                        if not w:
+                            continue
+                        w_display = w + (" " if wi < len(words) - 1 else "")
+                        est_w = len(w_display) * 7
+                        if x_cursor + est_w > max_x and x_cursor > 10:
+                            x_cursor = 10
+                            y_cursor += line_height + 4
+                        dnd_canvas.create_text(x_cursor, y_cursor + line_height // 2,
+                                              text=w_display, font=font_spec,
+                                              fill=COLORS.get("text", "black"), anchor="w")
+                        x_cursor += est_w
+
+            # Divider
+            pool_y = y_cursor + line_height + 15
+            dnd_canvas.create_line(0, pool_y, canvas_width, pool_y, fill="#ccc", dash=(4, 3))
+
+            # Resize canvas to fit
+            total_h = pool_y + pool_height + 10
+            dnd_canvas.configure(height=total_h)
+
+            # Source chips in pool
+            chip_assignments = {}  # chip_tag -> blank_idx or None
+            shuffled_words = list(words_to_hide)
+            random.shuffle(shuffled_words)
+
+            spacing = max(80, canvas_width // (len(shuffled_words) + 1))
+            for i, word in enumerate(shuffled_words):
+                sx = spacing * (i + 1)
+                if sx > canvas_width - 40:
+                    sx = 20 + (i * 80) % (canvas_width - 40)
+                sy = pool_y + pool_height // 2
+
+                chip_tag = f"clozechip_{i}"
+                chip_assignments[chip_tag] = None
+
+                tid = dnd_canvas.create_text(sx, sy, text=word, font=("Segoe UI", 10, "bold"),
+                                             fill="white", tags=(chip_tag,))
+                bb = dnd_canvas.bbox(tid)
+                pad = 6
+                rid = dnd_canvas.create_rectangle(bb[0] - pad, bb[1] - pad, bb[2] + pad, bb[3] + pad,
+                                                  fill="#2980b9", outline="#1a5276", width=2, tags=(chip_tag,))
+                dnd_canvas.tag_lower(rid, tid)
+
+                _state = {"x": 0, "y": 0}
+                _word = word
+
+                def make_handlers(tag, w):
+                    drag = {"x": 0, "y": 0}
+
+                    def press(e):
+                        drag["x"], drag["y"] = e.x, e.y
+                        dnd_canvas.tag_raise(tag)
+
+                    def motion(e):
+                        dnd_canvas.move(tag, e.x - drag["x"], e.y - drag["y"])
+                        drag["x"], drag["y"] = e.x, e.y
+
+                    def release(e):
+                        box = dnd_canvas.bbox(tag)
+                        if not box:
+                            return
+                        cx = (box[0] + box[2]) / 2
+                        cy = (box[1] + box[3]) / 2
+
+                        # Unassign from previous zone
+                        prev = chip_assignments.get(tag)
+                        if prev is not None:
+                            assignments[prev] = None
+                            dnd_canvas.itemconfig(drop_zones[prev]["rect_id"],
+                                                  outline="#888", fill="")
+
+                        # Check proximity to each zone
+                        snapped = False
+                        for bidx, zone in drop_zones.items():
+                            if (zone["left"] - 30 < cx < zone["right"] + 30 and
+                                zone["top"] - 15 < cy < zone["bottom"] + 15):
+                                snap_x = zone["x"] - cx
+                                snap_y = zone["y"] - cy
+                                dnd_canvas.move(tag, snap_x, snap_y)
+                                # Unassign any chip already in this zone
+                                for other_tag, other_bidx in chip_assignments.items():
+                                    if other_bidx == bidx and other_tag != tag:
+                                        chip_assignments[other_tag] = None
+                                assignments[bidx] = w
+                                chip_assignments[tag] = bidx
+                                dnd_canvas.itemconfig(zone["rect_id"],
+                                                      outline=COLORS.get("primary", "#3366cc"),
+                                                      fill=COLORS.get("card_hover", "#f0f3ff"))
+                                snapped = True
+                                break
+                        if not snapped:
+                            chip_assignments[tag] = None
+
+                    return press, motion, release
+
+                p, m, r = make_handlers(chip_tag, _word)
+                dnd_canvas.tag_bind(chip_tag, "<Button-1>", p)
+                dnd_canvas.tag_bind(chip_tag, "<B1-Motion>", m)
+                dnd_canvas.tag_bind(chip_tag, "<ButtonRelease-1>", r)
+
+            # Store assignments ref for checking
+            cloze_state["dnd_assignments"] = assignments
+            cloze_state["dnd_zones"] = drop_zones
+
+            # Buttons
+            _render_dnd_check_buttons(result_frame, forward_kws, assignments, drop_zones, dnd_canvas)
+
+        def _render_check_buttons(parent, forward_kws):
+            """Render check/add-to-quiz buttons for freetext mode."""
+            check_row = ctk.CTkFrame(parent, fg_color="transparent")
             check_row.grid(row=1, column=0, sticky="w", pady=10)
+
+            def check_freetext(use_ai):
+                entries = cloze_state["entries"]
+                correct_count = 0
+                for i, (entry, kw) in enumerate(zip(entries, forward_kws)):
+                    user_val = entry.get().strip()
+                    answer = kw["word"]
+                    if use_ai and self.ai.api_key:
+                        ok = self.ai.ai_validate_answer(f"Lücke {i+1}", answer, user_val)
+                    else:
+                        ok = user_val.lower() == answer.lower()
+                    color = COLORS["success"] if ok else COLORS["danger"]
+                    entry.configure(border_color=color)
+                    if ok:
+                        correct_count += 1
+                messagebox.showinfo(t("cloze.check"),
+                                  f"{correct_count}/{len(forward_kws)} richtig!")
+
             ctk.CTkButton(check_row, text=t("cloze.exact_check"), fg_color=COLORS["primary"],
-                         command=lambda: check_cloze(False)).grid(row=0, column=0, padx=(0, 8))
+                         command=lambda: check_freetext(False)).grid(row=0, column=0, padx=(0, 8))
             if self.ai.api_key:
                 ctk.CTkButton(check_row, text=t("cloze.ai_check"), fg_color=COLORS["success"],
-                             command=lambda: check_cloze(True)).grid(row=0, column=1, padx=(0, 8))
+                             command=lambda: check_freetext(True)).grid(row=0, column=1, padx=(0, 8))
             ctk.CTkButton(check_row, text=t("cloze.new_version"), fg_color=COLORS["warning"],
-                         command=generate).grid(row=0, column=2)
+                         command=analyze).grid(row=0, column=2)
 
-        def check_cloze(use_ai):
-            answers = cloze_state["answers"]
-            entries = cloze_state["entries"]
-            correct_count = 0
-            for i, (entry, answer) in enumerate(zip(entries, answers)):
-                user_val = entry.get().strip()
-                if use_ai and self.ai.api_key:
-                    ok = self.ai.ai_validate_answer(f"Lücke {i+1}", answer, user_val)
-                else:
-                    ok = user_val.lower() == answer.lower()
-                color = COLORS["success"] if ok else COLORS["danger"]
-                entry.configure(border_color=color)
-                if ok:
-                    correct_count += 1
-            messagebox.showinfo(t("cloze.check"),
-                              f"{correct_count}/{len(answers)} richtig!")
+        def _render_dnd_check_buttons(parent, forward_kws, assignments, drop_zones, canvas):
+            """Render check/add-to-quiz buttons for drag&drop mode."""
+            check_row = ctk.CTkFrame(parent, fg_color="transparent")
+            check_row.grid(row=1, column=0, sticky="w", pady=10)
+
+            def check_dnd():
+                correct_count = 0
+                for i, kw in enumerate(forward_kws):
+                    assigned_word = assignments.get(i)
+                    expected = kw["word"]
+                    ok = assigned_word is not None and assigned_word.lower() == expected.lower()
+                    zone = drop_zones.get(i)
+                    if zone:
+                        color = "#2ecc71" if ok else "#e74c3c"
+                        canvas.itemconfig(zone["rect_id"], outline=color, width=3)
+                    if ok:
+                        correct_count += 1
+                messagebox.showinfo(t("cloze.check"),
+                                  f"{correct_count}/{len(forward_kws)} richtig!")
+
+            ctk.CTkButton(check_row, text=t("cloze.exact_check"), fg_color=COLORS["primary"],
+                         command=check_dnd).grid(row=0, column=0, padx=(0, 8))
+            ctk.CTkButton(check_row, text=t("cloze.new_version"), fg_color=COLORS["warning"],
+                         command=analyze).grid(row=0, column=1)
 
         progress_lbl = ctk.CTkLabel(scroll, text="", font=("Arial", 12),
                                     text_color=COLORS["text_light"])
@@ -3097,7 +3631,8 @@ class App(ctk.CTk):
 
         btn_row = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_row.grid(row=row + 2, column=0, sticky="w", pady=10)
-        ctk.CTkButton(btn_row, text=t("cloze.generate"), fg_color=COLORS["success"],
-                     command=generate).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(btn_row, text=t("cloze.analyze") if hasattr(t, '__call__') and t("cloze.analyze") != "cloze.analyze" else "Analysieren",
+                     fg_color=COLORS["success"],
+                     command=analyze).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_row, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
                      command=self.show_home).grid(row=0, column=1)
