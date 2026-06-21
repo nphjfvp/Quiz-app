@@ -16,6 +16,7 @@ class QuestionType(str, Enum):
     FILL_BLANK = "fill_blank"
     DRAG_DROP = "drag_drop"
     DIAGRAM_LABEL = "diagram_label"
+    MARK_IMAGE = "mark_image"
 
 
 @dataclass
@@ -53,6 +54,7 @@ class Question:
     drag_drop_pairs: list[DragDropPair] = field(default_factory=list)
     diagram_image_path: str = ""
     diagram_labels: list[DiagramLabel] = field(default_factory=list)
+    mark_regions: list[dict] = field(default_factory=list)
     explanation: str = ""
 
     def to_dict(self) -> dict:

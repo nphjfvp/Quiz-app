@@ -694,6 +694,58 @@ class AIService:
             pass
         return text, []
 
+    def analyze_keywords(self, text: str, min_chars: int = 0, max_chars: int = 0) -> dict:
+        """Analyze text, create summary, identify key terms.
+        Returns {"summary": str, "keywords": [{"word": str, "index": int}, ...]}"""
+        length_hint = ""
+        if min_chars > 0 and max_chars > 0:
+            length_hint = f"Der Text soll zwischen {min_chars} und {max_chars} Zeichen lang sein. "
+
+        messages = [
+            {"role": "system", "content": (
+                "Du bist ein Experte für Lernmaterial. Erstelle eine EIGENE Zusammenfassung des gegebenen "
+                "Textes als Fließtext. KOPIERE NICHT den Originaltext! "
+                f"{length_hint}"
+                "Identifiziere dann die wichtigsten Fachbegriffe, Zahlen und Schlüsselwörter im Text. "
+                "Antworte mit exakt diesem JSON-Format:\n"
+                '{"summary": "Dein zusammenfassender Fließtext hier...", '
+                '"keywords": [{"word": "Wort1", "index": 0}, {"word": "Wort2", "index": 50}]}\n'
+                "WICHTIG: 'index' ist die Zeichenposition wo das Wort im summary-Text BEGINNT. "
+                "Jedes keyword muss EXAKT so im summary vorkommen wie angegeben. "
+                "Identifiziere 10-30 relevante Wörter."
+            )},
+            {"role": "user", "content": f"Erstelle eine lernfreundliche Zusammenfassung und identifiziere Schlüsselwörter:\n\n{text}"},
+        ]
+        max_tokens = 2048
+        if max_chars > 3000:
+            max_tokens = 4096
+        response = self._call_api(messages, max_tokens=max_tokens)
+        if not response or response.startswith("ERROR:"):
+            return {"summary": text, "keywords": []}
+        try:
+            raw = response.strip()
+            if "```json" in raw:
+                raw = raw.split("```json")[1].split("```")[0]
+            elif "```" in raw:
+                raw = raw.split("```")[1].split("```")[0]
+            brace_start = raw.find("{")
+            brace_end = raw.rfind("}") + 1
+            if brace_start != -1 and brace_end > 0:
+                obj = json.loads(raw[brace_start:brace_end])
+                summary = obj.get("summary", text)
+                keywords = obj.get("keywords", [])
+                # Validate: ensure each keyword actually exists in the summary
+                validated = []
+                for kw in keywords:
+                    word = kw.get("word", "")
+                    if word and word in summary:
+                        real_idx = summary.index(word)
+                        validated.append({"word": word, "index": real_idx})
+                return {"summary": summary, "keywords": validated}
+        except (json.JSONDecodeError, KeyError):
+            pass
+        return {"summary": text, "keywords": []}
+
     def ai_validate_answer(self, question_text: str, correct_answer: str, user_answer: str) -> bool:
         """Use AI to check if user_answer is semantically correct, ignoring typos."""
         messages = [

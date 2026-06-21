@@ -74,6 +74,8 @@ class QuizSession:
             return self._check_drag_drop(question, user_input)
         elif qt == QuestionType.DIAGRAM_LABEL:
             return self._check_diagram_label(question, user_input)
+        elif qt == QuestionType.MARK_IMAGE:
+            return self._check_mark_image(question, user_input)
         return AnswerResult(question.id, False, 0, question.points, str(user_input), "")
 
     def _check_single_choice(self, q: Question, selected_index: int) -> AnswerResult:
@@ -139,6 +141,21 @@ class QuizSession:
         correct_text = ", ".join(label.label for label in q.diagram_labels)
         return AnswerResult(q.id, is_correct, round(score, 1), q.points,
                           f"{correct}/{total} richtig platziert", correct_text)
+
+    def _check_mark_image(self, q: Question, click_pos: dict) -> AnswerResult:
+        """click_pos: {"x": float, "y": float} normalized 0-1.
+        Check if click is within any of q.mark_regions."""
+        if not click_pos or click_pos.get("x") is None:
+            return AnswerResult(q.id, False, 0, q.points, "Keine Markierung", "")
+        cx, cy = click_pos.get("x", -1), click_pos.get("y", -1)
+        for region in getattr(q, "mark_regions", []):
+            rx, ry, rr = region.get("x", 0), region.get("y", 0), region.get("radius", 0.05)
+            dist = ((cx - rx) ** 2 + (cy - ry) ** 2) ** 0.5
+            if dist <= rr:
+                return AnswerResult(q.id, True, q.points, q.points,
+                                  f"({cx:.2f}, {cy:.2f})", "Korrekte Region getroffen")
+        return AnswerResult(q.id, False, 0, q.points,
+                          f"({cx:.2f}, {cy:.2f})", "Keine korrekte Region getroffen")
 
     def submit_answer(self, user_input) -> AnswerResult:
         q = self.current_question
