@@ -1179,7 +1179,15 @@ class App(ctk.CTk):
                         progress_bar.set(c / t)
                     ))
 
-                questions = self.ai.generate_from_slides(file_var.get(), num_var.get(), progress_cb)
+                try:
+                    questions = self.ai.generate_from_slides(file_var.get(), num_var.get(), progress_cb)
+                except Exception as exc:
+                    msg = str(exc)
+                    self.after(0, lambda m=msg: (
+                        progress_label.configure(text="Fehler: " + m),
+                        messagebox.showerror("Fehler beim Lesen der Datei", m)
+                    ))
+                    return
                 def done():
                     elapsed = int(time.time() - start_time)
                     em, es = divmod(elapsed, 60)
@@ -1385,7 +1393,15 @@ class App(ctk.CTk):
                         progress_bar.set(c / t)
                     ))
 
-                questions = self.ai.import_questions(file_var.get(), progress_cb)
+                try:
+                    questions = self.ai.import_questions(file_var.get(), progress_cb)
+                except Exception as exc:
+                    msg = str(exc)
+                    self.after(0, lambda m=msg: (
+                        progress_label.configure(text="Fehler: " + m),
+                        messagebox.showerror("Fehler beim Lesen der Datei", m)
+                    ))
+                    return
                 def done():
                     elapsed = int(time.time() - start_time)
                     em, es = divmod(elapsed, 60)

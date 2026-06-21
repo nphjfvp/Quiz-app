@@ -28,6 +28,14 @@ except ImportError:
     fitz = None
 
 try:
+    from pypdf import PdfReader
+except ImportError:
+    try:
+        from PyPDF2 import PdfReader
+    except ImportError:
+        PdfReader = None
+
+try:
     from pptx import Presentation
 except ImportError:
     Presentation = None
@@ -268,14 +276,23 @@ class AIService:
         suffix = path.suffix.lower()
 
         if suffix == ".pdf":
-            if fitz is None:
-                raise RuntimeError("PyMuPDF (fitz) nicht installiert. Bitte 'pip install PyMuPDF' ausführen.")
-            doc = fitz.open(str(path))
-            pages = []
-            for page in doc:
-                pages.append(page.get_text("text"))
-            doc.close()
-            return "\n\n--- Seite ---\n\n".join(pages)
+            if fitz is not None:
+                doc = fitz.open(str(path))
+                pages = []
+                for page in doc:
+                    pages.append(page.get_text("text"))
+                doc.close()
+                return "\n\n--- Seite ---\n\n".join(pages)
+            if PdfReader is not None:
+                reader = PdfReader(str(path))
+                pages = []
+                for page in reader.pages:
+                    pages.append(page.extract_text() or "")
+                return "\n\n--- Seite ---\n\n".join(pages)
+            raise RuntimeError(
+                "Keine PDF-Bibliothek installiert. Bitte 'pip install PyMuPDF' "
+                "(oder 'pip install pypdf') ausführen und die App neu starten."
+            )
 
         if suffix == ".pptx":
             if Presentation is None:

@@ -33,6 +33,8 @@ jobs:
           pyinstaller --onefile --name Lerntrainer --windowed
           --add-data "src;src"
           --hidden-import customtkinter --hidden-import PIL
+          --hidden-import fitz --hidden-import pypdf
+          --hidden-import pptx --hidden-import docx
           --collect-all customtkinter
           main.py
 
