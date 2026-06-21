@@ -1094,3 +1094,29 @@ Regeln:
             )},
         ]
         return self._call_api(messages, max_tokens=2048)
+
+    def generate_solution_path(self, question_text: str, correct_answer: str,
+                                question_type: str, options: list[str] | None = None) -> Optional[str]:
+        context = f"Frage: {question_text}\nRichtige Antwort: {correct_answer}"
+        if options:
+            context += f"\nAntwortmöglichkeiten: {', '.join(options)}"
+        messages = [
+            {"role": "system", "content": (
+                "Du bist ein exzellenter Tutor. Erstelle den OPTIMALEN Lösungsweg für diese "
+                "Aufgabe. Struktur:\n\n"
+                "## Schritt 1: Aufgabe verstehen\n"
+                "Was ist gegeben? Was ist gesucht?\n\n"
+                "## Schritt 2-N: Lösungsschritte\n"
+                "Jeder Schritt klar erklärt mit Begründung.\n"
+                "Bei Mathe/Physik: Formel aufstellen → Werte einsetzen → Berechnen.\n"
+                "Bei Theorie: Schlüsselbegriffe → Zusammenhänge → Begründung.\n"
+                "Bei Multiple Choice: Warum die richtige Antwort stimmt UND warum die anderen falsch sind.\n\n"
+                "## Ergebnis\n"
+                "Die finale Antwort klar hervorgehoben.\n\n"
+                "## Merkhilfe\n"
+                "Eine kurze Eselsbrücke oder Tipp für die Klausur.\n\n"
+                "Nutze $LaTeX$ für Formeln. Schreibe auf Deutsch."
+            )},
+            {"role": "user", "content": context},
+        ]
+        return self._call_api(messages, max_tokens=2048)

@@ -4102,6 +4102,36 @@ class App(ctk.CTk):
                                 ).grid(row=3, column=0, padx=20, pady=(0, 10), sticky="w")
                 submit_btn.configure(state="disabled")
 
+                # "Show optimal solution path" button
+                if self.ai.api_key:
+                    solution_frame = ctk.CTkFrame(feedback_frame, fg_color="transparent")
+                    solution_frame.grid(row=4, column=0, sticky="ew", pady=(5, 0))
+                    solution_frame.grid_columnconfigure(0, weight=1)
+                    solution_box = ctk.CTkTextbox(solution_frame, width=700, height=300,
+                                                  font=("Segoe UI", 12), state="disabled")
+
+                    def show_solution_path():
+                        sol_btn.configure(state="disabled", text="Wird generiert...")
+                        def _run():
+                            opts = [o.text for o in q.options] if q.options else None
+                            resp = self.ai.generate_solution_path(
+                                q.text, result.correct_answer, q.question_type.value, opts)
+                            def _show():
+                                sol_btn.grid_forget()
+                                solution_box.grid(row=1, column=0, sticky="ew", padx=0, pady=(0, 5))
+                                solution_box.configure(state="normal")
+                                solution_box.delete("1.0", "end")
+                                solution_box.insert("1.0", resp or "Kein Lösungsweg erhalten.")
+                                solution_box.configure(state="disabled")
+                            self.after(0, _show)
+                        threading.Thread(target=_run, daemon=True).start()
+
+                    sol_btn = ctk.CTkButton(solution_frame, text="Optimalen Lösungsweg anzeigen",
+                                           fg_color=COLORS["primary"], width=250, height=34,
+                                           font=("Segoe UI", 12, "bold"),
+                                           command=show_solution_path)
+                    sol_btn.grid(row=0, column=0, sticky="w", pady=5)
+
                 # Analyze detailed answer if provided
                 if detailed_entry:
                     det_text = detailed_entry.get("1.0", "end").strip()
@@ -4808,9 +4838,39 @@ class App(ctk.CTk):
                      command=lambda: self._toggle_mark_and_refresh_detail(question, result)
                      ).grid(row=3, column=0, sticky="w", pady=(0, 10))
 
+        # Optimal solution path
+        if self.ai.api_key:
+            sol_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+            sol_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+            sol_frame.grid_columnconfigure(0, weight=1)
+            sol_box = ctk.CTkTextbox(sol_frame, width=700, height=300,
+                                     font=("Segoe UI", 12), state="disabled")
+
+            def _gen_solution():
+                sol_btn2.configure(state="disabled", text="Wird generiert...")
+                def _run():
+                    opts = [o.text for o in question.options] if question.options else None
+                    correct = result.correct_answer if result else ""
+                    resp = self.ai.generate_solution_path(
+                        question.text, correct, question.question_type.value, opts)
+                    def _show():
+                        sol_btn2.grid_forget()
+                        sol_box.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
+                        sol_box.configure(state="normal")
+                        sol_box.delete("1.0", "end")
+                        sol_box.insert("1.0", resp or "Kein Lösungsweg erhalten.")
+                        sol_box.configure(state="disabled")
+                    self.after(0, _show)
+                threading.Thread(target=_run, daemon=True).start()
+
+            sol_btn2 = ctk.CTkButton(sol_frame, text="Optimalen Lösungsweg anzeigen",
+                                    fg_color=COLORS["primary"], width=250, height=34,
+                                    font=("Segoe UI", 12, "bold"), command=_gen_solution)
+            sol_btn2.grid(row=0, column=0, padx=15, pady=10, sticky="w")
+
         # AI Chat section
         chat_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
-        chat_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+        chat_frame.grid(row=5, column=0, sticky="ew", pady=(0, 10))
         chat_frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(chat_frame, text="KI-Chat zu dieser Frage", font=("Segoe UI", 14, "bold"),
@@ -4897,7 +4957,7 @@ class App(ctk.CTk):
 
         # Back button
         ctk.CTkButton(scroll, text=t("results.back_to_results"), fg_color=COLORS["text_light"],
-                     command=self._show_results).grid(row=5, column=0, pady=20)
+                     command=self._show_results).grid(row=6, column=0, pady=20)
 
     def _toggle_mark_and_refresh_detail(self, question: Question, result: AnswerResult | None):
         marked = self.store.load_marked()
