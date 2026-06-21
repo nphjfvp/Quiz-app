@@ -19,7 +19,8 @@ except ImportError:
 import json
 
 from .models import (
-    Quiz, Question, QuestionType, Option, DragDropPair, DiagramLabel, DataStore
+    Quiz, Question, QuestionType, Option, DragDropPair, DiagramLabel, DataStore,
+    FormulaSheet, Formula,
 )
 from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
@@ -3268,168 +3269,178 @@ class App(ctk.CTk):
             answer_widgets.append(("mark_image", click_pos, q.mark_regions, mark_canvas))
 
         elif q.question_type == QuestionType.MATH_FORMULA:
-            ctk.CTkLabel(answer_frame, text=t("math.keypad"),
-                        font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
-                        ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
+            # Check if any formula sheets are available for interactive solving
+            fosa_available = bool(self.formula_sheets)
+            solution_steps: list[dict] = []
 
-            math_entry = ctk.CTkEntry(answer_frame, width=500, font=("Segoe UI", 14),
-                                       placeholder_text=t("math.input_placeholder"))
-            math_entry.grid(row=1, column=0, padx=20, pady=(0, 5), sticky="w")
-            answer_widgets.append(math_entry)
+            if fosa_available:
+                # ── Interactive FoSa-based solver ──
+                ctk.CTkLabel(answer_frame, text=t("math.fosa_title"),
+                             font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                             ).grid(row=0, column=0, padx=20, pady=(10, 2), sticky="w")
+                ctk.CTkLabel(answer_frame, text=t("math.fosa_hint"),
+                             font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                             ).grid(row=1, column=0, padx=20, pady=(0, 10), sticky="w")
 
-            preview_label = ctk.CTkLabel(answer_frame, text="", font=("Segoe UI", 11),
-                                          text_color=COLORS["text_light"])
-            preview_label.grid(row=2, column=0, padx=20, pady=(0, 5), sticky="w")
-            preview_img_label = ctk.CTkLabel(answer_frame, text="")
-            preview_img_label.grid(row=3, column=0, padx=20, pady=(0, 5), sticky="w")
+                # Gather all formulas from all sheets
+                all_formulas: list[Formula] = []
+                for sheet in self.formula_sheets:
+                    all_formulas.extend(sheet.formulas)
+                formula_names = [f"{f.name}  [{f.category}]" if f.category else f.name
+                                 for f in all_formulas]
 
-            def _update_math_preview(*_args):
-                raw = math_entry.get().strip()
-                if not raw:
-                    preview_label.configure(text="")
-                    preview_img_label.configure(text="", image=None)
-                    return
-                preview_label.configure(text=f"{t('math.preview')} {raw}")
-                if can_render_latex():
-                    formula = raw
-                    for c in ("$", "$$"):
-                        if formula.startswith(c) and formula.endswith(c):
-                            formula = formula[len(c):-len(c)]
-                    img = render_formula(formula, fontsize=18,
-                                         text_color=COLORS.get("text", "#000"))
-                    if img:
-                        from PIL import ImageTk as _ITk
-                        photo = _ITk.PhotoImage(img)
-                        preview_img_label.configure(image=photo, text="")
-                        preview_img_label.image = photo
-                        return
-                preview_img_label.configure(text="", image=None)
+                # Steps container (scrollable)
+                steps_container = ctk.CTkFrame(answer_frame, fg_color="transparent")
+                steps_container.grid(row=2, column=0, sticky="ew", padx=20)
+                steps_container.grid_columnconfigure(0, weight=1)
+                step_widgets: list[dict] = []
 
-            math_entry.bind("<KeyRelease>", _update_math_preview)
+                def _render_step(step_idx: int, formula: Formula):
+                    """Build UI for one solution step with the given formula."""
+                    step_frame = ctk.CTkFrame(steps_container, fg_color=COLORS["card"],
+                                              corner_radius=10, border_width=1,
+                                              border_color=COLORS.get("border", "#e0e4f0"))
+                    step_frame.grid(row=step_idx, column=0, sticky="ew", pady=5)
+                    step_frame.grid_columnconfigure(0, weight=1)
 
-            keypad_frame = ctk.CTkFrame(answer_frame, fg_color="transparent")
-            keypad_frame.grid(row=4, column=0, padx=20, pady=(0, 10), sticky="w")
-            keypad_buttons = [
-                ("7", "7"), ("8", "8"), ("9", "9"), ("÷", "/"), ("√", "\\sqrt{"),
-                ("4", "4"), ("5", "5"), ("6", "6"), ("×", "\\cdot "), ("^", "^"),
-                ("1", "1"), ("2", "2"), ("3", "3"), ("-", "-"), ("π", "\\pi"),
-                ("0", "0"), (".", "."), ("(", "("), (")", ")"), ("+", "+"),
-                ("x", "x"), ("y", "y"), ("=", "="), ("⌫", "BACKSPACE"), ("frac", "\\frac{}{"),
-            ]
-            for idx, (display, insert_val) in enumerate(keypad_buttons):
-                row_i, col_i = divmod(idx, 5)
-                def _on_key(val=insert_val):
-                    if val == "BACKSPACE":
-                        cur = math_entry.get()
-                        if cur:
-                            math_entry.delete(len(cur) - 1, "end")
-                    else:
-                        math_entry.insert("end", val)
-                    _update_math_preview()
-                ctk.CTkButton(keypad_frame, text=display, width=50, height=36,
-                             font=("Segoe UI", 13), fg_color=COLORS.get("input_bg", "#e8e8e8"),
-                             text_color=COLORS.get("text", "#000"), hover_color=COLORS.get("card_hover", "#ddd"),
-                             command=_on_key
-                             ).grid(row=row_i, column=col_i, padx=2, pady=2)
+                    head = f"Schritt {step_idx + 1}: {formula.name}"
+                    ctk.CTkLabel(step_frame, text=head, font=("Segoe UI", 13, "bold"),
+                                 text_color=COLORS["primary"]
+                                 ).grid(row=0, column=0, padx=15, pady=(10, 4), sticky="w")
 
-            # ── Stylus / Drawing canvas for full solution path ──
-            draw_sep = ctk.CTkFrame(answer_frame, fg_color=COLORS.get("border", "#ddd"), height=1)
-            draw_sep.grid(row=5, column=0, sticky="ew", padx=20, pady=(10, 5))
+                    # Show rendered LaTeX of the formula
+                    if formula.latex and can_render_latex():
+                        img = render_formula(formula.latex, fontsize=16,
+                                             text_color=COLORS.get("text", "#000"))
+                        if img:
+                            ctk_img = ctk.CTkImage(light_image=img, dark_image=img,
+                                                   size=(img.width, img.height))
+                            lbl = ctk.CTkLabel(step_frame, image=ctk_img, text="")
+                            lbl.image = ctk_img
+                            lbl.grid(row=1, column=0, padx=15, pady=4, sticky="w")
+                    elif formula.latex:
+                        ctk.CTkLabel(step_frame, text=latex_to_plain(f"${formula.latex}$"),
+                                     font=("Consolas", 13), text_color=COLORS["text"]
+                                     ).grid(row=1, column=0, padx=15, pady=4, sticky="w")
 
-            draw_header = ctk.CTkFrame(answer_frame, fg_color="transparent")
-            draw_header.grid(row=6, column=0, padx=20, sticky="w")
-            ctk.CTkLabel(draw_header, text=t("math.draw_title"),
-                        font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
-                        ).grid(row=0, column=0, padx=(0, 10))
+                    # Variable input fields
+                    var_entries: dict[str, ctk.CTkEntry] = {}
+                    vars_frame = ctk.CTkFrame(step_frame, fg_color="transparent")
+                    vars_frame.grid(row=2, column=0, padx=15, pady=5, sticky="w")
+                    for vi, v in enumerate(formula.variables):
+                        lbl_text = f"{v.symbol}"
+                        if v.name:
+                            lbl_text += f" ({v.name})"
+                        if v.unit:
+                            lbl_text += f" [{v.unit}]"
+                        ctk.CTkLabel(vars_frame, text=lbl_text + ":",
+                                     font=("Segoe UI", 12), text_color=COLORS["text"]
+                                     ).grid(row=vi, column=0, padx=(0, 8), pady=2, sticky="w")
+                        e = ctk.CTkEntry(vars_frame, width=150, font=("Segoe UI", 12),
+                                         placeholder_text=v.symbol)
+                        e.grid(row=vi, column=1, pady=2)
+                        var_entries[v.symbol] = e
 
-            pen_sizes = {"Fein": 2, "Normal": 3, "Dick": 5}
-            pen_var = StringVar(value="Normal")
-            for ci, (label, _) in enumerate(pen_sizes.items()):
-                ctk.CTkRadioButton(draw_header, text=label, variable=pen_var, value=label,
-                                   font=("Segoe UI", 11)).grid(row=0, column=ci + 1, padx=4)
+                    # Result field
+                    res_frame = ctk.CTkFrame(step_frame, fg_color="transparent")
+                    res_frame.grid(row=3, column=0, padx=15, pady=(5, 10), sticky="w")
+                    res_sym = formula.result_symbol or "Ergebnis"
+                    ctk.CTkLabel(res_frame, text=f"{res_sym} =",
+                                 font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                                 ).grid(row=0, column=0, padx=(0, 8))
+                    result_entry = ctk.CTkEntry(res_frame, width=200, font=("Segoe UI", 13),
+                                                placeholder_text=t("math.enter_result"))
+                    result_entry.grid(row=0, column=1)
 
-            pen_color_var = StringVar(value="black")
-            color_frame = ctk.CTkFrame(draw_header, fg_color="transparent")
-            color_frame.grid(row=0, column=len(pen_sizes) + 1, padx=(10, 0))
-            for ci, (cname, cval) in enumerate([("Schwarz", "black"), ("Blau", "#2563eb"), ("Rot", "#dc2626")]):
-                ctk.CTkRadioButton(color_frame, text=cname, variable=pen_color_var, value=cval,
-                                   font=("Segoe UI", 11)).grid(row=0, column=ci, padx=3)
+                    step_data = {
+                        "formula": formula,
+                        "var_entries": var_entries,
+                        "result_entry": result_entry,
+                        "frame": step_frame,
+                    }
+                    step_widgets.append(step_data)
 
-            draw_canvas_w, draw_canvas_h = 600, 300
-            draw_canvas = tk.Canvas(answer_frame, width=draw_canvas_w, height=draw_canvas_h,
-                                     bg="white", highlightthickness=1,
-                                     highlightbackground=COLORS.get("border", "#ccc"),
-                                     cursor="pencil")
-            draw_canvas.grid(row=7, column=0, padx=20, pady=5)
+                def _add_step():
+                    """Show formula picker and add a new step."""
+                    pick_win = ctk.CTkToplevel(self)
+                    pick_win.title(t("math.pick_formula"))
+                    pick_win.geometry("500x400")
+                    pick_win.transient(self)
+                    pick_win.grab_set()
 
-            draw_state = {"lines": [], "last_x": None, "last_y": None, "has_drawing": False}
+                    ctk.CTkLabel(pick_win, text=t("math.pick_formula"),
+                                 font=("Segoe UI", 15, "bold")).pack(padx=20, pady=(15, 10))
 
-            def _draw_press(e):
-                draw_state["last_x"] = e.x
-                draw_state["last_y"] = e.y
+                    search_var = StringVar()
+                    search = ctk.CTkEntry(pick_win, textvariable=search_var, width=400,
+                                          placeholder_text=t("math.search_formula"))
+                    search.pack(padx=20, pady=(0, 10))
 
-            def _draw_motion(e):
-                if draw_state["last_x"] is not None:
-                    pw = pen_sizes.get(pen_var.get(), 3)
-                    pc = pen_color_var.get()
-                    line_id = draw_canvas.create_line(
-                        draw_state["last_x"], draw_state["last_y"], e.x, e.y,
-                        fill=pc, width=pw, capstyle=tk.ROUND, smooth=True)
-                    draw_state["lines"].append(line_id)
-                    draw_state["last_x"] = e.x
-                    draw_state["last_y"] = e.y
-                    draw_state["has_drawing"] = True
+                    list_frame = ctk.CTkScrollableFrame(pick_win, width=440, height=250)
+                    list_frame.pack(padx=20, fill="both", expand=True)
 
-            def _draw_release(e):
-                draw_state["last_x"] = None
-                draw_state["last_y"] = None
+                    def _populate(filter_text=""):
+                        for w in list_frame.winfo_children():
+                            w.destroy()
+                        ft = filter_text.lower()
+                        for idx, f in enumerate(all_formulas):
+                            display = formula_names[idx]
+                            if ft and ft not in display.lower() and ft not in (f.description or "").lower():
+                                continue
+                            btn = ctk.CTkButton(
+                                list_frame, text=display, anchor="w",
+                                fg_color=COLORS.get("input_bg", "#e8e8e8"),
+                                text_color=COLORS.get("text", "#000"),
+                                hover_color=COLORS.get("card_hover", "#ddd"),
+                                font=("Segoe UI", 12), height=34,
+                                command=lambda ff=f: (_select(ff),))
+                            btn.pack(fill="x", pady=2)
 
-            draw_canvas.bind("<Button-1>", _draw_press)
-            draw_canvas.bind("<B1-Motion>", _draw_motion)
-            draw_canvas.bind("<ButtonRelease-1>", _draw_release)
+                    def _select(f: Formula):
+                        pick_win.destroy()
+                        step_idx = len(step_widgets)
+                        _render_step(step_idx, f)
+                        # Re-grid the add/final buttons below the steps
+                        _reposition_bottom()
 
-            draw_btns = ctk.CTkFrame(answer_frame, fg_color="transparent")
-            draw_btns.grid(row=8, column=0, padx=20, sticky="w", pady=(0, 5))
+                    def _on_search(*_):
+                        _populate(search_var.get())
+                    search_var.trace_add("write", _on_search)
+                    _populate()
 
-            def _clear_drawing():
-                draw_canvas.delete("all")
-                draw_state["lines"].clear()
-                draw_state["has_drawing"] = False
+                # Add step + final answer area
+                bottom_frame = ctk.CTkFrame(answer_frame, fg_color="transparent")
+                bottom_frame.grid(row=3, column=0, padx=20, sticky="w", pady=5)
 
-            ctk.CTkButton(draw_btns, text=t("math.clear_canvas"), width=100, height=28,
-                         fg_color=COLORS.get("text_light", "#888"),
-                         command=_clear_drawing).grid(row=0, column=0, padx=(0, 8))
+                add_step_btn = ctk.CTkButton(bottom_frame, text=t("math.add_step"),
+                                             fg_color=COLORS["primary"], width=180,
+                                             command=_add_step)
+                add_step_btn.grid(row=0, column=0, pady=(0, 10))
 
-            def _canvas_to_base64():
-                """Save canvas as PNG and return base64."""
-                import io
-                draw_canvas.update()
-                ps = draw_canvas.postscript(colormode="color")
-                try:
-                    from PIL import Image as _PILImg
-                    img = _PILImg.open(io.BytesIO(ps.encode("utf-8")))
-                except Exception:
-                    try:
-                        import subprocess, tempfile
-                        with tempfile.NamedTemporaryFile(suffix=".ps", delete=False) as tmp:
-                            tmp.write(ps.encode("utf-8"))
-                            ps_path = tmp.name
-                        png_path = ps_path.replace(".ps", ".png")
-                        subprocess.run(["gs", "-dBATCH", "-dNOPAUSE", "-sDEVICE=png16m",
-                                        f"-sOutputFile={png_path}", "-r150", ps_path],
-                                       capture_output=True, timeout=10)
-                        from PIL import Image as _PILImg
-                        img = _PILImg.open(png_path)
-                    except Exception:
-                        return None
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-                buf.seek(0)
-                import base64
-                return base64.b64encode(buf.read()).decode("utf-8")
+                ctk.CTkLabel(answer_frame, text=t("math.final_answer"),
+                             font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                             ).grid(row=4, column=0, padx=20, pady=(10, 2), sticky="w")
+                final_entry = ctk.CTkEntry(answer_frame, width=300, font=("Segoe UI", 14),
+                                           placeholder_text=t("math.enter_final"))
+                final_entry.grid(row=5, column=0, padx=20, pady=(0, 10), sticky="w")
+                answer_widgets.append(final_entry)
 
-            # Store references for AI analysis after submit
-            answer_widgets.append(("math_drawing", draw_state, _canvas_to_base64))
+                def _reposition_bottom():
+                    n = len(step_widgets)
+                    bottom_frame.grid(row=2 + n + 1, column=0, padx=20, sticky="w", pady=5)
+
+                # Store step_widgets ref for answer extraction and AI check
+                answer_widgets.append(("fosa_steps", step_widgets, final_entry))
+
+            else:
+                # ── Fallback: simple text entry (no FoSa available) ──
+                ctk.CTkLabel(answer_frame, text=t("math.no_fosa_hint"),
+                             font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                             ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
+                math_entry = ctk.CTkEntry(answer_frame, width=500, font=("Segoe UI", 14),
+                                           placeholder_text=t("math.input_placeholder"))
+                math_entry.grid(row=1, column=0, padx=20, pady=(0, 10), sticky="w")
+                answer_widgets.append(math_entry)
 
         # Answer timing
         _answer_start_ms = int(time.time() * 1000)
@@ -3595,60 +3606,46 @@ class App(ctk.CTk):
                             self.after(0, _show)
                         threading.Thread(target=_check_detailed, daemon=True).start()
 
-                # Analyze math drawing (solution path) if present
+                # Analyze FoSa solution steps if present
                 if q.question_type == QuestionType.MATH_FORMULA and self.ai.api_key:
-                    drawing_b64 = None
+                    fosa_step_data = None
                     for item in answer_widgets:
-                        if isinstance(item, tuple) and len(item) == 3 and item[0] == "math_drawing":
-                            if item[1].get("has_drawing"):
-                                drawing_b64 = item[2]()
-                    if drawing_b64:
-                        draw_fb = ctk.CTkFrame(feedback_frame, fg_color=COLORS["card"], corner_radius=8)
-                        draw_fb.grid(row=2, column=0, sticky="ew", pady=(5, 0))
-                        draw_fb.grid_columnconfigure(0, weight=1)
-                        draw_lbl = ctk.CTkLabel(draw_fb, text=t("math.analyzing_drawing"),
-                                                 font=("Segoe UI", 12), text_color=COLORS["text_light"])
-                        draw_lbl.grid(row=0, column=0, padx=15, pady=10, sticky="w")
+                        if isinstance(item, tuple) and len(item) == 3 and item[0] == "fosa_steps":
+                            fosa_step_data = item
+                    if fosa_step_data and fosa_step_data[1]:
+                        steps_list = fosa_step_data[1]
+                        final_e = fosa_step_data[2]
+                        ai_steps = []
+                        for sw in steps_list:
+                            inputs = {sym: e.get() for sym, e in sw["var_entries"].items() if e.get().strip()}
+                            ai_steps.append({
+                                "formula": sw["formula"].name,
+                                "inputs": inputs,
+                                "result": sw["result_entry"].get(),
+                            })
+                        if ai_steps:
+                            step_fb = ctk.CTkFrame(feedback_frame, fg_color=COLORS["card"], corner_radius=8)
+                            step_fb.grid(row=2, column=0, sticky="ew", pady=(5, 0))
+                            step_fb.grid_columnconfigure(0, weight=1)
+                            ctk.CTkLabel(step_fb, text=t("math.checking_steps"),
+                                         font=("Segoe UI", 12), text_color=COLORS["text_light"]
+                                         ).grid(row=0, column=0, padx=15, pady=10, sticky="w")
 
-                        def _analyze_drawing(b64=drawing_b64, frame=draw_fb):
-                            correct = q.correct_formula
-                            msgs = [
-                                {"role": "system", "content": (
-                                    "Du bist ein Mathe-Tutor. Der Student hat seinen Rechenweg "
-                                    "handschriftlich aufgeschrieben. Analysiere das Bild Schritt für Schritt:\n"
-                                    "1. Erkenne die handschriftliche Rechnung\n"
-                                    "2. Prüfe jeden einzelnen Rechenschritt\n"
-                                    "3. Markiere GENAU wo der erste Fehler passiert (falls vorhanden)\n"
-                                    "4. Erkläre was falsch war und wie es richtig wäre\n"
-                                    "5. Bewerte den Gesamtansatz\n"
-                                    "Nutze $LaTeX$ für Formeln in deiner Antwort."
-                                )},
-                                {"role": "user", "content": [
-                                    {"type": "text", "text": (
-                                        f"Aufgabe: {q.text}\n"
-                                        f"Korrekte Lösung: {correct}\n"
-                                        f"Eingegebene Antwort: {result.user_answer}\n"
-                                        "Hier ist der handschriftliche Rechenweg des Studenten:"
-                                    )},
-                                    {"type": "image_url", "image_url": {
-                                        "url": f"data:image/png;base64,{b64}"
-                                    }},
-                                ]},
-                            ]
-                            resp = self.ai._call_api(msgs, max_tokens=1500)
-                            def _show_draw(r=resp):
-                                for w in frame.winfo_children():
-                                    w.destroy()
-                                ctk.CTkLabel(frame, text=t("math.drawing_feedback"),
-                                             font=("Segoe UI", 13, "bold"),
-                                             text_color=COLORS["primary"]
-                                             ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
-                                self._render_rich_text(frame, r or "Keine Antwort erhalten.",
-                                                       font=("Segoe UI", 12),
-                                                       text_color=COLORS["text"], wraplength=650,
-                                                       row=1, column=0, padx=15, pady=(0, 10), sticky="w")
-                            self.after(0, _show_draw)
-                        threading.Thread(target=_analyze_drawing, daemon=True).start()
+                            def _check_steps(steps=ai_steps, frame=step_fb, fa=final_e.get()):
+                                resp = self.ai.check_solution_path(q.text, steps, fa)
+                                def _show(r=resp):
+                                    for w in frame.winfo_children():
+                                        w.destroy()
+                                    ctk.CTkLabel(frame, text=t("math.step_feedback"),
+                                                 font=("Segoe UI", 13, "bold"),
+                                                 text_color=COLORS["primary"]
+                                                 ).grid(row=0, column=0, padx=15, pady=(10, 3), sticky="w")
+                                    self._render_rich_text(frame, r or "Keine Antwort erhalten.",
+                                                           font=("Segoe UI", 12),
+                                                           text_color=COLORS["text"], wraplength=650,
+                                                           row=1, column=0, padx=15, pady=(0, 10), sticky="w")
+                                self.after(0, _show)
+                            threading.Thread(target=_check_steps, daemon=True).start()
             else:
                 self.session.next_question()
                 self._show_question()
