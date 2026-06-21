@@ -8,7 +8,14 @@ import {
   getDocs,
   deleteDoc,
 } from "firebase/firestore";
-import { getAuth, signInAnonymously } from "firebase/auth";
+import {
+  initializeAuth,
+  getAuth,
+  getReactNativePersistence,
+  signInAnonymously,
+  type Auth,
+} from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Quiz, QuestionProgress, DailyState } from "../types/quiz";
 
 const firebaseConfig = {
@@ -22,7 +29,17 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
-const auth = getAuth(app);
+
+// React Native braucht initializeAuth mit AsyncStorage-Persistenz.
+// Falls Auth schon initialisiert wurde (Hot Reload), getAuth verwenden.
+let auth: Auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch {
+  auth = getAuth(app);
+}
 
 export function isConfigured(): boolean {
   return !firebaseConfig.apiKey.startsWith("YOUR_");
