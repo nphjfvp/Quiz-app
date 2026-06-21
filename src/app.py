@@ -62,6 +62,9 @@ class App(ctk.CTk):
         self._build_ui()
         self.show_home()
 
+        if not self.store.load_settings().get("walkthrough_done"):
+            self.after(500, self._start_walkthrough)
+
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -92,6 +95,132 @@ class App(ctk.CTk):
         self.main_frame.grid(row=1, column=0, sticky="nsew")
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(0, weight=1)
+
+    def _start_walkthrough(self):
+        steps = [
+            ("Willkommen beim Lerntrainer! 👋",
+             "Diese kurze Tour zeigt dir die wichtigsten Funktionen.\n\n"
+             "Der Lerntrainer hilft dir, dich effizient auf Klausuren vorzubereiten — "
+             "mit KI-generierten Fragen, Spaced Repetition und mehr."),
+            ("1. Quiz erstellen",
+             "Starte mit 'KI-Generierung' oder 'Fragen importieren'.\n\n"
+             "Lade einfach deine Vorlesungsfolien (PDF, PowerPoint, Word) hoch — "
+             "die KI erstellt automatisch Quizfragen daraus.\n\n"
+             "Du kannst auch manuell Fragen erstellen unter 'Neues Quiz'."),
+            ("2. Tägliches Lernen",
+             "Der 'Daily Learning' Button oben erstellt jeden Tag einen "
+             "persönlichen Lernplan basierend auf deinen Klausurterminen.\n\n"
+             "Schwache Fragen werden öfter wiederholt (Spaced Repetition)."),
+            ("3. Klausur-Ordner",
+             "Unter 'Klausur-Ordner' kannst du mehrere Quizze zu einer Klausur zusammenfassen.\n\n"
+             "So hast du alle Übungsblätter einer Klausur an einem Ort."),
+            ("4. Formelsammlung",
+             "Die KI extrahiert Formeln aus deinen Unterlagen und erstellt eine "
+             "digitale Formelsammlung.\n\n"
+             "Jede Formel hat einen interaktiven Slider und kann von der KI "
+             "in verschiedenen Stilen erklärt werden (Brain Rot bis Wissenschaftlich)."),
+            ("5. Einstellungen",
+             "Geh zuerst in die Einstellungen und trage deinen "
+             "OpenRouter API-Key ein (openrouter.ai).\n\n"
+             "Ohne API-Key funktionieren keine KI-Features.\n\n"
+             "Tipp: Du kannst teure Modelle sperren, um versehentliche Kosten zu vermeiden."),
+            ("6. Cloud-Sync",
+             "In den Einstellungen findest du auch 'Cloud-Sync'.\n\n"
+             "Gib auf PC und iPad/iPhone denselben Code ein — "
+             "dann sind deine Quizze auf allen Geräten synchron."),
+            ("Los geht's! 🚀",
+             "Du bist startklar! Beginne am besten mit:\n\n"
+             "1. API-Key in den Einstellungen eintragen\n"
+             "2. Erste Vorlesung hochladen (KI-Generierung)\n"
+             "3. Quiz starten und lernen\n\n"
+             "Viel Erfolg bei deiner Klausur!"),
+        ]
+
+        self._wt_steps = steps
+        self._wt_index = 0
+        self._show_walkthrough_step()
+
+    def _show_walkthrough_step(self):
+        if self._wt_index >= len(self._wt_steps):
+            s = self.store.load_settings()
+            s["walkthrough_done"] = True
+            self.store.save_settings(s)
+            return
+
+        title, text = self._wt_steps[self._wt_index]
+        total = len(self._wt_steps)
+        idx = self._wt_index
+
+        overlay = tk.Toplevel(self)
+        overlay.title("Lerntrainer Tour")
+        overlay.geometry("520x400")
+        overlay.resizable(False, False)
+        overlay.transient(self)
+        overlay.grab_set()
+
+        try:
+            x = self.winfo_rootx() + (self.winfo_width() - 520) // 2
+            y = self.winfo_rooty() + (self.winfo_height() - 400) // 2
+            overlay.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
+
+        frame = ctk.CTkFrame(overlay, fg_color=COLORS["bg"], corner_radius=0)
+        frame.pack(fill="both", expand=True)
+        frame.grid_columnconfigure(0, weight=1)
+
+        # Progress dots
+        progress_text = f"{idx + 1} / {total}"
+        ctk.CTkLabel(frame, text=progress_text, font=("Segoe UI", 11),
+                    text_color=COLORS["text_light"]).grid(row=0, column=0, pady=(15, 5))
+
+        # Progress bar
+        pbar = ctk.CTkProgressBar(frame, width=300, height=6)
+        pbar.set((idx + 1) / total)
+        pbar.grid(row=1, column=0, pady=(0, 15))
+
+        # Title
+        ctk.CTkLabel(frame, text=title, font=("Segoe UI", 18, "bold"),
+                    text_color=COLORS["text"]).grid(row=2, column=0, padx=30, pady=(0, 10))
+
+        # Body
+        ctk.CTkLabel(frame, text=text, font=("Segoe UI", 13),
+                    text_color=COLORS["text"], wraplength=440, justify="left"
+                    ).grid(row=3, column=0, padx=30, pady=(0, 20), sticky="w")
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.grid(row=4, column=0, pady=(0, 20))
+
+        def next_step():
+            overlay.destroy()
+            self._wt_index += 1
+            self._show_walkthrough_step()
+
+        def skip():
+            overlay.destroy()
+            s = self.store.load_settings()
+            s["walkthrough_done"] = True
+            self.store.save_settings(s)
+
+        if idx > 0:
+            def prev_step():
+                overlay.destroy()
+                self._wt_index -= 1
+                self._show_walkthrough_step()
+            ctk.CTkButton(btn_frame, text="Zurück", width=80, fg_color=COLORS["text_light"],
+                         command=prev_step).grid(row=0, column=0, padx=5)
+
+        if idx < total - 1:
+            ctk.CTkButton(btn_frame, text="Weiter", width=100, fg_color=COLORS["primary"],
+                         font=("Segoe UI", 13, "bold"),
+                         command=next_step).grid(row=0, column=1, padx=5)
+            ctk.CTkButton(btn_frame, text="Überspringen", width=100, fg_color=COLORS["text_light"],
+                         command=skip).grid(row=0, column=2, padx=5)
+        else:
+            ctk.CTkButton(btn_frame, text="Loslegen!", width=140, fg_color=COLORS["success"],
+                         font=("Segoe UI", 14, "bold"),
+                         command=next_step).grid(row=0, column=1, padx=5)
 
     def _clear_main(self):
         for w in self.main_frame.winfo_children():
