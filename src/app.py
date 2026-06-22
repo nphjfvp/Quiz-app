@@ -29,11 +29,6 @@ from .theme import COLORS, apply_theme, is_dark
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
 from . import cloud_sync
-try:
-    import pyttsx3
-    _HAS_TTS = True
-except ImportError:
-    _HAS_TTS = False
 
 ctk.set_default_color_theme("blue")
 
@@ -1169,13 +1164,9 @@ class App(ctk.CTk):
         math_switch.grid(row=1, column=1, padx=(0, 20), pady=(8, 0))
         if settings.get("math_mode", False):
             math_switch.select()
-        tts_switch = ctk.CTkSwitch(feat_row, text=t("settings.tts"))
-        tts_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0))
-        if settings.get("tts_enabled", False):
-            tts_switch.select()
         # ── EXPERIMENTAL: AI Question Creation ── START
         ai_create_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_question_creation"))
-        ai_create_switch.grid(row=3, column=0, padx=(0, 20), pady=(8, 0), columnspan=2)
+        ai_create_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0), columnspan=2)
         if settings.get("ai_question_creation", False):
             ai_create_switch.select()
         # ── EXPERIMENTAL: AI Question Creation ── END
@@ -1332,7 +1323,6 @@ class App(ctk.CTk):
             s["ai_validation"] = bool(aival_switch.get())
             s["detailed_answer"] = bool(detailed_switch.get())
             s["math_mode"] = bool(math_switch.get())
-            s["tts_enabled"] = bool(tts_switch.get())
             s["ai_question_creation"] = bool(ai_create_switch.get())  # EXPERIMENTAL
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
@@ -3232,6 +3222,15 @@ class App(ctk.CTk):
             ctk.CTkCheckBox(qt_frame, text=label, variable=var, font=("Segoe UI", 12),
                            ).grid(row=0, column=i, padx=(0, 12))
 
+        # Image/diagram questions from PDF (vision) — second row inside qt_frame
+        img_q_var = BooleanVar(value=False)
+        ctk.CTkCheckBox(qt_frame, text=t("gen.image_questions"), variable=img_q_var,
+                       font=("Segoe UI", 12)).grid(row=1, column=0, columnspan=4,
+                                                    sticky="w", pady=(8, 0))
+        ctk.CTkLabel(qt_frame, text=t("gen.image_questions_hint"),
+                    font=("Segoe UI", 10), text_color=COLORS["text_light"], wraplength=600,
+                    justify="left").grid(row=2, column=0, columnspan=6, sticky="w", pady=(0, 0))
+
         # Number of questions
         ctk.CTkLabel(scroll, text="Anzahl Fragen (1–500)", font=("Segoe UI", 13, "bold")
                     ).grid(row=next_row + 2, column=0, sticky="w", pady=(15, 0))
@@ -3378,6 +3377,15 @@ class App(ctk.CTk):
                         messagebox.showerror("Fehler beim Lesen der Datei", m)
                     ))
                     return
+
+                # Optional: image/diagram questions from PDF via vision
+                if img_q_var.get():
+                    self.after(0, lambda: progress_label.configure(
+                        text=t("gen.extracting_images")))
+                    img_questions = self._generate_image_questions(
+                        file_var.get(), progress_label)
+                    questions = (questions or []) + img_questions
+
                 def done():
                     elapsed = int(time.time() - start_time)
                     em, es = divmod(elapsed, 60)
@@ -3388,11 +3396,11 @@ class App(ctk.CTk):
                             created=datetime.now().isoformat(),
                             questions=questions,
                         )
-                        self.quizzes.append(quiz)
-                        self.store.save_quizzes(self.quizzes)
-                        messagebox.showinfo("Fertig",
-                            f"{len(questions)} Fragen in {em}:{es:02d} min generiert!")
-                        self.show_home()
+                        progress_label.configure(
+                            text=f"{len(questions)} Fragen in {em}:{es:02d} min generiert.")
+                        progress_bar.set(1.0)
+                        # Review screen: approve / edit / delete before saving
+                        self._show_quiz_review(quiz)
                     else:
                         progress_label.configure(text="Keine Fragen generiert. Prüfe API-Key und Datei.")
                 self.after(0, done)
@@ -3476,6 +3484,177 @@ class App(ctk.CTk):
             except Exception:
                 pass
         threading.Thread(target=run, daemon=True).start()
+
+    def _generate_image_questions(self, file_path: str, progress_label=None) -> list:
+        """Extract diagrams/images from a PDF and generate one vision question each.
+        Returns a list of Question objects (may be empty)."""
+        images_dir = str(Path(self.store.data_dir) / "images")
+        try:
+            img_paths = self.ai.extract_images_from_pdf(file_path, images_dir)
+        except Exception:
+            img_paths = []
+        if not img_paths:
+            if progress_label is not None:
+                self.after(0, lambda: progress_label.configure(text=t("gen.no_images")))
+            return []
+
+        questions = []
+        total = len(img_paths)
+        for i, img_path in enumerate(img_paths):
+            if progress_label is not None:
+                self.after(0, lambda c=i + 1, tt=total: progress_label.configure(
+                    text=t("gen.image_progress", c=c, total=tt)))
+            try:
+                result = self.ai.generate_question_from_image(
+                    image_path=img_path, question_type="diagram_label")
+            except Exception:
+                result = None
+            if not result:
+                continue
+            q = self._question_from_ai_result(result, img_path)
+            if q is not None:
+                questions.append(q)
+        return questions
+
+    def _question_from_ai_result(self, result: dict, img_path: str = ""):
+        """Convert an AI result dict into a Question object."""
+        rtype = result.get("question_type", "diagram_label")
+        try:
+            qtype = QuestionType(rtype)
+        except ValueError:
+            qtype = QuestionType.SINGLE_CHOICE
+        q = Question(
+            question_type=qtype,
+            title=result.get("title", ""),
+            text=result.get("text", ""),
+            topic=result.get("topic", ""),
+            explanation=result.get("explanation", ""),
+        )
+        if qtype in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
+            q.options = [Option(text=o.get("text", ""), is_correct=o.get("is_correct", False))
+                         for o in result.get("options", []) if o.get("text")]
+            if img_path:
+                q.image_path = img_path
+        elif qtype == QuestionType.DRAG_DROP:
+            q.drag_drop_pairs = [DragDropPair(source=p.get("source", ""), target=p.get("target", ""))
+                                 for p in result.get("drag_drop_pairs", [])]
+        elif qtype == QuestionType.DIAGRAM_LABEL:
+            labels = result.get("diagram_labels", [])
+            if not labels:
+                return None
+            q.diagram_labels = [DiagramLabel(label=dl.get("label", ""),
+                                             x=float(dl.get("x", 0.5)),
+                                             y=float(dl.get("y", 0.5)))
+                                for dl in labels]
+            if img_path:
+                q.diagram_image_path = img_path
+        if not q.text:
+            return None
+        return q
+
+    # ── QUIZ REVIEW (nach Generierung: absegnen / bearbeiten / löschen) ──
+
+    def _show_quiz_review(self, quiz: Quiz):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=t("review.title"), font=("Arial", 18, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        count_label = ctk.CTkLabel(scroll, text=t("review.subtitle", n=len(quiz.questions)),
+                    font=("Segoe UI", 12), text_color=COLORS["text_light"])
+        count_label.grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        list_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        list_frame.grid(row=2, column=0, sticky="ew")
+        list_frame.grid_columnconfigure(0, weight=1)
+
+        type_labels = {
+            QuestionType.SINGLE_CHOICE: "Single Choice",
+            QuestionType.MULTIPLE_CHOICE: "Multiple Choice",
+            QuestionType.FREE_TEXT: "Freitext",
+            QuestionType.FILL_BLANK: "Lückentext",
+            QuestionType.DRAG_DROP: "Drag & Drop",
+            QuestionType.DIAGRAM_LABEL: "Diagramm",
+            QuestionType.MARK_IMAGE: "Bild markieren",
+            QuestionType.MATH_FORMULA: "Mathe-Formel",
+        }
+
+        def render_list():
+            for w in list_frame.winfo_children():
+                w.destroy()
+            if not quiz.questions:
+                ctk.CTkLabel(list_frame, text=t("review.empty"), font=("Segoe UI", 13),
+                            text_color=COLORS["text_light"]).grid(row=0, column=0, sticky="w", pady=20)
+                return
+            for idx, qq in enumerate(quiz.questions):
+                card = ctk.CTkFrame(list_frame, fg_color=COLORS["card"], corner_radius=8)
+                card.grid(row=idx, column=0, sticky="ew", pady=4)
+                card.grid_columnconfigure(1, weight=1)
+                tlabel = type_labels.get(qq.question_type, qq.question_type.value)
+                ctk.CTkLabel(card, text=f"#{idx+1}", font=("Segoe UI", 12, "bold"),
+                            text_color=COLORS["primary"], width=40
+                            ).grid(row=0, column=0, rowspan=2, padx=(12, 8), pady=10)
+                preview = (qq.title or qq.text or "").strip().replace("\n", " ")
+                if len(preview) > 90:
+                    preview = preview[:90] + "…"
+                ctk.CTkLabel(card, text=preview, font=("Segoe UI", 12), justify="left",
+                            text_color=COLORS["text"], wraplength=480, anchor="w"
+                            ).grid(row=0, column=1, sticky="w", padx=5, pady=(10, 0))
+                meta = f"{tlabel} · {qq.topic or 'kein Thema'}"
+                if qq.diagram_image_path or qq.image_path:
+                    meta += " · 🖼️ Bild"
+                ctk.CTkLabel(card, text=meta, font=("Segoe UI", 10),
+                            text_color=COLORS["text_light"], anchor="w"
+                            ).grid(row=1, column=1, sticky="w", padx=5, pady=(0, 10))
+
+                btns = ctk.CTkFrame(card, fg_color="transparent")
+                btns.grid(row=0, column=2, rowspan=2, padx=10)
+
+                def _edit(i=idx):
+                    self._show_question_editor(quiz, i, on_done=lambda: self._show_quiz_review(quiz))
+
+                def _delete(i=idx):
+                    del quiz.questions[i]
+                    render_list()
+                    count_label.configure(text=t("review.subtitle", n=len(quiz.questions)))
+
+                ctk.CTkButton(btns, text=t("review.edit"), width=90, height=28,
+                             fg_color=COLORS["primary"], font=("Segoe UI", 11),
+                             command=_edit).grid(row=0, column=0, padx=(0, 6))
+                ctk.CTkButton(btns, text=t("review.delete"), width=90, height=28,
+                             fg_color=COLORS["danger"], font=("Segoe UI", 11),
+                             command=_delete).grid(row=0, column=1)
+
+        render_list()
+
+        # Bottom action buttons
+        action_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        action_frame.grid(row=3, column=0, sticky="w", pady=20)
+
+        def _save_quiz():
+            if not quiz.questions:
+                messagebox.showwarning("Hinweis", t("review.empty"))
+                return
+            quiz.description = f"{len(quiz.questions)} Fragen"
+            self.quizzes.append(quiz)
+            self.store.save_quizzes(self.quizzes)
+            messagebox.showinfo("OK", t("review.saved", n=len(quiz.questions)))
+            self.show_home()
+
+        ctk.CTkButton(action_frame, text=t("review.save"), fg_color=COLORS["success"],
+                     font=("Segoe UI", 14, "bold"), height=42, corner_radius=10,
+                     command=_save_quiz).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(action_frame, text=t("review.add_question"), fg_color=COLORS["primary"],
+                     height=42, command=lambda: self._show_question_editor(
+                         quiz, None, on_done=lambda: self._show_quiz_review(quiz))
+                     ).grid(row=0, column=1, padx=(0, 10))
+        ctk.CTkButton(action_frame, text=t("review.discard"), fg_color=COLORS["text_light"],
+                     height=42, command=lambda: self._confirm_discard_review()
+                     ).grid(row=0, column=2)
+
+    def _confirm_discard_review(self):
+        if messagebox.askyesno(t("review.discard"), t("review.discard_confirm")):
+            self.show_home()
 
     # ── AI IMPORT ──
 
@@ -4036,40 +4215,6 @@ class App(ctk.CTk):
             if pct >= 30: return "5"
             return "6"
         return f"{pct:.0f}%"
-
-    # ── TTS (Text-to-Speech) ──
-
-    _tts_engine = None
-    _tts_busy = False
-
-    def _tts_speak(self, text: str):
-        if not _HAS_TTS or not self.store.load_settings().get("tts_enabled", False):
-            return
-        if self._tts_busy:
-            return
-        self._tts_busy = True
-        clean = text.replace("$", "").replace("\\", " ").replace("{", "").replace("}", "")
-
-        def run():
-            try:
-                engine = pyttsx3.init()
-                engine.setProperty('rate', 160)
-                voices = engine.getProperty('voices')
-                for v in voices:
-                    if 'german' in v.name.lower() or 'de' in v.id.lower():
-                        engine.setProperty('voice', v.id)
-                        break
-                engine.say(clean)
-                engine.runAndWait()
-            except Exception as e:
-                self.after(0, lambda: print(f"[TTS Error] {e}"))
-            finally:
-                self._tts_busy = False
-                try:
-                    engine.stop()
-                except Exception:
-                    pass
-        threading.Thread(target=run, daemon=True).start()
 
     # ── LERNPLAN-GENERATOR ──
 
@@ -5101,17 +5246,6 @@ class App(ctk.CTk):
 
         ctk.CTkButton(nav, text="Auswertung", fg_color=COLORS["danger"], width=120,
                      command=self._show_results).grid(row=0, column=3)
-
-        if self.store.load_settings().get("tts_enabled", False):
-            tts_text = q.text
-            if q.options:
-                tts_text += ". " + ". ".join(f"Option {i+1}: {o.text}" for i, o in enumerate(q.options))
-            if _HAS_TTS:
-                tts_cmd = lambda _txt=tts_text: self._tts_speak(_txt)
-            else:
-                tts_cmd = lambda: messagebox.showwarning("TTS", t("tts.not_installed"))
-            ctk.CTkButton(nav, text="🔊", width=40, fg_color=COLORS["primary_light"],
-                         command=tts_cmd).grid(row=0, column=4, padx=(10, 0))
 
         # Mark button
         marked_ids = self.store.load_marked()

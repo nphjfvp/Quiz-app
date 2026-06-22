@@ -78,8 +78,12 @@
 ### Phase 4 – KI-Features
 10. **Erklär-Tiefe wählbar** – vor jeder Erklärung: Kurz / Normal / Ausführlich /
     Ganz von vorne. (Wie weit die KI ausholt vorher auswählen.)
-11. **Audio-Modus** – TTS liest Fragen + Erklärungen vor, Lernen ohne Bildschirm.
-    Erklärtiefe vorher wählbar.
+11. **Audio-Modus (PASSIVES LERNEN)** – ZURÜCKGESTELLT. Erste Umsetzung mit
+    `pyttsx3` (las Fragen vor) wurde wieder entfernt – das war NICHT die Idee.
+    Echte Idee: Unterwegs (kein Quiz möglich) bekommt man die **Erklärungen/
+    Hilfestellungen zu ausgewählten/schweren Fragen** vorgelesen → passives Lernen.
+    Problem: ohne natürliche KI-Stimme (TTS-API wie OpenAI/ElevenLabs) lohnt es
+    sich kaum. Erst wieder angehen wenn eine gute TTS-Stimme verfügbar ist.
 12. **Lernplan-Generator** – Klausurtermin eingeben → Stoff auf verfügbare Tage verteilt.
 13. **Erklär-Levels** – „Noch einfacher"-Button, schrittweise Vereinfachung.
 

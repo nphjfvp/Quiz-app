@@ -355,6 +355,59 @@ class AIService:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             return f.read()
 
+    def extract_images_from_pdf(self, file_path: str, out_dir: str,
+                                 min_width: int = 200, min_height: int = 200,
+                                 max_images: int = 30) -> list[str]:
+        """Extract significant images/diagrams from a PDF and save them to out_dir.
+        Filters out tiny images (icons, logos, bullets) by minimum dimensions.
+        Returns a list of saved image file paths. Requires PyMuPDF (fitz)."""
+        if fitz is None:
+            return []
+        path = Path(file_path)
+        if path.suffix.lower() != ".pdf":
+            return []
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+
+        saved = []
+        seen_xrefs = set()
+        try:
+            doc = fitz.open(str(path))
+        except Exception:
+            return []
+        try:
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                for img in page.get_images(full=True):
+                    xref = img[0]
+                    if xref in seen_xrefs:
+                        continue
+                    seen_xrefs.add(xref)
+                    try:
+                        base = doc.extract_image(xref)
+                    except Exception:
+                        continue
+                    w = base.get("width", 0)
+                    h = base.get("height", 0)
+                    if w < min_width or h < min_height:
+                        continue
+                    ext = base.get("ext", "png")
+                    img_bytes = base.get("image")
+                    if not img_bytes:
+                        continue
+                    fname = out / f"{path.stem}_p{page_num+1}_{xref}.{ext}"
+                    try:
+                        with open(fname, "wb") as f:
+                            f.write(img_bytes)
+                        saved.append(str(fname))
+                    except OSError:
+                        continue
+                    if len(saved) >= max_images:
+                        return saved
+        finally:
+            doc.close()
+        return saved
+
     def _chunk_with_overlap(self, text: str) -> list[str]:
         """Split text into overlapping chunks (sliding window)."""
         if len(text) <= self.chunk_size:
