@@ -4895,16 +4895,54 @@ class App(ctk.CTk):
         # AI help inner content
         ai_help_btns = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
         ai_help_btns.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+
+        depth_frame = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
+        depth_frame.grid(row=1, column=0, padx=10, pady=(0, 5), sticky="w")
+        ctk.CTkLabel(depth_frame, text=t("explain.depth"), font=("Segoe UI", 11),
+                    text_color=COLORS["text_light"]).grid(row=0, column=0, padx=(0, 8))
+        depth_var = StringVar(value="normal")
+        for i, (lbl, val) in enumerate([
+            (t("explain.short"), "short"), (t("explain.normal"), "normal"),
+            (t("explain.detailed"), "detailed"), (t("explain.basics"), "basics"),
+        ]):
+            ctk.CTkRadioButton(depth_frame, text=lbl, variable=depth_var, value=val,
+                               font=("Segoe UI", 11), width=10).grid(row=0, column=i+1, padx=(0, 10))
+
         ai_response_frame = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
-        ai_response_frame.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+        ai_response_frame.grid(row=2, column=0, padx=15, pady=(0, 5), sticky="ew")
         ai_response_frame.grid_columnconfigure(0, weight=1)
+        _last_explanation = {"text": ""}
+
+        def _depth_instruction():
+            d = depth_var.get()
+            if d == "short": return t("explain.inst_short")
+            if d == "detailed": return t("explain.inst_detailed")
+            if d == "basics": return t("explain.inst_basics")
+            return ""
 
         def _set_ai_response(text):
+            _last_explanation["text"] = text
             for w in ai_response_frame.winfo_children():
                 w.destroy()
             self._render_rich_text(ai_response_frame, text, font=("Segoe UI", 12),
                                    text_color=COLORS["text"], wraplength=650,
                                    row=0, column=0, sticky="w")
+            simpler_frame = ctk.CTkFrame(ai_response_frame, fg_color="transparent")
+            simpler_frame.grid(row=1, column=0, sticky="w", pady=(5, 0))
+            if text and text != t("ai_help.loading"):
+                ctk.CTkButton(simpler_frame, text=t("explain.simpler"), width=140, height=28,
+                             fg_color=COLORS["warning"], font=("Segoe UI", 11),
+                             command=lambda: _ask_simpler(text)).grid(row=0, column=0)
+
+        def _ask_simpler(prev_text):
+            _set_ai_response(t("ai_help.loading"))
+            def run():
+                prefix = _get_memory_prefix()
+                msgs = [{"role": "system", "content": prefix + t("explain.simpler_prompt")},
+                        {"role": "user", "content": f"Frage: {q.text}\n\nVorherige Erklärung:\n{prev_text}"}]
+                resp = self.ai._call_api(msgs, max_tokens=1024)
+                self.after(0, lambda: _set_ai_response(resp or "Keine Antwort erhalten."))
+            threading.Thread(target=run, daemon=True).start()
 
         def _get_memory_prefix():
             settings = self.store.load_settings()
@@ -4928,7 +4966,11 @@ class App(ctk.CTk):
             _set_ai_response(t("ai_help.loading"))
             def run():
                 prefix = _get_memory_prefix()
-                msgs = [{"role": "system", "content": prefix + "Du bist ein hilfreicher Tutor. Erkläre das Konzept hinter der folgenden Frage ausführlich, aber verrate NICHT die richtige Antwort direkt."},
+                depth_inst = _depth_instruction()
+                system = prefix + "Du bist ein hilfreicher Tutor. Erkläre das Konzept hinter der folgenden Frage, aber verrate NICHT die richtige Antwort direkt."
+                if depth_inst:
+                    system += f"\n\n{depth_inst}"
+                msgs = [{"role": "system", "content": system},
                         {"role": "user", "content": f"Frage: {q.text}"}]
                 resp = self.ai._call_api(msgs, max_tokens=1024)
                 self.after(0, lambda: _set_ai_response(resp or "Keine Antwort erhalten."))
@@ -4944,7 +4986,7 @@ class App(ctk.CTk):
         # Free chat input
         _chat_history = []
         chat_input_frame = ctk.CTkFrame(ai_help_inner, fg_color="transparent")
-        chat_input_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
+        chat_input_frame.grid(row=3, column=0, padx=10, pady=(0, 10), sticky="ew")
         chat_input_frame.grid_columnconfigure(0, weight=1)
         chat_entry = ctk.CTkEntry(chat_input_frame, placeholder_text="Eigene Frage stellen...",
                                   font=("Segoe UI", 12))
@@ -5600,16 +5642,26 @@ class App(ctk.CTk):
             chat_input.insert(0, "Gib mir eine ähnliche Übungsaufgabe mit Lösung.")
             send_chat()
 
+        def ask_simpler():
+            chat_input.delete(0, "end")
+            chat_input.insert(0, t("explain.simpler_chat"))
+            send_chat()
+
+        col = 0
         if not is_ok:
             ctk.CTkButton(quick_btns, text="Warum falsch?", width=110, height=28,
                          fg_color=COLORS["danger"], corner_radius=6,
-                         command=ask_why_wrong).grid(row=0, column=0, padx=(0, 5))
+                         command=ask_why_wrong).grid(row=0, column=col, padx=(0, 5))
+            col += 1
         ctk.CTkButton(quick_btns, text="Konzept erklären", width=120, height=28,
                      fg_color=COLORS["primary"], corner_radius=6,
-                     command=ask_explain).grid(row=0, column=1, padx=(0, 5))
+                     command=ask_explain).grid(row=0, column=col, padx=(0, 5))
         ctk.CTkButton(quick_btns, text="Ähnliche Aufgabe", width=120, height=28,
                      fg_color=COLORS["success"], corner_radius=6,
-                     command=ask_similar).grid(row=0, column=2)
+                     command=ask_similar).grid(row=0, column=col+1, padx=(0, 5))
+        ctk.CTkButton(quick_btns, text=t("explain.simpler"), width=140, height=28,
+                     fg_color=COLORS["warning"], corner_radius=6,
+                     command=ask_simpler).grid(row=0, column=col+2)
 
         # Back button
         ctk.CTkButton(scroll, text=t("results.back_to_results"), fg_color=COLORS["text_light"],
