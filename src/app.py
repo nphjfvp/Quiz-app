@@ -1632,79 +1632,131 @@ class App(ctk.CTk):
             ctk.CTkLabel(ai_frame, text=t("ai_create.title"),
                         font=("Arial", 13, "bold"), text_color="#ff9800"
                         ).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 5))
+            ctk.CTkLabel(ai_frame, text=t("ai_create.image_hint"),
+                        font=("Segoe UI", 11), text_color=COLORS["text_light"], wraplength=550
+                        ).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 5))
+
+            _ai_image_path = {"path": ""}
+            img_label = ctk.CTkLabel(ai_frame, text=t("ai_create.no_image"),
+                                      font=("Segoe UI", 11), text_color=COLORS["text_light"])
+            img_label.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 3))
+
+            def _pick_image():
+                path = filedialog.askopenfilename(
+                    filetypes=[("Bilder", "*.png *.jpg *.jpeg *.bmp *.gif *.webp")])
+                if path:
+                    _ai_image_path["path"] = path
+                    name = os.path.basename(path)
+                    img_label.configure(text=f"📷 {name}", text_color=COLORS["success"])
+
+            ctk.CTkButton(ai_frame, text=t("ai_create.select_image"),
+                         fg_color=COLORS["primary_light"], width=200,
+                         font=("Segoe UI", 12), command=_pick_image
+                         ).grid(row=3, column=0, sticky="w", padx=12, pady=(0, 5))
+
             ai_topic_entry = ctk.CTkEntry(ai_frame, width=450,
                                            placeholder_text=t("ai_create.topic_ph"))
-            ai_topic_entry.grid(row=1, column=0, sticky="w", padx=12, pady=(0, 5))
-            ai_context_entry = ctk.CTkEntry(ai_frame, width=450,
-                                             placeholder_text=t("ai_create.context_ph"))
-            ai_context_entry.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 5))
+            ai_topic_entry.grid(row=4, column=0, sticky="w", padx=12, pady=(0, 5))
+
+            # Question type for image
+            ai_type_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
+            ai_type_frame.grid(row=5, column=0, sticky="w", padx=12, pady=(0, 5))
+            ctk.CTkLabel(ai_type_frame, text=t("ai_create.qtype"), font=("Segoe UI", 11)
+                        ).grid(row=0, column=0, padx=(0, 8))
+            ai_type_var = StringVar(value="diagram_label")
+            for i, (lbl, val) in enumerate([
+                (t("ai_create.type_diagram"), "diagram_label"),
+                (t("ai_create.type_dnd"), "drag_drop"),
+                (t("ai_create.type_sc"), "single_choice"),
+            ]):
+                ctk.CTkRadioButton(ai_type_frame, text=lbl, variable=ai_type_var, value=val,
+                                   font=("Segoe UI", 11)).grid(row=0, column=i+1, padx=5)
+
             diff_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
-            diff_frame.grid(row=3, column=0, sticky="w", padx=12, pady=(0, 5))
+            diff_frame.grid(row=6, column=0, sticky="w", padx=12, pady=(0, 5))
             ctk.CTkLabel(diff_frame, text=t("ai_create.difficulty"), font=("Arial", 11)
                         ).grid(row=0, column=0, padx=(0, 8))
             diff_var = StringVar(value="mittel")
             for i, (lbl, val) in enumerate([("Leicht", "leicht"), ("Mittel", "mittel"), ("Schwer", "schwer")]):
                 ctk.CTkRadioButton(diff_frame, text=lbl, variable=diff_var, value=val,
                                    font=("Arial", 11)).grid(row=0, column=i+1, padx=5)
+
             ai_status = ctk.CTkLabel(ai_frame, text="", font=("Arial", 11),
                                       text_color=COLORS["text_light"])
-            ai_status.grid(row=5, column=0, sticky="w", padx=12, pady=(0, 8))
+            ai_status.grid(row=8, column=0, sticky="w", padx=12, pady=(0, 8))
 
             def _ai_generate_question():
+                img_path = _ai_image_path["path"]
                 topic_text = ai_topic_entry.get().strip()
-                if not topic_text:
-                    ai_status.configure(text="Bitte Thema eingeben!", text_color=COLORS["danger"])
-                    return
                 if not self.ai.api_key:
                     ai_status.configure(text="API-Key fehlt!", text_color=COLORS["danger"])
                     return
-                qt = type_var.get()
+
+                qt = ai_type_var.get()
                 ai_status.configure(text=t("ai_create.generating"), text_color=COLORS["primary"])
                 ai_gen_btn.configure(state="disabled")
 
                 def run():
-                    result = self.ai.generate_single_question(
-                        topic=topic_text, question_type=qt,
-                        difficulty=diff_var.get(),
-                        context=ai_context_entry.get().strip())
+                    if img_path and os.path.exists(img_path):
+                        result = self.ai.generate_question_from_image(
+                            image_path=img_path, question_type=qt,
+                            topic=topic_text, difficulty=diff_var.get())
+                    elif topic_text:
+                        result = self.ai.generate_single_question(
+                            topic=topic_text, question_type=qt,
+                            difficulty=diff_var.get())
+                    else:
+                        self.after(0, lambda: (
+                            ai_gen_btn.configure(state="normal"),
+                            ai_status.configure(text=t("ai_create.need_input"), text_color=COLORS["danger"])))
+                        return
 
                     def apply():
                         ai_gen_btn.configure(state="normal")
                         if not result:
                             ai_status.configure(text=t("ai_create.error"), text_color=COLORS["danger"])
                             return
+
                         title_entry.delete(0, "end")
                         title_entry.insert(0, result.get("title", ""))
                         text_box.delete("1.0", "end")
                         text_box.insert("1.0", result.get("text", ""))
                         topic_entry.delete(0, "end")
                         topic_entry.insert(0, result.get("topic", topic_text))
-                        if qt in ("single_choice", "multiple_choice") and result.get("options"):
+
+                        rtype = result.get("question_type", qt)
+                        if rtype in [e.value for e in QuestionType]:
+                            type_var.set(rtype)
+
+                        if rtype in ("single_choice", "multiple_choice") and result.get("options"):
                             options_data.clear()
                             for o in result["options"]:
                                 options_data.append({"text": o.get("text", ""),
                                                      "is_correct": o.get("is_correct", False)})
                             rebuild_options()
-                        elif qt == "free_text" and result.get("correct_text"):
-                            rebuild_options()
-                            for tag, widget in options_widgets:
-                                if tag == "free_text":
-                                    widget.delete(0, "end")
-                                    widget.insert(0, result["correct_text"])
-                        elif qt == "fill_blank" and result.get("blanks"):
-                            rebuild_options()
-                            for tag, widget in options_widgets:
-                                if tag == "blanks":
-                                    widget.delete("1.0", "end")
-                                    widget.insert("1.0", "\n".join(result["blanks"]))
-                        elif qt == "drag_drop" and result.get("drag_drop_pairs"):
+                        elif rtype == "drag_drop" and result.get("drag_drop_pairs"):
                             question.drag_drop_pairs = []
                             for p in result["drag_drop_pairs"]:
                                 question.drag_drop_pairs.append(
                                     DragDropPair(source=p.get("source", ""), target=p.get("target", "")))
                             rebuild_options()
+                        elif rtype == "diagram_label" and result.get("diagram_labels"):
+                            question.diagram_labels = []
+                            for dl in result["diagram_labels"]:
+                                question.diagram_labels.append(
+                                    DiagramLabel(label=dl.get("label", ""),
+                                                x=float(dl.get("x", 0.5)),
+                                                y=float(dl.get("y", 0.5))))
+                            if img_path:
+                                question.diagram_image_path = img_path
+                            rebuild_options()
+
                         if result.get("explanation"):
                             question.explanation = result["explanation"]
+
+                        if img_path and rtype != "diagram_label":
+                            question.image_path = img_path
+
                         ai_status.configure(text=t("ai_create.success"), text_color=COLORS["success"])
                     self.after(0, apply)
 
@@ -1714,7 +1766,7 @@ class App(ctk.CTk):
                                         fg_color="#ff9800", hover_color="#e68a00",
                                         font=("Arial", 12, "bold"),
                                         command=_ai_generate_question)
-            ai_gen_btn.grid(row=4, column=0, sticky="w", padx=12, pady=(0, 5))
+            ai_gen_btn.grid(row=7, column=0, sticky="w", padx=12, pady=(0, 5))
             current_row = 4
         else:
             current_row = 3

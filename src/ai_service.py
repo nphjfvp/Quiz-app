@@ -1173,6 +1173,96 @@ Regeln:
             {"role": "user", "content": f"Thema: {topic}{context_part}"},
         ]
         raw = self._call_api(messages, max_tokens=1500)
+        return self._parse_json_response(raw)
+
+    def generate_question_from_image(self, image_path: str, question_type: str = "diagram_label",
+                                      topic: str = "", difficulty: str = "mittel") -> Optional[dict]:
+        try:
+            with open(image_path, "rb") as f:
+                encoded = base64.b64encode(f.read()).decode("ascii")
+        except OSError:
+            return None
+        suffix = Path(image_path).suffix.lower().lstrip(".") or "png"
+        if suffix == "jpg":
+            suffix = "jpeg"
+
+        type_instructions = {
+            "diagram_label": (
+                "Analysiere das Diagramm/Bild. Erstelle eine DIAGRAM-LABEL Frage: "
+                "Der Student soll Labels an die richtige Stelle im Diagramm ziehen.\n"
+                "Identifiziere 4-8 wichtige Elemente im Bild und gib ihre Position als "
+                "x/y Koordinaten (0.0 bis 1.0, relativ zur Bildgröße) an.\n\n"
+                "JSON-Format:\n"
+                "{\n"
+                '  "title": "Kurztitel",\n'
+                '  "text": "Beschrifte das folgende Diagramm korrekt.",\n'
+                '  "topic": "Themengebiet",\n'
+                '  "question_type": "diagram_label",\n'
+                '  "diagram_labels": [{"label": "Name des Elements", "x": 0.35, "y": 0.60}, ...],\n'
+                '  "explanation": "Erklärung der korrekten Zuordnung"\n'
+                "}"
+            ),
+            "drag_drop": (
+                "Analysiere das Diagramm/Bild. Erstelle eine ZUORDNUNGS-Frage (Drag & Drop): "
+                "Der Student soll Begriffe den richtigen Beschreibungen/Kategorien zuordnen, "
+                "basierend auf dem was im Bild zu sehen ist.\n\n"
+                "JSON-Format:\n"
+                "{\n"
+                '  "title": "Kurztitel",\n'
+                '  "text": "Ordne die Begriffe basierend auf dem Diagramm richtig zu.",\n'
+                '  "topic": "Themengebiet",\n'
+                '  "question_type": "drag_drop",\n'
+                '  "drag_drop_pairs": [{"source": "Begriff", "target": "Zuordnung"}, ...],\n'
+                '  "explanation": "Erklärung"\n'
+                "}"
+            ),
+            "single_choice": (
+                "Analysiere das Diagramm/Bild. Erstelle eine Single-Choice-Frage darüber, "
+                "was im Bild zu sehen ist. 4 Optionen, genau EINE korrekt.\n\n"
+                "JSON-Format:\n"
+                "{\n"
+                '  "title": "Kurztitel",\n'
+                '  "text": "Frage zum Diagramm",\n'
+                '  "topic": "Themengebiet",\n'
+                '  "question_type": "single_choice",\n'
+                '  "options": [{"text": "...", "is_correct": true/false}, ...],\n'
+                '  "explanation": "Erklärung"\n'
+                "}"
+            ),
+            "multiple_choice": (
+                "Analysiere das Diagramm/Bild. Erstelle eine Multiple-Choice-Frage darüber. "
+                "4 Optionen, MEHRERE können korrekt sein.\n\n"
+                "JSON-Format:\n"
+                "{\n"
+                '  "title": "Kurztitel",\n'
+                '  "text": "Frage zum Diagramm",\n'
+                '  "topic": "Themengebiet",\n'
+                '  "question_type": "multiple_choice",\n'
+                '  "options": [{"text": "...", "is_correct": true/false}, ...],\n'
+                '  "explanation": "Erklärung"\n'
+                "}"
+            ),
+        }
+        instruction = type_instructions.get(question_type, type_instructions["diagram_label"])
+        topic_part = f"\nThema/Kontext: {topic}" if topic else ""
+
+        messages = [
+            {"role": "system", "content": (
+                "Du bist ein Experte für visuelle Prüfungsfragen. Du analysierst Diagramme, "
+                "Schaubilder und Grafiken aus Vorlesungen und erstellst daraus Prüfungsfragen.\n"
+                f"Schwierigkeit: {difficulty}.\n"
+                f"{instruction}\n\n"
+                "Antworte AUSSCHLIESSLICH mit validem JSON (kein Markdown, keine Erklärung)."
+            )},
+            {"role": "user", "content": [
+                {"type": "text", "text": f"Erstelle eine Frage basierend auf diesem Diagramm/Bild.{topic_part}"},
+                {"type": "image_url", "image_url": {"url": f"data:image/{suffix};base64,{encoded}"}},
+            ]},
+        ]
+        raw = self._call_api(messages, max_tokens=2000)
+        return self._parse_json_response(raw)
+
+    def _parse_json_response(self, raw: Optional[str]) -> Optional[dict]:
         if not raw:
             return None
         import json as _json
