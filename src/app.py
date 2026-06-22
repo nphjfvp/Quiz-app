@@ -25,7 +25,7 @@ from .models import (
 from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
 from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
-from .theme import COLORS, apply_theme, is_dark
+from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
 from . import cloud_sync
@@ -4710,21 +4710,30 @@ class App(ctk.CTk):
 
         scroll = self._make_screen()
 
-        # Progress bar
-        progress = ctk.CTkProgressBar(scroll, width=600)
-        progress.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        # Progress bar with count label
+        prog_row = ctk.CTkFrame(scroll, fg_color="transparent")
+        prog_row.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        prog_row.grid_columnconfigure(0, weight=1)
+        progress = ctk.CTkProgressBar(prog_row, height=10, corner_radius=5,
+                                      progress_color=COLORS["primary"],
+                                      fg_color=COLORS["row_neutral"])
+        progress.grid(row=0, column=0, sticky="ew", padx=(0, 12))
         progress.set(self.session.progress_fraction)
+        ctk.CTkLabel(prog_row, text=t("quiz.progress", current=current, total=total),
+                     font=("Segoe UI", 12, "bold"), text_color=COLORS["text_light"]
+                     ).grid(row=0, column=1)
 
         # Question card
-        card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
-        card.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                            border_width=1, border_color=COLORS["border"])
+        card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
         card.grid_columnconfigure(0, weight=1)
 
         if q.title:
-            ctk.CTkLabel(card, text=q.title, font=("Arial", 16, "bold"),
-                        text_color=COLORS["text"]).grid(row=0, column=0, padx=20, pady=(15, 5), sticky="w")
-        self._render_rich_text(card, q.text, font=("Segoe UI", 13), text_color=COLORS["text"],
-                              wraplength=700, row=1, column=0, padx=20, pady=(5, 15), sticky="w")
+            ctk.CTkLabel(card, text=q.title, font=("Segoe UI", 17, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, padx=22, pady=(18, 5), sticky="w")
+        self._render_rich_text(card, q.text, font=("Segoe UI", 14), text_color=COLORS["text"],
+                              wraplength=700, row=1, column=0, padx=22, pady=(5, 18), sticky="w")
 
         # Question image (with zoom button)
         if q.image_path and os.path.exists(q.image_path):
@@ -4752,7 +4761,8 @@ class App(ctk.CTk):
                              ).grid(row=0, column=0, sticky="ne", padx=8, pady=8)
 
         # Answer area
-        answer_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+        answer_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                                    border_width=1, border_color=COLORS["border"])
         answer_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
         answer_frame.grid_columnconfigure(0, weight=1)
 
@@ -4762,17 +4772,62 @@ class App(ctk.CTk):
 
         if q.question_type == QuestionType.SINGLE_CHOICE:
             answer_var = IntVar(value=-1)
-            for i, opt in enumerate(q.options):
-                rb = ctk.CTkRadioButton(answer_frame, text=opt.text, variable=answer_var,
-                                        value=i, font=("Arial", 13))
-                rb.grid(row=i, column=0, padx=20, pady=6, sticky="w")
-                answer_widgets.append(rb)
+            answer_frame.grid_columnconfigure(0, weight=1)
+
+            def _make_sc_row(idx, option):
+                row_card = ctk.CTkFrame(answer_frame, fg_color=COLORS["input_bg"],
+                                        corner_radius=RADIUS_MD, border_width=2,
+                                        border_color=COLORS["input_bg"], cursor="hand2")
+                row_card.grid(row=idx, column=0, padx=16, pady=5, sticky="ew")
+                row_card.grid_columnconfigure(1, weight=1)
+                rb = ctk.CTkRadioButton(row_card, text="", variable=answer_var, value=idx,
+                                        width=24)
+                rb.grid(row=0, column=0, padx=(14, 8), pady=12)
+                lbl = ctk.CTkLabel(row_card, text=option.text, font=("Segoe UI", 14),
+                                   text_color=COLORS["text"], wraplength=560, justify="left")
+                lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
+
+                def _select(_e=None):
+                    answer_var.set(idx)
+                row_card.bind("<Button-1>", _select)
+                lbl.bind("<Button-1>", _select)
+                return row_card
+
+            sc_rows = [_make_sc_row(i, opt) for i, opt in enumerate(q.options)]
+
+            def _refresh_sc(*_):
+                sel = answer_var.get()
+                for i, rc in enumerate(sc_rows):
+                    rc.configure(border_color=COLORS["primary"] if i == sel else COLORS["input_bg"])
+            answer_var.trace_add("write", _refresh_sc)
+            answer_widgets.append(answer_var)
 
         elif q.question_type == QuestionType.MULTIPLE_CHOICE:
+            answer_frame.grid_columnconfigure(0, weight=1)
             for i, opt in enumerate(q.options):
                 var = BooleanVar(value=False)
-                cb = ctk.CTkCheckBox(answer_frame, text=opt.text, variable=var, font=("Arial", 13))
-                cb.grid(row=i, column=0, padx=20, pady=6, sticky="w")
+                row_card = ctk.CTkFrame(answer_frame, fg_color=COLORS["input_bg"],
+                                        corner_radius=RADIUS_MD, border_width=2,
+                                        border_color=COLORS["input_bg"], cursor="hand2")
+                row_card.grid(row=i, column=0, padx=16, pady=5, sticky="ew")
+                row_card.grid_columnconfigure(1, weight=1)
+
+                def _mk_refresh(rc, v):
+                    def _r(*_):
+                        rc.configure(border_color=COLORS["primary"] if v.get() else COLORS["input_bg"])
+                    return _r
+                refresh = _mk_refresh(row_card, var)
+                cb = ctk.CTkCheckBox(row_card, text="", variable=var, width=24, command=refresh)
+                cb.grid(row=0, column=0, padx=(14, 8), pady=12)
+                lbl = ctk.CTkLabel(row_card, text=opt.text, font=("Segoe UI", 14),
+                                   text_color=COLORS["text"], wraplength=560, justify="left")
+                lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
+
+                def _toggle(v=var, r=refresh):
+                    v.set(not v.get())
+                    r()
+                row_card.bind("<Button-1>", lambda e, fn=_toggle: fn())
+                lbl.bind("<Button-1>", lambda e, fn=_toggle: fn())
                 answer_widgets.append((cb, var, i))
 
         elif q.question_type == QuestionType.FREE_TEXT:
@@ -5517,7 +5572,8 @@ class App(ctk.CTk):
         # Confidence selector (FSRS)
         confidence_var = IntVar(value=3)
         if use_fsrs:
-            conf_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+            conf_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                      border_width=1, border_color=COLORS["border"])
             conf_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
             ctk.CTkLabel(conf_frame, text=t("confidence.title"), font=("Arial", 12, "bold"),
                         text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(8, 3), sticky="w")
@@ -5530,7 +5586,8 @@ class App(ctk.CTk):
         use_detailed = self.store.load_settings().get("detailed_answer", False)
         detailed_entry = None
         if use_detailed:
-            det_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
+            det_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                     border_width=1, border_color=COLORS["border"])
             det_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
             det_frame.grid_columnconfigure(0, weight=1)
             ctk.CTkLabel(det_frame, text=t("detailed.label"), font=("Segoe UI", 12, "bold"),
@@ -5620,19 +5677,20 @@ class App(ctk.CTk):
                 for w in feedback_frame.winfo_children():
                     w.destroy()
                 color = COLORS["success"] if result.is_correct else COLORS["danger"]
-                fb = ctk.CTkFrame(feedback_frame, fg_color=color, corner_radius=8)
+                fb = ctk.CTkFrame(feedback_frame, fg_color=color, corner_radius=RADIUS_LG)
                 fb.grid(row=0, column=0, sticky="ew", pady=10)
                 fb.grid_columnconfigure(0, weight=1)
-                text = "Richtig!" if result.is_correct else "Falsch!"
-                ctk.CTkLabel(fb, text=text, font=("Arial", 16, "bold"),
-                            text_color="white").grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
-                ctk.CTkLabel(fb, text=f"Punkte: {result.score}/{result.max_score}",
-                            font=("Arial", 12), text_color="white"
-                            ).grid(row=1, column=0, padx=20, pady=(0, 5), sticky="w")
+                icon = "✓" if result.is_correct else "✗"
+                text = t("quiz.correct") if result.is_correct else t("quiz.wrong")
+                ctk.CTkLabel(fb, text=f"{icon}  {text}", font=("Segoe UI", 17, "bold"),
+                            text_color="white").grid(row=0, column=0, padx=22, pady=(12, 5), sticky="w")
+                ctk.CTkLabel(fb, text=t("quiz.points", score=result.score, max=result.max_score),
+                            font=("Segoe UI", 12), text_color="white"
+                            ).grid(row=1, column=0, padx=22, pady=(0, 5), sticky="w")
                 if not result.is_correct:
-                    ctk.CTkLabel(fb, text=f"Richtige Antwort: {result.correct_answer}",
-                                font=("Arial", 12), text_color="white", wraplength=600
-                                ).grid(row=2, column=0, padx=20, pady=(0, 5), sticky="w")
+                    ctk.CTkLabel(fb, text=f"✓ {result.correct_answer}",
+                                font=("Segoe UI", 13, "bold"), text_color="white", wraplength=600
+                                ).grid(row=2, column=0, padx=22, pady=(0, 12), sticky="w")
 
                 # KI validation for free text: check if semantically correct
                 if (not result.is_correct and q.question_type == QuestionType.FREE_TEXT
@@ -5848,20 +5906,30 @@ class App(ctk.CTk):
         nav.grid(row=6, column=0, sticky="ew", pady=15)
 
         if self.session.current_index > 0:
-            ctk.CTkButton(nav, text="< Zurück", fg_color=COLORS["text_light"], width=100,
+            ctk.CTkButton(nav, text=t("quiz.back"), fg_color=COLORS["text_light"],
+                         width=100, height=40, corner_radius=RADIUS_MD,
+                         font=("Segoe UI", 13),
                          command=lambda: (self.session.prev_question(), self._show_question())
                          ).grid(row=0, column=0, padx=(0, 10))
 
-        submit_btn = ctk.CTkButton(nav, text="Antwort prüfen" if self.session.mode in ("single", "weak") else "Weiter",
-                                   fg_color=COLORS["primary"], width=150, command=submit)
+        submit_btn = ctk.CTkButton(
+            nav, text=t("quiz.check") if self.session.mode in ("single", "weak") else t("quiz.continue"),
+            fg_color=COLORS["primary"], hover_color=COLORS["primary_dark"],
+            width=160, height=40, corner_radius=RADIUS_MD,
+            font=("Segoe UI", 14, "bold"), command=submit)
         submit_btn.grid(row=0, column=1, padx=(0, 10))
 
         if self.session.mode in ("single", "weak"):
-            ctk.CTkButton(nav, text="Nächste Frage >", fg_color=COLORS["success"], width=130,
+            ctk.CTkButton(nav, text=t("quiz.next"), fg_color=COLORS["success"],
+                         width=140, height=40, corner_radius=RADIUS_MD,
+                         font=("Segoe UI", 13, "bold"),
                          command=lambda: (self.session.next_question(), self._show_question())
                          ).grid(row=0, column=2, padx=(0, 10))
 
-        ctk.CTkButton(nav, text="Auswertung", fg_color=COLORS["danger"], width=120,
+        ctk.CTkButton(nav, text=t("quiz.results"), fg_color="transparent",
+                     border_width=1, border_color=COLORS["border"],
+                     text_color=COLORS["text_light"], hover_color=COLORS["card_hover"],
+                     width=120, height=40, corner_radius=RADIUS_MD, font=("Segoe UI", 13),
                      command=self._show_results).grid(row=0, column=3)
 
         # Mark button
@@ -5888,7 +5956,8 @@ class App(ctk.CTk):
         ai_help_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         ai_help_frame.grid(row=7, column=0, sticky="ew")
         ai_help_visible = {"shown": False}
-        ai_help_inner = ctk.CTkFrame(ai_help_frame, fg_color=COLORS["card"], corner_radius=8)
+        ai_help_inner = ctk.CTkFrame(ai_help_frame, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                     border_width=1, border_color=COLORS["border"])
 
         def toggle_ai_help():
             if ai_help_visible["shown"]:
@@ -6260,69 +6329,70 @@ class App(ctk.CTk):
         maximum = self.session.max_possible_score
         pct = (total / maximum * 100) if maximum > 0 else 0
 
-        # Score card
-        score_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
-        score_card.grid(row=0, column=0, sticky="ew", pady=(0, 15))
+        # Score card – celebratory hero
+        color = COLORS["success"] if pct >= 60 else COLORS["warning"] if pct >= 40 else COLORS["danger"]
+        emoji = "🎉" if pct >= 80 else "👍" if pct >= 60 else "💪" if pct >= 40 else "📚"
+        score_card = ctk.CTkFrame(scroll, fg_color=color, corner_radius=RADIUS_XL)
+        score_card.grid(row=0, column=0, sticky="ew", pady=(0, 18))
         score_card.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(score_card, text=t("results.title"), font=("Arial", 20, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, padx=20, pady=(15, 5))
-
-        color = COLORS["success"] if pct >= 60 else COLORS["warning"] if pct >= 40 else COLORS["danger"]
-        ctk.CTkLabel(score_card, text=f"{pct:.0f}%", font=("Arial", 48, "bold"),
-                    text_color=color).grid(row=1, column=0, pady=5)
+        ctk.CTkLabel(score_card, text=f"{emoji}  {t('results.title')}",
+                    font=("Segoe UI", 18, "bold"), text_color="white"
+                    ).grid(row=0, column=0, padx=20, pady=(18, 2))
+        ctk.CTkLabel(score_card, text=f"{pct:.0f}%", font=("Segoe UI", 52, "bold"),
+                    text_color="white").grid(row=1, column=0, pady=2)
         ctk.CTkLabel(score_card, text=f"{total:.1f} / {maximum:.1f} Punkte",
-                    font=("Arial", 14), text_color=COLORS["text_light"]
-                    ).grid(row=2, column=0, pady=(0, 5))
+                    font=("Segoe UI", 14), text_color="white"
+                    ).grid(row=2, column=0, pady=(0, 4))
 
         answered = len(self.session.answers)
         correct = sum(1 for a in self.session.answers.values() if a.is_correct)
         ctk.CTkLabel(score_card, text=f"{correct}/{answered} Fragen richtig",
-                    font=("Arial", 13), text_color=COLORS["text"]
-                    ).grid(row=3, column=0, pady=(0, 15))
+                    font=("Segoe UI", 13, "bold"), text_color="white"
+                    ).grid(row=3, column=0, pady=(0, 18))
 
         if self.session.mode == "exam" and hasattr(self, '_last_exam_grade') and self._last_exam_grade:
             ctk.CTkLabel(score_card, text=t("exam.grade_result", grade=self._last_exam_grade),
-                        font=("Arial", 18, "bold"), text_color=color
-                        ).grid(row=4, column=0, pady=(0, 15))
+                        font=("Segoe UI", 20, "bold"), text_color="white"
+                        ).grid(row=4, column=0, pady=(0, 18))
 
         # Auto-memory: record weak topics
         if self.store.load_settings().get("use_memory", False):
             self._auto_record_memory(self.session)
 
         # Details — clickable rows
-        ctk.CTkLabel(scroll, text=t("results.details"), font=("Arial", 16, "bold"),
+        ctk.CTkLabel(scroll, text=t("results.details"), font=("Segoe UI", 16, "bold"),
                     text_color=COLORS["text"]).grid(row=1, column=0, sticky="w", pady=(10, 10))
 
         for i, q in enumerate(self.session.questions):
             result = self.session.answers.get(q.id)
             is_ok = result and result.is_correct
             row_color = COLORS["row_ok"] if is_ok else COLORS["row_bad"] if result else COLORS["row_neutral"]
-            rf = ctk.CTkFrame(scroll, fg_color=row_color, corner_radius=6, cursor="hand2")
-            rf.grid(row=2 + i, column=0, sticky="ew", pady=2)
+            rf = ctk.CTkFrame(scroll, fg_color=row_color, corner_radius=RADIUS_MD, cursor="hand2")
+            rf.grid(row=2 + i, column=0, sticky="ew", pady=3)
             rf.grid_columnconfigure(1, weight=1)
 
             icon = "✓" if is_ok else "✗" if result else "–"
             icon_color = COLORS["success"] if is_ok else COLORS["danger"]
-            ctk.CTkLabel(rf, text=icon, font=("Arial", 16, "bold"),
-                        text_color=icon_color, width=30).grid(row=0, column=0, padx=10, pady=8)
-            title_lbl = ctk.CTkLabel(rf, text=f"{q.title or q.text[:60]}", font=("Arial", 12),
+            ctk.CTkLabel(rf, text=icon, font=("Segoe UI", 16, "bold"),
+                        text_color=icon_color, width=30).grid(row=0, column=0, padx=10, pady=9)
+            title_lbl = ctk.CTkLabel(rf, text=f"{q.title or q.text[:60]}", font=("Segoe UI", 13),
                         text_color=COLORS["text"])
-            title_lbl.grid(row=0, column=1, sticky="w", padx=5, pady=8)
+            title_lbl.grid(row=0, column=1, sticky="w", padx=5, pady=9)
             if result:
                 ctk.CTkLabel(rf, text=f"{result.score}/{result.max_score}",
-                            font=("Arial", 12, "bold"), text_color=icon_color
-                            ).grid(row=0, column=2, padx=(5, 5), pady=8)
+                            font=("Segoe UI", 12, "bold"), text_color=icon_color
+                            ).grid(row=0, column=2, padx=(5, 5), pady=9)
             # Mark button
             marked_ids = self.store.load_marked()
             is_marked = q.id in marked_ids
             mark_btn = ctk.CTkButton(rf, text="★" if is_marked else "☆", width=30, height=28,
-                                    corner_radius=6, fg_color=COLORS["warning"] if is_marked else COLORS["text_light"],
+                                    corner_radius=RADIUS_SM, fg_color=COLORS["warning"] if is_marked else COLORS["text_light"],
                                     command=lambda qid=q.id: self._toggle_mark_from_results(qid))
             mark_btn.grid(row=0, column=3, padx=(0, 5), pady=5)
             # Arrow indicating clickable
-            ctk.CTkLabel(rf, text="›", font=("Arial", 16), text_color=COLORS["text_light"],
-                        width=20).grid(row=0, column=4, padx=(0, 10), pady=8)
+            ctk.CTkLabel(rf, text="›", font=("Segoe UI", 16), text_color=COLORS["text_light"],
+                        width=20).grid(row=0, column=4, padx=(0, 10), pady=9)
 
             # Make entire row clickable
             def _bind_click(widget, question=q, res=result):
@@ -6337,11 +6407,14 @@ class App(ctk.CTk):
         btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_f.grid(row=base_row, column=0, sticky="w", pady=20)
         ctk.CTkButton(btn_f, text=t("results.retry"), fg_color=COLORS["warning"],
+                     height=42, corner_radius=RADIUS_MD, font=("Segoe UI", 13, "bold"),
                      command=lambda: self._start_quiz(self.current_quiz, self.session.mode,
                                                       self.session.time_limit)
                      ).grid(row=0, column=0, padx=(0, 10))
         back_cmd = self.show_daily if was_daily else self.show_home
         ctk.CTkButton(btn_f, text=t("nav.back_menu"), fg_color=COLORS["primary"],
+                     hover_color=COLORS["primary_dark"], height=42, corner_radius=RADIUS_MD,
+                     font=("Segoe UI", 13, "bold"),
                      command=back_cmd).grid(row=0, column=1)
 
         # AI Summary area
