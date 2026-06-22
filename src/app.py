@@ -3673,7 +3673,7 @@ class App(ctk.CTk):
 
         cards = [
             (t("modes.exam"), t("modes.exam_sub"), COLORS["danger"],
-             lambda: self._start_quiz(quiz, "exam", time_limit=3600, topic=selected_topic())),
+             lambda: self._show_exam_config(quiz, selected_topic())),
             (t("modes.single"), t("modes.single_sub"), COLORS["success"],
              lambda: self._start_quiz(quiz, "single", topic=selected_topic())),
             (t("modes.weak"), t("modes.weak_sub"), COLORS["warning"],
@@ -3769,6 +3769,185 @@ class App(ctk.CTk):
         if pct >= 56: return "3,7"
         if pct >= 50: return "4,0"
         return "5,0"
+
+    # ── EXAM SIMULATION v2 ──
+
+    def _show_exam_config(self, quiz: Quiz, topic: str | None = None):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=t("exam.config_title"),
+                    font=("Arial", 18, "bold"), text_color=COLORS["text"]
+                    ).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(scroll, text=f"Quiz: {quiz.name}",
+                    font=("Arial", 13), text_color=COLORS["text_light"]
+                    ).grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        questions = [q for q in quiz.questions if (not topic or q.topic.strip() == topic)]
+
+        # Time limit
+        ctk.CTkLabel(scroll, text=t("exam.time_limit"), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=2, column=0, sticky="w")
+        time_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        time_frame.grid(row=3, column=0, sticky="w", pady=(3, 10))
+        time_var = IntVar(value=60)
+        time_label = ctk.CTkLabel(time_frame, text="60 min", font=("Segoe UI", 13, "bold"),
+                                   text_color=COLORS["primary"])
+        time_label.grid(row=0, column=1, padx=10)
+        time_slider = ctk.CTkSlider(time_frame, from_=10, to=180, number_of_steps=34, width=300,
+                                     command=lambda v: (time_var.set(int(v)),
+                                                        time_label.configure(text=f"{int(v)} min")))
+        time_slider.set(60)
+        time_slider.grid(row=0, column=0)
+        no_time = BooleanVar(value=False)
+        ctk.CTkCheckBox(time_frame, text=t("exam.no_time_limit"), variable=no_time,
+                        font=("Segoe UI", 11)).grid(row=1, column=0, columnspan=2, pady=(5, 0))
+
+        # Question count
+        max_q = len(questions)
+        ctk.CTkLabel(scroll, text=t("exam.question_count", n=max_q), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=4, column=0, sticky="w")
+        count_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        count_frame.grid(row=5, column=0, sticky="w", pady=(3, 10))
+        count_var = IntVar(value=min(max_q, 30))
+        count_label = ctk.CTkLabel(count_frame, text=str(min(max_q, 30)),
+                                    font=("Segoe UI", 13, "bold"), text_color=COLORS["primary"])
+        count_label.grid(row=0, column=1, padx=10)
+        count_slider = ctk.CTkSlider(count_frame, from_=5, to=max(5, max_q),
+                                      number_of_steps=max(1, max_q - 5), width=300,
+                                      command=lambda v: (count_var.set(int(v)),
+                                                         count_label.configure(text=str(int(v)))))
+        count_slider.set(min(max_q, 30))
+        count_slider.grid(row=0, column=0)
+        all_q_var = BooleanVar(value=False)
+        ctk.CTkCheckBox(count_frame, text=t("exam.all_questions"), variable=all_q_var,
+                        font=("Segoe UI", 11)).grid(row=1, column=0, columnspan=2, pady=(5, 0))
+
+        # Difficulty weighting
+        ctk.CTkLabel(scroll, text=t("exam.difficulty"), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=6, column=0, sticky="w")
+        diff_var = StringVar(value="balanced")
+        diff_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        diff_frame.grid(row=7, column=0, sticky="w", pady=(3, 10))
+        for i, (lbl, val) in enumerate([
+            (t("exam.diff_balanced"), "balanced"),
+            (t("exam.diff_hard"), "hard"),
+            (t("exam.diff_weak"), "weak"),
+        ]):
+            ctk.CTkRadioButton(diff_frame, text=lbl, variable=diff_var, value=val,
+                               font=("Segoe UI", 12)).grid(row=0, column=i, padx=(0, 15))
+
+        # Grading scheme
+        ctk.CTkLabel(scroll, text=t("exam.grading"), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=8, column=0, sticky="w")
+        grade_var = StringVar(value="uni")
+        grade_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        grade_frame.grid(row=9, column=0, sticky="w", pady=(3, 10))
+        for i, (lbl, val) in enumerate([
+            (t("exam.grade_uni"), "uni"),
+            (t("exam.grade_school"), "school"),
+            (t("exam.grade_percent"), "percent"),
+        ]):
+            ctk.CTkRadioButton(grade_frame, text=lbl, variable=grade_var, value=val,
+                               font=("Segoe UI", 12)).grid(row=0, column=i, padx=(0, 15))
+
+        # No AI help during exam
+        no_ai = BooleanVar(value=True)
+        ctk.CTkCheckBox(scroll, text=t("exam.no_ai"), variable=no_ai,
+                        font=("Segoe UI", 12)).grid(row=10, column=0, sticky="w", pady=(0, 10))
+
+        # Previous attempts
+        archive = self.store.load_exam_archive()
+        quiz_attempts = [a for a in archive if a.get("quiz_id") == quiz.id]
+        if quiz_attempts:
+            ctk.CTkLabel(scroll, text=t("exam.history"), font=("Segoe UI", 13, "bold"),
+                        text_color=COLORS["text"]).grid(row=11, column=0, sticky="w", pady=(5, 5))
+            hist_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+            hist_frame.grid(row=12, column=0, sticky="ew")
+            for i, att in enumerate(reversed(quiz_attempts[-5:])):
+                af = ctk.CTkFrame(hist_frame, fg_color=COLORS["card"], corner_radius=6)
+                af.grid(row=i, column=0, sticky="ew", pady=2)
+                af.grid_columnconfigure(0, weight=1)
+                pct = att.get("pct", 0)
+                grade = att.get("grade", "?")
+                color = COLORS["success"] if pct >= 60 else COLORS["warning"] if pct >= 40 else COLORS["danger"]
+                ctk.CTkLabel(af, text=f"{att.get('date', '?')}  ·  {pct:.0f}%  ·  {grade}  ·  "
+                            f"{att.get('correct', 0)}/{att.get('total', 0)} richtig  ·  "
+                            f"{att.get('time_used', '?')} min",
+                            font=("Segoe UI", 11), text_color=color
+                            ).grid(row=0, column=0, padx=10, pady=6, sticky="w")
+
+        def _start_exam():
+            sel_questions = list(questions)
+            diff = diff_var.get()
+            if diff == "hard":
+                sel_questions.sort(key=lambda q: q.weight, reverse=True)
+            elif diff == "weak":
+                sel_questions = self.sr.select_weak_questions(sel_questions, quiz_weight=quiz.weight)
+            else:
+                random.shuffle(sel_questions)
+
+            n = len(sel_questions) if all_q_var.get() else count_var.get()
+            sel_questions = sel_questions[:n]
+            tl = 0 if no_time.get() else time_var.get() * 60
+
+            self.session = QuizSession(sel_questions, mode="exam", time_limit=tl)
+            self._exam_config = {
+                "quiz_id": quiz.id, "quiz_name": quiz.name,
+                "grade_scheme": grade_var.get(), "no_ai": no_ai.get(),
+                "num_questions": len(sel_questions), "time_limit": tl,
+            }
+            self._show_question()
+
+        ctk.CTkButton(scroll, text=t("exam.start"), fg_color=COLORS["danger"],
+                     font=("Segoe UI", 14, "bold"), height=42, corner_radius=10,
+                     command=_start_exam).grid(row=13, column=0, pady=15)
+        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=lambda: self.show_quiz_modes(quiz)
+                     ).grid(row=14, column=0, sticky="w")
+
+    def _save_exam_result(self):
+        if not hasattr(self, '_exam_config') or not self._exam_config:
+            return
+        cfg = self._exam_config
+        s = self.session
+        total = s.total_score
+        maximum = s.max_possible_score
+        pct = (total / maximum * 100) if maximum > 0 else 0
+        correct = sum(1 for a in s.answers.values() if a.is_correct)
+        elapsed = int(time.time() - s.start_time) // 60
+        grade = self._score_to_grade(pct, cfg.get("grade_scheme", "uni"))
+        self._last_exam_grade = grade
+        self.store.save_exam_attempt({
+            "quiz_id": cfg["quiz_id"], "quiz_name": cfg["quiz_name"],
+            "date": date.today().isoformat(), "pct": round(pct, 1),
+            "grade": grade, "correct": correct, "total": len(s.questions),
+            "time_used": elapsed, "time_limit": cfg.get("time_limit", 0) // 60,
+            "scheme": cfg.get("grade_scheme", "uni"),
+        })
+        self._exam_config = None
+
+    def _score_to_grade(self, pct: float, scheme: str) -> str:
+        if scheme == "uni":
+            if pct >= 95: return "1.0"
+            if pct >= 90: return "1.3"
+            if pct >= 85: return "1.7"
+            if pct >= 80: return "2.0"
+            if pct >= 75: return "2.3"
+            if pct >= 70: return "2.7"
+            if pct >= 65: return "3.0"
+            if pct >= 60: return "3.3"
+            if pct >= 55: return "3.7"
+            if pct >= 50: return "4.0"
+            return "5.0"
+        elif scheme == "school":
+            if pct >= 92: return "1"
+            if pct >= 81: return "2"
+            if pct >= 67: return "3"
+            if pct >= 50: return "4"
+            if pct >= 30: return "5"
+            return "6"
+        return f"{pct:.0f}%"
 
     def _start_quiz(self, quiz: Quiz, mode: str, time_limit: int = 0, count: int = 0,
                     topic: str | None = None):
@@ -5020,6 +5199,8 @@ class App(ctk.CTk):
 
         self._results_session = self.session
         self._results_was_daily = was_daily
+        if self.session.mode == "exam":
+            self._save_exam_result()
         scroll = self._make_screen()
 
         total = self.session.total_score
@@ -5046,6 +5227,11 @@ class App(ctk.CTk):
         ctk.CTkLabel(score_card, text=f"{correct}/{answered} Fragen richtig",
                     font=("Arial", 13), text_color=COLORS["text"]
                     ).grid(row=3, column=0, pady=(0, 15))
+
+        if self.session.mode == "exam" and hasattr(self, '_last_exam_grade') and self._last_exam_grade:
+            ctk.CTkLabel(score_card, text=t("exam.grade_result", grade=self._last_exam_grade),
+                        font=("Arial", 18, "bold"), text_color=color
+                        ).grid(row=4, column=0, pady=(0, 15))
 
         # Auto-memory: record weak topics
         if self.store.load_settings().get("use_memory", False):

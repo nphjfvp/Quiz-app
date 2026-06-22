@@ -563,3 +563,24 @@ class DataStore:
                 s = 1
         max_streak = max(max_streak, s)
         return current_streak, max_streak
+
+    # ── Exam Archive ──
+
+    def load_exam_archive(self) -> list[dict]:
+        path = self.data_dir / "exam_archive.json"
+        if not path.exists():
+            return []
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
+
+    def save_exam_attempt(self, attempt: dict):
+        archive = self.load_exam_archive()
+        archive.append(attempt)
+        if len(archive) > 100:
+            archive = archive[-100:]
+        path = self.data_dir / "exam_archive.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(archive, f, ensure_ascii=False, indent=2)
