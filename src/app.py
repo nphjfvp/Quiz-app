@@ -4922,7 +4922,7 @@ class App(ctk.CTk):
                         ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
 
             # State for zoom levels
-            zoom_sizes = [(700, 450), (900, 580), (1100, 710)]
+            zoom_sizes = [(680, 420), (880, 560), (1080, 700)]
             zoom_state = {"level": 0}
 
             # Container frame for canvas + controls
@@ -4930,8 +4930,8 @@ class App(ctk.CTk):
             diagram_container.grid(row=1, column=0, padx=10, pady=(0, 12), sticky="ew")
             diagram_container.grid_columnconfigure(0, weight=1)
 
-            # Snap zone config: all zones same size, independent of label text length
-            SNAP_RADIUS = 22
+            # Snap zone config: all zones same size squares
+            SNAP_SIZE = 26  # half-width of the square
 
             # Data structures shared across rebuilds
             placed = {}  # label_name -> slot_index or None
@@ -4954,7 +4954,11 @@ class App(ctk.CTk):
 
                 max_w, max_h = zoom_sizes[zoom_state["level"]]
                 photo, cw, ch = self._load_diagram_image(q.diagram_image_path, max_w=max_w, max_h=max_h)
-                pool_h = 65
+                # Dynamic pool height based on number of labels
+                chip_w = 120
+                cols = max(1, cw // (chip_w + 12))
+                chip_rows = (len(shuffled) + cols - 1) // cols
+                pool_h = 30 + chip_rows * 38 + 15
                 canvas = tk.Canvas(diagram_container, width=cw, height=ch + pool_h, bg="white",
                                    highlightthickness=1, highlightbackground="#cccccc")
                 canvas.grid(row=0, column=0, sticky="ew")
@@ -4965,22 +4969,21 @@ class App(ctk.CTk):
                     canvas.create_image(0, 0, anchor="nw", image=photo)
                     canvas.image = photo
 
-                # Draw snap zones at label positions (all same size circles)
+                # Draw snap zones at label positions (all same size squares)
                 snap_zones = {}  # index -> zone info
                 for i, dl in enumerate(q.diagram_labels):
                     sx = int(dl.x * cw)
                     sy = int(dl.y * ch)
-                    r = SNAP_RADIUS
-                    oval = canvas.create_oval(
-                        sx - r, sy - r, sx + r, sy + r,
-                        outline="#aabbcc", width=2, dash=(3, 3),
+                    s = SNAP_SIZE
+                    rect = canvas.create_rectangle(
+                        sx - s, sy - s, sx + s, sy + s,
+                        outline="#99aabb", width=2, dash=(4, 3),
                         fill="" if slot_assignments.get(i) is None else COLORS.get("card_hover", "#e8edff"))
-                    # Subtle number in center for reference
                     num = canvas.create_text(sx, sy, text=str(i + 1),
-                                            font=("Segoe UI", 8), fill="#bbc8d8")
+                                            font=("Segoe UI", 9), fill="#aabbcc")
                     snap_zones[i] = {
-                        "x": sx, "y": sy, "r": r,
-                        "oval_id": oval, "num_id": num,
+                        "x": sx, "y": sy, "s": s,
+                        "rect_id": rect, "num_id": num,
                     }
 
                 # Divider
@@ -5018,7 +5021,7 @@ class App(ctk.CTk):
                         dx = zone["x"] - sx
                         dy = zone["y"] - sy
                         canvas.move(tag, dx, dy)
-                        canvas.itemconfig(zone["oval_id"], fill=COLORS.get("card_hover", "#e8edff"),
+                        canvas.itemconfig(zone["rect_id"], fill=COLORS.get("card_hover", "#e8edff"),
                                         outline=COLORS.get("primary", "#3366cc"), width=2)
                         canvas.itemconfig(zone["num_id"], state="hidden")
 
@@ -5039,11 +5042,11 @@ class App(ctk.CTk):
                             cx, cy = (box[0]+box[2])/2, (box[1]+box[3])/2
                             for si, zone in snap_zones.items():
                                 dist = ((cx - zone["x"])**2 + (cy - zone["y"])**2)**0.5
-                                if dist < zone["r"] + 30 and slot_assignments.get(si) is None:
-                                    canvas.itemconfig(zone["oval_id"],
+                                if dist < zone["s"] + 30 and slot_assignments.get(si) is None:
+                                    canvas.itemconfig(zone["rect_id"],
                                         outline=COLORS.get("primary", "#3366cc"), width=3)
                                 elif slot_assignments.get(si) is None:
-                                    canvas.itemconfig(zone["oval_id"],
+                                    canvas.itemconfig(zone["rect_id"],
                                         outline="#aabbcc", width=2)
 
                         def release(e):
@@ -5057,7 +5060,7 @@ class App(ctk.CTk):
                             if prev_slot is not None:
                                 slot_assignments[prev_slot] = None
                                 z = snap_zones[prev_slot]
-                                canvas.itemconfig(z["oval_id"], fill="",
+                                canvas.itemconfig(z["rect_id"], fill="",
                                     outline="#aabbcc", width=2)
                                 canvas.itemconfig(z["num_id"], state="normal")
 
@@ -5066,7 +5069,7 @@ class App(ctk.CTk):
                             best_slot = None
                             for si, zone in snap_zones.items():
                                 dist = ((cx - zone["x"])**2 + (cy - zone["y"])**2)**0.5
-                                if dist < zone["r"] + 35 and dist < best_dist:
+                                if dist < zone["s"] + 35 and dist < best_dist:
                                     best_dist = dist
                                     best_slot = si
 
@@ -5088,7 +5091,7 @@ class App(ctk.CTk):
                                 canvas.move(t_tag, zone["x"] - cx, zone["y"] - cy)
                                 placed[lbl] = best_slot
                                 slot_assignments[best_slot] = lbl
-                                canvas.itemconfig(zone["oval_id"],
+                                canvas.itemconfig(zone["rect_id"],
                                     fill=COLORS.get("card_hover", "#e8edff"),
                                     outline=COLORS.get("primary", "#3366cc"), width=2)
                                 canvas.itemconfig(zone["num_id"], state="hidden")
@@ -5101,7 +5104,7 @@ class App(ctk.CTk):
                             # Reset unhighlighted zones
                             for si, zone in snap_zones.items():
                                 if slot_assignments.get(si) is None:
-                                    canvas.itemconfig(zone["oval_id"],
+                                    canvas.itemconfig(zone["rect_id"],
                                         outline="#aabbcc", width=2, fill="")
 
                         return press, motion, release

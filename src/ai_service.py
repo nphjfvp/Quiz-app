@@ -1262,10 +1262,19 @@ Regeln:
 
         type_instructions = {
             "diagram_label": (
-                "Analysiere das Diagramm/Bild. Erstelle eine DIAGRAM-LABEL Frage: "
+                "Analysiere das Diagramm/Bild SEHR GENAU. Erstelle eine DIAGRAM-LABEL Frage: "
                 "Der Student soll Labels an die richtige Stelle im Diagramm ziehen.\n"
                 "Identifiziere 4-8 wichtige Elemente im Bild und gib ihre Position als "
                 "x/y Koordinaten (0.0 bis 1.0, relativ zur Bildgröße) an.\n\n"
+                "WICHTIG für die Koordinaten:\n"
+                "- x=0.0 ist der LINKE Rand, x=1.0 ist der RECHTE Rand\n"
+                "- y=0.0 ist der OBERE Rand, y=1.0 ist der UNTERE Rand\n"
+                "- Teile das Bild gedanklich in ein 10x10 Raster\n"
+                "- Positioniere die Labels EXAKT auf dem Element, nicht daneben\n"
+                "- Beispiel: Ein Element in der Mitte hat x=0.5, y=0.5\n"
+                "- Beispiel: Etwas oben links hat x=0.2, y=0.15\n"
+                "- Beispiel: Etwas unten rechts hat x=0.8, y=0.85\n"
+                "- Nutze ZWEI Dezimalstellen für Präzision (z.B. 0.35, nicht 0.3)\n\n"
                 "JSON-Format:\n"
                 "{\n"
                 '  "title": "Kurztitel",\n'
