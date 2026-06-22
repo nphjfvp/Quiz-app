@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v1";
+const CACHE = "lerntrainer-v2";
 const ASSETS = [
   "/Quiz-app/",
   "/Quiz-app/index.html",
@@ -16,6 +16,7 @@ const ASSETS = [
   "/Quiz-app/js/screens/quiz-modes.js",
   "/Quiz-app/js/screens/daily.js",
   "/Quiz-app/js/screens/stats.js",
+  "/Quiz-app/js/screens/editor.js",
   "/Quiz-app/manifest.json",
 ];
 

@@ -48,10 +48,10 @@ export async function render(root) {
       <div class="title">Meine Quizze</div>
       <div class="desc">${nq} Quizze</div>
     </div>
-    <div class="grid-card" data-nav="sync">
-      <div class="icon">☁️</div>
-      <div class="title">Sync / Import</div>
-      <div class="desc">Quizze laden</div>
+    <div class="grid-card" data-nav="editor">
+      <div class="icon">➕</div>
+      <div class="title">Quiz erstellen</div>
+      <div class="desc">Eigenes Quiz</div>
     </div>
     <div class="grid-card" data-nav="stats">
       <div class="icon">📊</div>

@@ -7,6 +7,7 @@ import { render as myQuizzesScreen } from "./screens/my-quizzes.js";
 import { render as quizModesScreen } from "./screens/quiz-modes.js";
 import { render as dailyScreen } from "./screens/daily.js";
 import { render as statsScreen } from "./screens/stats.js";
+import { render as editorScreen } from "./screens/editor.js";
 import { loadSettings } from "./store.js";
 import { setAccount, signIn } from "./firebase-sync.js";
 
@@ -20,6 +21,7 @@ route("quiz-modes", quizModesScreen);
 route("daily", dailyScreen);
 route("stats", statsScreen);
 route("sync", settingsScreen);
+route("editor", editorScreen);
 
 // Boot
 async function init() {
