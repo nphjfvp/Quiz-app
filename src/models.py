@@ -496,3 +496,70 @@ class DataStore:
         if correct:
             day["correct"] += 1
         self.save_stats(stats)
+
+    # ── Error Diary ──
+
+    def load_error_diary(self) -> list[dict]:
+        path = self.data_dir / "error_diary.json"
+        if not path.exists():
+            return []
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
+
+    def save_error_diary(self, diary: list[dict]):
+        path = self.data_dir / "error_diary.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(diary, f, ensure_ascii=False, indent=2)
+
+    def log_wrong_answer(self, question_text: str, topic: str, correct_answer: str,
+                          user_answer: str, quiz_name: str = ""):
+        diary = self.load_error_diary()
+        diary.append({
+            "date": date.today().isoformat(),
+            "time": __import__("datetime").datetime.now().strftime("%H:%M"),
+            "question": question_text[:200],
+            "topic": topic,
+            "correct": correct_answer[:200],
+            "user_answer": user_answer[:200],
+            "quiz": quiz_name,
+        })
+        if len(diary) > 500:
+            diary = diary[-500:]
+        self.save_error_diary(diary)
+
+    # ── Streak ──
+
+    def get_streak(self) -> tuple[int, int]:
+        stats = self.load_stats()
+        if not stats:
+            return 0, 0
+        today = date.today()
+        current_streak = 0
+        check = today
+        while check.isoformat() in stats:
+            current_streak += 1
+            check = check - __import__("datetime").timedelta(days=1)
+        if today.isoformat() not in stats:
+            yesterday = (today - __import__("datetime").timedelta(days=1))
+            if yesterday.isoformat() in stats:
+                check = yesterday
+                current_streak = 0
+                while check.isoformat() in stats:
+                    current_streak += 1
+                    check = check - __import__("datetime").timedelta(days=1)
+        max_streak = 0
+        sorted_days = sorted(stats.keys())
+        s = 1
+        for i in range(1, len(sorted_days)):
+            d1 = date.fromisoformat(sorted_days[i - 1])
+            d2 = date.fromisoformat(sorted_days[i])
+            if (d2 - d1).days == 1:
+                s += 1
+            else:
+                max_streak = max(max_streak, s)
+                s = 1
+        max_streak = max(max_streak, s)
+        return current_streak, max_streak

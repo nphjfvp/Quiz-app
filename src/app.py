@@ -260,9 +260,29 @@ class App(ctk.CTk):
                      font=("Segoe UI", 13), text_color="#d0deff"
                      ).grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
 
+        # Streak display
+        current_streak, max_streak = self.store.get_streak()
+        if current_streak > 0 or max_streak > 0:
+            streak_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
+                                         border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+            streak_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+            streak_frame.grid_columnconfigure(1, weight=1)
+            fire = "🔥" if current_streak >= 3 else "⚡"
+            ctk.CTkLabel(streak_frame, text=fire, font=("Segoe UI", 28)
+                        ).grid(row=0, column=0, rowspan=2, padx=(15, 8), pady=10)
+            ctk.CTkLabel(streak_frame, text=t("streak.current", n=current_streak),
+                        font=("Segoe UI", 15, "bold"), text_color=COLORS["warning"]
+                        ).grid(row=0, column=1, sticky="w", padx=5, pady=(10, 0))
+            ctk.CTkLabel(streak_frame, text=t("streak.best", n=max_streak),
+                        font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                        ).grid(row=1, column=1, sticky="w", padx=5, pady=(0, 10))
+            daily_row = 2
+        else:
+            daily_row = 1
+
         # Daily Learning Button - prominent at top
         daily_card = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=12)
-        daily_card.grid(row=1, column=0, sticky="ew", pady=(0, 15))
+        daily_card.grid(row=daily_row, column=0, sticky="ew", pady=(0, 15))
         daily_card.grid_columnconfigure(1, weight=1)
         daily_icon = ctk.CTkLabel(daily_card, text="📅", font=("Segoe UI", 28))
         daily_icon.grid(row=0, column=0, rowspan=2, padx=(20, 10), pady=15)
@@ -280,7 +300,7 @@ class App(ctk.CTk):
 
         # Actions (two rows of 4)
         actions = ctk.CTkFrame(scroll, fg_color="transparent")
-        actions.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+        actions.grid(row=daily_row + 1, column=0, sticky="ew", pady=(0, 15))
         for i in range(4):
             actions.grid_columnconfigure(i, weight=1)
 
@@ -295,17 +315,20 @@ class App(ctk.CTk):
             (t("cloze.title"), t("cloze.sub"), COLORS["success"], self.show_cloze_generator),
             (t("folder.title"), t("folder.sub"), COLORS["primary_dark"], self.show_folders),
             (t("fosa.title"), t("fosa.sub"), COLORS["primary"], self.show_formula_sheets),
+            (t("diary.card_title"), t("diary.card_sub"), COLORS["danger"], self.show_error_diary),
             (t("home.settings"), t("home.settings_sub"), COLORS["text_light"], self.show_settings),
         ]
         for idx, (title_, desc, color, command) in enumerate(cards):
             self._action_card(actions, idx % 4, idx // 4, title_, desc, color, command)
+
+        next_home_row = daily_row + 2
 
         # Marked questions card
         marked_ids = self.store.load_marked()
         if marked_ids:
             marked_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
                                        border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
-            marked_card.grid(row=3, column=0, sticky="ew", pady=(0, 15))
+            marked_card.grid(row=next_home_row, column=0, sticky="ew", pady=(0, 15))
             marked_card.grid_columnconfigure(1, weight=1)
             accent = ctk.CTkFrame(marked_card, fg_color=COLORS["warning"], width=5, corner_radius=3)
             accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
@@ -319,20 +342,40 @@ class App(ctk.CTk):
             ctk.CTkButton(marked_card, text=t("home.open"), width=75, height=30, corner_radius=8,
                          fg_color=COLORS["warning"], font=("Segoe UI", 12, "bold"),
                          command=self.show_marked).grid(row=0, column=2, padx=10, pady=10)
-            quiz_list_start_row = 4
-        else:
-            quiz_list_start_row = 3
+            next_home_row += 1
+
+        # Error diary quick link
+        error_diary = self.store.load_error_diary()
+        if error_diary:
+            recent_errors = [e for e in error_diary if e.get("date") == date.today().isoformat()]
+            if recent_errors:
+                err_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
+                                         border_width=1, border_color=COLORS["danger"])
+                err_card.grid(row=next_home_row, column=0, sticky="ew", pady=(0, 15))
+                err_card.grid_columnconfigure(1, weight=1)
+                ctk.CTkFrame(err_card, fg_color=COLORS["danger"], width=5, corner_radius=3
+                            ).grid(row=0, column=0, rowspan=2, sticky="ns", pady=8)
+                ctk.CTkLabel(err_card, text=t("diary.today_errors", n=len(recent_errors)),
+                            font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                            ).grid(row=0, column=1, padx=12, pady=(10, 2), sticky="w")
+                ctk.CTkLabel(err_card, text=t("diary.total", n=len(error_diary)),
+                            font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                            ).grid(row=1, column=1, padx=12, pady=(0, 10), sticky="w")
+                ctk.CTkButton(err_card, text=t("diary.open"), width=75, height=30,
+                             fg_color=COLORS["danger"], font=("Segoe UI", 12, "bold"),
+                             command=self.show_error_diary).grid(row=0, column=2, rowspan=2, padx=10, pady=10)
+                next_home_row += 1
 
         # Quiz list
         if self.quizzes:
             ctk.CTkLabel(scroll, text=t("home.your_quizzes"), font=("Arial", 16, "bold"),
-                        text_color=COLORS["text"]).grid(row=quiz_list_start_row, column=0, sticky="w", pady=(10, 10))
+                        text_color=COLORS["text"]).grid(row=next_home_row, column=0, sticky="w", pady=(10, 10))
             for i, quiz in enumerate(self.quizzes):
-                self._quiz_card(scroll, quiz, row=quiz_list_start_row + 1 + i)
+                self._quiz_card(scroll, quiz, row=next_home_row + 1 + i)
         else:
             ctk.CTkLabel(scroll, text=t("home.no_quizzes"),
                         font=("Arial", 13), text_color=COLORS["text_light"]
-                        ).grid(row=quiz_list_start_row, column=0, pady=30)
+                        ).grid(row=next_home_row, column=0, pady=30)
 
     def _action_card(self, parent, col, row, title, desc, color, command):
         card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
@@ -4354,6 +4397,15 @@ class App(ctk.CTk):
             self.sr.update(q.id, result.is_correct)
             self.store.log_answer(result.is_correct)
 
+            # Error diary
+            if not result.is_correct:
+                quiz_name = getattr(self, 'current_quiz', None)
+                qn = quiz_name.name if quiz_name else ""
+                self.store.log_wrong_answer(
+                    question_text=q.text, topic=q.topic or "",
+                    correct_answer=result.correct_answer or "",
+                    user_answer=str(answer), quiz_name=qn)
+
             # Daily mode tracking
             if getattr(self, '_daily_mode', False):
                 daily = self.store.load_daily_state()
@@ -5447,8 +5499,24 @@ class App(ctk.CTk):
                         ["1", "2", "3", "4", "5"], box_vals,
                         COLORS["warning"], colors=[COLORS[f"box{b}"] for b in range(1, 6)])
 
+        # Heatmap
+        self._draw_heatmap(scroll, 5)
+
+        # Streak info
+        current_streak, max_streak = self.store.get_streak()
+        streak_text = t("streak.current", n=current_streak) + "  ·  " + t("streak.best", n=max_streak)
+        ctk.CTkLabel(scroll, text=streak_text, font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["warning"]).grid(row=6, column=0, sticky="w", pady=(0, 10))
+
+        # Error diary link
+        diary = self.store.load_error_diary()
+        if diary:
+            ctk.CTkButton(scroll, text=t("diary.open_full", n=len(diary)),
+                         fg_color=COLORS["danger"], font=("Segoe UI", 12),
+                         command=self.show_error_diary).grid(row=7, column=0, sticky="w", pady=(0, 10))
+
         ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=5, column=0, sticky="w", pady=15)
+                     command=self.show_home).grid(row=8, column=0, sticky="w", pady=15)
 
     def _bar_chart(self, parent, row, title, labels, values, color,
                    max_value=None, suffix="", colors=None):
@@ -5483,6 +5551,139 @@ class App(ctk.CTk):
                                font=("Arial", 9, "bold"), fill=COLORS["text"])
             canvas.create_text(x0 + bar_w / 2, height - bottom_pad / 2, text=str(labels[i]),
                                font=("Arial", 8), fill=COLORS["text_light"])
+
+    # ── HEATMAP (GitHub-style) ──
+
+    def _draw_heatmap(self, parent, row_idx):
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=8)
+        card.grid(row=row_idx, column=0, sticky="ew", pady=(0, 12))
+        card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(card, text=t("stats.heatmap"), font=("Arial", 14, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
+
+        stats = self.store.load_stats()
+        today = date.today()
+        weeks = 13
+        cell = 14
+        gap = 2
+        cols = weeks
+        rows = 7
+        width = cols * (cell + gap) + 50
+        height = rows * (cell + gap) + 25
+        canvas = tk.Canvas(card, width=width, height=height, bg=COLORS["canvas_bg"],
+                           highlightthickness=0)
+        canvas.grid(row=1, column=0, padx=15, pady=(0, 12), sticky="w")
+
+        day_labels = ["Mo", "", "Mi", "", "Fr", "", "So"]
+        for i, lbl in enumerate(day_labels):
+            if lbl:
+                canvas.create_text(18, i * (cell + gap) + cell // 2,
+                                   text=lbl, font=("Arial", 8), fill=COLORS["text_light"])
+
+        start = today - __import__("datetime").timedelta(days=weeks * 7 - 1)
+        start = start - __import__("datetime").timedelta(days=start.weekday())
+
+        max_val = max((s.get("answered", 0) for s in stats.values()), default=1) or 1
+        greens = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"]
+        dark_greens = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"]
+        palette = dark_greens if COLORS.get("canvas_bg", "#fff") == "#1a1a2e" else greens
+
+        d = start
+        for week in range(weeks):
+            for dow in range(7):
+                if d > today:
+                    d += __import__("datetime").timedelta(days=1)
+                    continue
+                key = d.isoformat()
+                val = stats.get(key, {}).get("answered", 0)
+                if val == 0:
+                    ci = 0
+                else:
+                    ci = min(4, max(1, int(val / max_val * 4)))
+                x = 35 + week * (cell + gap)
+                y = dow * (cell + gap)
+                canvas.create_rectangle(x, y, x + cell, y + cell,
+                                        fill=palette[ci], outline="")
+                d += __import__("datetime").timedelta(days=1)
+
+    # ── ERROR DIARY ──
+
+    def show_error_diary(self):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=t("diary.title"), font=("Arial", 18, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+
+        diary = self.store.load_error_diary()
+        if not diary:
+            ctk.CTkLabel(scroll, text=t("diary.empty"), font=("Arial", 13),
+                        text_color=COLORS["text_light"]).grid(row=1, column=0, pady=30)
+            ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                         command=self.show_home).grid(row=2, column=0, sticky="w", pady=15)
+            return
+
+        # Filter
+        filter_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        filter_frame.grid(row=1, column=0, sticky="w", pady=(0, 10))
+        all_topics = sorted({e.get("topic", "") for e in diary if e.get("topic")})
+        filter_var = StringVar(value="all")
+        ctk.CTkLabel(filter_frame, text=t("diary.filter"), font=("Segoe UI", 12)
+                    ).grid(row=0, column=0, padx=(0, 8))
+        topic_options = [t("diary.all_topics")] + all_topics
+        filter_menu = ctk.CTkOptionMenu(filter_frame, values=topic_options, width=200,
+                                         command=lambda _: _refresh())
+        filter_menu.grid(row=0, column=1)
+
+        entries_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        entries_frame.grid(row=2, column=0, sticky="ew")
+        entries_frame.grid_columnconfigure(0, weight=1)
+
+        def _refresh():
+            for w in entries_frame.winfo_children():
+                w.destroy()
+            sel = filter_menu.get()
+            filtered = diary if sel == t("diary.all_topics") else [e for e in diary if e.get("topic") == sel]
+            by_date: dict[str, list] = {}
+            for e in reversed(filtered):
+                by_date.setdefault(e.get("date", "?"), []).append(e)
+
+            r = 0
+            for d, entries in list(by_date.items())[:30]:
+                ctk.CTkLabel(entries_frame, text=d, font=("Segoe UI", 12, "bold"),
+                            text_color=COLORS["primary"]).grid(row=r, column=0, sticky="w", pady=(10, 3))
+                r += 1
+                for e in entries:
+                    ef = ctk.CTkFrame(entries_frame, fg_color=COLORS["card"], corner_radius=6)
+                    ef.grid(row=r, column=0, sticky="ew", pady=2)
+                    ef.grid_columnconfigure(0, weight=1)
+                    q_text = e.get("question", "?")
+                    if len(q_text) > 80:
+                        q_text = q_text[:80] + "..."
+                    ctk.CTkLabel(ef, text=q_text, font=("Segoe UI", 11),
+                                text_color=COLORS["text"], wraplength=500
+                                ).grid(row=0, column=0, padx=10, pady=(6, 0), sticky="w")
+                    detail = ""
+                    if e.get("topic"):
+                        detail += f"[{e['topic']}] "
+                    detail += f"Deine Antwort: {e.get('user_answer', '?')} → Richtig: {e.get('correct', '?')}"
+                    ctk.CTkLabel(ef, text=detail, font=("Segoe UI", 10),
+                                text_color=COLORS["danger"], wraplength=500
+                                ).grid(row=1, column=0, padx=10, pady=(0, 6), sticky="w")
+                    r += 1
+
+        _refresh()
+
+        btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        btn_frame.grid(row=3, column=0, sticky="w", pady=15)
+        def _clear_diary():
+            if messagebox.askyesno(t("diary.title"), t("diary.clear_confirm")):
+                self.store.save_error_diary([])
+                self.show_error_diary()
+        ctk.CTkButton(btn_frame, text=t("diary.clear"), fg_color=COLORS["danger"],
+                     font=("Segoe UI", 12), command=_clear_diary).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(btn_frame, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=0, column=1)
 
     # ── POMODORO TIMER ──
 
