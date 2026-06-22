@@ -20,7 +20,7 @@ import json
 
 from .models import (
     Quiz, Question, QuestionType, Option, DragDropPair, DiagramLabel, DataStore,
-    FormulaSheet, Formula, Folder,
+    FormulaSheet, Formula, Folder, MemoryEntry,
 )
 from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
@@ -720,9 +720,9 @@ class App(ctk.CTk):
 
         settings = self.store.load_settings()
         if settings.get("use_memory"):
-            memory = self.store.load_memory()
-            if memory:
-                context = f"Lernprofil des Studenten:\n{memory}\n\n{context}"
+            mem_prompt = self.store.get_full_memory_prompt()
+            if mem_prompt:
+                context = f"{mem_prompt}\n\n{context}"
 
         msg_row = {"idx": 0}
 
@@ -1042,10 +1042,21 @@ class App(ctk.CTk):
                     ).grid(row=12, column=0, sticky="w", pady=(5, 5))
         memory_text = ctk.CTkTextbox(frame, height=120, width=500, font=("Segoe UI", 12),
                                      fg_color=COLORS["input_bg"])
-        memory_text.grid(row=13, column=0, sticky="w", pady=(0, 10))
+        memory_text.grid(row=13, column=0, sticky="w", pady=(0, 5))
         existing_memory = self.store.load_memory()
         if existing_memory:
             memory_text.insert("1.0", existing_memory)
+
+        mem_entries = self.store.load_memory_entries()
+        mem_btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        mem_btn_frame.grid(row=131, column=0, sticky="w", pady=(0, 10))
+        ctk.CTkButton(mem_btn_frame, text=t("memory.manage"),
+                     fg_color=COLORS["primary_light"], font=("Segoe UI", 12), width=200,
+                     command=self.show_memory_manager
+                     ).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkLabel(mem_btn_frame, text=t("memory.count", n=len(mem_entries)),
+                    font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                    ).grid(row=0, column=1)
 
         # Quick actions editor link
         ctk.CTkLabel(frame, text=t("qa.title"), font=("Arial", 13, "bold"),
@@ -1178,6 +1189,113 @@ class App(ctk.CTk):
                      command=save).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_frame, text=t("nav.back"), fg_color=COLORS["text_light"],
                      command=self.show_home).grid(row=0, column=1)
+
+    # ── MEMORY MANAGER ──
+
+    def show_memory_manager(self):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=t("memory.manage_title"),
+                    font=("Arial", 18, "bold"), text_color=COLORS["text"]
+                    ).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(scroll, text=t("memory.manage_sub"),
+                    font=("Arial", 12), text_color=COLORS["text_light"]
+                    ).grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        # Add new entry
+        add_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+        add_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+        add_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(add_frame, text=t("memory.add_entry"), font=("Arial", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 5))
+
+        cat_var = StringVar(value="custom")
+        cat_frame = ctk.CTkFrame(add_frame, fg_color="transparent")
+        cat_frame.grid(row=1, column=0, sticky="w", padx=12, pady=(0, 5))
+        categories = [
+            (t("memory.cat_weakness"), "weakness"), (t("memory.cat_strength"), "strength"),
+            (t("memory.cat_preference"), "preference"), (t("memory.cat_fact"), "fact"),
+            (t("memory.cat_note"), "custom"),
+        ]
+        for i, (label, val) in enumerate(categories):
+            ctk.CTkRadioButton(cat_frame, text=label, variable=cat_var, value=val,
+                               font=("Arial", 11)).grid(row=0, column=i, padx=5)
+
+        topic_entry = ctk.CTkEntry(add_frame, width=300, placeholder_text=t("memory.topic_ph"))
+        topic_entry.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 5))
+        text_entry = ctk.CTkEntry(add_frame, width=500, placeholder_text=t("memory.text_ph"))
+        text_entry.grid(row=3, column=0, sticky="w", padx=12, pady=(0, 5))
+
+        def _add_entry():
+            txt = text_entry.get().strip()
+            if not txt:
+                return
+            entry = MemoryEntry(
+                category=cat_var.get(), text=txt, source="manual",
+                created=datetime.now().isoformat(), topic=topic_entry.get().strip())
+            self.store.add_memory_entry(entry)
+            text_entry.delete(0, "end")
+            topic_entry.delete(0, "end")
+            _refresh_entries()
+
+        ctk.CTkButton(add_frame, text=t("memory.add_btn"), fg_color=COLORS["success"],
+                     font=("Arial", 12), command=_add_entry
+                     ).grid(row=4, column=0, sticky="w", padx=12, pady=(0, 10))
+
+        entries_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        entries_frame.grid(row=3, column=0, sticky="ew")
+        entries_frame.grid_columnconfigure(0, weight=1)
+
+        cat_colors = {
+            "weakness": COLORS["danger"], "strength": COLORS["success"],
+            "preference": COLORS["primary"], "fact": COLORS["warning"],
+            "custom": COLORS["text_light"],
+        }
+        cat_labels = {
+            "weakness": t("memory.cat_weakness"), "strength": t("memory.cat_strength"),
+            "preference": t("memory.cat_preference"), "fact": t("memory.cat_fact"),
+            "custom": t("memory.cat_note"),
+        }
+
+        def _refresh_entries():
+            for w in entries_frame.winfo_children():
+                w.destroy()
+            entries = self.store.load_memory_entries()
+            if not entries:
+                ctk.CTkLabel(entries_frame, text=t("memory.no_entries"),
+                            font=("Arial", 12), text_color=COLORS["text_light"]
+                            ).grid(row=0, column=0, pady=20)
+                return
+            for i, e in enumerate(reversed(entries)):
+                ef = ctk.CTkFrame(entries_frame, fg_color=COLORS["card"], corner_radius=8)
+                ef.grid(row=i, column=0, sticky="ew", pady=3)
+                ef.grid_columnconfigure(1, weight=1)
+                color = cat_colors.get(e.category, COLORS["text_light"])
+                ctk.CTkFrame(ef, fg_color=color, width=4, corner_radius=2
+                            ).grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=4)
+                header = cat_labels.get(e.category, e.category)
+                if e.topic:
+                    header += f" · {e.topic}"
+                if e.source == "auto":
+                    header += " (auto)"
+                ctk.CTkLabel(ef, text=header, font=("Arial", 10),
+                            text_color=color).grid(row=0, column=1, sticky="w", padx=8, pady=(6, 0))
+                ctk.CTkLabel(ef, text=e.text, font=("Arial", 12),
+                            text_color=COLORS["text"], wraplength=450
+                            ).grid(row=1, column=1, sticky="w", padx=8, pady=(0, 6))
+                ctk.CTkButton(ef, text="X", width=30, height=30, fg_color=COLORS["danger"],
+                            command=lambda eid=e.id: (_del_entry(eid))
+                            ).grid(row=0, column=2, rowspan=2, padx=8, pady=5)
+
+        def _del_entry(eid):
+            self.store.delete_memory_entry(eid)
+            _refresh_entries()
+
+        _refresh_entries()
+
+        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=self.show_settings).grid(row=4, column=0, sticky="w", pady=15)
 
     # ── CREATE QUIZ (manual) ──
 
@@ -4445,9 +4563,9 @@ class App(ctk.CTk):
         def _get_memory_prefix():
             settings = self.store.load_settings()
             if settings.get("use_memory"):
-                memory = self.store.load_memory()
-                if memory:
-                    return f"Lernprofil des Studenten:\n{memory}\n\n"
+                mem_prompt = self.store.get_full_memory_prompt()
+                if mem_prompt:
+                    return f"{mem_prompt}\n\n"
             return ""
 
         def ask_ai_hint():
@@ -4762,6 +4880,10 @@ class App(ctk.CTk):
                     font=("Arial", 13), text_color=COLORS["text"]
                     ).grid(row=3, column=0, pady=(0, 15))
 
+        # Auto-memory: record weak topics
+        if self.store.load_settings().get("use_memory", False):
+            self._auto_record_memory(self.session)
+
         # Details — clickable rows
         ctk.CTkLabel(scroll, text=t("results.details"), font=("Arial", 16, "bold"),
                     text_color=COLORS["text"]).grid(row=1, column=0, sticky="w", pady=(10, 10))
@@ -4877,6 +4999,39 @@ class App(ctk.CTk):
                      command=gen_summary).grid(row=0, column=0, padx=(0, 8))
         ctk.CTkButton(ai_btns, text=t("summary.prompt"), fg_color=COLORS["warning"],
                      command=gen_tutor_prompt).grid(row=0, column=1)
+
+    def _auto_record_memory(self, session):
+        wrong_by_topic: dict[str, int] = {}
+        total_by_topic: dict[str, int] = {}
+        for q in session.questions:
+            topic = q.topic or "Allgemein"
+            total_by_topic[topic] = total_by_topic.get(topic, 0) + 1
+            result = session.answers.get(q.id)
+            if result and not result.is_correct:
+                wrong_by_topic[topic] = wrong_by_topic.get(topic, 0) + 1
+
+        existing = self.store.load_memory_entries()
+        existing_texts = {e.text for e in existing}
+
+        for topic, wrong in wrong_by_topic.items():
+            total = total_by_topic[topic]
+            rate = wrong / total
+            if rate >= 0.5 and total >= 2:
+                text = f"Schwierigkeiten bei '{topic}' ({wrong}/{total} falsch, {rate:.0%} Fehlerrate)"
+                if text not in existing_texts:
+                    self.store.add_memory_entry(MemoryEntry(
+                        category="weakness", text=text, source="auto",
+                        created=datetime.now().isoformat(), topic=topic))
+
+        for topic, total in total_by_topic.items():
+            wrong = wrong_by_topic.get(topic, 0)
+            rate = (total - wrong) / total
+            if rate >= 0.9 and total >= 3:
+                text = f"Stark in '{topic}' ({total - wrong}/{total} richtig, {rate:.0%})"
+                if text not in existing_texts:
+                    self.store.add_memory_entry(MemoryEntry(
+                        category="strength", text=text, source="auto",
+                        created=datetime.now().isoformat(), topic=topic))
 
     def _toggle_mark_from_results(self, question_id: str):
         marked = self.store.load_marked()

@@ -144,6 +144,24 @@ class FormulaSheet:
 
 
 @dataclass
+class MemoryEntry:
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    category: str = ""  # "weakness", "strength", "preference", "fact", "custom"
+    text: str = ""
+    source: str = ""  # "auto" or "manual"
+    created: str = ""
+    topic: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "MemoryEntry":
+        valid = {f.name for f in cls.__dataclass_fields__.values()}
+        return cls(**{k: v for k, v in d.items() if k in valid})
+
+
+@dataclass
 class Folder:
     """A folder grouping multiple quizzes (e.g. all PDFs for one exam)."""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -387,14 +405,72 @@ class DataStore:
         with open(path, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
-                return data.get("text", "")
+                return data.get("text", data.get("profile_text", ""))
             except json.JSONDecodeError:
                 return ""
 
     def save_memory(self, text: str):
         path = self.data_dir / "memory.json"
+        existing = self._load_memory_data()
+        existing["profile_text"] = text
+        existing.setdefault("entries", [])
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"text": text}, f, ensure_ascii=False, indent=2)
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+
+    def _load_memory_data(self) -> dict:
+        path = self.data_dir / "memory.json"
+        if not path.exists():
+            return {"profile_text": "", "entries": []}
+        with open(path, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+                if "entries" not in data:
+                    return {"profile_text": data.get("text", ""), "entries": []}
+                return data
+            except json.JSONDecodeError:
+                return {"profile_text": "", "entries": []}
+
+    def load_memory_entries(self) -> list[MemoryEntry]:
+        data = self._load_memory_data()
+        return [MemoryEntry.from_dict(e) for e in data.get("entries", [])]
+
+    def save_memory_entries(self, entries: list[MemoryEntry]):
+        data = self._load_memory_data()
+        data["entries"] = [e.to_dict() for e in entries]
+        path = self.data_dir / "memory.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def add_memory_entry(self, entry: MemoryEntry):
+        entries = self.load_memory_entries()
+        entries.append(entry)
+        self.save_memory_entries(entries)
+
+    def delete_memory_entry(self, entry_id: str):
+        entries = self.load_memory_entries()
+        entries = [e for e in entries if e.id != entry_id]
+        self.save_memory_entries(entries)
+
+    def get_full_memory_prompt(self) -> str:
+        profile = self.load_memory()
+        entries = self.load_memory_entries()
+        parts = []
+        if profile:
+            parts.append(f"Lernprofil:\n{profile}")
+        if entries:
+            by_cat = {}
+            for e in entries:
+                by_cat.setdefault(e.category, []).append(e)
+            cat_labels = {
+                "weakness": "Schwächen", "strength": "Stärken",
+                "preference": "Lern-Präferenzen", "fact": "Fakten",
+                "custom": "Notizen"
+            }
+            for cat, items in by_cat.items():
+                label = cat_labels.get(cat, cat)
+                lines = [f"- {e.text}" + (f" (Thema: {e.topic})" if e.topic else "") for e in items]
+                parts.append(f"{label}:\n" + "\n".join(lines))
+        return "\n\n".join(parts)
 
     def load_daily_state(self) -> dict:
         """Load daily learning state. Returns {"date": "2024-01-01", "completed": [...question_ids], "wrong": [...question_ids], "extra_done": bool}"""
