@@ -249,10 +249,11 @@ class App(ctk.CTk):
         self.header_subtitle.configure(text=t("app.subtitle"))
 
         scroll = self._make_screen()
+        row = 0
 
-        # Welcome
+        # ── Tier 1: Welcome + Streak + Daily ──
         welcome = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=16)
-        welcome.grid(row=0, column=0, sticky="ew", pady=(0, 18))
+        welcome.grid(row=row, column=0, sticky="ew", pady=(0, 14))
         welcome.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(welcome, text=f"👋 {t('home.welcome')}",
                      font=("Segoe UI", 20, "bold"), text_color="white"
@@ -270,34 +271,31 @@ class App(ctk.CTk):
                      hover_color="#ecfdf5", font=("Segoe UI", 12, "bold"),
                      command=self.show_account
                      ).grid(row=0, column=1, rowspan=2, padx=25, pady=15, sticky="e")
+        row += 1
 
-        # Streak display
         current_streak, max_streak = self.store.get_streak()
         if current_streak > 0 or max_streak > 0:
             streak_color = COLORS.get("streak", COLORS["warning"])
-            streak_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=14,
-                                         border_width=2, border_color=streak_color)
-            streak_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
-            streak_frame.grid_columnconfigure(1, weight=1)
+            sf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=14,
+                              border_width=2, border_color=streak_color)
+            sf.grid(row=row, column=0, sticky="ew", pady=(0, 10))
+            sf.grid_columnconfigure(1, weight=1)
             fire = "🔥" if current_streak >= 3 else "⚡"
-            ctk.CTkLabel(streak_frame, text=fire, font=("Segoe UI", 30)
+            ctk.CTkLabel(sf, text=fire, font=("Segoe UI", 30)
                         ).grid(row=0, column=0, rowspan=2, padx=(15, 8), pady=10)
-            ctk.CTkLabel(streak_frame, text=t("streak.current", n=current_streak),
+            ctk.CTkLabel(sf, text=t("streak.current", n=current_streak),
                         font=("Segoe UI", 15, "bold"), text_color=streak_color
                         ).grid(row=0, column=1, sticky="w", padx=5, pady=(10, 0))
-            ctk.CTkLabel(streak_frame, text=t("streak.best", n=max_streak),
+            ctk.CTkLabel(sf, text=t("streak.best", n=max_streak),
                         font=("Segoe UI", 11), text_color=COLORS["text_light"]
                         ).grid(row=1, column=1, sticky="w", padx=5, pady=(0, 10))
-            daily_row = 2
-        else:
-            daily_row = 1
+            row += 1
 
-        # Daily Learning Button - prominent at top
         daily_card = ctk.CTkFrame(scroll, fg_color=COLORS["primary_dark"], corner_radius=16)
-        daily_card.grid(row=daily_row, column=0, sticky="ew", pady=(0, 15))
+        daily_card.grid(row=row, column=0, sticky="ew", pady=(0, 18))
         daily_card.grid_columnconfigure(1, weight=1)
-        daily_icon = ctk.CTkLabel(daily_card, text="📅", font=("Segoe UI", 32))
-        daily_icon.grid(row=0, column=0, rowspan=2, padx=(22, 10), pady=15)
+        ctk.CTkLabel(daily_card, text="📅", font=("Segoe UI", 32)
+                    ).grid(row=0, column=0, rowspan=2, padx=(22, 10), pady=15)
         ctk.CTkLabel(daily_card, text=t("daily.card_title"),
                      font=("Segoe UI", 17, "bold"), text_color="white"
                      ).grid(row=0, column=1, padx=5, pady=(15, 0), sticky="w")
@@ -309,86 +307,177 @@ class App(ctk.CTk):
                      hover_color="#ecfdf5", font=("Segoe UI", 13, "bold"),
                      command=self.show_daily
                      ).grid(row=0, column=2, rowspan=2, padx=20, pady=15)
+        row += 1
 
-        # Actions (two rows of 4)
-        actions = ctk.CTkFrame(scroll, fg_color="transparent")
-        actions.grid(row=daily_row + 1, column=0, sticky="ew", pady=(0, 15))
-        for i in range(4):
-            actions.grid_columnconfigure(i, weight=1)
+        # ── Tier 2: 2×2 main cards ──
+        main_grid = ctk.CTkFrame(scroll, fg_color="transparent")
+        main_grid.grid(row=row, column=0, sticky="ew", pady=(0, 12))
+        for i in range(2):
+            main_grid.grid_columnconfigure(i, weight=1)
 
-        cards = [
-            (t("home.new_quiz"), t("home.new_quiz_sub"), COLORS["primary"], self.show_create_quiz),
-            (t("home.ai_generate"), t("home.ai_generate_sub"), COLORS["success"], self.show_ai_generate),
-            (t("home.import"), t("home.import_sub"), COLORS["warning"], self.show_ai_import),
-            (t("home.stats"), t("home.stats_sub"), COLORS["primary_dark"], self.show_stats),
-            (t("home.pomodoro"), t("home.pomodoro_sub"), COLORS["danger"], self.show_pomodoro),
-            (t("home.import_quiz"), t("home.import_quiz_sub"), COLORS["warning"], self.import_quiz_file),
-            (t("random.title"), t("random.sub"), COLORS["danger"], self.show_random_mode),
-            (t("cloze.title"), t("cloze.sub"), COLORS["success"], self.show_cloze_generator),
-            (t("folder.title"), t("folder.sub"), COLORS["primary_dark"], self.show_folders),
-            (t("fosa.title"), t("fosa.sub"), COLORS["primary"], self.show_formula_sheets),
-            (t("diary.card_title"), t("diary.card_sub"), COLORS["danger"], self.show_error_diary),
-            (t("plan.card_title"), t("plan.card_sub"), COLORS["success"], self.show_study_plan),
-            (t("home.settings"), t("home.settings_sub"), COLORS["text_light"], self.show_settings),
-        ]
-        for idx, (title_, desc, color, command) in enumerate(cards):
-            self._action_card(actions, idx % 4, idx // 4, title_, desc, color, command)
+        n_quizzes = len(self.quizzes)
+        self._home_card(main_grid, 0, 0, "📚", t("home.my_quizzes"),
+                        t("home.my_quizzes_count", n=n_quizzes), COLORS["primary"],
+                        self.show_my_quizzes)
+        self._home_card(main_grid, 1, 0, "🤖", t("home.ai_generate"),
+                        t("home.ai_generate_sub"), COLORS["success"],
+                        self.show_ai_generate)
+        self._home_card(main_grid, 0, 1, "📊", t("home.stats"),
+                        t("home.stats_sub"), COLORS["info"],
+                        self.show_stats)
+        self._home_card(main_grid, 1, 1, "⚙️", t("home.settings"),
+                        t("home.settings_sub"), COLORS["text_light"],
+                        self.show_settings)
+        row += 1
 
-        next_home_row = daily_row + 2
-
-        # Marked questions card
+        # Marked questions notification
         marked_ids = self.store.load_marked()
         if marked_ids:
-            marked_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
-                                       border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
-            marked_card.grid(row=next_home_row, column=0, sticky="ew", pady=(0, 15))
-            marked_card.grid_columnconfigure(1, weight=1)
-            accent = ctk.CTkFrame(marked_card, fg_color=COLORS["warning"], width=5, corner_radius=3)
-            accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
-            mc_info = ctk.CTkFrame(marked_card, fg_color="transparent")
-            mc_info.grid(row=0, column=1, padx=15, pady=(10, 2), sticky="w")
-            ctk.CTkLabel(mc_info, text=t("marked.card_title"), font=("Segoe UI", 15, "bold"),
-                        text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
-            ctk.CTkLabel(mc_info, text=t("marked.count", n=len(marked_ids)),
+            mc = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
+                              border_width=1, border_color=COLORS["warning"])
+            mc.grid(row=row, column=0, sticky="ew", pady=(0, 12))
+            mc.grid_columnconfigure(1, weight=1)
+            ctk.CTkFrame(mc, fg_color=COLORS["warning"], width=5, corner_radius=3
+                        ).grid(row=0, column=0, rowspan=2, sticky="ns", pady=8)
+            ctk.CTkLabel(mc, text=f"⭐ {t('marked.card_title')}",
+                        font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
+                        ).grid(row=0, column=1, padx=12, pady=(10, 2), sticky="w")
+            ctk.CTkLabel(mc, text=t("marked.count", n=len(marked_ids)),
                         font=("Segoe UI", 11), text_color=COLORS["text_light"]
-                        ).grid(row=1, column=0, sticky="w")
-            ctk.CTkButton(marked_card, text=t("home.open"), width=75, height=30, corner_radius=8,
+                        ).grid(row=1, column=1, padx=12, pady=(0, 10), sticky="w")
+            ctk.CTkButton(mc, text=t("home.open"), width=75, height=30, corner_radius=8,
                          fg_color=COLORS["warning"], font=("Segoe UI", 12, "bold"),
-                         command=self.show_marked).grid(row=0, column=2, padx=10, pady=10)
-            next_home_row += 1
+                         command=self.show_marked).grid(row=0, column=2, rowspan=2, padx=10, pady=10)
+            row += 1
 
-        # Error diary quick link
+        # Error diary notification
         error_diary = self.store.load_error_diary()
         if error_diary:
             recent_errors = [e for e in error_diary if e.get("date") == date.today().isoformat()]
             if recent_errors:
-                err_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
-                                         border_width=1, border_color=COLORS["danger"])
-                err_card.grid(row=next_home_row, column=0, sticky="ew", pady=(0, 15))
-                err_card.grid_columnconfigure(1, weight=1)
-                ctk.CTkFrame(err_card, fg_color=COLORS["danger"], width=5, corner_radius=3
+                ec = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
+                                  border_width=1, border_color=COLORS["danger"])
+                ec.grid(row=row, column=0, sticky="ew", pady=(0, 12))
+                ec.grid_columnconfigure(1, weight=1)
+                ctk.CTkFrame(ec, fg_color=COLORS["danger"], width=5, corner_radius=3
                             ).grid(row=0, column=0, rowspan=2, sticky="ns", pady=8)
-                ctk.CTkLabel(err_card, text=t("diary.today_errors", n=len(recent_errors)),
+                ctk.CTkLabel(ec, text=t("diary.today_errors", n=len(recent_errors)),
                             font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
                             ).grid(row=0, column=1, padx=12, pady=(10, 2), sticky="w")
-                ctk.CTkLabel(err_card, text=t("diary.total", n=len(error_diary)),
+                ctk.CTkLabel(ec, text=t("diary.total", n=len(error_diary)),
                             font=("Segoe UI", 11), text_color=COLORS["text_light"]
                             ).grid(row=1, column=1, padx=12, pady=(0, 10), sticky="w")
-                ctk.CTkButton(err_card, text=t("diary.open"), width=75, height=30,
+                ctk.CTkButton(ec, text=t("diary.open"), width=75, height=30,
                              fg_color=COLORS["danger"], font=("Segoe UI", 12, "bold"),
                              command=self.show_error_diary).grid(row=0, column=2, rowspan=2, padx=10, pady=10)
-                next_home_row += 1
+                row += 1
 
-        # Quiz list
+        # ── Tier 3: Expandable "More Tools" ──
+        more_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        tools_grid = ctk.CTkFrame(scroll, fg_color="transparent")
+        for i in range(4):
+            tools_grid.grid_columnconfigure(i, weight=1)
+        _expanded = {"v": False}
+
+        def _toggle_more():
+            _expanded["v"] = not _expanded["v"]
+            if _expanded["v"]:
+                tools_grid.grid(row=row + 2, column=0, sticky="ew", pady=(0, 10))
+                toggle_btn.configure(text=t("home.less_tools"))
+            else:
+                tools_grid.grid_forget()
+                toggle_btn.configure(text=t("home.more_tools"))
+
+        more_frame.grid(row=row + 1, column=0, sticky="ew", pady=(4, 6))
+        toggle_btn = ctk.CTkButton(more_frame, text=t("home.more_tools"), width=200, height=34,
+                                   corner_radius=10, fg_color=COLORS["card"],
+                                   text_color=COLORS["text_light"],
+                                   hover_color=COLORS["card_hover"],
+                                   border_width=1, border_color=COLORS["border"],
+                                   font=("Segoe UI", 12, "bold"), command=_toggle_more)
+        toggle_btn.pack(pady=2)
+
+        mini_tools = [
+            ("✏️", t("home.new_quiz"), COLORS["primary"], self.show_create_quiz),
+            ("📄", t("home.import"), COLORS["warning"], self.show_ai_import),
+            ("📥", t("home.import_quiz"), COLORS["warning"], self.import_quiz_file),
+            ("🍅", t("home.pomodoro"), COLORS["danger"], self.show_pomodoro),
+            ("🎲", t("random.title"), COLORS["danger"], self.show_random_mode),
+            ("✂️", t("cloze.title"), COLORS["success"], self.show_cloze_generator),
+            ("📁", t("folder.title"), COLORS["primary_dark"], self.show_folders),
+            ("📋", t("fosa.title"), COLORS["primary"], self.show_formula_sheets),
+            ("📓", t("diary.card_title"), COLORS["danger"], self.show_error_diary),
+            ("📅", t("plan.card_title"), COLORS["success"], self.show_study_plan),
+        ]
+        for idx, (icon, title_, color, cmd) in enumerate(mini_tools):
+            self._mini_card(tools_grid, idx % 4, idx // 4, icon, title_, color, cmd)
+
+    def show_my_quizzes(self):
+        self._clear_main()
+        self.header_subtitle.configure(text=t("home.my_quizzes"))
+        scroll = self._make_screen()
+
+        top = ctk.CTkFrame(scroll, fg_color="transparent")
+        top.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        top.grid_columnconfigure(1, weight=1)
+        ctk.CTkButton(top, text=f"← {t('nav.back')}", width=80, height=32,
+                     corner_radius=8, fg_color=COLORS["card"],
+                     text_color=COLORS["text"], hover_color=COLORS["card_hover"],
+                     border_width=1, border_color=COLORS["border"],
+                     font=("Segoe UI", 12), command=self.show_home
+                     ).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkLabel(top, text=f"📚 {t('home.my_quizzes')}",
+                    font=("Segoe UI", 18, "bold"), text_color=COLORS["text"]
+                    ).grid(row=0, column=1, sticky="w")
+        ctk.CTkButton(top, text=f"+ {t('home.new_quiz')}", width=130, height=32,
+                     corner_radius=8, fg_color=COLORS["primary"],
+                     font=("Segoe UI", 12, "bold"), command=self.show_create_quiz
+                     ).grid(row=0, column=2)
+
         if self.quizzes:
-            ctk.CTkLabel(scroll, text=t("home.your_quizzes"), font=("Arial", 16, "bold"),
-                        text_color=COLORS["text"]).grid(row=next_home_row, column=0, sticky="w", pady=(10, 10))
             for i, quiz in enumerate(self.quizzes):
-                self._quiz_card(scroll, quiz, row=next_home_row + 1 + i)
+                self._quiz_card(scroll, quiz, row=1 + i)
         else:
             ctk.CTkLabel(scroll, text=t("home.no_quizzes"),
-                        font=("Arial", 13), text_color=COLORS["text_light"]
-                        ).grid(row=next_home_row, column=0, pady=30)
+                        font=("Segoe UI", 13), text_color=COLORS["text_light"]
+                        ).grid(row=1, column=0, pady=30)
+
+    def _home_card(self, parent, col, row, icon, title, desc, color, command):
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
+                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"),
+                           cursor="hand2")
+        card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
+        card.grid_columnconfigure(0, weight=1)
+        card.bind("<Enter>", lambda e: card.configure(border_color=color))
+        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+        card.bind("<Button-1>", lambda e: command())
+
+        ctk.CTkLabel(card, text=icon, font=("Segoe UI", 30)
+                    ).grid(row=0, column=0, padx=15, pady=(16, 4))
+        tl = ctk.CTkLabel(card, text=title, font=("Segoe UI", 15, "bold"),
+                          text_color=COLORS["text"])
+        tl.grid(row=1, column=0, padx=15, pady=(2, 2))
+        tl.bind("<Button-1>", lambda e: command())
+        dl = ctk.CTkLabel(card, text=desc, font=("Segoe UI", 11),
+                          text_color=COLORS["text_light"], wraplength=170)
+        dl.grid(row=2, column=0, padx=15, pady=(0, 16))
+        dl.bind("<Button-1>", lambda e: command())
+
+    def _mini_card(self, parent, col, row, icon, title, color, command):
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=10,
+                           border_width=1, border_color=COLORS.get("border", "#e2e8f0"),
+                           cursor="hand2")
+        card.grid(row=row, column=col, padx=4, pady=4, sticky="nsew")
+        card.grid_columnconfigure(0, weight=1)
+        card.bind("<Enter>", lambda e: card.configure(border_color=color))
+        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+        card.bind("<Button-1>", lambda e: command())
+        ctk.CTkLabel(card, text=icon, font=("Segoe UI", 20)
+                    ).grid(row=0, column=0, pady=(10, 2))
+        tl = ctk.CTkLabel(card, text=title, font=("Segoe UI", 11, "bold"),
+                          text_color=COLORS["text"])
+        tl.grid(row=1, column=0, padx=6, pady=(0, 10))
+        tl.bind("<Button-1>", lambda e: command())
 
     def _action_card(self, parent, col, row, title, desc, color, command):
         card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
