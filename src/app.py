@@ -4007,8 +4007,68 @@ class App(ctk.CTk):
             ctk.CTkLabel(grade_card, text=t("grade.no_data"), font=("Arial", 12),
                         text_color=COLORS["text_light"]).grid(row=1, column=0, padx=15, pady=(0, 10), sticky="w")
 
+        # ── Export ──
+        export_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8,
+                                    border_width=2, border_color=COLORS["success"])
+        export_card.grid(row=7, column=0, sticky="ew", pady=(10, 0))
+        export_card.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(export_card, text=t("export.title"), font=("Arial", 14, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, columnspan=3, padx=15, pady=(10, 5), sticky="w")
+        ctk.CTkLabel(export_card, text=t("export.hint"), font=("Arial", 11),
+                    text_color=COLORS["text_light"]).grid(row=1, column=0, columnspan=3, padx=15, pady=(0, 8), sticky="w")
+        ctk.CTkButton(export_card, text=t("export.html"), fg_color=COLORS["success"],
+                     width=160, command=lambda: self._export_html(quiz)
+                     ).grid(row=2, column=0, padx=(15, 5), pady=(0, 12))
+        ctk.CTkButton(export_card, text=t("export.qr"), fg_color=COLORS["primary"],
+                     width=160, command=lambda: self._export_qr(quiz)
+                     ).grid(row=2, column=1, padx=5, pady=(0, 12), sticky="w")
+
         ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=7, column=0, sticky="w", pady=15)
+                     command=self.show_home).grid(row=8, column=0, sticky="w", pady=15)
+
+    def _export_html(self, quiz):
+        from .html_export import quiz_to_html
+        path = filedialog.asksaveasfilename(
+            defaultextension=".html",
+            filetypes=[("HTML", "*.html")],
+            initialfile=f"{quiz.name}.html",
+            title=t("export.save_title"),
+        )
+        if not path:
+            return
+        html = quiz_to_html(quiz, lang=get_language())
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        messagebox.showinfo(t("export.done_title"), t("export.done_msg", path=path))
+
+    def _export_qr(self, quiz):
+        from .html_export import quiz_to_html
+        import tempfile
+        html = quiz_to_html(quiz, lang=get_language())
+        tmp = Path(tempfile.gettempdir()) / f"lerntrainer_{quiz.name.replace(' ', '_')}.html"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(html)
+        file_uri = tmp.as_uri()
+        try:
+            import qrcode
+            from io import BytesIO
+            qr = qrcode.QRCode(box_size=8, border=2)
+            qr.add_data(file_uri)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            save_path = filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("PNG", "*.png")],
+                initialfile=f"{quiz.name}_QR.png",
+                title=t("export.qr_save"),
+            )
+            if not save_path:
+                return
+            img.save(save_path)
+            messagebox.showinfo(t("export.done_title"),
+                                t("export.qr_done", html=str(tmp), qr=save_path))
+        except ImportError:
+            messagebox.showwarning("QR", t("export.qr_missing"))
 
     def _compute_topic_scores(self, quiz: Quiz) -> dict[str, float]:
         """Compute per-topic mastery % based on Leitner boxes."""
