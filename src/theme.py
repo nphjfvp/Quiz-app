@@ -1,66 +1,111 @@
 """Theme management: light/dark color palettes.
 
-The module exposes a single mutable ``COLORS`` dict. UI code reads
-``COLORS["key"]`` at render time, so calling ``apply_theme()`` and then
-rebuilding the current screen is enough to switch appearance.
+Design direction: Duolingo meets Anki – slightly playful but clean.
+Primary color family: Teal/Green. Both light and dark mode should look great.
 """
 
 import customtkinter as ctk
 
+# ── Design Tokens ──
+FONT_FAMILY = "Segoe UI"
+FONT_MONO = "Cascadia Code"
+RADIUS_SM = 8
+RADIUS_MD = 12
+RADIUS_LG = 16
+RADIUS_XL = 20
+
 LIGHT = {
-    "primary": "#4361ee",
-    "primary_dark": "#3a0ca3",
-    "primary_light": "#7b8ff7",
-    "success": "#06d6a0",
-    "danger": "#ef476f",
-    "warning": "#ffd166",
-    "bg": "#f8f9fc",
+    # Brand
+    "primary": "#0d9488",        # Teal 600
+    "primary_dark": "#0f766e",   # Teal 700
+    "primary_light": "#5eead4",  # Teal 300
+    "primary_subtle": "#ccfbf1", # Teal 100
+    # Semantic
+    "success": "#22c55e",        # Green 500
+    "success_light": "#dcfce7",  # Green 100
+    "danger": "#ef4444",         # Red 500
+    "danger_light": "#fee2e2",   # Red 100
+    "warning": "#f59e0b",        # Amber 500
+    "warning_light": "#fef3c7",  # Amber 100
+    "info": "#3b82f6",           # Blue 500
+    # Surfaces
+    "bg": "#f0fdf4",             # Green 50 – subtle tint
     "card": "#ffffff",
-    "card_hover": "#f0f3ff",
-    "text": "#1a1a2e",
-    "text_light": "#6c757d",
-    "text_accent": "#4361ee",
-    "border": "#e0e4f0",
-    "header_bg": "#4361ee",
-    "header_accent": "#7209b7",
-    "row_ok": "#d4edda",
-    "row_bad": "#f8d7da",
-    "row_neutral": "#f1f3f5",
+    "card_hover": "#ecfdf5",     # Green 50
+    "card_elevated": "#ffffff",
+    # Text
+    "text": "#0f172a",           # Slate 900
+    "text_light": "#64748b",     # Slate 500
+    "text_accent": "#0d9488",    # = primary
+    # Borders
+    "border": "#e2e8f0",         # Slate 200
+    "border_focus": "#0d9488",
+    # Header
+    "header_bg": "#0d9488",
+    "header_accent": "#0f766e",
+    # Feedback rows
+    "row_ok": "#dcfce7",
+    "row_bad": "#fee2e2",
+    "row_neutral": "#f1f5f9",
+    # Canvas
     "canvas_bg": "#ffffff",
-    "input_bg": "#f1f3f8",
-    "box1": "#ef476f",
-    "box2": "#ffd166",
-    "box3": "#06d6a0",
-    "box4": "#118ab2",
-    "box5": "#073b4c",
+    "input_bg": "#f1f5f9",       # Slate 100
+    # Leitner boxes (kept colorful for gamification)
+    "box1": "#ef4444",
+    "box2": "#f59e0b",
+    "box3": "#22c55e",
+    "box4": "#0ea5e9",
+    "box5": "#0f766e",
+    # Streak & gamification
+    "streak": "#f59e0b",
+    "xp": "#8b5cf6",
 }
 
 DARK = {
-    "primary": "#5e7ce2",
-    "primary_dark": "#4361ee",
-    "primary_light": "#8fa4f0",
-    "success": "#06d6a0",
-    "danger": "#ef476f",
-    "warning": "#ffd166",
-    "bg": "#0f0f1a",
-    "card": "#1a1a2e",
-    "card_hover": "#222240",
-    "text": "#e4e4f0",
-    "text_light": "#8d8daa",
-    "text_accent": "#7b8ff7",
-    "border": "#2a2a45",
-    "header_bg": "#16163a",
-    "header_accent": "#7209b7",
-    "row_ok": "#0a2e1a",
-    "row_bad": "#2e0a15",
-    "row_neutral": "#1a1a2e",
-    "canvas_bg": "#1a1a2e",
-    "input_bg": "#222240",
-    "box1": "#ef476f",
-    "box2": "#ffd166",
-    "box3": "#06d6a0",
-    "box4": "#118ab2",
-    "box5": "#073b4c",
+    # Brand
+    "primary": "#2dd4bf",        # Teal 400
+    "primary_dark": "#14b8a6",   # Teal 500
+    "primary_light": "#5eead4",  # Teal 300
+    "primary_subtle": "#042f2e", # Teal 950
+    # Semantic
+    "success": "#4ade80",        # Green 400
+    "success_light": "#052e16",  # Green 950
+    "danger": "#f87171",         # Red 400
+    "danger_light": "#450a0a",   # Red 950
+    "warning": "#fbbf24",        # Amber 400
+    "warning_light": "#451a03",  # Amber 950
+    "info": "#60a5fa",           # Blue 400
+    # Surfaces
+    "bg": "#0c1a14",             # Deep dark green
+    "card": "#152820",           # Dark card
+    "card_hover": "#1a332a",
+    "card_elevated": "#1e3a30",
+    # Text
+    "text": "#f0fdf4",           # Green 50
+    "text_light": "#94a3b8",     # Slate 400
+    "text_accent": "#2dd4bf",    # = primary
+    # Borders
+    "border": "#1e3a30",
+    "border_focus": "#2dd4bf",
+    # Header
+    "header_bg": "#0a1f18",
+    "header_accent": "#14b8a6",
+    # Feedback rows
+    "row_ok": "#052e16",
+    "row_bad": "#450a0a",
+    "row_neutral": "#152820",
+    # Canvas
+    "canvas_bg": "#152820",
+    "input_bg": "#1a332a",
+    # Leitner boxes
+    "box1": "#f87171",
+    "box2": "#fbbf24",
+    "box3": "#4ade80",
+    "box4": "#38bdf8",
+    "box5": "#2dd4bf",
+    # Streak & gamification
+    "streak": "#fbbf24",
+    "xp": "#a78bfa",
 }
 
 # Live palette other modules import and read.

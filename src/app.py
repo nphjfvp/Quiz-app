@@ -70,21 +70,21 @@ class App(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        self.header = ctk.CTkFrame(self, fg_color=COLORS["header_bg"], corner_radius=0, height=70)
+        self.header = ctk.CTkFrame(self, fg_color=COLORS["header_bg"], corner_radius=0, height=60)
         self.header.grid(row=0, column=0, sticky="ew")
         self.header.grid_columnconfigure(1, weight=1)
 
         self.header_title = ctk.CTkLabel(
-            self.header, text=f"  {t('app.header')}", font=("Segoe UI", 22, "bold"),
+            self.header, text=f"🎓 {t('app.header')}", font=("Segoe UI", 20, "bold"),
             text_color="white"
         )
-        self.header_title.grid(row=0, column=0, padx=(20, 5), pady=15)
+        self.header_title.grid(row=0, column=0, padx=(20, 5), pady=12)
 
         self.header_subtitle = ctk.CTkLabel(
             self.header, text=t("app.subtitle"),
-            font=("Segoe UI", 12), text_color="#b8c6ff"
+            font=("Segoe UI", 12), text_color="#a7f3d0"
         )
-        self.header_subtitle.grid(row=0, column=1, padx=10, pady=15, sticky="w")
+        self.header_subtitle.grid(row=0, column=1, padx=10, pady=12, sticky="w")
 
         self.timer_label = ctk.CTkLabel(
             self.header, text="", font=("Arial", 14, "bold"),
@@ -251,38 +251,39 @@ class App(ctk.CTk):
         scroll = self._make_screen()
 
         # Welcome
-        welcome = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=12)
-        welcome.grid(row=0, column=0, sticky="ew", pady=(0, 20))
+        welcome = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=16)
+        welcome.grid(row=0, column=0, sticky="ew", pady=(0, 18))
         welcome.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(welcome, text=f"  {t('home.welcome')}",
+        ctk.CTkLabel(welcome, text=f"👋 {t('home.welcome')}",
                      font=("Segoe UI", 20, "bold"), text_color="white"
-                     ).grid(row=0, column=0, padx=25, pady=(20, 5), sticky="w")
+                     ).grid(row=0, column=0, padx=25, pady=(20, 4), sticky="w")
         ctk.CTkLabel(welcome, text=t("home.welcome_sub"),
-                     font=("Segoe UI", 13), text_color="#d0deff"
+                     font=("Segoe UI", 13), text_color="#a7f3d0"
                      ).grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
-        # Account indicator (optional account, app works fully without it)
         account = self.store.load_settings().get("account")
         if account and account.get("email"):
             acc_text = f"👤 {account['email']}"
         else:
             acc_text = t("account.login_cta")
-        ctk.CTkButton(welcome, text=acc_text, width=160, height=32, corner_radius=8,
-                     fg_color="white", text_color=COLORS["primary"], hover_color="#e0e8ff",
-                     font=("Segoe UI", 12, "bold"), command=self.show_account
+        ctk.CTkButton(welcome, text=acc_text, width=160, height=34, corner_radius=10,
+                     fg_color="white", text_color=COLORS["primary_dark"],
+                     hover_color="#ecfdf5", font=("Segoe UI", 12, "bold"),
+                     command=self.show_account
                      ).grid(row=0, column=1, rowspan=2, padx=25, pady=15, sticky="e")
 
         # Streak display
         current_streak, max_streak = self.store.get_streak()
         if current_streak > 0 or max_streak > 0:
-            streak_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
-                                         border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+            streak_color = COLORS.get("streak", COLORS["warning"])
+            streak_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=14,
+                                         border_width=2, border_color=streak_color)
             streak_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
             streak_frame.grid_columnconfigure(1, weight=1)
             fire = "🔥" if current_streak >= 3 else "⚡"
-            ctk.CTkLabel(streak_frame, text=fire, font=("Segoe UI", 28)
+            ctk.CTkLabel(streak_frame, text=fire, font=("Segoe UI", 30)
                         ).grid(row=0, column=0, rowspan=2, padx=(15, 8), pady=10)
             ctk.CTkLabel(streak_frame, text=t("streak.current", n=current_streak),
-                        font=("Segoe UI", 15, "bold"), text_color=COLORS["warning"]
+                        font=("Segoe UI", 15, "bold"), text_color=streak_color
                         ).grid(row=0, column=1, sticky="w", padx=5, pady=(10, 0))
             ctk.CTkLabel(streak_frame, text=t("streak.best", n=max_streak),
                         font=("Segoe UI", 11), text_color=COLORS["text_light"]
@@ -292,20 +293,20 @@ class App(ctk.CTk):
             daily_row = 1
 
         # Daily Learning Button - prominent at top
-        daily_card = ctk.CTkFrame(scroll, fg_color=COLORS["primary"], corner_radius=12)
+        daily_card = ctk.CTkFrame(scroll, fg_color=COLORS["primary_dark"], corner_radius=16)
         daily_card.grid(row=daily_row, column=0, sticky="ew", pady=(0, 15))
         daily_card.grid_columnconfigure(1, weight=1)
-        daily_icon = ctk.CTkLabel(daily_card, text="📅", font=("Segoe UI", 28))
-        daily_icon.grid(row=0, column=0, rowspan=2, padx=(20, 10), pady=15)
+        daily_icon = ctk.CTkLabel(daily_card, text="📅", font=("Segoe UI", 32))
+        daily_icon.grid(row=0, column=0, rowspan=2, padx=(22, 10), pady=15)
         ctk.CTkLabel(daily_card, text=t("daily.card_title"),
                      font=("Segoe UI", 17, "bold"), text_color="white"
                      ).grid(row=0, column=1, padx=5, pady=(15, 0), sticky="w")
         ctk.CTkLabel(daily_card, text=t("daily.card_desc"),
-                     font=("Segoe UI", 12), text_color="#d0deff"
+                     font=("Segoe UI", 12), text_color="#a7f3d0"
                      ).grid(row=1, column=1, padx=5, pady=(0, 15), sticky="w")
-        ctk.CTkButton(daily_card, text=t("daily.start"), width=130, height=36,
-                     corner_radius=8, fg_color="white", text_color=COLORS["primary"],
-                     hover_color="#e0e8ff", font=("Segoe UI", 13, "bold"),
+        ctk.CTkButton(daily_card, text=t("daily.start"), width=130, height=38,
+                     corner_radius=10, fg_color="white", text_color=COLORS["primary_dark"],
+                     hover_color="#ecfdf5", font=("Segoe UI", 13, "bold"),
                      command=self.show_daily
                      ).grid(row=0, column=2, rowspan=2, padx=20, pady=15)
 
@@ -390,13 +391,15 @@ class App(ctk.CTk):
                         ).grid(row=next_home_row, column=0, pady=30)
 
     def _action_card(self, parent, col, row, title, desc, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
-                           border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
+                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"))
         card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
+        card.bind("<Enter>", lambda e: card.configure(border_color=color))
+        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
 
-        color_bar = ctk.CTkFrame(card, fg_color=color, corner_radius=6, height=4)
-        color_bar.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 0))
+        color_bar = ctk.CTkFrame(card, fg_color=color, corner_radius=4, height=5)
+        color_bar.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
 
         ctk.CTkLabel(card, text=title, font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=1, column=0, padx=15, pady=(10, 3))
@@ -404,15 +407,17 @@ class App(ctk.CTk):
                     text_color=COLORS["text_light"], wraplength=160
                     ).grid(row=2, column=0, padx=15, pady=(0, 10))
         ctk.CTkButton(card, text=t("home.open"), fg_color=color, hover_color=color,
-                     corner_radius=8, width=110, height=32,
+                     corner_radius=10, width=110, height=34,
                      font=("Segoe UI", 12, "bold"),
                      command=command).grid(row=3, column=0, padx=15, pady=(0, 14))
 
     def _quiz_card(self, parent, quiz: Quiz, row: int):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
-                           border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
+                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"))
         card.grid(row=row, column=0, sticky="ew", pady=5)
         card.grid_columnconfigure(1, weight=1)
+        card.bind("<Enter>", lambda e: card.configure(border_color=COLORS["primary"]))
+        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
 
         accent = ctk.CTkFrame(card, fg_color=COLORS["primary"], width=5, corner_radius=3)
         accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
@@ -1499,7 +1504,11 @@ class App(ctk.CTk):
             apply_theme(s["dark_mode"])
             set_language(s["language"])
             self.title(t("app.title"))
-            self.header_title.configure(text=t("app.header"))
+            self.header_title.configure(text=f"🎓 {t('app.header')}")
+            self.header.configure(fg_color=COLORS["header_bg"])
+            self.header_title.configure(text_color="white")
+            self.header_subtitle.configure(text_color="#a7f3d0")
+            self.main_frame.configure(fg_color=COLORS["bg"])
             messagebox.showinfo("OK", t("settings.saved"))
             self.show_home()
 
