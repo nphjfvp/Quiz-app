@@ -4039,23 +4039,37 @@ class App(ctk.CTk):
 
     # ── TTS (Text-to-Speech) ──
 
+    _tts_engine = None
+    _tts_busy = False
+
     def _tts_speak(self, text: str):
         if not _HAS_TTS or not self.store.load_settings().get("tts_enabled", False):
             return
+        if self._tts_busy:
+            return
+        self._tts_busy = True
+        clean = text.replace("$", "").replace("\\", " ").replace("{", "").replace("}", "")
+
         def run():
             try:
                 engine = pyttsx3.init()
                 engine.setProperty('rate', 160)
-                clean = text.replace("$", "").replace("\\", " ")
+                voices = engine.getProperty('voices')
+                for v in voices:
+                    if 'german' in v.name.lower() or 'de' in v.id.lower():
+                        engine.setProperty('voice', v.id)
+                        break
                 engine.say(clean)
                 engine.runAndWait()
-                engine.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                self.after(0, lambda: print(f"[TTS Error] {e}"))
+            finally:
+                self._tts_busy = False
+                try:
+                    engine.stop()
+                except Exception:
+                    pass
         threading.Thread(target=run, daemon=True).start()
-
-    def _tts_stop(self):
-        pass
 
     # ── LERNPLAN-GENERATOR ──
 
@@ -5088,13 +5102,16 @@ class App(ctk.CTk):
         ctk.CTkButton(nav, text="Auswertung", fg_color=COLORS["danger"], width=120,
                      command=self._show_results).grid(row=0, column=3)
 
-        if _HAS_TTS and self.store.load_settings().get("tts_enabled", False):
+        if self.store.load_settings().get("tts_enabled", False):
             tts_text = q.text
             if q.options:
                 tts_text += ". " + ". ".join(f"Option {i+1}: {o.text}" for i, o in enumerate(q.options))
+            if _HAS_TTS:
+                tts_cmd = lambda _txt=tts_text: self._tts_speak(_txt)
+            else:
+                tts_cmd = lambda: messagebox.showwarning("TTS", t("tts.not_installed"))
             ctk.CTkButton(nav, text="🔊", width=40, fg_color=COLORS["primary_light"],
-                         command=lambda t=tts_text: self._tts_speak(t)
-                         ).grid(row=0, column=4, padx=(10, 0))
+                         command=tts_cmd).grid(row=0, column=4, padx=(10, 0))
 
         # Mark button
         marked_ids = self.store.load_marked()
