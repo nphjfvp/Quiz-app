@@ -166,7 +166,7 @@ class AIService:
         return text
 
     def _call_api(self, messages: list[dict], max_tokens: int = 4096,
-                  temperature: float | None = None) -> Optional[str]:
+                  temperature: float | None = None, model: str | None = None) -> Optional[str]:
         if not self.api_key:
             return None
 
@@ -181,7 +181,7 @@ class AIService:
             "HTTP-Referer": "https://quiz-lerntrainer.app",
         }
         payload = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature if temperature is not None else self.temperature,
@@ -373,22 +373,37 @@ class AIService:
 
     RECOMMENDED_MODELS = [
         {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "cost_in": 3.0, "cost_out": 15.0, "speed": "mittel",
-         "strengths": ["MINT", "Informatik", "Logik", "Programmierung", "Jura"]},
+         "vision": True, "strengths": ["MINT", "Informatik", "Logik", "Programmierung", "Jura"]},
         {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.15, "cost_out": 0.6, "speed": "schnell",
-         "strengths": ["Medizin", "Gesundheit", "Biologie", "Naturwissenschaften", "Sprachen"]},
+         "vision": True, "strengths": ["Medizin", "Gesundheit", "Biologie", "Naturwissenschaften", "Sprachen"]},
         {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3", "cost_in": 0.27, "cost_out": 1.10, "speed": "mittel",
-         "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
+         "vision": False, "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
         {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 0.80, "cost_out": 4.0, "speed": "schnell",
-         "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
+         "vision": True, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
         {"id": "openai/gpt-4o", "name": "GPT-4o", "cost_in": 2.50, "cost_out": 10.0, "speed": "mittel",
-         "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
+         "vision": True, "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
         {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "cost_in": 0.15, "cost_out": 0.6, "speed": "schnell",
-         "strengths": ["Allgemeinwissen", "Sprachen"]},
+         "vision": True, "strengths": ["Allgemeinwissen", "Sprachen"]},
         {"id": "meta-llama/llama-3.3-70b-instruct", "name": "Llama 3.3 70B", "cost_in": 0.20, "cost_out": 0.20, "speed": "mittel",
-         "strengths": ["Informatik", "Programmierung"]},
+         "vision": False, "strengths": ["Informatik", "Programmierung"]},
         {"id": "mistralai/mistral-large-2411", "name": "Mistral Large", "cost_in": 2.0, "cost_out": 6.0, "speed": "mittel",
-         "strengths": ["Sprachen", "Literatur", "Europäische Geschichte"]},
+         "vision": False, "strengths": ["Sprachen", "Literatur", "Europäische Geschichte"]},
     ]
+
+    @classmethod
+    def get_vision_models(cls) -> list[dict]:
+        return [m for m in cls.RECOMMENDED_MODELS if m.get("vision")]
+
+    @classmethod
+    def get_cheapest_vision_model(cls) -> str:
+        vision = cls.get_vision_models()
+        if not vision:
+            return "google/gemini-2.5-flash"
+        return min(vision, key=lambda m: m["cost_in"] + m["cost_out"])["id"]
+
+    def is_current_model_vision(self) -> bool:
+        m = next((m for m in self.RECOMMENDED_MODELS if m["id"] == self.model), None)
+        return m.get("vision", False) if m else False
 
     @classmethod
     def rank_models_for_topic(cls, topic: str) -> list[dict]:
@@ -1176,7 +1191,13 @@ Regeln:
         return self._parse_json_response(raw)
 
     def generate_question_from_image(self, image_path: str, question_type: str = "diagram_label",
-                                      topic: str = "", difficulty: str = "mittel") -> Optional[dict]:
+                                      topic: str = "", difficulty: str = "mittel",
+                                      vision_model: str = "") -> Optional[dict]:
+        if not vision_model:
+            if self.is_current_model_vision():
+                vision_model = self.model
+            else:
+                vision_model = self.get_cheapest_vision_model()
         try:
             with open(image_path, "rb") as f:
                 encoded = base64.b64encode(f.read()).decode("ascii")
@@ -1259,7 +1280,7 @@ Regeln:
                 {"type": "image_url", "image_url": {"url": f"data:image/{suffix};base64,{encoded}"}},
             ]},
         ]
-        raw = self._call_api(messages, max_tokens=2000)
+        raw = self._call_api(messages, max_tokens=2000, model=vision_model)
         return self._parse_json_response(raw)
 
     def _parse_json_response(self, raw: Optional[str]) -> Optional[dict]:

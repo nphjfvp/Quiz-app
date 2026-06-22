@@ -1681,9 +1681,29 @@ class App(ctk.CTk):
                 ctk.CTkRadioButton(diff_frame, text=lbl, variable=diff_var, value=val,
                                    font=("Arial", 11)).grid(row=0, column=i+1, padx=5)
 
+            # Vision model selector
+            vision_frame = ctk.CTkFrame(ai_frame, fg_color="transparent")
+            vision_frame.grid(row=7, column=0, sticky="w", padx=12, pady=(0, 5))
+            ctk.CTkLabel(vision_frame, text=t("ai_create.vision_model"), font=("Segoe UI", 11)
+                        ).grid(row=0, column=0, padx=(0, 8))
+            vision_models = AIService.get_vision_models()
+            blocked_set = set(self.store.load_settings().get("disabled_models", []))
+            vm_choices = ["Auto (günstigstes)"] + [
+                f"{'🔒 ' if m['id'] in blocked_set else ''}{'👁️ ' if m.get('vision') else ''}{m['name']} (${m['cost_in']+m['cost_out']:.1f}/1M)"
+                for m in vision_models
+            ]
+            _vm_ids = ["auto"] + [m["id"] for m in vision_models]
+            vm_menu = ctk.CTkOptionMenu(vision_frame, values=vm_choices, width=300,
+                                         font=("Segoe UI", 11))
+            vm_menu.grid(row=0, column=1)
+            if not self.ai.is_current_model_vision():
+                ctk.CTkLabel(vision_frame, text=t("ai_create.auto_vision_hint"),
+                            font=("Segoe UI", 10), text_color=COLORS["warning"]
+                            ).grid(row=1, column=0, columnspan=2, sticky="w")
+
             ai_status = ctk.CTkLabel(ai_frame, text="", font=("Arial", 11),
                                       text_color=COLORS["text_light"])
-            ai_status.grid(row=8, column=0, sticky="w", padx=12, pady=(0, 8))
+            ai_status.grid(row=9, column=0, sticky="w", padx=12, pady=(0, 8))
 
             def _ai_generate_question():
                 img_path = _ai_image_path["path"]
@@ -1693,6 +1713,10 @@ class App(ctk.CTk):
                     return
 
                 qt = ai_type_var.get()
+                # Determine vision model
+                vm_idx = vm_choices.index(vm_menu.get()) if vm_menu.get() in vm_choices else 0
+                sel_vision_model = "" if vm_idx == 0 else _vm_ids[vm_idx]
+
                 ai_status.configure(text=t("ai_create.generating"), text_color=COLORS["primary"])
                 ai_gen_btn.configure(state="disabled")
 
@@ -1700,7 +1724,8 @@ class App(ctk.CTk):
                     if img_path and os.path.exists(img_path):
                         result = self.ai.generate_question_from_image(
                             image_path=img_path, question_type=qt,
-                            topic=topic_text, difficulty=diff_var.get())
+                            topic=topic_text, difficulty=diff_var.get(),
+                            vision_model=sel_vision_model)
                     elif topic_text:
                         result = self.ai.generate_single_question(
                             topic=topic_text, question_type=qt,
@@ -1766,7 +1791,7 @@ class App(ctk.CTk):
                                         fg_color="#ff9800", hover_color="#e68a00",
                                         font=("Arial", 12, "bold"),
                                         command=_ai_generate_question)
-            ai_gen_btn.grid(row=7, column=0, sticky="w", padx=12, pady=(0, 5))
+            ai_gen_btn.grid(row=8, column=0, sticky="w", padx=12, pady=(0, 5))
             current_row = 4
         else:
             current_row = 3
