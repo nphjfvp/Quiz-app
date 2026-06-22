@@ -492,8 +492,9 @@ class AIService:
             step = max(1, self.chunk_size - overlap)
             num_chunks = max(1, (text_len - self.chunk_size) // step + 2)
 
-        est_per_chunk = 12  # seconds, typical for a 4k-token response
+        est_per_chunk = 30  # seconds — includes API latency + JSON generation + possible retry
         if mode == "import":
+            est_per_chunk = 25
             parallel = min(self.max_workers, num_chunks)
             est_total = max(est_per_chunk, (num_chunks / parallel) * est_per_chunk)
         else:
@@ -526,7 +527,9 @@ class AIService:
 
     def generate_from_slides(self, file_path: str, num_questions: int = 20,
                               progress_callback: Callable | None = None,
-                              question_types: list[str] | None = None) -> list[Question]:
+                              question_types: list[str] | None = None,
+                              focus_topics: dict[str, float] | None = None,
+                              auto_count: bool = False) -> list[Question]:
         full_text = self._read_file_as_text(file_path)
         chunks = self._chunk_with_overlap(full_text)
         if not chunks:
@@ -535,7 +538,16 @@ class AIService:
         system_prompt = _build_generate_prompt(question_types)
         all_questions: list[Question] = []
         rolling_summary = ""
-        per_chunk = max(3, num_questions // len(chunks))
+        per_chunk = "so viele wie sinnvoll" if auto_count else str(max(3, num_questions // len(chunks)))
+
+        focus_instruction = ""
+        if focus_topics:
+            weighted = [f"- {topic}: Gewichtung {w:.0%}" for topic, w in focus_topics.items() if w > 0]
+            if weighted:
+                focus_instruction = (
+                    "\n\nFOKUS-THEMEN (erstelle proportional mehr Fragen zu höher gewichteten Themen):\n"
+                    + "\n".join(weighted) + "\n"
+                )
 
         for i, chunk in enumerate(chunks):
             if progress_callback:
@@ -548,14 +560,20 @@ class AIService:
                     f"{rolling_summary}\n\n---\n\n"
                 )
 
+            count_instruction = (
+                f"Erstelle so viele Prüfungsfragen wie sinnvoll für diesen Abschnitt."
+                if auto_count else
+                f"Erstelle {per_chunk} Prüfungsfragen zu diesem Inhalt."
+            )
+
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": (
                     f"{context_prefix}"
                     f"Hier ist Abschnitt {i+1} von {len(chunks)} der Vorlesungsfolien:\n\n"
                     f"{chunk}\n\n"
-                    f"Erstelle {per_chunk} Prüfungsfragen zu diesem Inhalt. "
-                    f"Nutze verschiedene Fragetypen. "
+                    f"{count_instruction} "
+                    f"Nutze verschiedene Fragetypen.{focus_instruction} "
                     f"Antworte mit dem JSON-Objekt (summary + questions)."
                 )},
             ]

@@ -2397,11 +2397,33 @@ class App(ctk.CTk):
                 r += 1
 
                 if subtopics:
-                    ctk.CTkLabel(analysis_frame, text=f"{t('ai.subtopics')}:", font=("Arial", 12, "bold"),
-                                text_color=COLORS["text"]).grid(row=r, column=0, sticky="nw", padx=(10, 5), pady=2)
-                    ctk.CTkLabel(analysis_frame, text=", ".join(subtopics[:6]), font=("Arial", 11),
-                                text_color=COLORS["text_light"], wraplength=400
-                                ).grid(row=r, column=1, sticky="w", pady=2)
+                    ctk.CTkLabel(analysis_frame, text=f"{t('ai.subtopics')} — Fokus-Gewichtung:", font=("Arial", 12, "bold"),
+                                text_color=COLORS["text"]).grid(row=r, column=0, columnspan=2, sticky="w", padx=(10, 5), pady=(5, 2))
+                    r += 1
+                    if not hasattr(self, '_focus_topic_vars'):
+                        self._focus_topic_vars = {}
+                    self._focus_topic_vars.clear()
+                    for st in subtopics[:8]:
+                        st_frame = ctk.CTkFrame(analysis_frame, fg_color="transparent")
+                        st_frame.grid(row=r, column=0, columnspan=2, sticky="ew", padx=10, pady=1)
+                        st_frame.grid_columnconfigure(1, weight=1)
+                        var = tk.DoubleVar(value=1.0)
+                        self._focus_topic_vars[st] = var
+                        val_lbl = ctk.CTkLabel(st_frame, text="100%", width=40, font=("Arial", 10),
+                                              text_color=COLORS["primary"])
+                        val_lbl.grid(row=0, column=2, padx=(5, 0))
+                        def _on_focus(v, lbl=val_lbl, vr=var):
+                            lbl.configure(text=f"{float(v):.0%}")
+                        ctk.CTkLabel(st_frame, text=st, font=("Arial", 11),
+                                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
+                        slider = ctk.CTkSlider(st_frame, from_=0, to=2.0, number_of_steps=20,
+                                               width=150, command=_on_focus)
+                        slider.set(1.0)
+                        slider.grid(row=0, column=1, padx=5)
+                        r += 1
+                    ctk.CTkLabel(analysis_frame, text="0% = ignorieren, 100% = normal, 200% = doppelter Fokus",
+                                font=("Arial", 10), text_color=COLORS["text_light"]
+                                ).grid(row=r, column=0, columnspan=2, sticky="w", padx=10, pady=(2, 5))
                     r += 1
 
                 if summary:
@@ -2850,19 +2872,35 @@ class App(ctk.CTk):
         ctk.CTkLabel(scroll, text="Anzahl Fragen (1–500)", font=("Segoe UI", 13, "bold")
                     ).grid(row=next_row + 2, column=0, sticky="w", pady=(15, 0))
         num_var = IntVar(value=20)
+        auto_count_var = BooleanVar(value=False)
         num_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         num_frame.grid(row=next_row + 3, column=0, sticky="w", pady=5)
         num_entry = ctk.CTkEntry(num_frame, width=80, font=("Segoe UI", 12),
                                  placeholder_text="20")
         num_entry.insert(0, "20")
         num_entry.grid(row=0, column=0, padx=(0, 10))
-        for preset in ["10", "20", "50", "100"]:
+        for col_i, preset in enumerate(["10", "20", "50", "100"]):
             ctk.CTkButton(num_frame, text=preset, width=45, height=28, fg_color=COLORS["text_light"],
                          font=("Segoe UI", 11),
-                         command=lambda v=preset: (num_entry.delete(0, "end"), num_entry.insert(0, v))
-                         ).grid(row=0, column=int(preset) + 1, padx=2)
+                         command=lambda v=preset: (auto_count_var.set(False), num_entry.configure(state="normal"),
+                                                   num_entry.delete(0, "end"), num_entry.insert(0, v))
+                         ).grid(row=0, column=col_i + 1, padx=2)
+        def _toggle_auto():
+            if auto_count_var.get():
+                num_entry.delete(0, "end")
+                num_entry.insert(0, "auto")
+                num_entry.configure(state="disabled")
+            else:
+                num_entry.configure(state="normal")
+                num_entry.delete(0, "end")
+                num_entry.insert(0, "20")
+        ctk.CTkCheckBox(num_frame, text="So viele wie sinnvoll (KI entscheidet)",
+                        variable=auto_count_var, font=("Segoe UI", 11),
+                        command=_toggle_auto).grid(row=1, column=0, columnspan=6, sticky="w", pady=(5, 0))
 
         def _get_num():
+            if auto_count_var.get():
+                return 0
             try:
                 n = int(num_entry.get())
                 return max(1, min(500, n))
@@ -2960,10 +2998,15 @@ class App(ctk.CTk):
                     ))
 
                 selected_types = [k for k, v in qt_vars.items() if v.get()]
+                focus = None
+                if hasattr(self, '_focus_topic_vars') and self._focus_topic_vars:
+                    focus = {t: v.get() for t, v in self._focus_topic_vars.items()}
+                is_auto = auto_count_var.get()
                 try:
                     questions = self.ai.generate_from_slides(
-                        file_var.get(), _get_num(), progress_cb,
-                        question_types=selected_types or None)
+                        file_var.get(), _get_num() or 20, progress_cb,
+                        question_types=selected_types or None,
+                        focus_topics=focus, auto_count=is_auto)
                 except Exception as exc:
                     msg = str(exc)
                     self.after(0, lambda m=msg: (
