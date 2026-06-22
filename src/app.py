@@ -4628,20 +4628,30 @@ class App(ctk.CTk):
         self._render_rich_text(card, q.text, font=("Segoe UI", 13), text_color=COLORS["text"],
                               wraplength=700, row=1, column=0, padx=20, pady=(5, 15), sticky="w")
 
-        # Question image
+        # Question image (with zoom button)
         if q.image_path and os.path.exists(q.image_path):
-            photo, iw, ih = self._load_diagram_image(q.image_path, max_w=600, max_h=300)
-            if photo:
-                img_lbl = ctk.CTkLabel(card, text="", image=ctk.CTkImage(
-                    light_image=Image.open(q.image_path),
-                    size=(iw, ih)
-                ) if Image else None)
-                img_lbl.grid(row=2, column=0, padx=20, pady=(0, 15))
-                if not Image:
-                    img_canvas = tk.Canvas(card, width=iw, height=ih)
-                    img_canvas.grid(row=2, column=0, padx=20, pady=(0, 15))
-                    img_canvas.create_image(0, 0, anchor="nw", image=photo)
-                    img_canvas.image = photo
+            img_frame = ctk.CTkFrame(card, fg_color="transparent")
+            img_frame.grid(row=2, column=0, padx=15, pady=(0, 10), sticky="ew")
+            img_frame.grid_columnconfigure(0, weight=1)
+            photo, iw, ih = self._load_diagram_image(q.image_path, max_w=680, max_h=420)
+            if photo and Image:
+                img_lbl = ctk.CTkLabel(img_frame, text="", image=ctk.CTkImage(
+                    light_image=Image.open(q.image_path), size=(iw, ih)))
+                img_lbl.grid(row=0, column=0, sticky="ew")
+
+                def _zoom_image(path=q.image_path):
+                    win = ctk.CTkToplevel(self)
+                    win.title("🔍 Bild")
+                    win.geometry("900x700")
+                    win.attributes("-topmost", True)
+                    zc, zctrl, _, _ = self._make_zoomable_canvas(win, path, max_w=860, max_h=640)
+                    zc.pack(fill="both", expand=True, padx=10, pady=(10, 5))
+                    zctrl.pack(pady=(0, 10))
+
+                ctk.CTkButton(img_frame, text="🔍", width=36, height=36, corner_radius=18,
+                             fg_color=COLORS["primary"], hover_color=COLORS["primary_dark"],
+                             font=("Segoe UI", 16), command=_zoom_image
+                             ).grid(row=0, column=0, sticky="ne", padx=8, pady=8)
 
         # Answer area
         answer_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8)
@@ -4686,7 +4696,7 @@ class App(ctk.CTk):
                 answer_widgets.append(entry)
 
         elif q.question_type == QuestionType.DRAG_DROP:
-            ctk.CTkLabel(answer_frame, text="Ordne die Begriffe zu:",
+            ctk.CTkLabel(answer_frame, text=t("dnd.hint"),
                         font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
                         ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
 
@@ -4694,66 +4704,116 @@ class App(ctk.CTk):
             targets = [p.target for p in q.drag_drop_pairs]
             random.shuffle(sources)
 
-            # Canvas-based drag & drop with snap zones
-            row_height = 40
-            target_width = 200
-            zone_width = 150
-            pool_height = 50
-            canvas_width = 600
-            canvas_height = len(targets) * row_height + pool_height + 20
+            # Image display with zoom if present
+            has_img = q.image_path and os.path.exists(q.image_path)
+            dnd_img_photo = None
+            img_w, img_h = 0, 0
+            if has_img:
+                dnd_img_photo, img_w, img_h = self._load_diagram_image(q.image_path, max_w=680, max_h=350)
+
+            row_height = 48
+            zone_width = 180
+            target_label_w = 220
+            pool_height = 60
+            n_targets = len(targets)
+            canvas_width = 720
+            targets_h = n_targets * row_height + 20
+            total_img_h = img_h + 10 if has_img else 0
+            canvas_height = total_img_h + targets_h + pool_height + 10
 
             dnd_canvas = tk.Canvas(answer_frame, width=canvas_width, height=canvas_height,
                                    bg=COLORS.get("canvas_bg", "white"), highlightthickness=0)
-            dnd_canvas.grid(row=1, column=0, padx=20, pady=(0, 12))
+            dnd_canvas.grid(row=1, column=0, padx=10, pady=(0, 12), sticky="ew")
 
-            # Draw targets and drop zones
-            dnd_drop_zones = {}  # target -> zone info
-            dnd_assignments = {}  # target -> source or None
+            # Draw image at top if present
+            if dnd_img_photo and has_img:
+                ix = canvas_width // 2
+                dnd_canvas.create_image(ix, 5, anchor="n", image=dnd_img_photo)
+                dnd_canvas.image = dnd_img_photo
+
+                def _zoom_dnd_img(path=q.image_path):
+                    win = ctk.CTkToplevel(self)
+                    win.title("🔍 Bild")
+                    win.geometry("900x700")
+                    win.attributes("-topmost", True)
+                    zc, zctrl, _, _ = self._make_zoomable_canvas(win, path, max_w=860, max_h=640)
+                    zc.pack(fill="both", expand=True, padx=10, pady=(10, 5))
+                    zctrl.pack(pady=(0, 10))
+
+                zoom_btn = tk.Button(dnd_canvas, text="🔍", font=("Segoe UI", 12),
+                                     command=_zoom_dnd_img, bd=0, relief="flat",
+                                     bg=COLORS.get("primary", "#3366cc"), fg="white",
+                                     activebackground=COLORS.get("primary_dark", "#2850a8"))
+                dnd_canvas.create_window(canvas_width - 40, 12, window=zoom_btn)
+
+            # Draw targets with drop zones
+            dnd_drop_zones = {}
+            dnd_assignments = {}
+            zone_start_y = total_img_h + 5
 
             for i, target in enumerate(targets):
-                y = 20 + i * row_height
-                dnd_canvas.create_text(10, y + row_height // 2, text=f"{target}:",
-                                      font=("Segoe UI", 11, "bold"), anchor="w",
-                                      fill=COLORS.get("text", "black"))
-                zx = target_width + 20
-                zy = y + 5
+                y = zone_start_y + i * row_height
+                # Target label with rounded rect background
+                lbl_rect = dnd_canvas.create_rectangle(
+                    12, y + 4, target_label_w, y + row_height - 4,
+                    fill=COLORS.get("primary_dark", "#2850a8"), outline="", width=0)
+                dnd_canvas.create_text(target_label_w // 2 + 6, y + row_height // 2,
+                                      text=target, font=("Segoe UI", 12, "bold"),
+                                      fill="white", anchor="center")
+                # Drop zone
+                zx = target_label_w + 16
+                zy = y + 4
+                zw = zone_width
+                zh = row_height - 8
                 zone_rect = dnd_canvas.create_rectangle(
-                    zx, zy, zx + zone_width, zy + row_height - 10,
-                    outline="#888", dash=(4, 2), width=2, fill=""
+                    zx, zy, zx + zw, zy + zh,
+                    outline="#aab", dash=(5, 3), width=2, fill=COLORS.get("input_bg", "#f8f9fa")
                 )
+                dnd_canvas.create_text(zx + zw // 2, zy + zh // 2,
+                                      text="hierher ziehen", font=("Segoe UI", 9),
+                                      fill="#bbb", tags=f"hint_{target}")
                 dnd_drop_zones[target] = {
-                    "x": zx + zone_width // 2, "y": zy + (row_height - 10) // 2,
+                    "x": zx + zw // 2, "y": zy + zh // 2,
                     "rect_id": zone_rect, "left": zx, "top": zy,
-                    "right": zx + zone_width, "bottom": zy + row_height - 10
+                    "right": zx + zw, "bottom": zy + zh,
+                    "hint_tag": f"hint_{target}"
                 }
                 dnd_assignments[target] = None
 
-            # Divider
-            pool_y = len(targets) * row_height + 20
-            dnd_canvas.create_line(0, pool_y, canvas_width, pool_y, fill="#ccc", dash=(4, 3))
+            # Divider + pool
+            pool_y = zone_start_y + n_targets * row_height + 10
+            dnd_canvas.create_line(10, pool_y, canvas_width - 10, pool_y, fill="#ddd", width=1)
+            dnd_canvas.create_text(canvas_width // 2, pool_y + 8, text=t("dnd.pool"),
+                                  font=("Segoe UI", 9), fill="#999", anchor="n")
 
-            # Source chips
-            dnd_chip_assignments = {}  # chip_tag -> target or None
-            spacing = max(80, canvas_width // (len(sources) + 1))
+            # Source chips (larger, more colorful)
+            dnd_chip_assignments = {}
+            dnd_chip_home = {}
+            chip_colors = ["#2980b9", "#27ae60", "#e67e22", "#8e44ad", "#e74c3c", "#16a085", "#d35400", "#2c3e50"]
+            chip_w = max(100, min(160, (canvas_width - 40) // max(len(sources), 1) - 12))
+            row_count = (len(sources) * (chip_w + 12) + canvas_width - 40) // (canvas_width - 20)
+            cols_per_row = max(1, (canvas_width - 20) // (chip_w + 12))
 
             for i, source in enumerate(sources):
-                sx = spacing * (i + 1)
-                if sx > canvas_width - 40:
-                    sx = 20 + (i * 90) % (canvas_width - 40)
-                sy = pool_y + pool_height // 2
+                col = i % cols_per_row
+                row_i = i // cols_per_row
+                sx = 30 + col * (chip_w + 12) + chip_w // 2
+                sy = pool_y + 28 + row_i * 38
 
                 chip_tag = f"dndchip_{i}"
+                chip_color = chip_colors[i % len(chip_colors)]
                 dnd_chip_assignments[chip_tag] = None
+                dnd_chip_home[chip_tag] = (sx, sy)
 
-                tid = dnd_canvas.create_text(sx, sy, text=source, font=("Segoe UI", 10, "bold"),
-                                             fill="white", tags=(chip_tag,))
-                bb = dnd_canvas.bbox(tid)
-                pad = 6
-                rid = dnd_canvas.create_rectangle(bb[0] - pad, bb[1] - pad, bb[2] + pad, bb[3] + pad,
-                                                  fill="#2980b9", outline="#1a5276", width=2, tags=(chip_tag,))
-                dnd_canvas.tag_lower(rid, tid)
+                pad = 8
+                rid = dnd_canvas.create_rectangle(
+                    sx - chip_w // 2, sy - 14, sx + chip_w // 2, sy + 14,
+                    fill=chip_color, outline="", width=0, tags=(chip_tag,))
+                tid = dnd_canvas.create_text(sx, sy, text=source, font=("Segoe UI", 11, "bold"),
+                                             fill="white", tags=(chip_tag,), width=chip_w - 12)
+                dnd_canvas.tag_raise(tid, rid)
 
-                def make_dnd_handlers(tag, src):
+                def make_dnd_handlers(tag, src, color):
                     drag = {"x": 0, "y": 0}
 
                     def press(e):
@@ -4763,63 +4823,128 @@ class App(ctk.CTk):
                     def motion(e):
                         dnd_canvas.move(tag, e.x - drag["x"], e.y - drag["y"])
                         drag["x"], drag["y"] = e.x, e.y
+                        # Highlight nearest zone
+                        box = dnd_canvas.bbox(tag)
+                        if not box:
+                            return
+                        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+                        for tgt, zone in dnd_drop_zones.items():
+                            in_zone = (zone["left"] - 40 < cx < zone["right"] + 40 and
+                                       zone["top"] - 20 < cy < zone["bottom"] + 20)
+                            if in_zone and dnd_assignments.get(tgt) is None:
+                                dnd_canvas.itemconfig(zone["rect_id"],
+                                    outline=COLORS.get("primary", "#3366cc"), width=3,
+                                    fill=COLORS.get("card_hover", "#e8edff"))
+                            elif dnd_assignments.get(tgt) is None:
+                                dnd_canvas.itemconfig(zone["rect_id"],
+                                    outline="#aab", width=2,
+                                    fill=COLORS.get("input_bg", "#f8f9fa"))
 
                     def release(e):
                         box = dnd_canvas.bbox(tag)
                         if not box:
                             return
-                        cx = (box[0] + box[2]) / 2
-                        cy = (box[1] + box[3]) / 2
+                        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
 
                         prev_target = dnd_chip_assignments.get(tag)
                         if prev_target:
                             dnd_assignments[prev_target] = None
-                            dnd_canvas.itemconfig(dnd_drop_zones[prev_target]["rect_id"],
-                                                  outline="#888", fill="")
+                            zone = dnd_drop_zones[prev_target]
+                            dnd_canvas.itemconfig(zone["rect_id"],
+                                outline="#aab", fill=COLORS.get("input_bg", "#f8f9fa"), width=2)
+                            dnd_canvas.itemconfig(zone["hint_tag"], state="normal")
 
                         snapped = False
+                        best_dist = 9999
+                        best_tgt = None
                         for tgt, zone in dnd_drop_zones.items():
-                            if (zone["left"] - 30 < cx < zone["right"] + 30 and
-                                zone["top"] - 15 < cy < zone["bottom"] + 15):
-                                snap_x = zone["x"] - cx
-                                snap_y = zone["y"] - cy
-                                dnd_canvas.move(tag, snap_x, snap_y)
-                                for other_tag, other_tgt in dnd_chip_assignments.items():
-                                    if other_tgt == tgt and other_tag != tag:
-                                        dnd_chip_assignments[other_tag] = None
-                                dnd_assignments[tgt] = src
-                                dnd_chip_assignments[tag] = tgt
-                                dnd_canvas.itemconfig(zone["rect_id"],
-                                                      outline=COLORS.get("primary", "#3366cc"),
-                                                      fill=COLORS.get("card_hover", "#f0f3ff"))
-                                snapped = True
-                                break
+                            if (zone["left"] - 40 < cx < zone["right"] + 40 and
+                                zone["top"] - 20 < cy < zone["bottom"] + 20):
+                                dist = abs(cx - zone["x"]) + abs(cy - zone["y"])
+                                if dist < best_dist:
+                                    best_dist = dist
+                                    best_tgt = tgt
+
+                        if best_tgt:
+                            zone = dnd_drop_zones[best_tgt]
+                            # Displace existing chip back to pool
+                            for other_tag, other_tgt in list(dnd_chip_assignments.items()):
+                                if other_tgt == best_tgt and other_tag != tag:
+                                    home = dnd_chip_home[other_tag]
+                                    obox = dnd_canvas.bbox(other_tag)
+                                    if obox:
+                                        ocx, ocy = (obox[0]+obox[2])/2, (obox[1]+obox[3])/2
+                                        dnd_canvas.move(other_tag, home[0]-ocx, home[1]-ocy)
+                                    dnd_chip_assignments[other_tag] = None
+
+                            snap_x = zone["x"] - cx
+                            snap_y = zone["y"] - cy
+                            dnd_canvas.move(tag, snap_x, snap_y)
+                            dnd_assignments[best_tgt] = src
+                            dnd_chip_assignments[tag] = best_tgt
+                            dnd_canvas.itemconfig(zone["rect_id"],
+                                outline=COLORS.get("primary", "#3366cc"), width=2,
+                                fill=COLORS.get("card_hover", "#e8edff"))
+                            dnd_canvas.itemconfig(zone["hint_tag"], state="hidden")
+                            snapped = True
+
                         if not snapped:
+                            # Snap back to pool
+                            home = dnd_chip_home[tag]
+                            dnd_canvas.move(tag, home[0] - cx, home[1] - cy)
                             dnd_chip_assignments[tag] = None
+
+                        # Reset all zone highlights
+                        for tgt, zone in dnd_drop_zones.items():
+                            if dnd_assignments.get(tgt) is None:
+                                dnd_canvas.itemconfig(zone["rect_id"],
+                                    outline="#aab", width=2,
+                                    fill=COLORS.get("input_bg", "#f8f9fa"))
 
                     return press, motion, release
 
-                p, m, r = make_dnd_handlers(chip_tag, source)
+                p, m, r = make_dnd_handlers(chip_tag, source, chip_color)
                 dnd_canvas.tag_bind(chip_tag, "<Button-1>", p)
                 dnd_canvas.tag_bind(chip_tag, "<B1-Motion>", m)
                 dnd_canvas.tag_bind(chip_tag, "<ButtonRelease-1>", r)
 
+            # Adjust canvas to actual content
+            dnd_canvas.update_idletasks()
+            bbox = dnd_canvas.bbox("all")
+            if bbox:
+                dnd_canvas.config(height=max(canvas_height, bbox[3] + 15))
+
             answer_widgets.append(("dnd_canvas", dnd_assignments))
 
         elif q.question_type == QuestionType.DIAGRAM_LABEL:
-            ctk.CTkLabel(answer_frame, text="Ziehe die Labels an die richtige Stelle im Diagramm:",
+            ctk.CTkLabel(answer_frame, text=t("dnd.diagram_hint"),
                         font=("Arial", 12, "bold"), text_color=COLORS["text"]
                         ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
 
-            photo, cw, ch = self._load_diagram_image(q.diagram_image_path)
-            pool_h = 55
+            photo, cw, ch = self._load_diagram_image(q.diagram_image_path, max_w=700, max_h=450)
+            pool_h = 60
             canvas = tk.Canvas(answer_frame, width=cw, height=ch + pool_h, bg="white",
                                highlightthickness=1, highlightbackground="#cccccc")
-            canvas.grid(row=1, column=0, padx=20, pady=(0, 12))
+            canvas.grid(row=1, column=0, padx=10, pady=(0, 12), sticky="ew")
             if photo:
                 canvas.create_image(0, 0, anchor="nw", image=photo)
                 canvas.image = photo
-            # divider line between diagram and label pool
+
+            # Zoom button
+            def _zoom_diagram(path=q.diagram_image_path):
+                win = ctk.CTkToplevel(self)
+                win.title("🔍 Diagramm")
+                win.geometry("900x700")
+                win.attributes("-topmost", True)
+                zc, zctrl, _, _ = self._make_zoomable_canvas(win, path, max_w=860, max_h=640)
+                zc.pack(fill="both", expand=True, padx=10, pady=(10, 5))
+                zctrl.pack(pady=(0, 10))
+
+            zoom_btn = tk.Button(canvas, text="🔍", font=("Segoe UI", 12),
+                                 command=_zoom_diagram, bd=0, relief="flat",
+                                 bg=COLORS.get("primary", "#3366cc"), fg="white")
+            canvas.create_window(cw - 28, 12, window=zoom_btn)
+
             canvas.create_line(0, ch, cw, ch, fill="#cccccc", dash=(4, 3))
 
             # placed[label] = [x_frac, y_frac] or None while still in pool
