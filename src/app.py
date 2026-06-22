@@ -29,6 +29,7 @@ from .theme import COLORS, apply_theme, is_dark
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
 from . import cloud_sync
+from . import auth
 
 ctk.set_default_color_theme("blue")
 
@@ -259,6 +260,16 @@ class App(ctk.CTk):
         ctk.CTkLabel(welcome, text=t("home.welcome_sub"),
                      font=("Segoe UI", 13), text_color="#d0deff"
                      ).grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
+        # Account indicator (optional account, app works fully without it)
+        account = self.store.load_settings().get("account")
+        if account and account.get("email"):
+            acc_text = f"👤 {account['email']}"
+        else:
+            acc_text = t("account.login_cta")
+        ctk.CTkButton(welcome, text=acc_text, width=160, height=32, corner_radius=8,
+                     fg_color="white", text_color=COLORS["primary"], hover_color="#e0e8ff",
+                     font=("Segoe UI", 12, "bold"), command=self.show_account
+                     ).grid(row=0, column=1, rowspan=2, padx=25, pady=15, sticky="e")
 
         # Streak display
         current_streak, max_streak = self.store.get_streak()
@@ -1086,6 +1097,156 @@ class App(ctk.CTk):
             messagebox.showerror("Import", f"Import fehlgeschlagen: {e}")
 
     # ── SETTINGS ──
+
+    # ── ACCOUNT (optional Firebase Auth) ──
+
+    def show_account(self):
+        self._clear_main()
+        frame = self._make_screen()
+
+        settings = self.store.load_settings()
+        account = settings.get("account")
+
+        ctk.CTkLabel(frame, text=t("account.title"), font=("Arial", 20, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(frame, text=t("account.subtitle"), font=("Segoe UI", 12),
+                    text_color=COLORS["text_light"], wraplength=520, justify="left"
+                    ).grid(row=1, column=0, sticky="w", pady=(0, 18))
+
+        status = ctk.CTkLabel(frame, text="", font=("Segoe UI", 12),
+                              text_color=COLORS["text_light"], wraplength=520, justify="left")
+        status.grid(row=10, column=0, sticky="w", pady=(10, 10))
+
+        if account and account.get("email"):
+            # Logged-in view
+            card = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=12,
+                                border_width=2, border_color=COLORS["success"])
+            card.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+            card.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(card, text=f"👤 {account['email']}", font=("Arial", 16, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=18, pady=(15, 4))
+            ctk.CTkLabel(card, text=t("account.logged_in"), font=("Segoe UI", 12),
+                        text_color=COLORS["success"]).grid(row=1, column=0, sticky="w", padx=18, pady=(0, 4))
+            ctk.CTkLabel(card, text=t("account.sync_note"), font=("Segoe UI", 11),
+                        text_color=COLORS["text_light"], wraplength=480, justify="left"
+                        ).grid(row=2, column=0, sticky="w", padx=18, pady=(0, 15))
+
+            def _logout():
+                if not messagebox.askyesno(t("account.title"), t("account.logout_confirm")):
+                    return
+                s = self.store.load_settings()
+                s.pop("account", None)
+                self.store.save_settings(s)
+                self.show_account()
+
+            btns = ctk.CTkFrame(frame, fg_color="transparent")
+            btns.grid(row=3, column=0, sticky="w", pady=(0, 10))
+            ctk.CTkButton(btns, text=t("account.sync_now"), fg_color=COLORS["primary"],
+                         width=180, command=lambda: self._account_sync(status)
+                         ).grid(row=0, column=0, padx=(0, 10))
+            ctk.CTkButton(btns, text=t("account.logout"), fg_color=COLORS["danger"],
+                         width=140, command=_logout).grid(row=0, column=1)
+        else:
+            # Login / register view
+            mode = StringVar(value="login")
+            card = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=12)
+            card.grid(row=2, column=0, sticky="ew", pady=(0, 15))
+            card.grid_columnconfigure(0, weight=1)
+
+            tab_row = ctk.CTkFrame(card, fg_color="transparent")
+            tab_row.grid(row=0, column=0, sticky="w", padx=18, pady=(15, 8))
+            ctk.CTkRadioButton(tab_row, text=t("account.tab_login"), variable=mode,
+                               value="login").grid(row=0, column=0, padx=(0, 20))
+            ctk.CTkRadioButton(tab_row, text=t("account.tab_register"), variable=mode,
+                               value="register").grid(row=0, column=1)
+
+            ctk.CTkLabel(card, text=t("account.email"), font=("Segoe UI", 12, "bold"),
+                        text_color=COLORS["text"]).grid(row=1, column=0, sticky="w", padx=18)
+            email_entry = ctk.CTkEntry(card, width=360, placeholder_text="name@mail.com")
+            email_entry.grid(row=2, column=0, sticky="w", padx=18, pady=(2, 10))
+
+            ctk.CTkLabel(card, text=t("account.password"), font=("Segoe UI", 12, "bold"),
+                        text_color=COLORS["text"]).grid(row=3, column=0, sticky="w", padx=18)
+            pw_entry = ctk.CTkEntry(card, width=360, show="*")
+            pw_entry.grid(row=4, column=0, sticky="w", padx=18, pady=(2, 15))
+
+            def _submit():
+                email = email_entry.get().strip()
+                pw = pw_entry.get()
+                if not email or not pw:
+                    status.configure(text=t("account.need_fields"), text_color=COLORS["danger"])
+                    return
+                status.configure(text=t("account.working"), text_color=COLORS["text_light"])
+                self.update_idletasks()
+
+                def worker():
+                    try:
+                        if mode.get() == "register":
+                            acc = auth.sign_up(email, pw)
+                        else:
+                            acc = auth.sign_in(email, pw)
+                    except auth.AuthError as e:
+                        self.after(0, lambda: status.configure(
+                            text=str(e), text_color=COLORS["danger"]))
+                        return
+                    s = self.store.load_settings()
+                    s["account"] = acc
+                    self.store.save_settings(s)
+                    self.after(0, self.show_account)
+
+                threading.Thread(target=worker, daemon=True).start()
+
+            def _reset_pw():
+                email = email_entry.get().strip()
+                if not email:
+                    status.configure(text=t("account.need_email"), text_color=COLORS["danger"])
+                    return
+                try:
+                    auth.send_password_reset(email)
+                    status.configure(text=t("account.reset_sent"), text_color=COLORS["success"])
+                except auth.AuthError as e:
+                    status.configure(text=str(e), text_color=COLORS["danger"])
+
+            ctk.CTkButton(card, text=t("account.submit"), fg_color=COLORS["success"],
+                         width=200, command=_submit).grid(row=5, column=0, sticky="w", padx=18, pady=(0, 8))
+            ctk.CTkButton(card, text=t("account.forgot"), fg_color="transparent",
+                         text_color=COLORS["primary"], hover_color=COLORS["card"], width=200,
+                         command=_reset_pw).grid(row=6, column=0, sticky="w", padx=14, pady=(0, 15))
+
+        ctk.CTkButton(frame, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=11, column=0, sticky="w", pady=15)
+
+    def _account_sync(self, status_label):
+        """Upload local data to the cloud namespace tied to the account UID."""
+        settings = self.store.load_settings()
+        account = settings.get("account")
+        if not account:
+            return
+        status_label.configure(text=t("account.syncing"), text_color=COLORS["text_light"])
+        self.update_idletasks()
+
+        def worker():
+            try:
+                acc = auth.ensure_valid(account)
+                if acc is not account:
+                    s = self.store.load_settings()
+                    s["account"] = acc
+                    self.store.save_settings(s)
+            except auth.AuthError as e:
+                self.after(0, lambda: status_label.configure(
+                    text=str(e), text_color=COLORS["danger"]))
+                return
+            code = cloud_sync.sanitize_code("acc_" + acc.get("uid", ""))
+            from dataclasses import asdict as _asdict
+            quizzes_data = [q.to_dict() for q in self.quizzes]
+            progress_data = {k: _asdict(v) for k, v in self.store.load_progress().items()}
+            ok = cloud_sync.upload(code, "quizzes", quizzes_data)
+            ok = cloud_sync.upload(code, "progress", progress_data) and ok
+            msg = t("account.sync_ok") if ok else t("sync.error")
+            color = COLORS["success"] if ok else COLORS["danger"]
+            self.after(0, lambda: status_label.configure(text=msg, text_color=color))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def show_settings(self):
         self._clear_main()
