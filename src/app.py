@@ -29,6 +29,11 @@ from .theme import COLORS, apply_theme, is_dark
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
 from . import cloud_sync
+try:
+    import pyttsx3
+    _HAS_TTS = True
+except ImportError:
+    _HAS_TTS = False
 
 ctk.set_default_color_theme("blue")
 
@@ -316,6 +321,7 @@ class App(ctk.CTk):
             (t("folder.title"), t("folder.sub"), COLORS["primary_dark"], self.show_folders),
             (t("fosa.title"), t("fosa.sub"), COLORS["primary"], self.show_formula_sheets),
             (t("diary.card_title"), t("diary.card_sub"), COLORS["danger"], self.show_error_diary),
+            (t("plan.card_title"), t("plan.card_sub"), COLORS["success"], self.show_study_plan),
             (t("home.settings"), t("home.settings_sub"), COLORS["text_light"], self.show_settings),
         ]
         for idx, (title_, desc, color, command) in enumerate(cards):
@@ -1163,9 +1169,13 @@ class App(ctk.CTk):
         math_switch.grid(row=1, column=1, padx=(0, 20), pady=(8, 0))
         if settings.get("math_mode", False):
             math_switch.select()
+        tts_switch = ctk.CTkSwitch(feat_row, text=t("settings.tts"))
+        tts_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0))
+        if settings.get("tts_enabled", False):
+            tts_switch.select()
         # ── EXPERIMENTAL: AI Question Creation ── START
         ai_create_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_question_creation"))
-        ai_create_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0), columnspan=2)
+        ai_create_switch.grid(row=3, column=0, padx=(0, 20), pady=(8, 0), columnspan=2)
         if settings.get("ai_question_creation", False):
             ai_create_switch.select()
         # ── EXPERIMENTAL: AI Question Creation ── END
@@ -1322,6 +1332,7 @@ class App(ctk.CTk):
             s["ai_validation"] = bool(aival_switch.get())
             s["detailed_answer"] = bool(detailed_switch.get())
             s["math_mode"] = bool(math_switch.get())
+            s["tts_enabled"] = bool(tts_switch.get())
             s["ai_question_creation"] = bool(ai_create_switch.get())  # EXPERIMENTAL
             s["dark_mode"] = bool(dark_switch.get())
             s["language"] = "en" if lang_menu.get() == "English" else "de"
@@ -3949,6 +3960,153 @@ class App(ctk.CTk):
             return "6"
         return f"{pct:.0f}%"
 
+    # ── TTS (Text-to-Speech) ──
+
+    def _tts_speak(self, text: str):
+        if not _HAS_TTS or not self.store.load_settings().get("tts_enabled", False):
+            return
+        def run():
+            try:
+                engine = pyttsx3.init()
+                engine.setProperty('rate', 160)
+                clean = text.replace("$", "").replace("\\", " ")
+                engine.say(clean)
+                engine.runAndWait()
+                engine.stop()
+            except Exception:
+                pass
+        threading.Thread(target=run, daemon=True).start()
+
+    def _tts_stop(self):
+        pass
+
+    # ── LERNPLAN-GENERATOR ──
+
+    def show_study_plan(self):
+        self._clear_main()
+        scroll = self._make_screen()
+
+        ctk.CTkLabel(scroll, text=t("plan.title"), font=("Segoe UI", 18, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 10))
+        ctk.CTkLabel(scroll, text=t("plan.subtitle"), font=("Segoe UI", 12),
+                    text_color=COLORS["text_light"], wraplength=650
+                    ).grid(row=1, column=0, sticky="w", pady=(0, 15))
+
+        if not self.quizzes:
+            ctk.CTkLabel(scroll, text=t("plan.no_quizzes"), font=("Segoe UI", 13),
+                        text_color=COLORS["text_light"]).grid(row=2, column=0, sticky="w")
+            ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
+                         command=self.show_home).grid(row=3, column=0, sticky="w", pady=15)
+            return
+
+        ctk.CTkLabel(scroll, text=t("plan.select_quiz"), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=2, column=0, sticky="w")
+        quiz_names = [q.name for q in self.quizzes]
+        quiz_menu = ctk.CTkOptionMenu(scroll, values=quiz_names, width=400)
+        quiz_menu.grid(row=3, column=0, sticky="w", pady=(5, 10))
+
+        ctk.CTkLabel(scroll, text=t("plan.exam_date"), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=4, column=0, sticky="w")
+        date_entry = ctk.CTkEntry(scroll, placeholder_text="YYYY-MM-DD", width=200)
+        date_entry.grid(row=5, column=0, sticky="w", pady=(5, 10))
+
+        ctk.CTkLabel(scroll, text=t("plan.hours_per_day"), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=6, column=0, sticky="w")
+        hours_var = IntVar(value=3)
+        hours_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        hours_frame.grid(row=7, column=0, sticky="w", pady=(5, 15))
+        hours_label = ctk.CTkLabel(hours_frame, text="3h", font=("Segoe UI", 13, "bold"),
+                                    text_color=COLORS["primary"])
+        hours_label.grid(row=0, column=1, padx=10)
+        hours_slider = ctk.CTkSlider(hours_frame, from_=1, to=8, number_of_steps=7, width=250,
+                                      command=lambda v: (hours_var.set(int(v)),
+                                                         hours_label.configure(text=f"{int(v)}h")))
+        hours_slider.set(3)
+        hours_slider.grid(row=0, column=0)
+
+        result_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        result_frame.grid(row=9, column=0, sticky="ew", pady=(0, 10))
+        result_frame.grid_columnconfigure(0, weight=1)
+
+        def _generate_plan():
+            quiz_name = quiz_menu.get()
+            quiz = next((q for q in self.quizzes if q.name == quiz_name), None)
+            if not quiz:
+                return
+            exam_date = date_entry.get().strip()
+            try:
+                days_left = (date.fromisoformat(exam_date) - date.today()).days
+            except ValueError:
+                messagebox.showerror("Fehler", t("plan.invalid_date"))
+                return
+            if days_left < 1:
+                messagebox.showerror("Fehler", t("plan.date_past"))
+                return
+
+            for w in result_frame.winfo_children():
+                w.destroy()
+            ctk.CTkLabel(result_frame, text=t("ai_help.loading"), font=("Segoe UI", 13),
+                        text_color=COLORS["text_light"]).grid(row=0, column=0, sticky="w")
+            self.update_idletasks()
+
+            topics = list(set(q.topic.strip() for q in quiz.questions if q.topic.strip()))
+            progress = self.store.load_progress()
+            weak_topics = []
+            for topic in topics:
+                topic_qs = [q for q in quiz.questions if q.topic.strip() == topic]
+                if topic_qs:
+                    wrong = sum(1 for q in topic_qs if progress.get(q.id) and progress[q.id].wrong > progress[q.id].right)
+                    if wrong > len(topic_qs) * 0.3:
+                        weak_topics.append(topic)
+
+            hours = hours_var.get()
+
+            def run():
+                prompt = (
+                    f"Erstelle einen konkreten Lernplan für eine Klausur.\n\n"
+                    f"Klausur: {quiz.name}\n"
+                    f"Klausurdatum: {exam_date}\n"
+                    f"Tage bis zur Klausur: {days_left}\n"
+                    f"Verfügbare Stunden pro Tag: {hours}\n"
+                    f"Themen: {', '.join(topics) if topics else 'Verschiedene Themen'}\n"
+                    f"Schwache Themen: {', '.join(weak_topics) if weak_topics else 'Keine bekannt'}\n"
+                    f"Gesamte Fragen: {len(quiz.questions)}\n\n"
+                    f"Erstelle einen Tag-für-Tag Plan. Für jeden Tag:\n"
+                    f"- Welche Themen lernen\n"
+                    f"- Wie viele Fragen wiederholen\n"
+                    f"- Konkrete Lernaktivitäten\n\n"
+                    f"Priorisiere schwache Themen am Anfang. Die letzten 2-3 Tage für Wiederholung und Übungsklausuren.\n"
+                    f"Format: Übersichtlich mit Tagen als Überschriften."
+                )
+                msgs = [
+                    {"role": "system", "content": "Du bist ein erfahrener Lerncoach. Erstelle strukturierte, realistische Lernpläne."},
+                    {"role": "user", "content": prompt}
+                ]
+                result = self.ai._call_api(msgs, max_tokens=2048)
+
+                def show():
+                    for w in result_frame.winfo_children():
+                        w.destroy()
+                    if not result or result.startswith("ERROR:"):
+                        ctk.CTkLabel(result_frame, text=t("plan.error"), font=("Segoe UI", 13),
+                                    text_color=COLORS["danger"]).grid(row=0, column=0, sticky="w")
+                        return
+                    plan_box = ctk.CTkTextbox(result_frame, width=700, height=400,
+                                              font=("Segoe UI", 12), fg_color=COLORS["card"])
+                    plan_box.grid(row=0, column=0, sticky="ew")
+                    plan_box.insert("1.0", result)
+                    plan_box.configure(state="disabled")
+                self.after(0, show)
+
+            threading.Thread(target=run, daemon=True).start()
+
+        ctk.CTkButton(scroll, text=t("plan.generate"), fg_color=COLORS["primary"],
+                     font=("Segoe UI", 14, "bold"), height=40, corner_radius=10,
+                     command=_generate_plan).grid(row=8, column=0, sticky="w", pady=(0, 15))
+
+        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
+                     command=self.show_home).grid(row=10, column=0, sticky="w", pady=10)
+
     def _start_quiz(self, quiz: Quiz, mode: str, time_limit: int = 0, count: int = 0,
                     topic: str | None = None):
         questions = list(quiz.questions)
@@ -4852,6 +5010,14 @@ class App(ctk.CTk):
 
         ctk.CTkButton(nav, text="Auswertung", fg_color=COLORS["danger"], width=120,
                      command=self._show_results).grid(row=0, column=3)
+
+        if _HAS_TTS and self.store.load_settings().get("tts_enabled", False):
+            tts_text = q.text
+            if q.options:
+                tts_text += ". " + ". ".join(f"Option {i+1}: {o.text}" for i, o in enumerate(q.options))
+            ctk.CTkButton(nav, text="🔊", width=40, fg_color=COLORS["primary_light"],
+                         command=lambda t=tts_text: self._tts_speak(t)
+                         ).grid(row=0, column=4, padx=(10, 0))
 
         # Mark button
         marked_ids = self.store.load_marked()
