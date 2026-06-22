@@ -4921,54 +4921,224 @@ class App(ctk.CTk):
                         font=("Arial", 12, "bold"), text_color=COLORS["text"]
                         ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
 
-            photo, cw, ch = self._load_diagram_image(q.diagram_image_path, max_w=700, max_h=450)
-            pool_h = 60
-            canvas = tk.Canvas(answer_frame, width=cw, height=ch + pool_h, bg="white",
-                               highlightthickness=1, highlightbackground="#cccccc")
-            canvas.grid(row=1, column=0, padx=10, pady=(0, 12), sticky="ew")
-            if photo:
-                canvas.create_image(0, 0, anchor="nw", image=photo)
-                canvas.image = photo
+            # State for zoom levels
+            zoom_sizes = [(700, 450), (900, 580), (1100, 710)]
+            zoom_state = {"level": 0}
 
-            # Zoom button
-            def _zoom_diagram(path=q.diagram_image_path):
-                win = ctk.CTkToplevel(self)
-                win.title("🔍 Diagramm")
-                win.geometry("900x700")
-                win.attributes("-topmost", True)
-                zc, zctrl, _, _ = self._make_zoomable_canvas(win, path, max_w=860, max_h=640)
-                zc.pack(fill="both", expand=True, padx=10, pady=(10, 5))
-                zctrl.pack(pady=(0, 10))
+            # Container frame for canvas + controls
+            diagram_container = ctk.CTkFrame(answer_frame, fg_color="transparent")
+            diagram_container.grid(row=1, column=0, padx=10, pady=(0, 12), sticky="ew")
+            diagram_container.grid_columnconfigure(0, weight=1)
 
-            zoom_btn = tk.Button(canvas, text="🔍", font=("Segoe UI", 12),
-                                 command=_zoom_diagram, bd=0, relief="flat",
-                                 bg=COLORS.get("primary", "#3366cc"), fg="white")
-            canvas.create_window(cw - 28, 12, window=zoom_btn)
+            # Snap zone config: all zones same size, independent of label text length
+            SNAP_RADIUS = 22
 
-            canvas.create_line(0, ch, cw, ch, fill="#cccccc", dash=(4, 3))
-
-            # placed[label] = [x_frac, y_frac] or None while still in pool
-            placed = {}
+            # Data structures shared across rebuilds
+            placed = {}  # label_name -> slot_index or None
+            slot_assignments = {}  # slot_index -> label_name or None
             shuffled = [l.label for l in q.diagram_labels]
             random.shuffle(shuffled)
-            spacing = max(70, cw // (len(shuffled) + 1)) if shuffled else 70
-            for i, name in enumerate(shuffled):
+            for name in shuffled:
                 placed[name] = None
-                start_x = spacing * (i + 1)
-                start_y = ch + pool_h / 2
+            for i in range(len(q.diagram_labels)):
+                slot_assignments[i] = None
 
-                def make_drop(nm):
-                    def on_drop(px, py):
-                        if py < ch:  # dropped onto the diagram
-                            placed[nm] = [max(0.0, min(1.0, px / cw)),
-                                          max(0.0, min(1.0, py / ch))]
-                        else:  # back in the pool → unplaced
-                            placed[nm] = None
-                    return on_drop
-                self._make_draggable_chip(canvas, start_x, start_y, name, make_drop(name))
+            canvas_ref = {"canvas": None, "pool_y": 0}
+            chip_tags = {}  # label_name -> tag
+            chip_home = {}  # label_name -> (x, y)
+
+            def _build_diagram():
+                """Build or rebuild the diagram canvas at current zoom level."""
+                if canvas_ref["canvas"]:
+                    canvas_ref["canvas"].destroy()
+
+                max_w, max_h = zoom_sizes[zoom_state["level"]]
+                photo, cw, ch = self._load_diagram_image(q.diagram_image_path, max_w=max_w, max_h=max_h)
+                pool_h = 65
+                canvas = tk.Canvas(diagram_container, width=cw, height=ch + pool_h, bg="white",
+                                   highlightthickness=1, highlightbackground="#cccccc")
+                canvas.grid(row=0, column=0, sticky="ew")
+                canvas_ref["canvas"] = canvas
+                canvas_ref["pool_y"] = ch
+
+                if photo:
+                    canvas.create_image(0, 0, anchor="nw", image=photo)
+                    canvas.image = photo
+
+                # Draw snap zones at label positions (all same size circles)
+                snap_zones = {}  # index -> zone info
+                for i, dl in enumerate(q.diagram_labels):
+                    sx = int(dl.x * cw)
+                    sy = int(dl.y * ch)
+                    r = SNAP_RADIUS
+                    oval = canvas.create_oval(
+                        sx - r, sy - r, sx + r, sy + r,
+                        outline="#aabbcc", width=2, dash=(3, 3),
+                        fill="" if slot_assignments.get(i) is None else COLORS.get("card_hover", "#e8edff"))
+                    # Subtle number in center for reference
+                    num = canvas.create_text(sx, sy, text=str(i + 1),
+                                            font=("Segoe UI", 8), fill="#bbc8d8")
+                    snap_zones[i] = {
+                        "x": sx, "y": sy, "r": r,
+                        "oval_id": oval, "num_id": num,
+                    }
+
+                # Divider
+                canvas.create_line(0, ch, cw, ch, fill="#cccccc", dash=(4, 3))
+                canvas.create_text(cw // 2, ch + 8, text=t("dnd.pool"),
+                                  font=("Segoe UI", 9), fill="#999", anchor="n")
+
+                # Build chip pool
+                chip_colors = ["#2980b9", "#27ae60", "#e67e22", "#8e44ad",
+                               "#e74c3c", "#16a085", "#d35400", "#2c3e50"]
+                chip_w = 120
+                cols = max(1, cw // (chip_w + 12))
+                for ci, name in enumerate(shuffled):
+                    col = ci % cols
+                    row_i = ci // cols
+                    sx = 30 + col * (chip_w + 12) + chip_w // 2
+                    sy = ch + 28 + row_i * 36
+                    chip_home[name] = (sx, sy)
+
+                    tag = f"dlchip_{ci}"
+                    chip_tags[name] = tag
+                    color = chip_colors[ci % len(chip_colors)]
+
+                    rid = canvas.create_rectangle(
+                        sx - chip_w // 2, sy - 13, sx + chip_w // 2, sy + 13,
+                        fill=color, outline="", tags=(tag,))
+                    tid = canvas.create_text(sx, sy, text=name, font=("Segoe UI", 10, "bold"),
+                                             fill="white", tags=(tag,), width=chip_w - 10)
+                    canvas.tag_raise(tid, rid)
+
+                    # If already placed from previous zoom, snap to slot
+                    if placed.get(name) is not None:
+                        slot_i = placed[name]
+                        zone = snap_zones[slot_i]
+                        dx = zone["x"] - sx
+                        dy = zone["y"] - sy
+                        canvas.move(tag, dx, dy)
+                        canvas.itemconfig(zone["oval_id"], fill=COLORS.get("card_hover", "#e8edff"),
+                                        outline=COLORS.get("primary", "#3366cc"), width=2)
+                        canvas.itemconfig(zone["num_id"], state="hidden")
+
+                    def make_handlers(lbl, t_tag):
+                        drag = {"x": 0, "y": 0}
+
+                        def press(e):
+                            drag["x"], drag["y"] = e.x, e.y
+                            canvas.tag_raise(t_tag)
+
+                        def motion(e):
+                            canvas.move(t_tag, e.x - drag["x"], e.y - drag["y"])
+                            drag["x"], drag["y"] = e.x, e.y
+                            # Highlight nearest snap zone
+                            box = canvas.bbox(t_tag)
+                            if not box:
+                                return
+                            cx, cy = (box[0]+box[2])/2, (box[1]+box[3])/2
+                            for si, zone in snap_zones.items():
+                                dist = ((cx - zone["x"])**2 + (cy - zone["y"])**2)**0.5
+                                if dist < zone["r"] + 30 and slot_assignments.get(si) is None:
+                                    canvas.itemconfig(zone["oval_id"],
+                                        outline=COLORS.get("primary", "#3366cc"), width=3)
+                                elif slot_assignments.get(si) is None:
+                                    canvas.itemconfig(zone["oval_id"],
+                                        outline="#aabbcc", width=2)
+
+                        def release(e):
+                            box = canvas.bbox(t_tag)
+                            if not box:
+                                return
+                            cx, cy = (box[0]+box[2])/2, (box[1]+box[3])/2
+
+                            # Unassign from previous slot
+                            prev_slot = placed.get(lbl)
+                            if prev_slot is not None:
+                                slot_assignments[prev_slot] = None
+                                z = snap_zones[prev_slot]
+                                canvas.itemconfig(z["oval_id"], fill="",
+                                    outline="#aabbcc", width=2)
+                                canvas.itemconfig(z["num_id"], state="normal")
+
+                            # Find nearest snap zone
+                            best_dist = 9999
+                            best_slot = None
+                            for si, zone in snap_zones.items():
+                                dist = ((cx - zone["x"])**2 + (cy - zone["y"])**2)**0.5
+                                if dist < zone["r"] + 35 and dist < best_dist:
+                                    best_dist = dist
+                                    best_slot = si
+
+                            if best_slot is not None:
+                                zone = snap_zones[best_slot]
+                                # Displace existing chip
+                                existing = slot_assignments.get(best_slot)
+                                if existing and existing != lbl:
+                                    placed[existing] = None
+                                    slot_assignments[best_slot] = None
+                                    etag = chip_tags[existing]
+                                    ebox = canvas.bbox(etag)
+                                    if ebox:
+                                        home = chip_home[existing]
+                                        ecx, ecy = (ebox[0]+ebox[2])/2, (ebox[1]+ebox[3])/2
+                                        canvas.move(etag, home[0]-ecx, home[1]-ecy)
+
+                                # Snap chip to zone center
+                                canvas.move(t_tag, zone["x"] - cx, zone["y"] - cy)
+                                placed[lbl] = best_slot
+                                slot_assignments[best_slot] = lbl
+                                canvas.itemconfig(zone["oval_id"],
+                                    fill=COLORS.get("card_hover", "#e8edff"),
+                                    outline=COLORS.get("primary", "#3366cc"), width=2)
+                                canvas.itemconfig(zone["num_id"], state="hidden")
+                            else:
+                                # Snap back to pool
+                                home = chip_home[lbl]
+                                canvas.move(t_tag, home[0] - cx, home[1] - cy)
+                                placed[lbl] = None
+
+                            # Reset unhighlighted zones
+                            for si, zone in snap_zones.items():
+                                if slot_assignments.get(si) is None:
+                                    canvas.itemconfig(zone["oval_id"],
+                                        outline="#aabbcc", width=2, fill="")
+
+                        return press, motion, release
+
+                    p, m, r = make_handlers(name, tag)
+                    canvas.tag_bind(tag, "<Button-1>", p)
+                    canvas.tag_bind(tag, "<B1-Motion>", m)
+                    canvas.tag_bind(tag, "<ButtonRelease-1>", r)
+
+                # Adjust canvas height
+                canvas.update_idletasks()
+                bbox = canvas.bbox("all")
+                if bbox:
+                    canvas.config(height=max(ch + pool_h, bbox[3] + 10))
+
+                # Zoom button (top-right corner, on canvas)
+                def _toggle_zoom():
+                    zoom_state["level"] = (zoom_state["level"] + 1) % len(zoom_sizes)
+                    _build_diagram()
+
+                zoom_text = ["🔍+", "🔍++", "🔍−"][zoom_state["level"]]
+                zbtn = tk.Button(canvas, text=zoom_text, font=("Segoe UI", 11),
+                                 command=_toggle_zoom, bd=0, relief="flat",
+                                 bg=COLORS.get("primary", "#3366cc"), fg="white",
+                                 activebackground=COLORS.get("primary_dark", "#2850a8"),
+                                 cursor="hand2")
+                canvas.create_window(cw - 28, 12, window=zbtn)
+
+            _build_diagram()
 
             def diagram_get_positions():
-                return {k: v for k, v in placed.items() if v is not None}
+                result = {}
+                for lbl_name, slot_i in placed.items():
+                    if slot_i is not None:
+                        dl = q.diagram_labels[slot_i]
+                        result[lbl_name] = [dl.x, dl.y]
+                return result
 
         elif q.question_type == QuestionType.MARK_IMAGE:
             ctk.CTkLabel(answer_frame, text=q.text, font=("Segoe UI", 13, "bold"),
