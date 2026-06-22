@@ -452,8 +452,94 @@ class App(ctk.CTk):
         pbar.set(progress_val)
         pbar.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
 
+        # ── Learning Phase selector ──
+        settings = self.store.load_settings()
+        phase_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+        phase_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        ctk.CTkLabel(phase_frame, text=t("daily.phase"), font=("Segoe UI", 13, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 5))
+        phase_var = StringVar(value=settings.get("learning_phase", "deepen"))
+        phase_inner = ctk.CTkFrame(phase_frame, fg_color="transparent")
+        phase_inner.grid(row=1, column=0, sticky="w", padx=12, pady=(0, 5))
+        phase_hints = {
+            "basics": t("daily.phase_hint_basics"),
+            "deepen": t("daily.phase_hint_deepen"),
+            "exam": t("daily.phase_hint_exam"),
+        }
+        phase_hint_label = ctk.CTkLabel(phase_frame, text=phase_hints.get(phase_var.get(), ""),
+                                         font=("Segoe UI", 11), text_color=COLORS["text_light"])
+        phase_hint_label.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 10))
+        def _on_phase_change():
+            phase_hint_label.configure(text=phase_hints.get(phase_var.get(), ""))
+            s = self.store.load_settings()
+            s["learning_phase"] = phase_var.get()
+            self.store.save_settings(s)
+        for i, (lbl, val) in enumerate([
+            (t("daily.phase_basics"), "basics"),
+            (t("daily.phase_deepen"), "deepen"),
+            (t("daily.phase_exam"), "exam"),
+        ]):
+            ctk.CTkRadioButton(phase_inner, text=lbl, variable=phase_var, value=val,
+                               font=("Segoe UI", 12), command=_on_phase_change
+                               ).grid(row=0, column=i, padx=(0, 15))
+
+        # ── Topic toggles ──
+        all_topics = set()
+        for quiz in self.quizzes:
+            for q in quiz.questions:
+                if q.topic:
+                    all_topics.add(q.topic)
+        all_topics = sorted(all_topics)
+
+        if all_topics:
+            topic_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+            topic_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+            topic_frame.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(topic_frame, text=t("daily.topics_title"), font=("Segoe UI", 13, "bold"),
+                        text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 2))
+            ctk.CTkLabel(topic_frame, text=t("daily.topics_hint"), font=("Segoe UI", 11),
+                        text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", padx=12, pady=(0, 5))
+
+            disabled_topics = set(settings.get("disabled_topics", []))
+            topic_vars = {}
+            topics_inner = ctk.CTkFrame(topic_frame, fg_color="transparent")
+            topics_inner.grid(row=2, column=0, sticky="w", padx=12, pady=(0, 5))
+            for i, tp in enumerate(all_topics):
+                var = BooleanVar(value=(tp not in disabled_topics))
+                topic_vars[tp] = var
+                row_i, col_i = divmod(i, 3)
+                ctk.CTkCheckBox(topics_inner, text=tp, variable=var, font=("Segoe UI", 11),
+                               command=lambda: _save_topic_selection()
+                               ).grid(row=row_i, column=col_i, padx=(0, 15), pady=2, sticky="w")
+
+            btn_row = ctk.CTkFrame(topic_frame, fg_color="transparent")
+            btn_row.grid(row=3, column=0, sticky="w", padx=12, pady=(0, 10))
+            def _select_all():
+                for v in topic_vars.values():
+                    v.set(True)
+                _save_topic_selection()
+            def _select_none():
+                for v in topic_vars.values():
+                    v.set(False)
+                _save_topic_selection()
+            ctk.CTkButton(btn_row, text=t("daily.select_all"), width=60, height=26,
+                         fg_color=COLORS["primary"], font=("Segoe UI", 11),
+                         command=_select_all).grid(row=0, column=0, padx=(0, 5))
+            ctk.CTkButton(btn_row, text=t("daily.select_none"), width=60, height=26,
+                         fg_color=COLORS["text_light"], font=("Segoe UI", 11),
+                         command=_select_none).grid(row=0, column=1)
+
+            def _save_topic_selection():
+                s = self.store.load_settings()
+                s["disabled_topics"] = [tp for tp, v in topic_vars.items() if not v.get()]
+                self.store.save_settings(s)
+
+            quiz_plan_start_row = 5
+        else:
+            quiz_plan_start_row = 4
+
         # Quiz plan list
-        row = 3
+        row = quiz_plan_start_row
         for plan in quiz_plans:
             pf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=8,
                              border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
@@ -580,25 +666,54 @@ class App(ctk.CTk):
         plan_questions = []
         quiz_plans = []
 
+        settings = self.store.load_settings()
+        disabled_topics = set(settings.get("disabled_topics", []))
+        phase = settings.get("learning_phase", "deepen")
+
         for quiz in self.quizzes:
             if not quiz.questions:
                 continue
+
+            # Filter out disabled topics
+            eligible = [q for q in quiz.questions if q.topic not in disabled_topics]
+            if not eligible:
+                continue
+
+            # Phase-based filtering
+            if phase == "basics":
+                eligible = [q for q in eligible if q.weight <= 2.0]
+                if not eligible:
+                    eligible = [q for q in quiz.questions if q.topic not in disabled_topics]
+
             urgency = 1.0
             if quiz.exam_date:
                 try:
                     exam = date.fromisoformat(quiz.exam_date)
                     days_left = (exam - today).days
                     if days_left < 0:
-                        urgency = 0.1  # past exam
+                        urgency = 0.1
                     else:
                         urgency = max(0.2, 1.0 - days_left / 60)
                 except ValueError:
                     pass
 
             count = max(3, int(20 * quiz.weight * urgency))
-            # Prioritize weak questions
-            weak = self.sr.select_weak_questions(quiz.questions, quiz_weight=quiz.weight)
-            selected = weak[:count] if len(weak) >= count else weak + quiz.questions[:count - len(weak)]
+            if phase == "basics":
+                count = max(3, count // 2)
+            elif phase == "exam":
+                count = max(5, int(count * 1.5))
+
+            # Prioritize weak questions (especially in exam phase)
+            weak = self.sr.select_weak_questions(eligible, quiz_weight=quiz.weight)
+            if phase == "exam":
+                selected = weak[:count] if len(weak) >= count else weak + eligible[:count - len(weak)]
+            else:
+                half = count // 2
+                selected = weak[:half]
+                remaining = [q for q in eligible if q not in selected]
+                random.shuffle(remaining)
+                selected += remaining[:count - len(selected)]
+
             # Avoid duplicates
             seen = {q.id for q in plan_questions}
             added = 0
