@@ -1,5 +1,5 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
-import { loadProgress, saveProgress, logAnswer } from "../store.js";
+import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary } from "../store.js";
 import { navigate } from "../router.js";
 
 let session = null;
@@ -146,7 +146,28 @@ function showQuestion(root, quiz) {
         <h3>${icon}  ${label}</h3>
         <p>Punkte: ${result.score}/${result.max_score}</p>
         ${!result.is_correct ? `<p style="margin-top:4px;font-weight:600">✓ ${esc(result.correct_answer)}</p>` : ""}
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn btn-ghost btn-sm" id="mark-btn">⭐ Markieren</button>
+        <button class="btn btn-ghost btn-sm" id="tutor-btn">💬 KI fragen</button>
       </div>`;
+
+      root.querySelector("#mark-btn")?.addEventListener("click", async () => {
+        const marked = await loadMarked();
+        if (!marked.includes(q.id)) { marked.push(q.id); await saveMarked(marked); }
+        root.querySelector("#mark-btn").textContent = "⭐ Markiert!";
+        root.querySelector("#mark-btn").disabled = true;
+      });
+      root.querySelector("#tutor-btn")?.addEventListener("click", () => {
+        navigate("tutor", { question: { text: q.question_text || q.text, correct: result.correct_answer } });
+      });
+
+      if (!result.is_correct) {
+        const diary = await loadErrorDiary();
+        diary.unshift({ id: Date.now().toString(36), date: new Date().toISOString(), questionText: q.question_text || q.text || "", userAnswer: result.user_answer, correctAnswer: result.correct_answer, topic: q.topic || "", quizName: quiz.name || "" });
+        if (diary.length > 500) diary.length = 500;
+        await saveErrorDiary(diary);
+      }
 
       // Highlight correct/wrong options
       if (q.question_type === "single_choice") {

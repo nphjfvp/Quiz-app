@@ -8,10 +8,14 @@ import { render as quizModesScreen } from "./screens/quiz-modes.js";
 import { render as dailyScreen } from "./screens/daily.js";
 import { render as statsScreen } from "./screens/stats.js";
 import { render as editorScreen } from "./screens/editor.js";
+import { render as aiGenerateScreen } from "./screens/ai-generate.js";
+import { render as tutorScreen } from "./screens/tutor.js";
+import { render as errorDiaryScreen } from "./screens/error-diary.js";
+import { render as markedScreen } from "./screens/marked.js";
+import { render as pomodoroScreen } from "./screens/pomodoro.js";
 import { loadSettings } from "./store.js";
-import { setAccount, signIn } from "./firebase-sync.js";
+import { setAccount } from "./firebase-sync.js";
 
-// Register screens
 route("home", homeScreen);
 route("quiz", quizScreen);
 route("results", resultsScreen);
@@ -22,10 +26,13 @@ route("daily", dailyScreen);
 route("stats", statsScreen);
 route("sync", settingsScreen);
 route("editor", editorScreen);
+route("ai-generate", aiGenerateScreen);
+route("tutor", tutorScreen);
+route("error-diary", errorDiaryScreen);
+route("marked", markedScreen);
+route("pomodoro", pomodoroScreen);
 
-// Boot
 async function init() {
-  // Restore account session
   const settings = await loadSettings();
   if (settings.accountEmail && settings.accountToken) {
     setAccount({
@@ -37,12 +44,10 @@ async function init() {
     });
   }
 
-  // Register service worker
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/Quiz-app/sw.js").catch(() => {});
   }
 
-  // Navigate to initial screen
   const hash = location.hash.slice(1);
   navigate(hash || "home");
 }

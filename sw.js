@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v2";
+const CACHE = "lerntrainer-v3";
 const ASSETS = [
   "/Quiz-app/",
   "/Quiz-app/index.html",
@@ -7,6 +7,7 @@ const ASSETS = [
   "/Quiz-app/js/store.js",
   "/Quiz-app/js/quiz-engine.js",
   "/Quiz-app/js/firebase-sync.js",
+  "/Quiz-app/js/ai-service.js",
   "/Quiz-app/js/router.js",
   "/Quiz-app/js/screens/home.js",
   "/Quiz-app/js/screens/quiz.js",
@@ -17,6 +18,11 @@ const ASSETS = [
   "/Quiz-app/js/screens/daily.js",
   "/Quiz-app/js/screens/stats.js",
   "/Quiz-app/js/screens/editor.js",
+  "/Quiz-app/js/screens/ai-generate.js",
+  "/Quiz-app/js/screens/tutor.js",
+  "/Quiz-app/js/screens/error-diary.js",
+  "/Quiz-app/js/screens/marked.js",
+  "/Quiz-app/js/screens/pomodoro.js",
   "/Quiz-app/manifest.json",
 ];
 
@@ -36,6 +42,7 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  if (e.request.url.includes("openrouter.ai") || e.request.url.includes("googleapis.com")) return;
   e.respondWith(
     caches.match(e.request).then((cached) => {
       const fetched = fetch(e.request)
