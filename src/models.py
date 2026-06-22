@@ -1,6 +1,7 @@
 """Data models for the Quiz application."""
 
 import json
+import os
 import uuid
 from datetime import date
 from dataclasses import dataclass, field, asdict
@@ -243,192 +244,133 @@ class DataStore:
         self.settings_file = self.data_dir / "settings.json"
         self.stats_file = self.data_dir / "stats.json"
 
+    # ── Crash-safe JSON helpers ──
+
+    def _read_json(self, path: Path, default):
+        """Read JSON safely. On corruption, fall back to the .bak backup,
+        then to `default`. Never raises – a damaged file must not break the app."""
+        for candidate in (path, path.with_suffix(path.suffix + ".bak")):
+            if not candidate.exists():
+                continue
+            try:
+                with open(candidate, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+                continue
+        return default
+
+    def _atomic_write(self, path: Path, data):
+        """Write JSON atomically: dump to a temp file, fsync, keep the previous
+        good copy as .bak, then os.replace (atomic on the same filesystem).
+        A crash mid-write can never leave a half-written target file."""
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        if path.exists():
+            try:
+                os.replace(path, path.with_suffix(path.suffix + ".bak"))
+            except OSError:
+                pass
+        os.replace(tmp, path)
+
     def load_quizzes(self) -> list[Quiz]:
-        if not self.quizzes_file.exists():
-            return []
-        with open(self.quizzes_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = self._read_json(self.quizzes_file, [])
         return [Quiz.from_dict(q) for q in data]
 
     def save_quizzes(self, quizzes: list[Quiz]):
-        with open(self.quizzes_file, "w", encoding="utf-8") as f:
-            json.dump([q.to_dict() for q in quizzes], f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.quizzes_file, [q.to_dict() for q in quizzes])
 
     def load_progress(self) -> dict[str, QuestionProgress]:
-        if not self.progress_file.exists():
-            return {}
-        with open(self.progress_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        result = {}
-        for k, v in data.items():
-            result[k] = QuestionProgress(**v)
-        return result
+        data = self._read_json(self.progress_file, {})
+        return {k: QuestionProgress(**v) for k, v in data.items()}
 
     def save_progress(self, progress: dict[str, QuestionProgress]):
-        with open(self.progress_file, "w", encoding="utf-8") as f:
-            json.dump({k: asdict(v) for k, v in progress.items()}, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.progress_file, {k: asdict(v) for k, v in progress.items()})
 
     def load_settings(self) -> dict:
-        if not self.settings_file.exists():
-            return {}
-        with open(self.settings_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+        return self._read_json(self.settings_file, {})
 
     def save_settings(self, settings: dict):
-        with open(self.settings_file, "w", encoding="utf-8") as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.settings_file, settings)
 
     # ── Study stats: a daily-aggregated log of answers ──
 
     def load_stats(self) -> dict:
         """Returns {date_iso: {"answered": int, "correct": int}}."""
-        if not self.stats_file.exists():
-            return {}
-        with open(self.stats_file, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
+        return self._read_json(self.stats_file, {})
 
     def save_stats(self, stats: dict):
-        with open(self.stats_file, "w", encoding="utf-8") as f:
-            json.dump(stats, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.stats_file, stats)
 
     def load_fsrs(self) -> dict:
-        path = self.data_dir / "fsrs.json"
-        if not path.exists():
-            return {}
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
+        return self._read_json(self.data_dir / "fsrs.json", {})
 
     def save_fsrs(self, data: dict):
-        path = self.data_dir / "fsrs.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "fsrs.json", data)
 
     def load_source_texts(self) -> dict:
-        path = self.data_dir / "source_texts.json"
-        if not path.exists():
-            return {}
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
+        return self._read_json(self.data_dir / "source_texts.json", {})
 
     def save_source_text(self, filename: str, text: str):
         texts = self.load_source_texts()
         texts[filename] = text
-        path = self.data_dir / "source_texts.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(texts, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "source_texts.json", texts)
 
     # ── Folders ──
 
     def load_folders(self) -> list[Folder]:
-        path = self.data_dir / "folders.json"
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-            except json.JSONDecodeError:
-                return []
+        data = self._read_json(self.data_dir / "folders.json", [])
         return [Folder.from_dict(d) for d in data]
 
     def save_folders(self, folders: list[Folder]):
-        path = self.data_dir / "folders.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump([f.to_dict() for f in folders], f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "folders.json", [f.to_dict() for f in folders])
 
     # ── Formula sheets (FoSa) ──
 
     def load_formula_sheets(self) -> list[FormulaSheet]:
-        path = self.data_dir / "formula_sheets.json"
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-            except json.JSONDecodeError:
-                return []
+        data = self._read_json(self.data_dir / "formula_sheets.json", [])
         return [FormulaSheet.from_dict(s) for s in data]
 
     def save_formula_sheets(self, sheets: list[FormulaSheet]):
-        path = self.data_dir / "formula_sheets.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump([s.to_dict() for s in sheets], f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "formula_sheets.json", [s.to_dict() for s in sheets])
 
     # ── Marked questions ──
 
     def load_marked(self) -> list[str]:
-        path = self.data_dir / "marked.json"
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return []
+        return self._read_json(self.data_dir / "marked.json", [])
 
     def save_marked(self, ids: list[str]):
-        path = self.data_dir / "marked.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(ids, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "marked.json", ids)
 
     # ── Quick actions ──
 
     def load_quick_actions(self) -> list[dict]:
-        path = self.data_dir / "quick_actions.json"
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return []
+        return self._read_json(self.data_dir / "quick_actions.json", [])
 
     def save_quick_actions(self, actions: list[dict]):
-        path = self.data_dir / "quick_actions.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(actions, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "quick_actions.json", actions)
 
     # ── Memory / learning profile ──
 
     def load_memory(self) -> str:
-        path = self.data_dir / "memory.json"
-        if not path.exists():
-            return ""
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-                return data.get("text", data.get("profile_text", ""))
-            except json.JSONDecodeError:
-                return ""
+        data = self._read_json(self.data_dir / "memory.json", {})
+        return data.get("text", data.get("profile_text", ""))
 
     def save_memory(self, text: str):
-        path = self.data_dir / "memory.json"
         existing = self._load_memory_data()
         existing["profile_text"] = text
         existing.setdefault("entries", [])
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(existing, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "memory.json", existing)
 
     def _load_memory_data(self) -> dict:
-        path = self.data_dir / "memory.json"
-        if not path.exists():
+        data = self._read_json(self.data_dir / "memory.json", None)
+        if not isinstance(data, dict):
             return {"profile_text": "", "entries": []}
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-                if "entries" not in data:
-                    return {"profile_text": data.get("text", ""), "entries": []}
-                return data
-            except json.JSONDecodeError:
-                return {"profile_text": "", "entries": []}
+        if "entries" not in data:
+            return {"profile_text": data.get("text", ""), "entries": []}
+        return data
 
     def load_memory_entries(self) -> list[MemoryEntry]:
         data = self._load_memory_data()
@@ -437,9 +379,7 @@ class DataStore:
     def save_memory_entries(self, entries: list[MemoryEntry]):
         data = self._load_memory_data()
         data["entries"] = [e.to_dict() for e in entries]
-        path = self.data_dir / "memory.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "memory.json", data)
 
     def add_memory_entry(self, entry: MemoryEntry):
         entries = self.load_memory_entries()
@@ -474,19 +414,10 @@ class DataStore:
 
     def load_daily_state(self) -> dict:
         """Load daily learning state. Returns {"date": "2024-01-01", "completed": [...question_ids], "wrong": [...question_ids], "extra_done": bool}"""
-        path = self.data_dir / "daily.json"
-        if not path.exists():
-            return {}
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
+        return self._read_json(self.data_dir / "daily.json", {})
 
     def save_daily_state(self, state: dict):
-        path = self.data_dir / "daily.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "daily.json", state)
 
     def log_answer(self, correct: bool):
         stats = self.load_stats()
@@ -500,19 +431,10 @@ class DataStore:
     # ── Error Diary ──
 
     def load_error_diary(self) -> list[dict]:
-        path = self.data_dir / "error_diary.json"
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return []
+        return self._read_json(self.data_dir / "error_diary.json", [])
 
     def save_error_diary(self, diary: list[dict]):
-        path = self.data_dir / "error_diary.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(diary, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "error_diary.json", diary)
 
     def log_wrong_answer(self, question_text: str, topic: str, correct_answer: str,
                           user_answer: str, quiz_name: str = ""):
@@ -567,20 +489,11 @@ class DataStore:
     # ── Exam Archive ──
 
     def load_exam_archive(self) -> list[dict]:
-        path = self.data_dir / "exam_archive.json"
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return []
+        return self._read_json(self.data_dir / "exam_archive.json", [])
 
     def save_exam_attempt(self, attempt: dict):
         archive = self.load_exam_archive()
         archive.append(attempt)
         if len(archive) > 100:
             archive = archive[-100:]
-        path = self.data_dir / "exam_archive.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(archive, f, ensure_ascii=False, indent=2)
+        self._atomic_write(self.data_dir / "exam_archive.json", archive)
