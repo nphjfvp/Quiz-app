@@ -55,6 +55,34 @@ export async function render(root) {
       <div id="code-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
     </div>`;
 
+  // AI Settings
+  html += `<div class="section-title">KI-Einstellungen</div>
+    <div class="card">
+      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px">
+        Für KI-Funktionen (Quiz-Generator, Tutor) wird ein OpenRouter API-Key benötigt.
+      </div>
+      <div class="input-group">
+        <label>OpenRouter API-Key</label>
+        <input type="password" id="api-key" placeholder="sk-or-..." value="${esc(settings.apiKey || "")}">
+      </div>
+      <div class="input-group">
+        <label>KI-Modell</label>
+        <select id="ai-model" style="width:100%;padding:10px;border-radius:var(--radius-md);border:2px solid var(--border);background:var(--input-bg);color:var(--text);font-size:0.9rem">
+          ${[
+            ["openai/gpt-4o-mini", "GPT-4o Mini (günstig)"],
+            ["openai/gpt-4o", "GPT-4o"],
+            ["anthropic/claude-sonnet-4-6", "Claude Sonnet 4.6"],
+            ["anthropic/claude-haiku-4-5-20251001", "Claude Haiku 4.5 (günstig)"],
+            ["google/gemini-2.5-flash", "Gemini 2.5 Flash (günstig)"],
+            ["google/gemini-2.5-pro", "Gemini 2.5 Pro"],
+            ["deepseek/deepseek-chat-v3", "DeepSeek V3 (sehr günstig)"],
+          ].map(([v, l]) => `<option value="${v}" ${(settings.aiModel || "openai/gpt-4o-mini") === v ? "selected" : ""}>${l}</option>`).join("")}
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" id="save-ai">Speichern</button>
+      <div id="ai-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
+    </div>`;
+
   // JSON Import
   html += `<div class="section-title">JSON Import</div>
     <div class="card">
@@ -126,6 +154,16 @@ export async function render(root) {
       st.textContent = ok ? "✓ Quizze geladen!" : "Keine Daten gefunden für diesen Code.";
       if (ok) await saveSettings({ ...settings, syncCode: code });
     } catch { st.textContent = "Fehler beim Laden."; }
+  });
+
+  // AI settings
+  root.querySelector("#save-ai")?.addEventListener("click", async () => {
+    const key = root.querySelector("#api-key").value.trim();
+    const model = root.querySelector("#ai-model").value;
+    const st = root.querySelector("#ai-status");
+    await saveSettings({ ...await loadSettings(), apiKey: key, aiModel: model });
+    st.textContent = "✓ Gespeichert!";
+    setTimeout(() => { st.textContent = ""; }, 2000);
   });
 
   // File import
