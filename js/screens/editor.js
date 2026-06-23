@@ -479,7 +479,8 @@ function initDiagramPlacement(root, q, quizzes) {
   const ctx = canvas.getContext("2d");
   const labels = q.diagram_labels || [];
   let img = null;
-  let selectedIdx = -1;
+  let dragGhost = null;
+  let dragIdx = -1;
 
   function draw() {
     const rect = canvas.getBoundingClientRect();
@@ -491,11 +492,8 @@ function initDiagramPlacement(root, q, quizzes) {
     if (img) {
       ctx.drawImage(img, 0, 0, w, h);
     } else {
-      ctx.fillStyle = "#e2e8f0";
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "14px sans-serif";
-      ctx.textAlign = "center";
+      ctx.fillStyle = "#e2e8f0"; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#94a3b8"; ctx.font = "14px sans-serif"; ctx.textAlign = "center";
       ctx.fillText("Lade zuerst ein Bild hoch", w / 2, h / 2);
     }
     for (let i = 0; i < labels.length; i++) {
@@ -503,42 +501,78 @@ function initDiagramPlacement(root, q, quizzes) {
       if (!l._placed || l.x === undefined) continue;
       const color = CHIP_COLORS[i % CHIP_COLORS.length];
       const px = l.x * w, py = l.y * h;
-      ctx.beginPath();
-      ctx.arc(px, py, 14, 0, Math.PI * 2);
-      ctx.fillStyle = color + "dd";
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 9px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const short = (l.label || "?").slice(0, 4);
-      ctx.fillText(short, px, py);
-    }
-    if (selectedIdx >= 0) {
-      ctx.strokeStyle = CHIP_COLORS[selectedIdx % CHIP_COLORS.length];
-      ctx.lineWidth = 3;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(2, 2, w - 4, h - 4);
-      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(px, py, 16, 0, Math.PI * 2);
+      ctx.fillStyle = color + "dd"; ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText((l.label || "?").slice(0, 5), px, py);
     }
   }
 
+  function createGhost(text, color, x, y) {
+    dragGhost = document.createElement("div");
+    dragGhost.textContent = text;
+    dragGhost.style.cssText = `position:fixed;left:${x-30}px;top:${y-18}px;z-index:9999;pointer-events:none;
+      background:${color}dd;color:#fff;font-size:0.8rem;font-weight:700;padding:6px 14px;border-radius:20px;
+      box-shadow:0 4px 16px rgba(0,0,0,0.3);transform:scale(1.1)`;
+    document.body.appendChild(dragGhost);
+  }
+  function moveGhost(x, y) { if (dragGhost) { dragGhost.style.left = (x-30)+"px"; dragGhost.style.top = (y-18)+"px"; } }
+  function removeGhost() { if (dragGhost) { dragGhost.remove(); dragGhost = null; } }
+
+  function dropAt(clientX, clientY) {
+    if (dragIdx < 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const fx = (clientX - rect.left) / rect.width;
+    const fy = (clientY - rect.top) / rect.height;
+    if (fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1) {
+      labels[dragIdx].x = fx;
+      labels[dragIdx].y = fy;
+      labels[dragIdx]._placed = true;
+      updateStatusBadges();
+    }
+    dragIdx = -1;
+    removeGhost();
+    draw(); renderChips();
+  }
+
+  function updateStatusBadges() {
+    root.querySelectorAll(".label-status").forEach((el, i) => {
+      if (labels[i]?._placed) { el.textContent = "✓ platziert"; el.style.color = "var(--success)"; }
+      else { el.textContent = "⚠ offen"; el.style.color = "var(--warning)"; }
+    });
+  }
+
   function renderChips() {
-    chipsEl.innerHTML = labels.map((l, i) => {
+    chipsEl.innerHTML = "";
+    labels.forEach((l, i) => {
       const color = CHIP_COLORS[i % CHIP_COLORS.length];
-      const active = i === selectedIdx;
       const name = l.label || `Label ${i + 1}`;
-      return `<div class="dnd-chip ${active ? "selected" : ""} ${l._placed ? "placed" : ""}" data-pi="${i}" style="background:${color}20;border:2px solid ${color};color:var(--text);${l._placed ? "opacity:0.6" : ""}">${esc(name)}${l._placed ? " ✓" : ""}</div>`;
-    }).join("");
-    chipsEl.querySelectorAll(".dnd-chip").forEach(chip => {
-      chip.addEventListener("click", () => {
-        selectedIdx = parseInt(chip.dataset.pi);
-        renderChips();
-        draw();
-      });
+      const chip = document.createElement("div");
+      chip.className = "dnd-chip" + (l._placed ? " placed" : "");
+      chip.textContent = name + (l._placed ? " ✓" : "");
+      chip.style.cssText = `background:${color}20;border:2px solid ${color};color:var(--text);
+        ${l._placed ? "opacity:0.5;" : "cursor:grab;"}touch-action:none;user-select:none`;
+
+      if (l._placed) {
+        chip.style.cursor = "pointer";
+        chip.addEventListener("click", () => { l._placed = false; l.x = 0.5; l.y = 0.5; draw(); renderChips(); updateStatusBadges(); });
+      } else {
+        // Touch drag
+        chip.addEventListener("touchstart", e => {
+          e.preventDefault(); dragIdx = i;
+          createGhost(name, color, e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+        chip.addEventListener("touchmove", e => { e.preventDefault(); moveGhost(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        chip.addEventListener("touchend", e => { e.preventDefault(); dropAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY); });
+
+        // Mouse drag
+        let mouseDown = false;
+        chip.addEventListener("mousedown", e => { mouseDown = true; dragIdx = i; createGhost(name, color, e.clientX, e.clientY); e.preventDefault(); });
+        document.addEventListener("mousemove", e => { if (mouseDown) moveGhost(e.clientX, e.clientY); });
+        document.addEventListener("mouseup", e => { if (mouseDown) { mouseDown = false; dropAt(e.clientX, e.clientY); } });
+      }
+      chipsEl.appendChild(chip);
     });
   }
 
@@ -548,38 +582,12 @@ function initDiagramPlacement(root, q, quizzes) {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       canvas.style.height = (canvas.getBoundingClientRect().width * img.height / img.width) + "px";
-      draw();
-      renderChips();
+      draw(); renderChips();
     };
     img.onerror = () => { canvas.style.height = "200px"; draw(); renderChips(); };
     img.src = imgSrc;
   } else {
     canvas.style.height = "200px";
-    draw();
-    renderChips();
+    draw(); renderChips();
   }
-
-  function handlePlace(clientX, clientY) {
-    if (selectedIdx < 0 || selectedIdx >= labels.length) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-    labels[selectedIdx].x = x;
-    labels[selectedIdx].y = y;
-    labels[selectedIdx]._placed = true;
-    const nextUnplaced = labels.findIndex((l, i) => i > selectedIdx && !l._placed);
-    selectedIdx = nextUnplaced >= 0 ? nextUnplaced : -1;
-    draw();
-    renderChips();
-    root.querySelectorAll(".label-status").forEach((el, i) => {
-      if (labels[i]?._placed) { el.textContent = "✓ platziert"; el.style.color = "var(--success)"; }
-    });
-  }
-
-  canvas.addEventListener("click", e => handlePlace(e.clientX, e.clientY));
-  canvas.addEventListener("touchend", e => {
-    if (!e.changedTouches[0]) return;
-    e.preventDefault();
-    handlePlace(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-  });
 }
