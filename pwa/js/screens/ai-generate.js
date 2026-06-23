@@ -36,7 +36,7 @@ export async function render(root, params = {}) {
       <h2>Quiz mit KI erstellen</h2>
     </div>
 
-    <div class="card" style="margin-top:1rem">
+    <div class="card mt-section">
       <div class="editor-form">
         <div class="input-group">
           <label>Quiz-Name (optional)</label>
@@ -46,7 +46,7 @@ export async function render(root, params = {}) {
         <div class="input-group">
           <label>Lerntext eingeben oder Datei hochladen</label>
           <textarea id="ai-text" class="textarea input" rows="10" placeholder="Hier den Text einfügen, aus dem Fragen generiert werden sollen…">${esc(prefillText)}</textarea>
-          <div id="char-counter" style="font-size:0.75rem;color:var(--text-light);margin-top:4px;display:flex;justify-content:space-between">
+          <div id="char-counter" class="char-counter">
             <span id="char-count">0 Zeichen</span>
             <span>Max ~${fmtLimit(charLimit)} Zeichen (${esc(currentModel.split("/").pop())})</span>
           </div>
@@ -55,14 +55,12 @@ export async function render(root, params = {}) {
         <div class="input-group">
           <label>Datei laden (.txt, .pdf)</label>
           <input type="file" id="ai-file" accept=".txt,.pdf" class="input">
-          <small style="color:var(--text-light);margin-top:0.25rem;display:block">
-            PDF-Text wird automatisch extrahiert.
-          </small>
-          <div id="file-progress" style="display:none;margin-top:0.5rem">
-            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-              <div id="file-bar" style="height:100%;background:var(--primary);width:0%;transition:width 0.3s"></div>
+          <small class="file-hint">PDF-Text wird automatisch extrahiert.</small>
+          <div id="file-progress" class="file-progress">
+            <div class="file-track">
+              <div id="file-bar" class="file-fill"></div>
             </div>
-            <small id="file-info" style="color:var(--text-light)">Extrahiere Text...</small>
+            <small id="file-info" class="file-info">Extrahiere Text...</small>
           </div>
         </div>
 
@@ -79,7 +77,7 @@ export async function render(root, params = {}) {
               </div>`;
             }).join("")}
           </div>
-          <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = kann Bilder sehen · 📝 = nur Text</div>
+          <div class="gen-model-hint">👁 = kann Bilder sehen · 📝 = nur Text</div>
         </div>
 
         <div class="input-group">
@@ -93,7 +91,7 @@ export async function render(root, params = {}) {
           </select>
         </div>
 
-        <div id="ai-error" style="display:none;color:var(--danger,#e53e3e);background:var(--danger-bg,#fff5f5);padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:0.95rem"></div>
+        <div id="ai-error" class="error-box"></div>
 
         <button id="ai-generate" class="btn btn-primary btn-lg btn-block">
           Quiz generieren
@@ -283,76 +281,71 @@ function showReview(root, questions, quizName, modelId) {
 
   function renderReview() {
     let html = `<div class="editor-header">
-      <button class="btn-icon back-btn" id="review-back">←</button>
+      <button class="btn-icon" id="review-back">←</button>
       <h2>Fragen prüfen (${qs.length})</h2>
     </div>
-    <div style="font-size:0.85rem;color:var(--text-light);margin:8px 0 16px">
-      Prüfe die generierten Fragen. Du kannst sie bearbeiten, per KI ändern lassen, den Typ wechseln oder löschen.
-    </div>`;
+    <div class="review-hint">Prüfe die generierten Fragen. Du kannst sie bearbeiten, per KI ändern lassen, den Typ wechseln oder löschen.</div>`;
 
     qs.forEach((q, i) => {
       const typeLabel = Q_TYPES.find(t => t.id === q.question_type)?.label || q.question_type;
-      html += `<div class="card" style="margin-bottom:12px" data-idx="${i}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-weight:700;font-size:0.8rem;color:var(--primary)">Frage ${i + 1}</span>
-          <span style="font-size:0.7rem;background:var(--row-neutral);padding:2px 8px;border-radius:10px">${typeLabel}</span>
+      html += `<div class="card review-card" data-idx="${i}">
+        <div class="review-card-head">
+          <span class="review-card-num">Frage ${i + 1}</span>
+          <span class="tag">${typeLabel}</span>
         </div>
-        <div class="input-group" style="margin-bottom:6px">
-          <label style="font-size:0.75rem">Fragetext</label>
-          <textarea class="textarea input q-text" rows="2" style="font-size:0.85rem">${esc(q.question_text || "")}</textarea>
+        <div class="input-group">
+          <label>Fragetext</label>
+          <textarea class="textarea input q-text" rows="2">${esc(q.question_text || "")}</textarea>
         </div>`;
 
       if (q.options && q.options.length) {
-        html += `<div style="margin-bottom:6px">
-          <label style="font-size:0.75rem;color:var(--text-light)">Antworten</label>`;
+        html += `<div class="review-opts">
+          <label>Antworten</label>`;
         q.options.forEach((o, oi) => {
-          html += `<div style="display:flex;align-items:center;gap:6px;margin:3px 0">
+          html += `<div class="review-opt-row">
             <input type="checkbox" class="opt-correct" data-oi="${oi}" ${o.is_correct ? "checked" : ""}>
-            <input type="text" class="input opt-text" data-oi="${oi}" value="${esc(o.text || "")}" style="flex:1;font-size:0.8rem;padding:4px 8px">
+            <input type="text" class="input opt-text" data-oi="${oi}" value="${esc(o.text || "")}">
           </div>`;
         });
         html += `</div>`;
       }
 
       if (q.correct_text !== undefined && q.question_type === "free_text") {
-        html += `<div class="input-group" style="margin-bottom:6px">
-          <label style="font-size:0.75rem">Richtige Antwort</label>
-          <input type="text" class="input q-correct-text" value="${esc(q.correct_text || "")}" style="font-size:0.85rem">
+        html += `<div class="input-group">
+          <label>Richtige Antwort</label>
+          <input type="text" class="input q-correct-text" value="${esc(q.correct_text || "")}">
         </div>`;
       }
 
       if (q.explanation) {
-        html += `<div class="input-group" style="margin-bottom:6px">
-          <label style="font-size:0.75rem">Erklärung</label>
-          <textarea class="textarea input q-explanation" rows="2" style="font-size:0.8rem">${esc(q.explanation || "")}</textarea>
+        html += `<div class="input-group">
+          <label>Erklärung</label>
+          <textarea class="textarea input q-explanation" rows="2">${esc(q.explanation || "")}</textarea>
         </div>`;
       }
 
-      // Type conversion
-      html += `<div style="display:flex;gap:6px;align-items:center;margin:8px 0 4px;flex-wrap:wrap">
-        <select class="input q-type-select" style="font-size:0.8rem;padding:4px 8px;flex:0 0 auto">
+      html += `<div class="review-convert">
+        <select class="input q-type-select">
           ${Q_TYPES.map(t => `<option value="${t.id}" ${t.id === q.question_type ? "selected" : ""}>${t.label}</option>`).join("")}
         </select>
-        <button class="btn btn-ghost btn-sm q-convert-btn" style="font-size:0.75rem">Typ ändern</button>
+        <button class="btn btn-ghost btn-sm q-convert-btn">Typ ändern</button>
       </div>`;
 
-      // AI edit
-      html += `<div style="display:flex;gap:6px;margin:6px 0;align-items:stretch">
-        <input type="text" class="input q-ai-instruction" placeholder="KI-Anweisung, z.B. 'Mach die Frage schwerer'" style="flex:1;font-size:0.8rem;padding:4px 8px">
-        <button class="btn btn-primary btn-sm q-ai-btn" style="font-size:0.75rem;white-space:nowrap">KI ändern</button>
+      html += `<div class="review-ai-row">
+        <input type="text" class="input q-ai-instruction" placeholder="KI-Anweisung, z.B. 'Mach die Frage schwerer'">
+        <button class="btn btn-primary btn-sm q-ai-btn">KI ändern</button>
       </div>
-      <div class="q-ai-status" style="font-size:0.75rem;color:var(--text-light)"></div>`;
+      <div class="q-ai-status review-ai-status"></div>`;
 
-      // Delete
-      html += `<div style="text-align:right;margin-top:6px">
-        <button class="btn btn-ghost btn-sm q-delete-btn" style="color:var(--danger);font-size:0.75rem">Frage löschen</button>
+      html += `<div class="review-delete">
+        <button class="btn btn-ghost btn-sm q-delete-btn">Frage löschen</button>
       </div>`;
 
       html += `</div>`;
     });
 
-    html += `<div style="display:flex;gap:10px;margin:16px 0 40px">
-      <button class="btn btn-primary btn-lg" id="review-save" style="flex:1">Quiz speichern (${qs.length} Fragen)</button>
+    html += `<div class="review-save-row">
+      <button class="btn btn-primary btn-lg" id="review-save">Quiz speichern (${qs.length} Fragen)</button>
     </div>`;
 
     root.innerHTML = html;
