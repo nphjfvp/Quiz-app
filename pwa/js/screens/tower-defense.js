@@ -31,7 +31,8 @@ export async function render(root) {
   const quizzes = await loadQuizzes();
   if (!quizzes.length) {
     root.innerHTML = `<div class="screen-empty"><p>Erstelle zuerst ein Quiz!</p>
-      <button class="btn-cta" onclick="location.hash='home'">Zurück</button></div>`;
+      <button class="btn-cta" id="td-empty-back">Zurück</button></div>`;
+    root.querySelector("#td-empty-back").addEventListener("click", () => navigate("home"));
     return;
   }
 

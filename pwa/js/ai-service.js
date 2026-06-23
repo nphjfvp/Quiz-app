@@ -126,10 +126,18 @@ function parseJSON(text) {
 export async function generateQuiz(text, numQuestions = 5, language = "de", config = {}) {
   const { apiKey, model } = await getConfig(config);
 
+  const auto = !(numQuestions > 0);
+  const countRule = auto
+    ? "Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele."
+    : `Erstelle exakt ${numQuestions} Fragen.`;
+  const countAsk = auto
+    ? "So viele Prüfungsfragen wie sinnvoll"
+    : `${numQuestions} Prüfungsfragen`;
+
   const systemPrompt = `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
 
 Regeln:
-- Erstelle exakt ${numQuestions} Fragen.
+- ${countRule}
 - Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "math_formula".
 - Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
 - Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.
@@ -160,7 +168,7 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
 
   const messages = [
     { role: "system", content: systemPrompt },
-    { role: "user", content: `Erstelle ${numQuestions} Prüfungsfragen auf Basis dieses Textes:\n\n${text}` },
+    { role: "user", content: `Erstelle ${countAsk} auf Basis dieses Textes:\n\n${text}` },
   ];
 
   const body = await chatCompletion(messages, { apiKey, model, stream: true });
@@ -265,10 +273,16 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
   const chosen = MODELS.find((m) => m.id === model);
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
+  const autoImg = !(numQuestions > 0);
+  const countRuleImg = autoImg
+    ? "Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken."
+    : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
+  const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
+
   const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
 
 Regeln:
-- Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.
+- ${countRuleImg}
 - Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
 - Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
 - Jede Frage muss eine klare Erklärung enthalten.
@@ -291,7 +305,7 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 ]`;
 
   const contentParts = [
-    { type: "text", text: `Erstelle ${numQuestions} Prüfungsfragen auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
+    { type: "text", text: `Erstelle ${countAskImg} auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
     ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
   ];
 

@@ -92,13 +92,14 @@ export async function render(root, params = {}) {
 
         <div class="input-group">
           <label>Anzahl Fragen</label>
-          <select id="ai-num-questions" class="input">
-            <option value="5">5 Fragen</option>
-            <option value="10" selected>10 Fragen</option>
-            <option value="15">15 Fragen</option>
-            <option value="20">20 Fragen</option>
-            ${charLimit > 100000 ? `<option value="30">30 Fragen</option><option value="50">50 Fragen</option>` : ""}
-          </select>
+          <div class="num-q-row">
+            <input type="number" id="ai-num-questions" class="input" min="1" max="500" value="10" placeholder="z.B. 15">
+            <button type="button" id="ai-num-auto" class="btn btn-ghost num-auto-btn">🤖 KI entscheidet</button>
+          </div>
+          <div class="num-q-presets">
+            ${[5, 10, 20, 30, 50].map(n => `<button type="button" class="num-preset" data-n="${n}">${n}</button>`).join("")}
+          </div>
+          <small class="file-hint" id="num-q-hint">Frei wählbar (1–500) oder die KI bestimmt die sinnvolle Anzahl selbst.</small>
         </div>
 
         <div id="ai-error" class="error-box"></div>
@@ -115,9 +116,43 @@ export async function render(root, params = {}) {
   const nameInput = root.querySelector("#ai-quiz-name");
   const textArea = root.querySelector("#ai-text");
   const fileInput = root.querySelector("#ai-file");
-  const numSelect = root.querySelector("#ai-num-questions");
+  const numInput = root.querySelector("#ai-num-questions");
+  const numAutoBtn = root.querySelector("#ai-num-auto");
+  const numHint = root.querySelector("#num-q-hint");
   const genBtn = root.querySelector("#ai-generate");
   const errorBox = root.querySelector("#ai-error");
+
+  // --- Question count: free input + AI-decides toggle ---
+  let autoCount = false;
+  function setAuto(on) {
+    autoCount = on;
+    numAutoBtn.classList.toggle("active", on);
+    numInput.disabled = on;
+    if (on) {
+      numInput.value = "";
+      numInput.placeholder = "🤖 KI entscheidet";
+      numHint.textContent = "Die KI bestimmt die sinnvolle Anzahl Fragen selbst.";
+    } else {
+      numInput.placeholder = "z.B. 15";
+      if (!numInput.value) numInput.value = "10";
+      numHint.textContent = "Frei wählbar (1–500) oder die KI bestimmt die sinnvolle Anzahl selbst.";
+    }
+  }
+  numAutoBtn.addEventListener("click", () => setAuto(!autoCount));
+  numInput.addEventListener("input", () => { if (autoCount) setAuto(false); });
+  root.querySelectorAll(".num-preset").forEach(b => {
+    b.addEventListener("click", () => {
+      setAuto(false);
+      numInput.value = b.dataset.n;
+    });
+  });
+
+  function getNumQuestions() {
+    if (autoCount) return 0;
+    const n = parseInt(numInput.value, 10);
+    if (!Number.isFinite(n) || n < 1) return 10;
+    return Math.min(500, n);
+  }
 
   const fileProgress = root.querySelector("#file-progress");
   const fileBar = root.querySelector("#file-bar");
@@ -151,15 +186,6 @@ export async function render(root, params = {}) {
       charLimit = getModelContextLimit(currentModel);
       const charLimitLabel = charLimit >= 1000000 ? (charLimit/1000000).toFixed(1)+"M" : Math.floor(charLimit/1000)+"k";
       root.querySelector("#char-counter span:last-child").textContent = `Max ~${charLimitLabel} Zeichen (${currentModel.split("/").pop()})`;
-      const bigModel = charLimit > 100000;
-      const sel = numSelect;
-      const had30 = sel.querySelector('option[value="30"]');
-      if (bigModel && !had30) {
-        sel.insertAdjacentHTML("beforeend", '<option value="30">30 Fragen</option><option value="50">50 Fragen</option>');
-      } else if (!bigModel && had30) {
-        sel.querySelector('option[value="30"]')?.remove();
-        sel.querySelector('option[value="50"]')?.remove();
-      }
       updateCharCount();
     });
   });
@@ -314,7 +340,7 @@ export async function render(root, params = {}) {
   // --- Generate ---
   genBtn.addEventListener("click", async () => {
     const text = textArea.value.trim();
-    const numQuestions = parseInt(numSelect.value, 10);
+    const numQuestions = getNumQuestions();
 
     // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild)
     if (uploadedImageData && !text) {
@@ -359,7 +385,7 @@ export async function render(root, params = {}) {
       return;
     }
 
-    const quizName = nameInput.value.trim() || `KI-Quiz (${numQuestions} Fragen)`;
+    const quizName = nameInput.value.trim() || (numQuestions > 0 ? `KI-Quiz (${numQuestions} Fragen)` : "KI-Quiz");
 
     let inputText = text;
     if (inputText.length > charLimit) {
