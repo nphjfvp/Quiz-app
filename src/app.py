@@ -4879,10 +4879,20 @@ class App(ctk.CTk):
         self._render_rich_text(card, q.text, font=("Segoe UI", 14), text_color=COLORS["text"],
                               wraplength=700, row=1, column=0, padx=22, pady=(5, 18), sticky="w")
 
+        # Hinweis-Badge: Single- vs. Multiple-Choice
+        if q.question_type == QuestionType.MULTIPLE_CHOICE:
+            ctk.CTkLabel(card, text="☑  Mehrere Antworten richtig", font=("Segoe UI", 12, "bold"),
+                         fg_color=COLORS["warning"], text_color="#14241a", corner_radius=99,
+                         padx=12, pady=4).grid(row=2, column=0, padx=22, pady=(0, 16), sticky="w")
+        elif q.question_type == QuestionType.SINGLE_CHOICE:
+            ctk.CTkLabel(card, text="◉  Genau eine Antwort richtig", font=("Segoe UI", 12, "bold"),
+                         fg_color=COLORS["primary_subtle"], text_color=COLORS["text_accent"], corner_radius=99,
+                         padx=12, pady=4).grid(row=2, column=0, padx=22, pady=(0, 16), sticky="w")
+
         # Question image (with zoom button)
         if q.image_path and os.path.exists(q.image_path):
             img_frame = ctk.CTkFrame(card, fg_color="transparent")
-            img_frame.grid(row=2, column=0, padx=15, pady=(0, 10), sticky="ew")
+            img_frame.grid(row=3, column=0, padx=15, pady=(0, 10), sticky="ew")
             img_frame.grid_columnconfigure(0, weight=1)
             photo, iw, ih = self._load_diagram_image(q.image_path, max_w=680, max_h=420)
             if photo and Image:

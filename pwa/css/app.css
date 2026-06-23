@@ -356,6 +356,15 @@ body {
 /* Hinweis-Zeile in Fragen */
 .question-hint { font-size: 0.85rem; color: var(--text-light); line-height: 1.4; }
 
+/* Badge: Single- vs. Multiple-Choice */
+.mc-badge {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 10px;
+  padding: 5px 12px; border-radius: 99px;
+  font-size: 0.76rem; font-weight: 800;
+  background: var(--accent); color: #14241a;
+}
+.mc-badge.sc { background: var(--primary-subtle); color: var(--text-accent); }
+
 /* ── Lückentext im Satzkontext (Cloze) ── */
 .cloze { font-size: 1.12rem; font-weight: 700; line-height: 2.4; color: var(--text); }
 .cloze-blank {

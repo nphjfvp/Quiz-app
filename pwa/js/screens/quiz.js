@@ -33,6 +33,8 @@ function showQuestion(root, quiz, session) {
     <div class="card">
       ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
       ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${esc(q.question_text || q.text)}</div>`}
+      ${q.question_type === "multiple_choice" ? `<div class="mc-badge">☑️ Mehrere Antworten richtig</div>` : ""}
+      ${q.question_type === "single_choice" ? `<div class="mc-badge sc">🔘 Genau eine Antwort richtig</div>` : ""}
     </div>
     <div class="card" id="answer-area">`;
 
