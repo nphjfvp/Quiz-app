@@ -242,6 +242,34 @@ class App(ctk.CTk):
         inner.configure(width=max_width)
         return inner
 
+    def _bind_card_hover(self, card, accent_color=None, border_width=1):
+        """Bind hover animation to a card: highlight border + subtle bg shift."""
+        base_border = card.cget("border_color") if card.cget("border_width") else COLORS["border"]
+        hover_border = accent_color or COLORS["primary"]
+        base_bg = card.cget("fg_color")
+        hover_bg = COLORS["card_hover"]
+
+        def on_enter(e):
+            animate_color(card, "border_color", base_border, hover_border, 150, 6)
+            animate_color(card, "fg_color", base_bg, hover_bg, 150, 6)
+
+        def on_leave(e):
+            animate_color(card, "border_color", hover_border, base_border, 150, 6)
+            animate_color(card, "fg_color", hover_bg, base_bg, 150, 6)
+
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
+
+    def _styled_button(self, parent, text, color=None, command=None,
+                       width=None, height=36, bold=False, **kw):
+        """Create a consistently styled button with rounded corners."""
+        fg = color or COLORS["primary"]
+        font = ("Segoe UI", 12, "bold") if bold else ("Segoe UI", 12)
+        btn = ctk.CTkButton(parent, text=text, fg_color=fg, font=font,
+                           corner_radius=RADIUS_SM, height=height,
+                           command=command, **({"width": width} if width else {}), **kw)
+        return btn
+
     # ── HOME SCREEN ──
 
     def show_home(self):
@@ -625,9 +653,11 @@ class App(ctk.CTk):
         total = len(question_ids)
         done = len(completed)
         progress_val = done / total if total > 0 else 0
-        prog_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+        prog_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                   border_width=1, border_color=COLORS["border"])
         prog_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
         prog_frame.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(prog_frame, accent_color=COLORS["primary"])
         ctk.CTkLabel(prog_frame, text=f"{t('daily.progress')}: {done}/{total}",
                     font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
                     ).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
@@ -637,8 +667,10 @@ class App(ctk.CTk):
 
         # ── Learning Phase selector ──
         settings = self.store.load_settings()
-        phase_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+        phase_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                    border_width=1, border_color=COLORS["border"])
         phase_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        self._bind_card_hover(phase_frame)
         ctk.CTkLabel(phase_frame, text=t("daily.phase"), font=("Segoe UI", 13, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 5))
         phase_var = StringVar(value=settings.get("learning_phase", "deepen"))
@@ -675,9 +707,11 @@ class App(ctk.CTk):
         all_topics = sorted(all_topics)
 
         if all_topics:
-            topic_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+            topic_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                        border_width=1, border_color=COLORS["border"])
             topic_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
             topic_frame.grid_columnconfigure(0, weight=1)
+            self._bind_card_hover(topic_frame)
             ctk.CTkLabel(topic_frame, text=t("daily.topics_title"), font=("Segoe UI", 13, "bold"),
                         text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 2))
             ctk.CTkLabel(topic_frame, text=t("daily.topics_hint"), font=("Segoe UI", 11),
@@ -725,9 +759,10 @@ class App(ctk.CTk):
         row = quiz_plan_start_row
         for plan in quiz_plans:
             pf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
-                             border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+                             border_width=1, border_color=COLORS["border"])
             pf.grid(row=row, column=0, sticky="ew", pady=3)
             pf.grid_columnconfigure(1, weight=1)
+            self._bind_card_hover(pf)
             accent_color = COLORS["danger"] if plan.get("urgency", 0) > 0.7 else COLORS["primary"]
             ctk.CTkFrame(pf, fg_color=accent_color, width=4, corner_radius=2
                         ).grid(row=0, column=0, sticky="ns", padx=(0, 0), pady=6)
@@ -756,12 +791,15 @@ class App(ctk.CTk):
             row += 1
         elif done > 0:
             # Completed!
-            done_frame = ctk.CTkFrame(scroll, fg_color=COLORS["success"], corner_radius=10)
+            done_frame = ctk.CTkFrame(scroll, fg_color=COLORS["success"], corner_radius=RADIUS_MD)
             done_frame.grid(row=row, column=0, sticky="ew", pady=10)
             done_frame.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(done_frame, text="🎉", font=("Segoe UI", 28)
+                        ).grid(row=0, column=0, padx=20, pady=(15, 0))
             ctk.CTkLabel(done_frame, text=t("daily.completed"),
                         font=("Segoe UI", 16, "bold"), text_color="white"
-                        ).grid(row=0, column=0, padx=20, pady=15)
+                        ).grid(row=1, column=0, padx=20, pady=(0, 15))
+            animate_color(done_frame, "fg_color", COLORS["card"], COLORS["success"], 400, 12)
             row += 1
 
             # Wrong answers review
@@ -782,9 +820,10 @@ class App(ctk.CTk):
                     if not wq:
                         continue
                     wf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
-                                     border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+                                     border_width=1, border_color=COLORS["border"])
                     wf.grid(row=row, column=0, sticky="ew", pady=3)
                     wf.grid_columnconfigure(0, weight=1)
+                    self._bind_card_hover(wf, accent_color=COLORS["danger"])
                     ctk.CTkLabel(wf, text=wq.text, font=("Segoe UI", 12),
                                 text_color=COLORS["text"], wraplength=600
                                 ).grid(row=0, column=0, padx=12, pady=(8, 3), sticky="w")
@@ -965,12 +1004,16 @@ class App(ctk.CTk):
                         text_color=COLORS["text_light"]).grid(row=1, column=0, pady=30)
         else:
             for i, q in enumerate(marked_questions):
-                rf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+                rf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                  border_width=1, border_color=COLORS["border"])
                 rf.grid(row=1 + i, column=0, sticky="ew", pady=3)
-                rf.grid_columnconfigure(0, weight=1)
+                rf.grid_columnconfigure(1, weight=1)
+                accent = ctk.CTkFrame(rf, fg_color=COLORS["warning"], width=4, corner_radius=2)
+                accent.grid(row=0, column=0, sticky="ns", padx=(0, 0), pady=6)
                 ctk.CTkLabel(rf, text=q.text, font=("Segoe UI", 12),
                             text_color=COLORS["text"], wraplength=600, justify="left"
-                            ).grid(row=0, column=0, padx=15, pady=10, sticky="w")
+                            ).grid(row=0, column=1, padx=15, pady=10, sticky="w")
+                self._bind_card_hover(rf, accent_color=COLORS["warning"])
 
                 def unmark(qid=q.id):
                     mids = self.store.load_marked()
@@ -981,7 +1024,8 @@ class App(ctk.CTk):
 
                 ctk.CTkButton(rf, text=t("marked.unmark"), fg_color=COLORS["danger"],
                              width=80, height=28, font=("Segoe UI", 11),
-                             command=unmark).grid(row=0, column=1, padx=10, pady=10)
+                             corner_radius=RADIUS_SM,
+                             command=unmark).grid(row=0, column=2, padx=10, pady=10)
 
         btn_row = 2 + len(marked_questions)
         btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -1822,9 +1866,11 @@ class App(ctk.CTk):
             for w in questions_frame.winfo_children():
                 w.destroy()
             for i, q in enumerate(quiz.questions):
-                qf = ctk.CTkFrame(questions_frame, fg_color=COLORS["card"], corner_radius=RADIUS_SM)
+                qf = ctk.CTkFrame(questions_frame, fg_color=COLORS["card"], corner_radius=RADIUS_SM,
+                                   border_width=1, border_color=COLORS["border"])
                 qf.grid(row=i, column=0, sticky="ew", pady=3)
                 qf.grid_columnconfigure(1, weight=1)
+                self._bind_card_hover(qf)
                 ctk.CTkLabel(qf, text=f"{i+1}.", width=30, font=("Segoe UI", 12, "bold")
                            ).grid(row=0, column=0, padx=8)
                 type_text = {
@@ -4270,6 +4316,7 @@ class App(ctk.CTk):
                                       border_width=2, border_color=COLORS["primary"])
         deadline_card.grid(row=2, column=0, sticky="ew", pady=(0, 15))
         deadline_card.grid_columnconfigure(1, weight=1)
+        self._bind_card_hover(deadline_card, accent_color=COLORS["primary"])
 
         ctk.CTkLabel(deadline_card, text="Klausurtermin", font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
@@ -4358,8 +4405,10 @@ class App(ctk.CTk):
         topics = sorted({q.topic.strip() for q in quiz.questions if q.topic.strip()})
         topic_var = StringVar(value=t("modes.all_topics"))
         if topics:
-            topic_row = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+            topic_row = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                     border_width=1, border_color=COLORS["border"])
             topic_row.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+            self._bind_card_hover(topic_row)
             ctk.CTkLabel(topic_row, text=t("modes.topic_filter"), font=("Segoe UI", 13, "bold"),
                         text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=10)
             ctk.CTkOptionMenu(topic_row, values=[t("modes.all_topics")] + topics,
@@ -4392,19 +4441,25 @@ class App(ctk.CTk):
                                border_width=3, border_color=color)
             card.grid(row=i // 2, column=i % 2, padx=8, pady=8, sticky="nsew")
             card.grid_columnconfigure(0, weight=1)
+            accent = ctk.CTkFrame(card, fg_color=color, height=4, corner_radius=2)
+            accent.grid(row=0, column=0, sticky="ew", padx=15, pady=(12, 0))
             ctk.CTkLabel(card, text=title_, font=("Segoe UI", 16, "bold"),
-                        text_color=color).grid(row=0, column=0, padx=20, pady=(15, 5))
+                        text_color=color).grid(row=1, column=0, padx=20, pady=(8, 5))
             ctk.CTkLabel(card, text=desc, font=("Segoe UI", 12),
                         text_color=COLORS["text_light"], wraplength=250
-                        ).grid(row=1, column=0, padx=20, pady=(0, 10))
+                        ).grid(row=2, column=0, padx=20, pady=(0, 10))
             ctk.CTkButton(card, text=t("modes.start"), fg_color=color, width=120,
-                         command=cmd).grid(row=2, column=0, padx=20, pady=(0, 15))
+                         corner_radius=RADIUS_SM, command=cmd
+                         ).grid(row=3, column=0, padx=20, pady=(0, 15))
+            self._bind_card_hover(card, accent_color=color)
 
         # Leitner stats
         qids = [q.id for q in quiz.questions]
         counts = self.sr.get_box_counts(qids)
-        stats = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+        stats = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                              border_width=1, border_color=COLORS["border"])
         stats.grid(row=5, column=0, sticky="ew", pady=(10, 0))
+        self._bind_card_hover(stats)
         ctk.CTkLabel(stats, text="Lernstand (Leitner-Boxen)", font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, columnspan=5, padx=15, pady=(10, 5), sticky="w")
         labels = ["Box 1\n(Neu)", "Box 2", "Box 3", "Box 4", "Box 5\n(Sicher)"]
@@ -4422,6 +4477,7 @@ class App(ctk.CTk):
                                    border_width=2, border_color=COLORS["warning"])
         grade_card.grid(row=6, column=0, sticky="ew", pady=(10, 0))
         grade_card.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(grade_card, accent_color=COLORS["warning"])
         ctk.CTkLabel(grade_card, text=t("grade.title"), font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
 
@@ -4449,6 +4505,7 @@ class App(ctk.CTk):
                                     border_width=2, border_color=COLORS["success"])
         export_card.grid(row=7, column=0, sticky="ew", pady=(10, 0))
         export_card.grid_columnconfigure(1, weight=1)
+        self._bind_card_hover(export_card, accent_color=COLORS["success"])
         ctk.CTkLabel(export_card, text=t("export.title"), font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, columnspan=3, padx=15, pady=(10, 5), sticky="w")
         ctk.CTkLabel(export_card, text=t("export.hint"), font=("Segoe UI", 11),
@@ -6413,10 +6470,11 @@ class App(ctk.CTk):
                      command=self.show_home).grid(row=2 + len(self.folders), column=0, pady=20)
 
     def _folder_card(self, parent, folder: Folder, row: int):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
-                           border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                           border_width=1, border_color=COLORS["border"])
         card.grid(row=row, column=0, sticky="ew", pady=5)
         card.grid_columnconfigure(1, weight=1)
+        self._bind_card_hover(card, accent_color=COLORS["primary_dark"])
 
         accent = ctk.CTkFrame(card, fg_color=COLORS["primary_dark"], width=5, corner_radius=3)
         accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
@@ -6459,9 +6517,11 @@ class App(ctk.CTk):
         row = 1
         if folder_quizzes:
             for i, quiz in enumerate(folder_quizzes):
-                qf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+                qf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                   border_width=1, border_color=COLORS["border"])
                 qf.grid(row=row + i, column=0, sticky="ew", pady=3)
                 qf.grid_columnconfigure(1, weight=1)
+                self._bind_card_hover(qf)
                 ctk.CTkLabel(qf, text=quiz.name, font=("Segoe UI", 13, "bold"),
                             text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=8, sticky="w")
                 ctk.CTkLabel(qf, text=f"{len(quiz.questions)} Fragen", font=("Segoe UI", 11),
@@ -7079,9 +7139,11 @@ class App(ctk.CTk):
     def _bar_chart(self, parent, row, title, labels, values, color,
                    max_value=None, suffix="", colors=None):
         """Render a simple bar chart on a tkinter Canvas."""
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                            border_width=1, border_color=COLORS["border"])
         card.grid(row=row, column=0, sticky="ew", pady=(0, 12))
         card.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(card)
         ctk.CTkLabel(card, text=title, font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
 
@@ -7113,9 +7175,11 @@ class App(ctk.CTk):
     # ── HEATMAP (GitHub-style) ──
 
     def _draw_heatmap(self, parent, row_idx):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                            border_width=1, border_color=COLORS["border"])
         card.grid(row=row_idx, column=0, sticky="ew", pady=(0, 12))
         card.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(card)
         ctk.CTkLabel(card, text=t("stats.heatmap"), font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
 
@@ -7144,7 +7208,7 @@ class App(ctk.CTk):
         max_val = max((s.get("answered", 0) for s in stats.values()), default=1) or 1
         greens = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"]
         dark_greens = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"]
-        palette = dark_greens if COLORS.get("canvas_bg", "#fff") == "#1a1a2e" else greens
+        palette = dark_greens if is_dark() else greens
 
         d = start
         for week in range(weeks):
@@ -7212,9 +7276,11 @@ class App(ctk.CTk):
                             text_color=COLORS["primary"]).grid(row=r, column=0, sticky="w", pady=(10, 3))
                 r += 1
                 for e in entries:
-                    ef = ctk.CTkFrame(entries_frame, fg_color=COLORS["card"], corner_radius=RADIUS_SM)
+                    ef = ctk.CTkFrame(entries_frame, fg_color=COLORS["card"], corner_radius=RADIUS_SM,
+                                      border_width=1, border_color=COLORS["border"])
                     ef.grid(row=r, column=0, sticky="ew", pady=2)
                     ef.grid_columnconfigure(0, weight=1)
+                    self._bind_card_hover(ef, accent_color=COLORS["danger"])
                     q_text = e.get("question", "?")
                     if len(q_text) > 80:
                         q_text = q_text[:80] + "..."
@@ -7258,23 +7324,30 @@ class App(ctk.CTk):
         FOCUS, BREAK = 25 * 60, 5 * 60
         state = {"remaining": FOCUS, "running": False, "phase": "focus", "round": 1, "job": None}
 
-        phase_label = ctk.CTkLabel(frame, text=t("pomodoro.focus"), font=("Segoe UI", 18, "bold"),
+        timer_card = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                                   border_width=2, border_color=COLORS["danger"])
+        timer_card.grid(row=2, column=0, pady=(0, 20), ipadx=40, ipady=10)
+        timer_card.grid_columnconfigure(0, weight=1)
+
+        phase_label = ctk.CTkLabel(timer_card, text=t("pomodoro.focus"), font=("Segoe UI", 18, "bold"),
                                    text_color=COLORS["danger"])
-        phase_label.grid(row=2, column=0, pady=(0, 5))
-        round_label = ctk.CTkLabel(frame, text=t("pomodoro.round", n=1), font=("Segoe UI", 12),
+        phase_label.grid(row=0, column=0, pady=(15, 5))
+        round_label = ctk.CTkLabel(timer_card, text=t("pomodoro.round", n=1), font=("Segoe UI", 12),
                                    text_color=COLORS["text_light"])
-        round_label.grid(row=3, column=0, pady=(0, 10))
-        time_label = ctk.CTkLabel(frame, text="25:00", font=("Segoe UI", 64, "bold"),
+        round_label.grid(row=1, column=0, pady=(0, 5))
+        time_label = ctk.CTkLabel(timer_card, text="25:00", font=("Segoe UI", 64, "bold"),
                                   text_color=COLORS["text"])
-        time_label.grid(row=4, column=0, pady=(0, 20))
+        time_label.grid(row=2, column=0, pady=(0, 15))
 
         def render():
             m, s = divmod(state["remaining"], 60)
             time_label.configure(text=f"{m:02d}:{s:02d}")
             if state["phase"] == "focus":
                 phase_label.configure(text=t("pomodoro.focus"), text_color=COLORS["danger"])
+                timer_card.configure(border_color=COLORS["danger"])
             else:
                 phase_label.configure(text=t("pomodoro.break"), text_color=COLORS["success"])
+                timer_card.configure(border_color=COLORS["success"])
             round_label.configure(text=t("pomodoro.round", n=state["round"]))
 
         def tick():
@@ -7354,11 +7427,12 @@ class App(ctk.CTk):
         ctk.CTkLabel(frame, text=t("flash.front"), font=("Segoe UI", 13, "bold"),
                     text_color=COLORS["primary"]).grid(row=0, column=0, pady=(0, 5))
 
-        card = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=12,
+        card = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
                            border_width=2, border_color=COLORS["primary"])
         card.grid(row=1, column=0, sticky="nsew", pady=(0, 15))
         card.grid_columnconfigure(0, weight=1)
         card.grid_rowconfigure(0, weight=1)
+        self._bind_card_hover(card, accent_color=COLORS["primary"])
 
         front_text = (q.title + "\n\n" if q.title else "") + q.text
         content = ctk.CTkLabel(card, text=front_text, font=("Segoe UI", 16),
@@ -7372,10 +7446,12 @@ class App(ctk.CTk):
             if side["flipped"]:
                 content.configure(text=self._answer_back_text(q),
                                   text_color=COLORS["success"])
+                animate_color(card, "border_color", COLORS["primary"], COLORS["success"], 200, 8)
                 flip_btn.configure(text=t("flash.front"))
                 grade.grid()
             else:
                 content.configure(text=front_text, text_color=COLORS["text"])
+                animate_color(card, "border_color", COLORS["success"], COLORS["primary"], 200, 8)
                 flip_btn.configure(text=t("flash.show_answer"))
                 grade.grid_remove()
 
