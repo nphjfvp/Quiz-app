@@ -748,6 +748,59 @@ input:focus { border-color: var(--primary); }
 .model-icons { font-size: 0.75rem; }
 .model-meta { font-size: 0.7rem; color: var(--text-light); margin-top: 2px; }
 
+/* ── Statistik ── */
+.stat-summary { display: flex; justify-content: space-around; text-align: center; }
+.stat-num { font-size: 1.8rem; font-weight: 800; }
+.stat-num.streak { color: var(--streak); }
+.stat-num.primary { color: var(--primary); }
+.stat-label { font-size: 0.75rem; color: var(--text-light); }
+
+.card-scroll-x { overflow-x: auto; }
+.heatmap {
+  display: grid; grid-template-columns: repeat(13, 1fr); grid-template-rows: repeat(7, 1fr);
+  gap: 2px; min-width: 260px;
+}
+.heatmap-cell { width: 100%; aspect-ratio: 1; border-radius: 2px; }
+.heatmap-legend {
+  display: flex; justify-content: flex-end; gap: 4px; margin-top: 6px;
+  font-size: 0.65rem; color: var(--text-light); align-items: center;
+}
+.heatmap-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+.box-chart { display: flex; gap: 8px; align-items: flex-end; height: 80px; margin-bottom: 8px; }
+.box-col { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.box-col-num { font-size: 0.7rem; font-weight: 700; margin-bottom: 2px; }
+.box-bar { width: 100%; border-radius: 4px 4px 0 0; }
+.box-labels { display: flex; gap: 8px; }
+.box-labels span { flex: 1; text-align: center; font-size: 0.7rem; color: var(--text-light); }
+
+.day-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.day-label { font-size: 0.75rem; color: var(--text-light); width: 70px; }
+.day-track { flex: 1; height: 8px; background: var(--row-neutral); border-radius: 4px; overflow: hidden; }
+.day-fill { height: 100%; border-radius: 4px; }
+.day-pct { font-size: 0.75rem; font-weight: 700; width: 40px; text-align: right; }
+.day-frac { font-size: 0.7rem; color: var(--text-light); width: 50px; }
+
+/* ── Frage-Karte (Markiert / Fehlertagebuch) ── */
+.q-card { margin-bottom: 10px; }
+.q-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
+.q-card-text { font-weight: 700; margin-bottom: 8px; font-size: 0.9rem; line-height: 1.4; }
+.tag { font-size: 0.7rem; background: var(--row-neutral); color: var(--text-light); padding: 3px 10px; border-radius: 10px; white-space: nowrap; }
+.q-card-quiz { font-size: 0.7rem; color: var(--text-light); }
+
+.select-input {
+  width: 100%; padding: 10px 12px; border-radius: var(--radius-md);
+  border: 2px solid var(--border); background: var(--input-bg); color: var(--text);
+  font-size: 0.9rem; font-family: inherit; outline: none;
+}
+.select-input:focus { border-color: var(--primary); }
+.mb-row { margin-bottom: 12px; }
+
+.diary-card { border-left: 4px solid var(--danger); margin-bottom: 10px; }
+.diary-line { font-size: 0.82rem; margin-bottom: 3px; }
+.diary-line .lbl-wrong { color: var(--danger); font-weight: 700; }
+.diary-line .lbl-ok { color: var(--success); font-weight: 700; }
+
 /* ── Safe areas for notched phones ── */
 @supports(padding: env(safe-area-inset-top)) {
   .header { padding-top: calc(18px + env(safe-area-inset-top)); }
