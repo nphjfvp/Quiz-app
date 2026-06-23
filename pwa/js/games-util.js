@@ -15,6 +15,7 @@ export function normalizeQuestion(q) {
   // PWA stores the question text in `question_text`; fall back to text/title.
   const prompt = (q.question_text || q.text || q.title || "").trim();
   const type = q.question_type;
+  const explanation = (q.explanation || "").trim();
 
   if (type === "single_choice" || type === "multiple_choice") {
     const options = (q.options || [])
@@ -24,13 +25,14 @@ export function normalizeQuestion(q) {
     const correctCount = options.filter(o => o.correct).length;
     // multiple_choice with >1 correct → must pick all correct; otherwise single pick
     const kind = (type === "multiple_choice" && correctCount > 1) ? "multi" : "choice";
-    return { prompt: prompt || "Wähle die richtige Antwort", image, kind, options, accept: [] };
+    const answerText = options.filter(o => o.correct).map(o => o.text).join(", ");
+    return { prompt: prompt || "Wähle die richtige Antwort", image, kind, options, accept: [], explanation, answerText };
   }
 
   if (type === "free_text") {
     const accept = (q.correct_text || "").split(/[;|]/).map(norm).filter(Boolean);
     if (!accept.length) return null;
-    return { prompt: prompt || "Beantworte die Frage", image, kind: "text", options: [], accept };
+    return { prompt: prompt || "Beantworte die Frage", image, kind: "text", options: [], accept, explanation, answerText: q.correct_text || accept[0] };
   }
 
   if (type === "fill_blank") {
@@ -39,13 +41,13 @@ export function normalizeQuestion(q) {
     // Make sure a blank marker is visible in the prompt
     let p = prompt;
     if (!/_{2,}|\[\.\.\.\]|…/.test(p)) p = p + "  ( ___ )";
-    return { prompt: p, image, kind: "text", options: [], accept };
+    return { prompt: p, image, kind: "text", options: [], accept, explanation, answerText: (q.blanks || []).join(", ") };
   }
 
   if (type === "math_formula") {
     const accept = [norm(q.correct_formula)].filter(Boolean);
     if (!accept.length) return null;
-    return { prompt: prompt || "Gib die Formel/Lösung ein", image, kind: "text", options: [], accept };
+    return { prompt: prompt || "Gib die Formel/Lösung ein", image, kind: "text", options: [], accept, explanation, answerText: q.correct_formula || "" };
   }
 
   // drag_drop, diagram_label, mark_image: need special interaction → skip
@@ -99,4 +101,82 @@ export function shuffle(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+function escHtml(s) {
+  return (s ?? "").toString()
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const DIFF_NAMES = { 1: "Leicht", 2: "Mittel", 3: "Schwer" };
+
+// Build an end-of-game feedback report from an answer log.
+// log: [{ q (normalized question), correct: bool, userAnswer: string }]
+// Returns an HTML string: accuracy, per-difficulty breakdown, and a review of
+// the wrong answers with the correct solution + explanation.
+export function buildFeedbackHtml(log) {
+  if (!log || !log.length) {
+    return `<div class="game-feedback"><p>Keine Fragen beantwortet.</p></div>`;
+  }
+  const total = log.length;
+  const correct = log.filter(e => e.correct).length;
+  const pct = Math.round((correct / total) * 100);
+
+  // Per-difficulty accuracy → shows where the difficulties were
+  const byDiff = { 1: { c: 0, t: 0 }, 2: { c: 0, t: 0 }, 3: { c: 0, t: 0 } };
+  for (const e of log) {
+    const d = e.q.diff || 1;
+    byDiff[d].t++;
+    if (e.correct) byDiff[d].c++;
+  }
+  const diffRows = [1, 2, 3].filter(d => byDiff[d].t > 0).map(d => {
+    const { c, t } = byDiff[d];
+    const p = Math.round((c / t) * 100);
+    const color = p >= 70 ? "#22c55e" : p >= 40 ? "#f59e0b" : "#ef4444";
+    return `<div class="fb-diff-row">
+      <span class="fb-diff-name">${DIFF_NAMES[d]}</span>
+      <div class="fb-bar"><div class="fb-bar-fill" style="width:${p}%;background:${color}"></div></div>
+      <span class="fb-diff-val">${c}/${t}</span>
+    </div>`;
+  }).join("");
+
+  // The questions that gave trouble (wrong answers), most-difficult first
+  const wrong = log.filter(e => !e.correct).sort((a, b) => (b.q.diff || 1) - (a.q.diff || 1));
+  let reviewHtml = "";
+  if (wrong.length) {
+    reviewHtml = `<h3 class="fb-h3">📌 Das solltest du dir nochmal anschauen</h3>
+      <div class="fb-review">` +
+      wrong.map(e => {
+        const q = e.q;
+        const ua = (e.userAnswer ?? "").toString().trim();
+        return `<div class="fb-item fb-item-d${q.diff || 1}">
+          <div class="fb-q">${escHtml(q.prompt)}</div>
+          ${ua ? `<div class="fb-ua">Deine Antwort: <span>${escHtml(ua)}</span></div>` : ""}
+          <div class="fb-ca">✅ Richtig: <span>${escHtml(q.answerText || "—")}</span></div>
+          ${q.explanation ? `<div class="fb-ex">💡 ${escHtml(q.explanation)}</div>` : ""}
+        </div>`;
+      }).join("") +
+      `</div>`;
+  } else {
+    reviewHtml = `<p class="fb-perfect">🎉 Alles richtig beantwortet — keine Schwachstellen!</p>`;
+  }
+
+  // A short, motivating summary line
+  let verdict;
+  if (pct >= 90) verdict = "Hervorragend! Du beherrschst den Stoff.";
+  else if (pct >= 70) verdict = "Solide! Ein paar Punkte noch festigen.";
+  else if (pct >= 50) verdict = "Auf gutem Weg — wiederhole die markierten Fragen.";
+  else verdict = "Hier steckt noch Lernpotenzial. Schau dir die Lösungen an!";
+
+  return `<div class="game-feedback">
+    <div class="fb-score-ring" style="--p:${pct}">
+      <div class="fb-score-num">${pct}%</div>
+      <div class="fb-score-sub">${correct}/${total} richtig</div>
+    </div>
+    <p class="fb-verdict">${verdict}</p>
+    <h3 class="fb-h3">📊 Nach Schwierigkeit</h3>
+    <div class="fb-diffs">${diffRows}</div>
+    ${reviewHtml}
+  </div>`;
 }

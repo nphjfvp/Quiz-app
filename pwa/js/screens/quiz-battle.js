@@ -1,7 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
-import { buildPlayable, checkText, checkMulti, shuffle } from "../games-util.js";
+import { buildPlayable, checkText, checkMulti, shuffle, buildFeedbackHtml } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 420;
 const TOWER_Y = CANVAS_H - 36;
@@ -19,7 +19,7 @@ export async function render(root) {
   root.innerHTML = `
     <div class="td-setup">
       <h2>⚔️ Quiz Battle</h2>
-      <p>Ziehe die richtige Antwort ins Feld — dein Held greift den Gegner an. Falsche Antworten machen den Gegner stärker!</p>
+      <p>Ziehe die richtige Antwort ins Feld — dein Held greift den Gegner an. Besiege 5 Gegner, um zu gewinnen! Falsche Antworten machen den Gegner stärker.</p>
       <div class="td-quiz-select">
         <label>Quiz wählen:</label>
         <select id="qb-quiz">
@@ -53,14 +53,15 @@ function startBattle(root, quiz) {
     heroes: [], particles: [], floaters: [],
     enemy: null, enemyLevel: 1, correctTotal: 0,
     score: 0, coins: 0, kills: 0, qIndex: 0,
-    gameOver: false, currentQ: null, currentDiff: 1, locked: false,
+    gameOver: false, won: false, currentQ: null, currentDiff: 1, locked: false,
+    goalKills: 5, log: [],
   };
 
   root.innerHTML = `
     <div class="qb-game">
       <div class="td-hud">
         <div class="td-hud-item"><span>🏰</span> <span id="qb-hp">100</span></div>
-        <div class="td-hud-item">💀 <span id="qb-kills">0</span></div>
+        <div class="td-hud-item">💀 <span id="qb-kills">0</span>/${state.goalKills}</div>
         <div class="td-hud-item">⚔️ Lvl <span id="qb-lvl">1</span></div>
         <div class="td-hud-item td-score">⭐ <span id="qb-score">0</span></div>
       </div>
@@ -97,7 +98,8 @@ function startBattle(root, quiz) {
     update(state, dt);
     updateHUD(state, root);
     draw(ctx, state);
-    if (state.towerHP <= 0) { endGame(state, root); return; }
+    if (state.towerHP <= 0) { endGame(state, root, false); return; }
+    if (state.kills >= state.goalKills) { endGame(state, root, true); return; }
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
@@ -139,11 +141,14 @@ function showQuestion(state, root, canvas) {
   const cards = root.querySelector("#qb-cards");
   cards.innerHTML = "";
 
-  const commit = (ok) => {
+  const commit = (ok, userAnswer = "") => {
     if (state.locked) return;
     state.locked = true;
+    if (state.currentQ) state.log.push({ q: state.currentQ, correct: ok, userAnswer });
     onAnswer(state, ok, root);
-    setTimeout(() => showQuestion(state, root, canvas), 850);
+    if (!state.gameOver && state.towerHP > 0 && state.kills < state.goalKills) {
+      setTimeout(() => showQuestion(state, root, canvas), 850);
+    }
   };
 
   if (q.kind === "choice") {
@@ -151,7 +156,7 @@ function showQuestion(state, root, canvas) {
       const card = document.createElement("div");
       card.className = "qb-card";
       card.textContent = o.text;
-      makeDraggable(card, canvas, () => commit(!!o.correct));
+      makeDraggable(card, canvas, () => commit(!!o.correct, o.text));
       cards.appendChild(card);
     });
   } else if (q.kind === "multi") {
@@ -177,7 +182,7 @@ function showQuestion(state, root, canvas) {
     attackCard.textContent = "⚔️ Angreifen (0)";
     makeDraggable(attackCard, canvas, () => {
       const chosen = shuffled.filter((_, i) => selected.has(i));
-      commit(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))));
+      commit(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))), chosen.map(o => o.text).join(", "));
     });
     cards.appendChild(attackCard);
   } else {
@@ -188,7 +193,7 @@ function showQuestion(state, root, canvas) {
     const btn = document.createElement("button");
     btn.className = "td-opt td-submit";
     btn.textContent = "⚔️";
-    const check = () => commit(checkText(q.accept, inp.value));
+    const check = () => commit(checkText(q.accept, inp.value), inp.value);
     btn.addEventListener("click", check);
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
     const wrap = document.createElement("div");
@@ -434,25 +439,34 @@ function draw(ctx, state) {
   ctx.globalAlpha = 1;
 }
 
-async function endGame(state, root) {
+async function endGame(state, root, won) {
+  if (state.gameOver) return;
   state.gameOver = true;
-  const earned = Math.floor(state.score / 10) + state.coins;
+  state.won = won;
+  const winBonus = won ? 25 : 0;
+  const earned = Math.floor(state.score / 10) + state.coins + winBonus;
   await addCoins(earned, "quiz-battle");
-  await saveGameScore("quiz-battle", { points: state.score, coins: earned });
+  await saveGameScore("quiz-battle", { points: state.score, coins: earned, won });
   const wrap = root.querySelector(".qb-game");
   if (!wrap) return;
   const over = document.createElement("div");
-  over.className = "td-gameover";
+  over.className = "td-gameover td-gameover-scroll";
   over.innerHTML = `
-    <h2>🏰 Turm zerstört!</h2>
+    <h2>${won ? "🏆 Sieg!" : "🏰 Turm zerstört!"}</h2>
+    <p class="td-go-sub">${won
+      ? `Du hast alle ${state.goalKills} Gegner besiegt!`
+      : `Du hast ${state.kills} von ${state.goalKills} Gegnern besiegt.`}</p>
     <div class="td-go-stats">
       <div>⭐ Score: <strong>${state.score}</strong></div>
-      <div>💀 Gegner besiegt: <strong>${state.kills}</strong></div>
+      <div>💀 Besiegt: <strong>${state.kills}/${state.goalKills}</strong></div>
       <div>⚔️ Gegner-Level: <strong>${state.enemy?.level || 1}</strong></div>
-      <div>🪙 Verdient: <strong>${earned}</strong></div>
+      <div>🪙 Verdient: <strong>${earned}</strong>${winBonus ? ` (+${winBonus} Bonus)` : ""}</div>
     </div>
-    <button class="btn-cta" id="qb-retry">🔄 Nochmal</button>
-    <button class="btn-secondary" id="qb-home">← Zurück</button>`;
+    ${buildFeedbackHtml(state.log)}
+    <div class="td-go-actions">
+      <button class="btn-cta" id="qb-retry">🔄 Nochmal</button>
+      <button class="btn-secondary" id="qb-home">← Zurück</button>
+    </div>`;
   wrap.appendChild(over);
   over.querySelector("#qb-retry").addEventListener("click", () => navigate("quiz-battle"));
   over.querySelector("#qb-home").addEventListener("click", () => navigate("home"));

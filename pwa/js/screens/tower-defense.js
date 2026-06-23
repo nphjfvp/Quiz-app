@@ -1,7 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
-import { buildPlayable, checkText, checkMulti, shuffle } from "../games-util.js";
+import { buildPlayable, checkText, checkMulti, shuffle, buildFeedbackHtml } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -45,7 +45,7 @@ export async function render(root) {
   root.innerHTML = `
     <div class="td-setup">
       <h2>🏰 Tower Defense</h2>
-      <p>Verteidige deine Basis! Schwere Fragen richten mehr Schaden an.</p>
+      <p>Verteidige deine Basis und überstehe alle Wellen, um zu gewinnen! Schwere Fragen richten mehr Schaden an.</p>
       <div class="td-quiz-select">
         <label>Quiz wählen:</label>
         <select id="td-quiz">
@@ -91,9 +91,9 @@ function startGame(root, quiz, difficulty) {
   }
 
   const diffSettings = {
-    easy:   { speed: 0.28, spawnRate: 6500, hpBase: 5, hpScale: 1.3, baseHP: 20, towerDmg: 0.5, towerRate: 900 },
-    normal: { speed: 0.42, spawnRate: 5000, hpBase: 6, hpScale: 1.7, baseHP: 15, towerDmg: 0.5, towerRate: 1000 },
-    hard:   { speed: 0.58, spawnRate: 3800, hpBase: 8, hpScale: 2.2, baseHP: 10, towerDmg: 0.4, towerRate: 1100 },
+    easy:   { speed: 0.28, spawnRate: 6500, hpBase: 5, hpScale: 1.3, baseHP: 20, towerDmg: 0.5, towerRate: 900, goalWaves: 12 },
+    normal: { speed: 0.42, spawnRate: 5000, hpBase: 6, hpScale: 1.7, baseHP: 15, towerDmg: 0.5, towerRate: 1000, goalWaves: 16 },
+    hard:   { speed: 0.58, spawnRate: 3800, hpBase: 8, hpScale: 2.2, baseHP: 10, towerDmg: 0.4, towerRate: 1100, goalWaves: 20 },
   };
   const cfg = diffSettings[difficulty];
 
@@ -101,8 +101,9 @@ function startGame(root, quiz, difficulty) {
     enemies: [], towers: [], projectiles: [], particles: [], floaters: [],
     baseHP: cfg.baseHP, maxHP: cfg.baseHP,
     score: 0, coins: 0, wave: 0, kills: 0, qIndex: 0,
-    gameOver: false, paused: false, currentQ: null, answering: false,
+    gameOver: false, won: false, paused: false, currentQ: null, answering: false,
     lastSpawn: 0, spawnRate: cfg.spawnRate, cfg, questions, comboCount: 0,
+    goalWaves: cfg.goalWaves, log: [],
   };
 
   root.innerHTML = `
@@ -111,6 +112,7 @@ function startGame(root, quiz, difficulty) {
         <div class="td-hud-item"><span>❤️</span> <span id="td-hp">${state.baseHP}</span></div>
         <div class="td-hud-item">🪙 <span id="td-coins">0</span></div>
         <div class="td-hud-item">💀 <span id="td-kills">0</span></div>
+        <div class="td-hud-item">🌊 <span id="td-wave">0</span>/${state.goalWaves}</div>
         <div class="td-hud-item td-score">⭐ <span id="td-score">0</span></div>
       </div>
       <div class="td-canvas-wrap">
@@ -154,12 +156,17 @@ function startGame(root, quiz, difficulty) {
       updateHUD(state, root);
     }
     draw(ctx, state);
-    if (state.baseHP <= 0 && !state.gameOver) { endGame(state, root); return; }
+    if (state.baseHP <= 0 && !state.gameOver) { endGame(state, root, false); return; }
+    // Win: survived all waves and the field is clear
+    if (!state.gameOver && state.wave >= state.goalWaves && !state.enemies.some(e => e.hp > 0)) {
+      endGame(state, root, true); return;
+    }
     animId = requestAnimationFrame(mainLoop);
   }
 
   function spawnEnemy(ts) {
     if (state.gameOver || state.paused) return;
+    if (state.wave >= state.goalWaves) return; // reached the goal: no more waves
     if (ts - state.lastSpawn > state.spawnRate) {
       state.lastSpawn = ts;
       state.wave++;
@@ -227,14 +234,14 @@ function showQuestion(state, root) {
   qtext.appendChild(txt);
   opts.innerHTML = "";
 
-  const answer = (ok) => handleAnswer(state, ok, diff, root);
+  const answer = (ok, userAnswer) => handleAnswer(state, ok, diff, root, userAnswer);
 
   if (q.kind === "choice") {
     shuffle([...q.options]).forEach((o) => {
       const btn = document.createElement("button");
       btn.className = "td-opt";
       btn.textContent = o.text;
-      btn.addEventListener("click", () => answer(!!o.correct));
+      btn.addEventListener("click", () => answer(!!o.correct, o.text));
       opts.appendChild(btn);
     });
   } else if (q.kind === "multi") {
@@ -259,11 +266,11 @@ function showQuestion(state, root) {
     confirm.textContent = "✓ Bestätigen";
     confirm.addEventListener("click", () => {
       const chosen = shuffled.filter((_, i) => selected.has(i));
-      answer(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))));
+      answer(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))), chosen.map(o => o.text).join(", "));
     });
     opts.appendChild(confirm);
   } else {
-    addTextInput(opts, (val) => answer(checkText(q.accept, val)));
+    addTextInput(opts, (val) => answer(checkText(q.accept, val), val));
   }
   qa.style.display = "block";
 }
@@ -283,8 +290,9 @@ function addTextInput(opts, onSubmit) {
   setTimeout(() => inp.focus(), 50);
 }
 
-function handleAnswer(state, correct, diff, root) {
+function handleAnswer(state, correct, diff, root, userAnswer = "") {
   state.answering = false;
+  if (state.currentQ) state.log.push({ q: state.currentQ, correct, userAnswer });
   root.querySelector("#td-qa").style.display = "none";
   const comboEl = root.querySelector("#td-combo");
 
@@ -327,26 +335,35 @@ function handleAnswer(state, correct, diff, root) {
   }, 900);
 }
 
-async function endGame(state, root) {
+async function endGame(state, root, won) {
   state.gameOver = true;
-  const earned = Math.floor(state.score / 10);
+  state.won = won;
+  // Win bonus rewards holding the line to the end
+  const winBonus = won ? 25 : 0;
+  const earned = Math.floor(state.score / 10) + winBonus;
   await addCoins(earned, "tower-defense");
-  await saveGameScore("tower-defense", { points: state.score, coins: earned });
+  await saveGameScore("tower-defense", { points: state.score, coins: earned, won });
 
   const wrap = root.querySelector(".td-game");
   if (!wrap) return;
   const over = document.createElement("div");
-  over.className = "td-gameover";
+  over.className = "td-gameover td-gameover-scroll";
   over.innerHTML = `
-    <h2>💀 Game Over!</h2>
+    <h2>${won ? "🏆 Gewonnen!" : "💀 Basis gefallen"}</h2>
+    <p class="td-go-sub">${won
+      ? `Du hast alle ${state.goalWaves} Wellen überstanden!`
+      : `Du hast Welle ${state.wave} von ${state.goalWaves} erreicht.`}</p>
     <div class="td-go-stats">
       <div>⭐ Score: <strong>${state.score}</strong></div>
       <div>💀 Kills: <strong>${state.kills}</strong></div>
-      <div>🌊 Welle: <strong>${state.wave}</strong></div>
-      <div>🪙 Verdient: <strong>${earned}</strong> Münzen</div>
+      <div>🌊 Welle: <strong>${state.wave}/${state.goalWaves}</strong></div>
+      <div>🪙 Verdient: <strong>${earned}</strong>${winBonus ? ` (+${winBonus} Bonus)` : ""}</div>
     </div>
-    <button class="btn-cta" id="td-retry">🔄 Nochmal</button>
-    <button class="btn-secondary" id="td-home">← Zurück</button>`;
+    ${buildFeedbackHtml(state.log)}
+    <div class="td-go-actions">
+      <button class="btn-cta" id="td-retry">🔄 Nochmal</button>
+      <button class="btn-secondary" id="td-home">← Zurück</button>
+    </div>`;
   wrap.appendChild(over);
   over.querySelector("#td-retry").addEventListener("click", () => navigate("tower-defense"));
   over.querySelector("#td-home").addEventListener("click", () => navigate("home"));
@@ -575,6 +592,7 @@ function updateHUD(state, root) {
   set("#td-hp", Math.max(0, state.baseHP));
   set("#td-coins", state.coins);
   set("#td-kills", state.kills);
+  set("#td-wave", Math.min(state.wave, state.goalWaves));
   set("#td-score", state.score);
 }
 
