@@ -29,5 +29,11 @@
     <div class="empty" style="padding-top:60px">Wird geladen…</div>
   </main>
   <script type="module" src="js/app.js"></script>
+  <script>
+    // Force new service worker to activate immediately
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
+    }
+  </script>
 </body>
 </html>
