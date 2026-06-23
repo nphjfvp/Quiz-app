@@ -1,4 +1,5 @@
 import { navigate } from "../router.js";
+import { explainAnswer } from "../ai-service.js";
 
 export async function render(root, params) {
   const { session, quiz } = params;
@@ -90,8 +91,40 @@ function showDetail(root, q, result, session, quiz) {
     </div>`;
   }
 
+  html += `<div class="btn-row">
+    <button class="btn btn-primary btn-sm" id="ai-explain">🤖 KI-Erklärung</button>
+    <button class="btn btn-ghost btn-sm" id="ai-tutor">💬 KI-Tutor</button>
+  </div>
+  <div id="ai-explanation" style="display:none" class="card" style="margin-top:8px">
+    <div style="font-size:0.8rem;color:var(--text-light);margin-bottom:4px">🤖 KI-Erklärung</div>
+    <div id="ai-explain-text" style="font-size:0.9rem;white-space:pre-wrap"></div>
+  </div>`;
+
   root.innerHTML = html;
   root.querySelector("#back-results").addEventListener("click", () => render(root, { session, quiz }));
+
+  root.querySelector("#ai-explain")?.addEventListener("click", async () => {
+    const btn = root.querySelector("#ai-explain");
+    const box = root.querySelector("#ai-explanation");
+    const textEl = root.querySelector("#ai-explain-text");
+    btn.disabled = true;
+    btn.textContent = "⏳ Lade...";
+    box.style.display = "block";
+    textEl.textContent = "Generiere Erklärung...";
+    try {
+      const questionText = q.question_text || q.text || q.title || "";
+      const explanation = await explainAnswer(questionText, result?.user_answer || "", result?.correct_answer || "");
+      textEl.textContent = explanation;
+    } catch (err) {
+      textEl.textContent = "Fehler: " + (err.message || "KI-Erklärung konnte nicht geladen werden.");
+    }
+    btn.textContent = "🤖 KI-Erklärung";
+    btn.disabled = false;
+  });
+
+  root.querySelector("#ai-tutor")?.addEventListener("click", () => {
+    navigate("tutor", { question: { text: q.question_text || q.text, correct: result?.correct_answer } });
+  });
 }
 
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }

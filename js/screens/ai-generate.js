@@ -35,11 +35,17 @@ export async function render(root, params = {}) {
         </div>
 
         <div class="input-group">
-          <label>Datei laden (.txt)</label>
-          <input type="file" id="ai-file" accept=".txt" class="input">
-          <small style="color:var(--text-secondary,#888);margin-top:0.25rem;display:block">
-            PDF- und DOCX-Unterstützung folgt in einer zukünftigen Version.
+          <label>Datei laden (.txt, .pdf)</label>
+          <input type="file" id="ai-file" accept=".txt,.pdf" class="input">
+          <small style="color:var(--text-light);margin-top:0.25rem;display:block">
+            PDF-Text wird automatisch extrahiert.
           </small>
+          <div id="file-progress" style="display:none;margin-top:0.5rem">
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div id="file-bar" style="height:100%;background:var(--primary);width:0%;transition:width 0.3s"></div>
+            </div>
+            <small id="file-info" style="color:var(--text-light)">Extrahiere Text...</small>
+          </div>
         </div>
 
         <div class="input-group">
@@ -70,25 +76,71 @@ export async function render(root, params = {}) {
   const genBtn = root.querySelector("#ai-generate");
   const errorBox = root.querySelector("#ai-error");
 
-  // --- File reading ---
-  fileInput.addEventListener("change", () => {
+  const fileProgress = root.querySelector("#file-progress");
+  const fileBar = root.querySelector("#file-bar");
+  const fileInfo = root.querySelector("#file-info");
+
+  fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
     if (!file) return;
+    hideError();
 
-    if (!file.name.endsWith(".txt")) {
-      showError("Bitte eine .txt-Datei auswählen. PDF/DOCX wird noch nicht unterstützt.");
-      fileInput.value = "";
+    if (file.name.endsWith(".txt")) {
+      const reader = new FileReader();
+      reader.onload = () => { textArea.value = reader.result; };
+      reader.onerror = () => showError("Datei konnte nicht gelesen werden.");
+      reader.readAsText(file);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      textArea.value = reader.result;
-      hideError();
-    };
-    reader.onerror = () => showError("Datei konnte nicht gelesen werden.");
-    reader.readAsText(file);
+    if (file.name.endsWith(".pdf")) {
+      fileProgress.style.display = "block";
+      fileBar.style.width = "10%";
+      fileInfo.textContent = "Lade PDF-Bibliothek...";
+      try {
+        const pdfjsLib = await loadPdfJs();
+        fileBar.style.width = "30%";
+        fileInfo.textContent = "Lese PDF...";
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(" ") + "\n\n";
+          fileBar.style.width = (30 + 70 * i / pdf.numPages) + "%";
+          fileInfo.textContent = `Seite ${i}/${pdf.numPages}...`;
+        }
+        textArea.value = text.trim();
+        fileInfo.textContent = `✓ ${pdf.numPages} Seiten extrahiert`;
+        setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
+      } catch (err) {
+        showError("PDF konnte nicht gelesen werden: " + (err.message || err));
+        fileProgress.style.display = "none";
+      }
+      return;
+    }
+
+    showError("Bitte eine .txt oder .pdf Datei auswählen.");
+    fileInput.value = "";
   });
+
+  async function loadPdfJs() {
+    if (window.pdfjsLib) return window.pdfjsLib;
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      script.onload = () => {
+        const lib = window.pdfjsLib;
+        if (lib) {
+          lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+          resolve(lib);
+        } else reject(new Error("pdf.js konnte nicht geladen werden"));
+      };
+      script.onerror = () => reject(new Error("pdf.js konnte nicht geladen werden. Prüfe deine Internetverbindung."));
+      document.head.appendChild(script);
+    });
+  }
 
   // --- Back ---
   backBtn.addEventListener("click", () => navigate("home"));

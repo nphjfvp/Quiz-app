@@ -69,6 +69,7 @@ export async function render(root) {
     <div class="grid-card mini-card" data-nav="error-diary"><div class="icon">📕</div><div class="title">Fehler</div></div>
   </div>
   <div class="grid-4 hidden" id="more-grid-2" style="margin-top:-6px">
+    <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner</div></div>
     <div class="grid-card mini-card" data-nav="sync"><div class="icon">☁️</div><div class="title">Sync</div></div>
     <div class="grid-card mini-card" data-nav="settings"><div class="icon">⚙️</div><div class="title">Settings</div></div>
   </div>`;

@@ -80,6 +80,13 @@ export async function saveErrorDiary(diary) {
   await set("error_diary", diary);
 }
 
+export async function loadFolders() {
+  return (await get("folders")) ?? [];
+}
+export async function saveFolders(folders) {
+  await set("folders", folders);
+}
+
 export async function logAnswer(correct) {
   const stats = await loadStats();
   const today = new Date().toISOString().slice(0, 10);
