@@ -1,6 +1,7 @@
 import { loadQuizzes, saveQuizzes } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
+import { openBlackoutEditor } from "../blackout.js";
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -238,6 +239,7 @@ function renderQuestionEditor(root, quizzes) {
       <label>Bild</label>
       <input type="text" id="qe-diagram-img" class="input" value="${esc(q.diagram_image || "")}" placeholder="https://... oder Datei hochladen">
       <input type="file" id="qe-diagram-file" accept="image/*" class="editor-file-input">
+      ${q.diagram_image ? `<button class="btn btn-sm btn-ghost" id="qe-blackout-diagram">✏️ Bild schwärzen</button>` : ""}
     </div>`;
     html += `<div class="section-title" class="mt-section">Labels</div>`;
     html += `<div class="editor-canvas-hint">Füge Labels hinzu und platziere sie per Tippen auf dem Bild.</div>`;
@@ -264,6 +266,7 @@ function renderQuestionEditor(root, quizzes) {
       <label>Bild-URL (oder Base64)</label>
       <input type="text" id="qe-mark-img" class="input" value="${esc(q.image || "")}" placeholder="https://...">
       <input type="file" id="qe-mark-file" accept="image/*" class="editor-file-input">
+      ${q.image ? `<button class="btn btn-sm btn-ghost" id="qe-blackout-mark">✏️ Bild schwärzen</button>` : ""}
     </div>`;
     html += `<div class="section-title" class="mt-section">Markierungs-Regionen</div>`;
     html += `<div id="regions-list">`;
@@ -351,6 +354,10 @@ function renderQuestionEditor(root, quizzes) {
       reader.onload = () => { q.diagram_image = reader.result; root.querySelector("#qe-diagram-img").value = "(Bild hochgeladen)"; renderQuestionEditor(root, quizzes); };
       reader.readAsDataURL(file);
     });
+    root.querySelector("#qe-blackout-diagram")?.addEventListener("click", () => {
+      if (!q.diagram_image) return;
+      openBlackoutEditor(q.diagram_image, (dataUrl) => { q.diagram_image = dataUrl; renderQuestionEditor(root, quizzes); });
+    });
     root.querySelectorAll(".label-name").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].label = e.target.value; refreshPlacementUI(); }); });
     root.querySelectorAll(".label-del").forEach(btn => { btn.addEventListener("click", () => { q.diagram_labels.splice(parseInt(btn.dataset.li), 1); renderQuestionEditor(root, quizzes); }); });
     root.querySelector("#add-label")?.addEventListener("click", () => { q.diagram_labels.push({ label: "", x: 0.5, y: 0.5, _placed: false }); renderQuestionEditor(root, quizzes); });
@@ -361,8 +368,12 @@ function renderQuestionEditor(root, quizzes) {
     root.querySelector("#qe-mark-file")?.addEventListener("change", e => {
       const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => { q.image = reader.result; root.querySelector("#qe-mark-img").value = "(Bild hochgeladen)"; };
+      reader.onload = () => { q.image = reader.result; root.querySelector("#qe-mark-img").value = "(Bild hochgeladen)"; renderQuestionEditor(root, quizzes); };
       reader.readAsDataURL(file);
+    });
+    root.querySelector("#qe-blackout-mark")?.addEventListener("click", () => {
+      if (!q.image) return;
+      openBlackoutEditor(q.image, (dataUrl) => { q.image = dataUrl; renderQuestionEditor(root, quizzes); });
     });
     root.querySelectorAll(".region-type").forEach(sel => {
       sel.addEventListener("change", e => {

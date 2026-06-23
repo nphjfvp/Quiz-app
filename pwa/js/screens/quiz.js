@@ -3,6 +3,7 @@ import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErro
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
+import { openBlackoutEditor } from "../blackout.js";
 
 export async function render(root, params) {
   const { quiz, mode } = params;
@@ -37,6 +38,7 @@ function showQuestion(root, quiz, session) {
       ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${esc(q.question_text || q.text)}</div>`}
       ${q.question_type === "multiple_choice" ? `<div class="mc-badge">☑️ Mehrere Antworten richtig</div>` : ""}
       ${q.question_type === "single_choice" ? `<div class="mc-badge sc">🔘 Genau eine Antwort richtig</div>` : ""}
+      ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${q.image || q.image_path}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
     </div>
     <div class="card" id="answer-area">`;
 
@@ -130,6 +132,17 @@ function showQuestion(root, quiz, session) {
     </div>`;
 
   root.innerHTML = html;
+
+  // Blackout button on question image
+  root.querySelector("#q-blackout-btn")?.addEventListener("click", () => {
+    const imgSrc = q.image || q.image_path;
+    if (!imgSrc) return;
+    openBlackoutEditor(imgSrc, (dataUrl) => {
+      q.image = dataUrl;
+      const img = root.querySelector("#q-img-wrap img");
+      if (img) img.src = dataUrl;
+    });
+  });
 
   // Drag & Drop setup
   const dndAssignments = {};
