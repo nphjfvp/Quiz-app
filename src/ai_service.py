@@ -134,7 +134,7 @@ Regeln:
 
 
 class AIService:
-    def __init__(self, api_key: str = "", model: str = "deepseek/deepseek-chat"):
+    def __init__(self, api_key: str = "", model: str = "nvidia/nemotron-3-super-120b-a12b:free"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
@@ -425,36 +425,27 @@ class AIService:
     # ── Model Recommendations ──
 
     RECOMMENDED_MODELS = [
-        # ── Gratis ──
-        {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "name": "Nemotron 3 Ultra (gratis)", "cost_in": 0, "cost_out": 0, "speed": "mittel",
-         "vision": False, "pdf": False, "context": 1000000, "strengths": ["MINT", "Logik", "Mathematik", "Physik"]},
+        # ── Gratis (nur Text) ──
         {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "Nemotron 3 Super (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
-         "vision": False, "pdf": False, "context": 1000000, "strengths": ["Allgemeinwissen", "Informatik", "Technik"]},
-        {"id": "qwen/qwen3.6-plus-preview:free", "name": "Qwen 3.6 Plus (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
-         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Sprachen", "Allgemeinwissen", "Naturwissenschaften"]},
-        {"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "name": "Nemotron Nano Omni (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
-         "vision": True, "pdf": False, "context": 128000, "strengths": ["Allgemeinwissen", "Bilder"]},
-        # ── Günstig ──
-        {"id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "cost_in": 0.09, "cost_out": 0.18, "speed": "schnell",
-         "vision": False, "pdf": False, "context": 1000000, "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
-        {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.30, "cost_out": 2.50, "speed": "schnell",
-         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Medizin", "Biologie", "Naturwissenschaften", "Sprachen"]},
-        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "cost_in": 0.15, "cost_out": 0.60, "speed": "schnell",
-         "vision": True, "pdf": False, "context": 128000, "strengths": ["Allgemeinwissen", "Sprachen"]},
-        {"id": "deepseek/deepseek-r1", "name": "DeepSeek R1 (Reasoning)", "cost_in": 0.70, "cost_out": 2.50, "speed": "langsam",
-         "vision": False, "pdf": False, "context": 164000, "strengths": ["Mathematik", "Logik", "Physik", "Programmierung"]},
-        {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 1.00, "cost_out": 5.00, "speed": "schnell",
-         "vision": True, "pdf": True, "context": 200000, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
-        # ── Mittelklasse ──
-        {"id": "google/gemini-2.5-pro", "name": "Gemini 2.5 Pro", "cost_in": 1.25, "cost_out": 10.0, "speed": "mittel",
-         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Medizin", "Jura", "Naturwissenschaften"]},
-        {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "cost_in": 3.00, "cost_out": 15.0, "speed": "mittel",
-         "vision": True, "pdf": True, "context": 1000000, "strengths": ["MINT", "Informatik", "Logik", "Jura"]},
-        {"id": "openai/gpt-4o", "name": "GPT-4o", "cost_in": 2.50, "cost_out": 10.0, "speed": "mittel",
-         "vision": True, "pdf": False, "context": 128000, "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
-        # ── Premium ──
-        {"id": "anthropic/claude-opus-4-8", "name": "Claude Opus 4.8", "cost_in": 5.00, "cost_out": 25.0, "speed": "langsam",
-         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Forschung", "komplexe Analysen", "Medizin"]},
+         "vision": False, "context": 128000, "strengths": ["Allgemeinwissen", "Informatik", "Technik"]},
+        {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B (gratis)", "cost_in": 0, "cost_out": 0, "speed": "mittel",
+         "vision": False, "context": 131072, "strengths": ["Allgemeinwissen", "Sprachen", "Logik"]},
+        {"id": "qwen/qwen3-next-80b-a3b-instruct:free", "name": "Qwen3 Next 80B (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": False, "context": 262144, "strengths": ["MINT", "Mathematik", "Programmierung"]},
+        {"id": "openai/gpt-oss-120b:free", "name": "GPT-OSS 120B (gratis)", "cost_in": 0, "cost_out": 0, "speed": "mittel",
+         "vision": False, "context": 131072, "strengths": ["Allgemeinwissen", "Logik", "Naturwissenschaften"]},
+        {"id": "google/gemma-4-31b-it:free", "name": "Gemma 4 31B (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": False, "context": 128000, "strengths": ["Sprachen", "Allgemeinwissen"]},
+        # ── Gratis (mit Bildern) ──
+        {"id": "nvidia/nemotron-nano-12b-v2-vl:free", "name": "Nemotron Nano VL (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": True, "context": 128000, "strengths": ["Bilder", "Diagramme", "Allgemeinwissen"]},
+        {"id": "nvidia/nemotron-3.5-content-safety:free", "name": "Nemotron 3.5 Safety (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": True, "context": 128000, "strengths": ["Bilder", "Diagramme"]},
+        # ── Günstig (mit Bildern) ──
+        {"id": "openai/gpt-4o-mini-2024-07-18", "name": "GPT-4o Mini", "cost_in": 0.15, "cost_out": 0.60, "speed": "schnell",
+         "vision": True, "context": 128000, "strengths": ["Allgemeinwissen", "Sprachen", "Bilder"]},
+        {"id": "amazon/nova-2-lite-v1", "name": "Amazon Nova 2 Lite", "cost_in": 0.30, "cost_out": 2.50, "speed": "schnell",
+         "vision": True, "context": 300000, "strengths": ["Allgemeinwissen", "Bilder", "Dokumente"]},
     ]
 
     @classmethod
@@ -465,7 +456,7 @@ class AIService:
     def get_cheapest_vision_model(cls) -> str:
         vision = cls.get_vision_models()
         if not vision:
-            return "google/gemini-2.5-flash"
+            return "nvidia/nemotron-nano-12b-v2-vl:free"
         return min(vision, key=lambda m: m["cost_in"] + m["cost_out"])["id"]
 
     def is_current_model_vision(self) -> bool:

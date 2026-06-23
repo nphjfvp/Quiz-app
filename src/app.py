@@ -51,7 +51,7 @@ class App(ctk.CTk):
         set_language(settings.get("language", "de"))
         self.ai = AIService(
             api_key=settings.get("api_key", ""),
-            model=settings.get("model", "deepseek/deepseek-chat"),
+            model=settings.get("model", "nvidia/nemotron-3-super-120b-a12b:free"),
         )
 
         self.session: QuizSession | None = None
@@ -1362,7 +1362,7 @@ class App(ctk.CTk):
         # Model
         ctk.CTkLabel(frame, text=t("settings.model"), font=("Segoe UI", 13, "bold"),
                     text_color=COLORS["text"]).grid(row=3, column=0, sticky="w")
-        model_entry = ctk.CTkEntry(frame, placeholder_text="deepseek/deepseek-chat", width=500)
+        model_entry = ctk.CTkEntry(frame, placeholder_text="nvidia/nemotron-3-super-120b-a12b:free", width=500)
         model_entry.grid(row=4, column=0, sticky="w", pady=(5, 5))
         if settings.get("model"):
             model_entry.insert(0, settings["model"])
@@ -1386,9 +1386,7 @@ class App(ctk.CTk):
         for i, m in enumerate(_AIS.RECOMMENDED_MODELS):
             cost = m["cost_in"] + m["cost_out"]
             cost_label = f"${cost:.1f}/1M"
-            icons = ("👁" if m.get("vision") else "") + ("📄" if m.get("pdf") else "")
-            if not icons:
-                icons = "📝"
+            icons = "👁" if m.get("vision") else "📝"
             var = BooleanVar(value=(m["id"] in blocked_set))
             blocked_vars[m["id"]] = var
             row_i = i // 2
@@ -1575,7 +1573,7 @@ class App(ctk.CTk):
         def save():
             s = self.store.load_settings()
             s["api_key"] = api_entry.get().strip()
-            s["model"] = model_entry.get().strip() or "deepseek/deepseek-chat"
+            s["model"] = model_entry.get().strip() or "nvidia/nemotron-3-super-120b-a12b:free"
             s["use_fsrs"] = bool(fsrs_switch.get())
             s["enable_images"] = bool(img_switch.get())
             s["ai_validation"] = bool(aival_switch.get())
@@ -2846,7 +2844,7 @@ class App(ctk.CTk):
 
         settings = self.store.load_settings()
         disabled_models = set(settings.get("disabled_models", []))
-        current_model = settings.get("model", "deepseek/deepseek-chat")
+        current_model = settings.get("model", "nvidia/nemotron-3-super-120b-a12b:free")
         current_in_list = any(mid == current_model for mid in model_id_map.values())
         if not current_in_list:
             custom_label = f"{current_model} (aktuell)"
@@ -2954,7 +2952,7 @@ class App(ctk.CTk):
         model_id_map.update(new_map)
 
         settings = self.store.load_settings()
-        current_model = settings.get("model", "deepseek/deepseek-chat")
+        current_model = settings.get("model", "nvidia/nemotron-3-super-120b-a12b:free")
         if not any(mid == current_model for mid in model_id_map.values()):
             custom_label = f"{current_model} (aktuell)"
             display_names.append(custom_label)

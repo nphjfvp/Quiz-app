@@ -71,16 +71,16 @@ export async function render(root) {
         <div id="model-list" class="model-select-list">
           ${MODELS.map(m => {
             const sel = (settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free") === m.id;
-            const icons = (m.vision ? "👁" : "") + (m.pdf ? "📄" : "");
+            const icons = m.vision ? "👁 Bilder" : "📝 Text";
             const ctxLabel = m.context >= 1000000 ? "1M" : Math.floor(m.context/1000) + "k";
             return `<div class="model-option ${sel ? "selected" : ""}" data-model="${m.id}">
-              <div class="model-name">${esc(m.name)} <span class="model-icons">${icons || "📝"}</span></div>
+              <div class="model-name">${esc(m.name)} <span class="model-icons">${icons}</span></div>
               <div class="model-meta">${m.tier} · ${m.price} · ${ctxLabel} ctx</div>
             </div>`;
           }).join("")}
         </div>
         <input type="hidden" id="ai-model" value="${esc(settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free")}">
-        <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = Bilder · 📄 = PDFs/Dokumente · 📝 = nur Text</div>
+        <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = kann Bilder sehen · 📝 = nur Text. Bei Bild-Aufgaben wird automatisch ein Bild-Modell genutzt.</div>
       </div>
       <button class="btn btn-primary btn-sm" id="save-ai">Speichern</button>
       <div id="ai-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>

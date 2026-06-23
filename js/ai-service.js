@@ -2,22 +2,21 @@ import { loadSettings } from "./store.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
-const VISION_MODEL = "qwen/qwen3.6-plus-preview:free";
+const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
 
 export const MODELS = [
-  { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "Nemotron 3 Ultra", tier: "gratis", context: 1000000, vision: false, pdf: false, price: "$0" },
-  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron 3 Super", tier: "gratis", context: 1000000, vision: false, pdf: false, price: "$0" },
-  { id: "qwen/qwen3.6-plus-preview:free", name: "Qwen 3.6 Plus", tier: "gratis", context: 1000000, vision: true, pdf: true, price: "$0" },
-  { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", name: "Nemotron Nano Omni", tier: "gratis", context: 128000, vision: true, pdf: false, price: "$0" },
-  { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash", tier: "günstig", context: 1000000, vision: false, pdf: false, price: "$0.09/M" },
-  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", tier: "günstig", context: 1000000, vision: true, pdf: true, price: "$0.30/M" },
-  { id: "openai/gpt-4o-mini", name: "GPT-4o Mini", tier: "günstig", context: 128000, vision: true, pdf: false, price: "$0.15/M" },
-  { id: "deepseek/deepseek-r1", name: "DeepSeek R1", tier: "günstig", context: 164000, vision: false, pdf: false, price: "$0.70/M" },
-  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", tier: "mittel", context: 200000, vision: true, pdf: true, price: "$1/M" },
-  { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", tier: "mittel", context: 1000000, vision: true, pdf: true, price: "$1.25/M" },
-  { id: "anthropic/claude-sonnet-4-6", name: "Claude Sonnet 4.6", tier: "mittel", context: 1000000, vision: true, pdf: true, price: "$3/M" },
-  { id: "openai/gpt-4o", name: "GPT-4o", tier: "mittel", context: 128000, vision: true, pdf: false, price: "$2.50/M" },
-  { id: "anthropic/claude-opus-4-8", name: "Claude Opus 4.8", tier: "premium", context: 1000000, vision: true, pdf: true, price: "$5/M" },
+  // ── Gratis (nur Text) ──
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron 3 Super", tier: "gratis", context: 128000, vision: false, price: "$0" },
+  { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B", tier: "gratis", context: 131072, vision: false, price: "$0" },
+  { id: "qwen/qwen3-next-80b-a3b-instruct:free", name: "Qwen3 Next 80B", tier: "gratis", context: 262144, vision: false, price: "$0" },
+  { id: "openai/gpt-oss-120b:free", name: "GPT-OSS 120B", tier: "gratis", context: 131072, vision: false, price: "$0" },
+  { id: "google/gemma-4-31b-it:free", name: "Gemma 4 31B", tier: "gratis", context: 128000, vision: false, price: "$0" },
+  // ── Gratis (mit Bildern) ──
+  { id: "nvidia/nemotron-nano-12b-v2-vl:free", name: "Nemotron Nano VL", tier: "gratis", context: 128000, vision: true, price: "$0" },
+  { id: "nvidia/nemotron-3.5-content-safety:free", name: "Nemotron 3.5 Safety", tier: "gratis", context: 128000, vision: true, price: "$0" },
+  // ── Günstig (mit Bildern) ──
+  { id: "openai/gpt-4o-mini-2024-07-18", name: "GPT-4o Mini", tier: "günstig", context: 128000, vision: true, price: "$0.15/M" },
+  { id: "amazon/nova-2-lite-v1", name: "Amazon Nova 2 Lite", tier: "günstig", context: 300000, vision: true, price: "$0.30/M" },
 ];
 
 export function getModelContextLimit(modelId) {
