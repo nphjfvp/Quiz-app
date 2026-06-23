@@ -334,8 +334,13 @@ function update(state, dt, ts, cfg) {
     e.wobble += dt / 200;
     const idx = Math.floor(e.progress);
     if (idx >= PATH.length - 1) {
+      // Leak damage scales with the balloon's toughness (bigger = more dangerous)
+      const leak = 1 + Math.floor(e.maxHp / 12);
       e.hp = 0; e.reached = true;
-      state.baseHP -= 1;
+      state.baseHP -= leak;
+      const lastP = PATH[PATH.length - 1];
+      addFloater(state, lastP.col * TILE + TILE / 2, lastP.row * TILE + TILE / 2 - 16, `-${leak} ❤️`, "#ef4444");
+      burst(state, lastP.col * TILE + TILE / 2, lastP.row * TILE + TILE / 2, "#ef4444", 8);
       continue;
     }
     const frac = e.progress - idx;
