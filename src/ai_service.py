@@ -427,34 +427,34 @@ class AIService:
     RECOMMENDED_MODELS = [
         # ── Gratis ──
         {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "name": "Nemotron 3 Ultra (gratis)", "cost_in": 0, "cost_out": 0, "speed": "mittel",
-         "vision": False, "context": 1000000, "strengths": ["MINT", "Logik", "Mathematik", "Physik"]},
+         "vision": False, "pdf": False, "context": 1000000, "strengths": ["MINT", "Logik", "Mathematik", "Physik"]},
         {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "Nemotron 3 Super (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
-         "vision": False, "context": 1000000, "strengths": ["Allgemeinwissen", "Informatik", "Technik"]},
+         "vision": False, "pdf": False, "context": 1000000, "strengths": ["Allgemeinwissen", "Informatik", "Technik"]},
         {"id": "qwen/qwen3.6-plus-preview:free", "name": "Qwen 3.6 Plus (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
-         "vision": True, "context": 1000000, "strengths": ["Sprachen", "Allgemeinwissen", "Naturwissenschaften"]},
+         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Sprachen", "Allgemeinwissen", "Naturwissenschaften"]},
         {"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "name": "Nemotron Nano Omni (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
-         "vision": True, "context": 128000, "strengths": ["Allgemeinwissen", "Bilder"]},
+         "vision": True, "pdf": False, "context": 128000, "strengths": ["Allgemeinwissen", "Bilder"]},
         # ── Günstig ──
         {"id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "cost_in": 0.09, "cost_out": 0.18, "speed": "schnell",
-         "vision": False, "context": 1000000, "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
+         "vision": False, "pdf": False, "context": 1000000, "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
         {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.30, "cost_out": 2.50, "speed": "schnell",
-         "vision": True, "context": 1000000, "strengths": ["Medizin", "Biologie", "Naturwissenschaften", "Sprachen"]},
+         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Medizin", "Biologie", "Naturwissenschaften", "Sprachen"]},
         {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "cost_in": 0.15, "cost_out": 0.60, "speed": "schnell",
-         "vision": True, "context": 128000, "strengths": ["Allgemeinwissen", "Sprachen"]},
+         "vision": True, "pdf": False, "context": 128000, "strengths": ["Allgemeinwissen", "Sprachen"]},
         {"id": "deepseek/deepseek-r1", "name": "DeepSeek R1 (Reasoning)", "cost_in": 0.70, "cost_out": 2.50, "speed": "langsam",
-         "vision": False, "context": 164000, "strengths": ["Mathematik", "Logik", "Physik", "Programmierung"]},
+         "vision": False, "pdf": False, "context": 164000, "strengths": ["Mathematik", "Logik", "Physik", "Programmierung"]},
         {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 1.00, "cost_out": 5.00, "speed": "schnell",
-         "vision": True, "context": 200000, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
+         "vision": True, "pdf": True, "context": 200000, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
         # ── Mittelklasse ──
         {"id": "google/gemini-2.5-pro", "name": "Gemini 2.5 Pro", "cost_in": 1.25, "cost_out": 10.0, "speed": "mittel",
-         "vision": True, "context": 1000000, "strengths": ["Medizin", "Jura", "Naturwissenschaften"]},
+         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Medizin", "Jura", "Naturwissenschaften"]},
         {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "cost_in": 3.00, "cost_out": 15.0, "speed": "mittel",
-         "vision": True, "context": 1000000, "strengths": ["MINT", "Informatik", "Logik", "Jura"]},
+         "vision": True, "pdf": True, "context": 1000000, "strengths": ["MINT", "Informatik", "Logik", "Jura"]},
         {"id": "openai/gpt-4o", "name": "GPT-4o", "cost_in": 2.50, "cost_out": 10.0, "speed": "mittel",
-         "vision": True, "context": 128000, "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
+         "vision": True, "pdf": False, "context": 128000, "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
         # ── Premium ──
         {"id": "anthropic/claude-opus-4-8", "name": "Claude Opus 4.8", "cost_in": 5.00, "cost_out": 25.0, "speed": "langsam",
-         "vision": True, "context": 1000000, "strengths": ["Forschung", "komplexe Analysen", "Medizin"]},
+         "vision": True, "pdf": True, "context": 1000000, "strengths": ["Forschung", "komplexe Analysen", "Medizin"]},
     ]
 
     @classmethod

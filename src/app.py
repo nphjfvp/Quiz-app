@@ -1386,11 +1386,14 @@ class App(ctk.CTk):
         for i, m in enumerate(_AIS.RECOMMENDED_MODELS):
             cost = m["cost_in"] + m["cost_out"]
             cost_label = f"${cost:.1f}/1M"
+            icons = ("👁" if m.get("vision") else "") + ("📄" if m.get("pdf") else "")
+            if not icons:
+                icons = "📝"
             var = BooleanVar(value=(m["id"] in blocked_set))
             blocked_vars[m["id"]] = var
             row_i = i // 2
             col_i = i % 2
-            ctk.CTkSwitch(blocked_frame, text=f"{m['name']} ({cost_label})",
+            ctk.CTkSwitch(blocked_frame, text=f"{m['name']} {icons} ({cost_label})",
                          variable=var, font=("Segoe UI", 11)
                          ).grid(row=row_i, column=col_i, padx=(0, 25), pady=2, sticky="w")
 

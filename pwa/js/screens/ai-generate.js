@@ -1,5 +1,5 @@
-import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, getModelContextLimit } from "../ai-service.js";
+import { loadQuizzes, saveQuizzes, loadSettings, saveSettings } from "../store.js";
+import { generateQuiz, getModelContextLimit, MODELS } from "../ai-service.js";
 import { navigate } from "../router.js";
 
 function uid() {
@@ -16,8 +16,9 @@ export async function render(root, params = {}) {
   const prefillText = params.text ?? "";
   const prefillName = params.name ?? "";
   const settings = await loadSettings();
-  const currentModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
-  const charLimit = getModelContextLimit(currentModel);
+  let currentModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
+  let charLimit = getModelContextLimit(currentModel);
+  let uploadedFileType = null;
 
   function fmtLimit(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -62,6 +63,22 @@ export async function render(root, params = {}) {
         </div>
 
         <div class="input-group">
+          <label>KI-Modell</label>
+          <div id="gen-model-list" class="model-select-list">
+            ${MODELS.map(m => {
+              const sel = currentModel === m.id;
+              const icons = (m.vision ? "👁" : "") + (m.pdf ? "📄" : "");
+              const ctxLabel = m.context >= 1000000 ? "1M" : Math.floor(m.context/1000) + "k";
+              return `<div class="model-option ${sel ? "selected" : ""}" data-model="${m.id}" data-vision="${m.vision}" data-pdf="${m.pdf}">
+                <div class="model-name">${esc(m.name)} <span class="model-icons">${icons || "📝"}</span></div>
+                <div class="model-meta">${m.tier} · ${m.price} · ${ctxLabel} ctx</div>
+              </div>`;
+            }).join("")}
+          </div>
+          <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = Bilder · 📄 = PDFs · 📝 = nur Text</div>
+        </div>
+
+        <div class="input-group">
           <label>Anzahl Fragen</label>
           <select id="ai-num-questions" class="input">
             <option value="5">5 Fragen</option>
@@ -94,10 +111,48 @@ export async function render(root, params = {}) {
   const fileBar = root.querySelector("#file-bar");
   const fileInfo = root.querySelector("#file-info");
 
+  // --- Model selection ---
+  function updateModelAvailability() {
+    root.querySelectorAll("#gen-model-list .model-option").forEach(el => {
+      const vision = el.dataset.vision === "true";
+      const pdf = el.dataset.pdf === "true";
+      const incompatible = (uploadedFileType === "pdf" && !pdf) || (uploadedFileType === "image" && !vision);
+      el.classList.toggle("disabled", incompatible);
+      if (incompatible && el.classList.contains("selected")) {
+        el.classList.remove("selected");
+      }
+    });
+  }
+
+  root.querySelectorAll("#gen-model-list .model-option").forEach(el => {
+    el.addEventListener("click", () => {
+      if (el.classList.contains("disabled")) return;
+      root.querySelectorAll("#gen-model-list .model-option").forEach(o => o.classList.remove("selected"));
+      el.classList.add("selected");
+      currentModel = el.dataset.model;
+      charLimit = getModelContextLimit(currentModel);
+      const charLimitLabel = charLimit >= 1000000 ? (charLimit/1000000).toFixed(1)+"M" : Math.floor(charLimit/1000)+"k";
+      root.querySelector("#char-counter span:last-child").textContent = `Max ~${charLimitLabel} Zeichen (${currentModel.split("/").pop()})`;
+      const bigModel = charLimit > 100000;
+      const sel = numSelect;
+      const had30 = sel.querySelector('option[value="30"]');
+      if (bigModel && !had30) {
+        sel.insertAdjacentHTML("beforeend", '<option value="30">30 Fragen</option><option value="50">50 Fragen</option>');
+      } else if (!bigModel && had30) {
+        sel.querySelector('option[value="30"]')?.remove();
+        sel.querySelector('option[value="50"]')?.remove();
+      }
+      updateCharCount();
+    });
+  });
+
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
     if (!file) return;
     hideError();
+
+    uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? "image" : null;
+    updateModelAvailability();
 
     if (file.name.endsWith(".txt")) {
       const reader = new FileReader();
@@ -197,7 +252,7 @@ export async function render(root, params = {}) {
     genBtn.textContent = "⏳ Generiere…";
 
     try {
-      const questions = await generateQuiz(inputText, numQuestions);
+      const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel });
 
       const quiz = {
         id: uid(),

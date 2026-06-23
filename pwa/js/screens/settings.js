@@ -1,6 +1,7 @@
 import { loadSettings, saveSettings } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount, setAccount, signIn, signUp, pullAll, pushAll, pullBySyncCode } from "../firebase-sync.js";
+import { MODELS } from "../ai-service.js";
 
 export async function render(root) {
   const settings = await loadSettings();
@@ -67,23 +68,19 @@ export async function render(root) {
       </div>
       <div class="input-group">
         <label>KI-Modell</label>
-        <select id="ai-model" style="width:100%;padding:10px;border-radius:var(--radius-md);border:2px solid var(--border);background:var(--input-bg);color:var(--text);font-size:0.9rem">
-          ${[
-            ["nvidia/nemotron-3-ultra-550b-a55b:free", "Nemotron 3 Ultra (gratis, 1M ctx)"],
-            ["nvidia/nemotron-3-super-120b-a12b:free", "Nemotron 3 Super (gratis, 1M ctx)"],
-            ["qwen/qwen3.6-plus-preview:free", "Qwen 3.6 Plus (gratis, Vision, 1M ctx)"],
-            ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "Nemotron Nano Omni (gratis, Vision)"],
-            ["deepseek/deepseek-v4-flash", "DeepSeek V4 Flash ($0.09/M, 1M ctx)"],
-            ["google/gemini-2.5-flash", "Gemini 2.5 Flash ($0.30/M, Vision, 1M ctx)"],
-            ["openai/gpt-4o-mini", "GPT-4o Mini ($0.15/M, Vision)"],
-            ["deepseek/deepseek-r1", "DeepSeek R1 Reasoning ($0.70/M)"],
-            ["anthropic/claude-haiku-4-5-20251001", "Claude Haiku 4.5 ($1/M, Vision)"],
-            ["google/gemini-2.5-pro", "Gemini 2.5 Pro ($1.25/M, Vision, 1M ctx)"],
-            ["anthropic/claude-sonnet-4-6", "Claude Sonnet 4.6 ($3/M, Vision, 1M ctx)"],
-            ["openai/gpt-4o", "GPT-4o ($2.50/M, Vision)"],
-            ["anthropic/claude-opus-4-8", "Claude Opus 4.8 ($5/M, Vision, 1M ctx)"],
-          ].map(([v, l]) => `<option value="${v}" ${(settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free") === v ? "selected" : ""}>${l}</option>`).join("")}
-        </select>
+        <div id="model-list" class="model-select-list">
+          ${MODELS.map(m => {
+            const sel = (settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free") === m.id;
+            const icons = (m.vision ? "👁" : "") + (m.pdf ? "📄" : "");
+            const ctxLabel = m.context >= 1000000 ? "1M" : Math.floor(m.context/1000) + "k";
+            return `<div class="model-option ${sel ? "selected" : ""}" data-model="${m.id}">
+              <div class="model-name">${esc(m.name)} <span class="model-icons">${icons || "📝"}</span></div>
+              <div class="model-meta">${m.tier} · ${m.price} · ${ctxLabel} ctx</div>
+            </div>`;
+          }).join("")}
+        </div>
+        <input type="hidden" id="ai-model" value="${esc(settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free")}">
+        <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = Bilder · 📄 = PDFs/Dokumente · 📝 = nur Text</div>
       </div>
       <button class="btn btn-primary btn-sm" id="save-ai">Speichern</button>
       <div id="ai-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
@@ -163,6 +160,15 @@ export async function render(root) {
   });
 
   // AI settings
+  // Model selection clicks
+  root.querySelectorAll(".model-option").forEach(el => {
+    el.addEventListener("click", () => {
+      root.querySelectorAll(".model-option").forEach(o => o.classList.remove("selected"));
+      el.classList.add("selected");
+      root.querySelector("#ai-model").value = el.dataset.model;
+    });
+  });
+
   root.querySelector("#save-ai")?.addEventListener("click", async () => {
     const key = root.querySelector("#api-key").value.trim();
     const model = root.querySelector("#ai-model").value;
