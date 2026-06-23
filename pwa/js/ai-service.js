@@ -1,4 +1,4 @@
-import { loadSettings } from "../store.js";
+import { loadSettings } from "./store.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-4o-mini";
