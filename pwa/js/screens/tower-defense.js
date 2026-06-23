@@ -1,6 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
+import { buildPlayable, checkText, shuffle } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -25,18 +26,6 @@ function buildPath() {
 }
 
 function lerp(a, b, t) { return a + (b - a) * t; }
-
-// Difficulty 1 (easy) .. 3 (hard) derived from type, options and points.
-function questionDifficulty(q) {
-  let d = 1;
-  const type = q.question_type;
-  if (type === "free_text" || type === "math_formula") d = 3;
-  else if (type === "multiple_choice" || type === "fill_blank" || type === "drag_drop") d = 2;
-  else if (type === "single_choice") d = (q.options?.length || 0) >= 4 ? 2 : 1;
-  if ((q.points || 1) >= 3) d = Math.max(d, 3);
-  else if ((q.points || 1) === 2) d = Math.max(d, 2);
-  return d;
-}
 
 const DIFF_LABEL = { 1: "Leicht", 2: "Mittel", 3: "Schwer" };
 const DIFF_COLOR = { 1: "#22c55e", 2: "#f59e0b", 3: "#ef4444" };
@@ -91,8 +80,15 @@ export async function render(root) {
 }
 
 function startGame(root, quiz, difficulty) {
-  const questions = shuffle([...(quiz.questions || [])]);
-  if (!questions.length) return;
+  const questions = shuffle(buildPlayable(quiz.questions));
+  if (!questions.length) {
+    root.innerHTML = `<div class="screen-empty">
+      <p>Dieses Quiz hat keine für Spiele geeigneten Fragen.</p>
+      <p style="font-size:0.85rem">Geeignet sind Single/Multiple Choice, Freitext, Lückentext und Formel-Fragen.</p>
+      <button class="btn-cta" id="td-noq-back">← Zurück</button></div>`;
+    root.querySelector("#td-noq-back").addEventListener("click", () => navigate("tower-defense"));
+    return;
+  }
 
   const diffSettings = {
     easy:   { speed: 0.28, spawnRate: 6500, hpBase: 5, hpScale: 1.3, baseHP: 20, towerDmg: 0.5, towerRate: 900 },
@@ -214,42 +210,35 @@ function showQuestion(state, root) {
   state.currentQ = q;
   state.answering = true;
 
-  const diff = questionDifficulty(q);
+  const diff = q.diff || 1;
   root.querySelector("#td-qdiff").textContent = DIFF_LABEL[diff];
   root.querySelector("#td-qdiff").style.background = DIFF_COLOR[diff];
   root.querySelector("#td-qreward").textContent = `💥 ${3 * diff} Schaden · 🪙 ${2 * diff}`;
 
-  qtext.textContent = q.text || q.title || "Frage";
+  qtext.innerHTML = "";
+  if (q.image) {
+    const img = document.createElement("img");
+    img.src = q.image;
+    img.className = "td-q-img";
+    qtext.appendChild(img);
+  }
+  const txt = document.createElement("div");
+  txt.textContent = q.prompt;
+  qtext.appendChild(txt);
   opts.innerHTML = "";
 
   const answer = (ok) => handleAnswer(state, ok, diff, root);
 
-  if (q.question_type === "single_choice" || q.question_type === "multiple_choice") {
-    (q.options || []).forEach((o) => {
+  if (q.kind === "choice") {
+    shuffle([...q.options]).forEach((o) => {
       const btn = document.createElement("button");
       btn.className = "td-opt";
       btn.textContent = o.text;
-      btn.addEventListener("click", () => answer(!!o.is_correct));
+      btn.addEventListener("click", () => answer(!!o.correct));
       opts.appendChild(btn);
     });
-  } else if (q.question_type === "free_text") {
-    addTextInput(opts, (val) => {
-      const correct = (q.correct_text || "").trim().toLowerCase();
-      const ans = val.trim().toLowerCase();
-      answer(ans.length > 0 && (ans === correct || (correct.length > 3 && correct.includes(ans)) || (ans.length > 3 && ans.includes(correct))));
-    });
-  } else if (q.question_type === "fill_blank") {
-    const blanks = q.blanks || [];
-    addTextInput(opts, (val) => {
-      const ans = val.trim().toLowerCase();
-      answer(blanks.some(b => b.trim().toLowerCase() === ans));
-    });
   } else {
-    const btn = document.createElement("button");
-    btn.className = "td-opt";
-    btn.textContent = "Weiter →";
-    btn.addEventListener("click", () => answer(true));
-    opts.appendChild(btn);
+    addTextInput(opts, (val) => answer(checkText(q.accept, val)));
   }
   qa.style.display = "block";
 }
@@ -572,12 +561,4 @@ function placeTowers(state) {
   [{ col: 2, row: 1 }, { col: 6, row: 3 }, { col: 2, row: 5 }]
     .filter(p => !PATH.some(pp => pp.col === p.col && pp.row === p.row))
     .forEach(p => addTower(state, p.col, p.row, "#1cb487"));
-}
-
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
 }

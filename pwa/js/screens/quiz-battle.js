@@ -1,21 +1,11 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
+import { buildPlayable, checkText, shuffle } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 420;
 const TOWER_Y = CANVAS_H - 36;
 const ENEMY_START_Y = 50;
-
-function questionDifficulty(q) {
-  let d = 1;
-  const type = q.question_type;
-  if (type === "free_text" || type === "math_formula") d = 3;
-  else if (type === "multiple_choice" || type === "fill_blank" || type === "drag_drop") d = 2;
-  else if (type === "single_choice") d = (q.options?.length || 0) >= 4 ? 2 : 1;
-  if ((q.points || 1) >= 3) d = Math.max(d, 3);
-  else if ((q.points || 1) === 2) d = Math.max(d, 2);
-  return d;
-}
 
 export async function render(root) {
   const quizzes = await loadQuizzes();
@@ -48,8 +38,15 @@ export async function render(root) {
 }
 
 function startBattle(root, quiz) {
-  const questions = shuffle([...(quiz.questions || [])]);
-  if (!questions.length) return;
+  const questions = shuffle(buildPlayable(quiz.questions));
+  if (!questions.length) {
+    root.innerHTML = `<div class="screen-empty">
+      <p>Dieses Quiz hat keine für Spiele geeigneten Fragen.</p>
+      <p style="font-size:0.85rem">Geeignet sind Single/Multiple Choice, Freitext, Lückentext und Formel-Fragen.</p>
+      <button class="btn-cta" id="qb-noq-back">← Zurück</button></div>`;
+    root.querySelector("#qb-noq-back").addEventListener("click", () => navigate("quiz-battle"));
+    return;
+  }
 
   const state = {
     towerHP: 100, towerMax: 100,
@@ -123,12 +120,22 @@ function showQuestion(state, root, canvas) {
   if (state.qIndex >= state.questions.length) { state.qIndex = 0; shuffle(state.questions); }
   const q = state.questions[state.qIndex++];
   state.currentQ = q;
-  state.currentDiff = questionDifficulty(q);
+  state.currentDiff = q.diff || 1;
   state.locked = false;
 
   root.querySelector("#qb-qdiff").textContent = ["", "Leicht", "Mittel", "Schwer"][state.currentDiff];
   root.querySelector("#qb-qdiff").style.background = ["", "#22c55e", "#f59e0b", "#ef4444"][state.currentDiff];
-  root.querySelector("#qb-qtext").textContent = q.text || q.title || "Frage";
+  const qtextEl = root.querySelector("#qb-qtext");
+  qtextEl.innerHTML = "";
+  if (q.image) {
+    const img = document.createElement("img");
+    img.src = q.image;
+    img.className = "td-q-img";
+    qtextEl.appendChild(img);
+  }
+  const txt = document.createElement("div");
+  txt.textContent = q.prompt;
+  qtextEl.appendChild(txt);
   const cards = root.querySelector("#qb-cards");
   cards.innerHTML = "";
 
@@ -139,15 +146,15 @@ function showQuestion(state, root, canvas) {
     setTimeout(() => showQuestion(state, root, canvas), 850);
   };
 
-  if (q.question_type === "single_choice" || q.question_type === "multiple_choice") {
-    (q.options || []).forEach((o) => {
+  if (q.kind === "choice") {
+    shuffle([...q.options]).forEach((o) => {
       const card = document.createElement("div");
       card.className = "qb-card";
       card.textContent = o.text;
-      makeDraggable(card, canvas, () => commit(!!o.is_correct));
+      makeDraggable(card, canvas, () => commit(!!o.correct));
       cards.appendChild(card);
     });
-  } else if (q.question_type === "free_text" || q.question_type === "fill_blank") {
+  } else {
     const inp = document.createElement("input");
     inp.type = "text";
     inp.className = "td-input";
@@ -155,17 +162,7 @@ function showQuestion(state, root, canvas) {
     const btn = document.createElement("button");
     btn.className = "td-opt td-submit";
     btn.textContent = "⚔️";
-    const check = () => {
-      const ans = inp.value.trim().toLowerCase();
-      let ok = false;
-      if (q.question_type === "free_text") {
-        const c = (q.correct_text || "").trim().toLowerCase();
-        ok = ans.length > 0 && (ans === c || (c.length > 3 && c.includes(ans)) || (ans.length > 3 && ans.includes(c)));
-      } else {
-        ok = (q.blanks || []).some(b => b.trim().toLowerCase() === ans);
-      }
-      commit(ok);
-    };
+    const check = () => commit(checkText(q.accept, inp.value));
     btn.addEventListener("click", check);
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
     const wrap = document.createElement("div");
@@ -454,8 +451,4 @@ function drawRoundRect(ctx, x, y, w, h, r, fill) {
   ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
   ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
-}
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
-  return arr;
 }
