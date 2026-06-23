@@ -20,12 +20,6 @@
   <main id="app">
     <div class="empty" style="padding-top:60px">Wird geladen…</div>
   </main>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(r=>r.forEach(x=>x.unregister()));
-      caches.keys().then(k=>k.forEach(x=>caches.delete(x)));
-    }
-  </script>
-  <script type="module" src="/Quiz-app/js/app.js?v=4"></script>
+  <script type="module" src="/Quiz-app/js/app.js"></script>
 </body>
 </html>

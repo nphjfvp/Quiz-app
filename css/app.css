@@ -437,6 +437,29 @@ input:focus { border-color: var(--primary); }
 .type-info strong { font-size: 0.9rem; display: block; }
 .type-info small { color: var(--text-light); font-size: 0.78rem; }
 
+/* ── Drag & Drop ── */
+.dnd-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.dnd-chip {
+  padding: 8px 14px; border-radius: var(--radius-md); font-size: 0.85rem;
+  font-weight: 600; cursor: grab; user-select: none; transition: transform 0.1s, box-shadow 0.1s;
+}
+.dnd-chip:active { transform: scale(0.95); }
+.dnd-chip.selected { box-shadow: 0 0 0 3px var(--primary); transform: scale(1.05); }
+.dnd-chip.placed { cursor: pointer; }
+.dnd-targets { display: flex; flex-direction: column; gap: 8px; }
+.dnd-target {
+  background: var(--input-bg); border: 2px dashed var(--border); border-radius: var(--radius-md);
+  padding: 12px; display: flex; align-items: center; gap: 10px; min-height: 48px; transition: border-color 0.15s;
+}
+.dnd-target.filled { border-style: solid; border-color: var(--primary); }
+.dnd-target-label { font-weight: 600; font-size: 0.85rem; min-width: 80px; }
+.dnd-target-slot { flex: 1; font-size: 0.8rem; color: var(--text-light); }
+.dnd-assigned {
+  background: var(--primary-subtle); color: var(--text); padding: 4px 10px;
+  border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 600; cursor: pointer;
+}
+.dnd-assigned:hover { opacity: 0.7; }
+
 /* ── Safe areas for notched phones ── */
 @supports(padding: env(safe-area-inset-top)) {
   .header { padding-top: calc(18px + env(safe-area-inset-top)); }
