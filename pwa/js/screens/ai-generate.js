@@ -1,4 +1,4 @@
-import { loadQuizzes, saveQuizzes, loadSettings, saveSettings } from "../store.js";
+import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
 import { generateQuiz, getModelContextLimit, MODELS } from "../ai-service.js";
 import { navigate } from "../router.js";
 
