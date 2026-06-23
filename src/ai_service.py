@@ -195,6 +195,17 @@ class AIService:
                     last_error = f"HTTP {resp.status_code}"
                     time.sleep(2)
                     continue
+                if resp.status_code == 404 and (model or self.model) != "nvidia/nemotron-3-super-120b-a12b:free":
+                    used = model or self.model
+                    from tkinter import messagebox
+                    fallback = messagebox.askyesno(
+                        "Modell nicht verfügbar",
+                        f'Das Modell "{used}" ist nicht verfügbar (404).\n\n'
+                        f'Soll stattdessen "nvidia/nemotron-3-super-120b-a12b:free" verwendet werden?'
+                    )
+                    if fallback:
+                        payload["model"] = "nvidia/nemotron-3-super-120b-a12b:free"
+                        continue
                 resp.raise_for_status()
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
