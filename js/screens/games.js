@@ -13,8 +13,9 @@ export async function render(root) {
     },
     {
       id: "quiz-battle", icon: "⚔️", title: "Quiz Battle",
-      desc: "Kartenduell gegen KI", unlocked: false, cost: 0,
-      best: 0, plays: 0, coming: true,
+      desc: "Helden vs. Gegner", unlocked: true,
+      best: scores["quiz-battle"]?.best || 0,
+      plays: scores["quiz-battle"]?.plays || 0,
     },
     {
       id: "endless-runner", icon: "🏃", title: "Endless Runner",
