@@ -213,7 +213,8 @@ function showQuestion(root, quiz) {
         root.querySelector("#mark-btn").disabled = true;
       });
       root.querySelector("#tutor-btn")?.addEventListener("click", () => {
-        navigate("tutor", { question: { text: q.question_text || q.text, correct: result.correct_answer } });
+        const qImage = q.diagram_image_path || q.diagram_image || q.image_path || q.image || null;
+        navigate("tutor", { question: { text: q.question_text || q.text, correct: result.correct_answer, image: qImage } });
       });
 
       if (!result.is_correct) {
