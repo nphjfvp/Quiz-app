@@ -21,6 +21,10 @@ function showQuestion(root, quiz, session) {
   const idx = session.currentIndex + 1;
   let feedbackShown = false;
 
+  // Lückentext im Satzkontext, wenn der Fragetext ___-Marker enthält
+  const clozeParts = q.question_type === "fill_blank" ? String(q.question_text || "").split("___") : null;
+  const useCloze = clozeParts && clozeParts.length > 1;
+
   let html = `
     <div class="progress-row">
       <div class="progress-bar"><div class="progress-fill" style="width:${session.progress * 100}%"></div></div>
@@ -28,7 +32,7 @@ function showQuestion(root, quiz, session) {
     </div>
     <div class="card">
       ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
-      <div class="question-text">${esc(q.question_text || q.text)}</div>
+      ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${esc(q.question_text || q.text)}</div>`}
     </div>
     <div class="card" id="answer-area">`;
 
@@ -47,56 +51,68 @@ function showQuestion(root, quiz, session) {
   } else if (q.question_type === "free_text") {
     html += `<div class="input-group">
       <label>Deine Antwort</label>
-      <input type="text" id="free-input" placeholder="Antwort eingeben…">
+      <input type="text" id="free-input" class="input" placeholder="Antwort eingeben…">
     </div>`;
   } else if (q.question_type === "fill_blank") {
-    html += (q.blanks || []).map((_, i) => `
-      <div class="input-group">
-        <label>Lücke ${i + 1}</label>
-        <input type="text" class="blank-input" placeholder="…">
-      </div>`).join("");
+    if (useCloze) {
+      let cloze = `<div class="cloze">`;
+      clozeParts.forEach((part, i) => {
+        cloze += esc(part);
+        if (i < clozeParts.length - 1) {
+          cloze += `<input type="text" class="blank-input cloze-blank" data-i="${i}" placeholder="…" autocomplete="off">`;
+        }
+      });
+      cloze += `</div>`;
+      html += cloze;
+    } else {
+      html += (q.blanks || []).map((_, i) => `
+        <div class="input-group">
+          <label>Lücke ${i + 1}</label>
+          <input type="text" class="blank-input input" placeholder="…">
+        </div>`).join("");
+    }
   } else if (q.question_type === "drag_drop") {
-    html += `<div style="margin-bottom:8px;font-size:0.8rem;color:var(--text-light)">Ziehe die Begriffe auf die passenden Ziele (oder wähle per Dropdown).</div>`;
+    html += `<div class="question-hint">Ziehe die Begriffe auf die passenden Ziele (oder tippe Begriff &amp; dann Ziel).</div>`;
     html += `<div id="dnd-chips" class="dnd-chips"></div>`;
     html += `<div id="dnd-targets" class="dnd-targets"></div>`;
   } else if (q.question_type === "diagram_label") {
-    html += `<div style="margin-bottom:8px;font-size:0.8rem;color:var(--text-light)">Ziehe die Labels auf die markierten Einrast-Zonen im Diagramm.</div>`;
-    html += `<div id="diagram-container" style="position:relative;width:100%;touch-action:none">
-      <canvas id="diagram-canvas" style="width:100%;border-radius:var(--radius-md);border:2px solid var(--border)"></canvas>
+    html += `<div class="question-hint">Ziehe die Labels auf die markierten Einrast-Zonen im Diagramm.</div>`;
+    html += `<div id="diagram-container" class="media-canvas-wrap">
+      <canvas id="diagram-canvas" class="media-canvas"></canvas>
     </div>`;
-    html += `<div id="diagram-chips" class="dnd-chips" style="margin-top:8px"></div>`;
+    html += `<div id="diagram-chips" class="dnd-chips" style="margin-top:12px"></div>`;
   } else if (q.question_type === "mark_image") {
-    html += `<div style="margin-bottom:8px;font-size:0.8rem;color:var(--text-light)">Tippe auf die richtige Stelle im Bild.</div>`;
-    html += `<div id="mark-container" style="position:relative;width:100%;touch-action:none">
-      <canvas id="mark-canvas" style="width:100%;border-radius:var(--radius-md);border:2px solid var(--border)"></canvas>
+    html += `<div class="question-hint">Tippe auf die richtige Stelle im Bild.</div>`;
+    html += `<div id="mark-container" class="media-canvas-wrap">
+      <canvas id="mark-canvas" class="media-canvas"></canvas>
     </div>`;
   } else if (q.question_type === "math_formula") {
-    html += `<div class="math-tabs" style="display:flex;gap:6px;margin-bottom:10px">
-      <button class="btn btn-sm btn-primary" data-math-tab="text">Formel</button>
-      <button class="btn btn-sm btn-ghost" data-math-tab="draw">Zeichnen</button>
-      <button class="btn btn-sm btn-ghost" data-math-tab="photo">Foto</button>
+    html += `<div class="seg-tabs" role="tablist">
+      <button class="seg-tab active" data-math-tab="text">✏️ Formel</button>
+      <button class="seg-tab" data-math-tab="draw">🖊️ Zeichnen</button>
+      <button class="seg-tab" data-math-tab="photo">📷 Foto</button>
     </div>`;
     html += `<div id="math-tab-text">
       <div class="input-group">
         <label>Formel / Ergebnis</label>
-        <input type="text" id="math-input" placeholder="z.B. x = 2 oder $\\frac{a}{b}$">
+        <input type="text" id="math-input" class="input" placeholder="z.B. x = 2 oder $\\frac{a}{b}$">
       </div>
-      ${q.formula_sheet ? `<details style="margin-top:6px"><summary style="font-size:0.8rem;color:var(--text-light);cursor:pointer">Formelsammlung</summary><pre style="font-size:0.75rem;margin-top:4px;white-space:pre-wrap;color:var(--text-light)">${esc(q.formula_sheet)}</pre></details>` : ""}
+      ${q.formula_sheet ? `<details class="formula-sheet"><summary>Formelsammlung</summary><pre>${esc(q.formula_sheet)}</pre></details>` : ""}
     </div>`;
     html += `<div id="math-tab-draw" style="display:none">
-      <canvas id="math-canvas" width="560" height="200" style="width:100%;border:2px solid var(--border);border-radius:var(--radius-md);touch-action:none;background:var(--input-bg)"></canvas>
-      <div style="display:flex;gap:6px;margin-top:6px">
+      <canvas id="math-canvas" width="560" height="200" class="media-canvas" style="touch-action:none;background:var(--input-bg)"></canvas>
+      <div class="btn-row" style="margin-top:8px">
         <button class="btn btn-ghost btn-sm" id="math-clear">Löschen</button>
       </div>
     </div>`;
     html += `<div id="math-tab-photo" style="display:none">
-      <input type="file" id="math-photo" accept="image/*" capture="environment" style="font-size:0.85rem">
+      <input type="file" id="math-photo" accept="image/*" capture="environment" class="input">
       <div id="math-photo-preview" style="margin-top:8px"></div>
     </div>`;
   } else {
     html += `<div class="input-group">
       <label>Antwort</label>
-      <input type="text" id="generic-input" placeholder="Antwort eingeben…">
+      <input type="text" id="generic-input" class="input" placeholder="Antwort eingeben…">
     </div>`;
   }
 
@@ -565,8 +581,8 @@ function setupMathTabs(root) {
   const tabs = root.querySelectorAll("[data-math-tab]");
   tabs.forEach(tab => {
     tab.addEventListener("click", () => {
-      tabs.forEach(t => { t.classList.remove("btn-primary"); t.classList.add("btn-ghost"); });
-      tab.classList.remove("btn-ghost"); tab.classList.add("btn-primary");
+      tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
       ["text", "draw", "photo"].forEach(id => {
         const el = root.querySelector(`#math-tab-${id}`);
         if (el) el.style.display = tab.dataset.mathTab === id ? "" : "none";
