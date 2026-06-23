@@ -964,6 +964,131 @@ a:focus-visible, [tabindex]:focus-visible {
 .cloze-chip.selected { box-shadow: 0 0 0 3px var(--accent); transform: scale(1.05); }
 .preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* ════════════════════════════════════════════════════════════════
+   TOWER DEFENSE GAME
+   ════════════════════════════════════════════════════════════════ */
+.td-setup { padding: 20px; text-align: center; }
+.td-setup h2 { font-size: 1.5rem; margin-bottom: 8px; }
+.td-setup p { color: var(--text-light); margin-bottom: 20px; }
+.td-quiz-select, .td-difficulty { margin-bottom: 16px; }
+.td-quiz-select label, .td-difficulty label {
+  display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem;
+}
+.td-quiz-select select {
+  width: 100%; padding: 10px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--input-bg); color: var(--text);
+  font-size: 0.95rem;
+}
+.td-diff-btns { display: flex; gap: 8px; justify-content: center; }
+.td-diff {
+  padding: 8px 20px; border-radius: var(--radius-sm); border: 2px solid var(--border);
+  background: var(--card); color: var(--text); font-weight: 600; cursor: pointer;
+  transition: all 0.15s;
+}
+.td-diff.active { border-color: var(--primary); background: var(--primary-subtle); color: var(--primary); }
+.td-diff:hover { border-color: var(--primary); }
+.td-start { margin-top: 10px; width: 100%; font-size: 1.1rem; padding: 14px; }
+.btn-secondary {
+  display: inline-block; padding: 10px 24px; border-radius: var(--radius-sm);
+  background: var(--card); color: var(--text-light); border: 1px solid var(--border);
+  font-size: 0.9rem; cursor: pointer; margin-top: 8px; transition: all 0.15s;
+}
+.btn-secondary:hover { background: var(--card-hover); }
+
+/* Game area */
+.td-game { display: flex; flex-direction: column; align-items: center; padding: 8px; position: relative; }
+.td-hud {
+  display: flex; gap: 12px; width: 100%; max-width: 360px; justify-content: space-between;
+  padding: 8px 12px; background: var(--card); border-radius: var(--radius-md);
+  border: 1px solid var(--border); margin-bottom: 8px; font-size: 0.85rem; font-weight: 600;
+}
+.td-hud-item { display: flex; align-items: center; gap: 4px; }
+.td-score { color: var(--warning); }
+#td-canvas {
+  border-radius: var(--radius-md); border: 2px solid var(--border);
+  touch-action: none; max-width: 100%;
+}
+
+/* Question overlay */
+.td-question-area {
+  position: absolute; bottom: 8px; left: 8px; right: 8px;
+  background: var(--card); border-radius: var(--radius-lg);
+  padding: 14px; border: 2px solid var(--primary);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+  animation: td-slide-up 0.2s ease-out;
+  z-index: 10;
+}
+@keyframes td-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.td-q-text { font-weight: 700; font-size: 0.95rem; margin-bottom: 10px; line-height: 1.4; }
+.td-options { display: flex; flex-wrap: wrap; gap: 6px; }
+.td-opt {
+  flex: 1 1 calc(50% - 3px); padding: 10px; border-radius: var(--radius-sm);
+  border: 2px solid var(--border); background: var(--opt-bg); color: var(--text);
+  font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  min-width: 0;
+}
+.td-opt:hover, .td-opt:active { border-color: var(--primary); background: var(--primary-subtle); }
+.td-input {
+  flex: 1; padding: 10px; border-radius: var(--radius-sm); border: 2px solid var(--border);
+  background: var(--input-bg); color: var(--text); font-size: 0.9rem;
+}
+.td-input:focus { border-color: var(--primary); outline: none; }
+.td-submit {
+  flex: 0 0 50px; background: var(--primary); color: var(--on-primary);
+  border-color: var(--primary); font-size: 1.2rem;
+}
+
+/* Combo */
+.td-combo {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--warning); color: #000; padding: 8px 24px; border-radius: 99px;
+  font-weight: 900; font-size: 1.2rem; z-index: 100; pointer-events: none;
+  transition: all 0.15s;
+}
+.td-combo-pop { animation: combo-pop 0.3s ease-out; }
+@keyframes combo-pop {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.4); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Game Over */
+.td-gameover {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; background: rgba(0,0,0,0.85);
+  border-radius: var(--radius-md); z-index: 20; padding: 30px; text-align: center;
+}
+.td-gameover h2 { color: #ef4444; font-size: 2rem; margin-bottom: 16px; }
+.td-go-stats { color: #fff; margin-bottom: 20px; line-height: 2; font-size: 1rem; }
+.td-go-stats strong { color: var(--warning); }
+
+/* Games Hub */
+.games-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0; }
+.game-card {
+  background: var(--card); border-radius: var(--radius-lg); border: 2px solid var(--border);
+  padding: 20px 14px; text-align: center; cursor: pointer; transition: all 0.2s;
+}
+.game-card:hover, .game-card:active { border-color: var(--primary); transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.game-card .game-icon { font-size: 2.2rem; margin-bottom: 8px; }
+.game-card .game-title { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+.game-card .game-desc { font-size: 0.8rem; color: var(--text-light); }
+.game-card.locked { opacity: 0.5; pointer-events: none; }
+.game-card.locked::after { content: "🔒"; position: absolute; top: 10px; right: 10px; }
+
+.coin-bar {
+  display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+  background: var(--card); border-radius: var(--radius-md); border: 1px solid var(--border);
+  margin-bottom: 16px; font-weight: 700; font-size: 1rem;
+}
+.coin-bar .coin-icon { font-size: 1.2rem; }
+.coin-bar .coin-amount { color: var(--warning); }
+
+.screen-empty { text-align: center; padding: 40px 20px; color: var(--text-light); }
+
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
   * { transition-duration: 0.01ms !important; }

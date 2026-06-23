@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v23";
+const CACHE = "lerntrainer-v24";
 // Relative Pfade – werden relativ zum SW-Standort aufgelöst (funktioniert unter / und /Quiz-app/)
 const ASSETS = [
   "./",
@@ -28,6 +28,8 @@ const ASSETS = [
   "js/screens/pomodoro.js",
   "js/screens/folders.js",
   "js/screens/cloze.js",
+  "js/screens/games.js",
+  "js/screens/tower-defense.js",
   "js/blackout.js",
   "manifest.json",
 ];

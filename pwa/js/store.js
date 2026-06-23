@@ -94,6 +94,45 @@ export async function saveFsrs(data) {
   await set("fsrs", data);
 }
 
+// ── Coin / Game Economy ──
+export async function loadCoins() {
+  return (await get("coins")) ?? { balance: 0, earned: 0, spent: 0, history: [] };
+}
+export async function saveCoins(data) {
+  await set("coins", data);
+}
+export async function addCoins(amount, source) {
+  const data = await loadCoins();
+  data.balance += amount;
+  data.earned += amount;
+  data.history.push({ amount, source, ts: Date.now() });
+  if (data.history.length > 200) data.history = data.history.slice(-200);
+  await saveCoins(data);
+  return data.balance;
+}
+export async function spendCoins(amount, item) {
+  const data = await loadCoins();
+  if (data.balance < amount) return false;
+  data.balance -= amount;
+  data.spent += amount;
+  data.history.push({ amount: -amount, source: item, ts: Date.now() });
+  await saveCoins(data);
+  return true;
+}
+
+// ── Game High Scores ──
+export async function loadGameScores() {
+  return (await get("game_scores")) ?? {};
+}
+export async function saveGameScore(game, score) {
+  const scores = await loadGameScores();
+  if (!scores[game]) scores[game] = { best: 0, plays: 0, totalCoins: 0 };
+  scores[game].plays++;
+  scores[game].totalCoins += score.coins || 0;
+  if (score.points > (scores[game].best || 0)) scores[game].best = score.points;
+  await set("game_scores", scores);
+}
+
 export async function logAnswer(correct) {
   const stats = await loadStats();
   const today = new Date().toISOString().slice(0, 10);
