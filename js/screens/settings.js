@@ -69,14 +69,20 @@ export async function render(root) {
         <label>KI-Modell</label>
         <select id="ai-model" style="width:100%;padding:10px;border-radius:var(--radius-md);border:2px solid var(--border);background:var(--input-bg);color:var(--text);font-size:0.9rem">
           ${[
-            ["openai/gpt-4o-mini", "GPT-4o Mini (günstig)"],
-            ["openai/gpt-4o", "GPT-4o"],
-            ["anthropic/claude-sonnet-4-6", "Claude Sonnet 4.6"],
-            ["anthropic/claude-haiku-4-5-20251001", "Claude Haiku 4.5 (günstig)"],
-            ["google/gemini-2.5-flash", "Gemini 2.5 Flash (günstig)"],
-            ["google/gemini-2.5-pro", "Gemini 2.5 Pro"],
-            ["deepseek/deepseek-chat-v3", "DeepSeek V3 (sehr günstig)"],
-          ].map(([v, l]) => `<option value="${v}" ${(settings.aiModel || "openai/gpt-4o-mini") === v ? "selected" : ""}>${l}</option>`).join("")}
+            ["nvidia/nemotron-3-ultra-550b-a55b:free", "Nemotron 3 Ultra (gratis, 1M ctx)"],
+            ["nvidia/nemotron-3-super-120b-a12b:free", "Nemotron 3 Super (gratis, 1M ctx)"],
+            ["qwen/qwen3.6-plus-preview:free", "Qwen 3.6 Plus (gratis, Vision, 1M ctx)"],
+            ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "Nemotron Nano Omni (gratis, Vision)"],
+            ["deepseek/deepseek-v4-flash", "DeepSeek V4 Flash ($0.09/M, 1M ctx)"],
+            ["google/gemini-2.5-flash", "Gemini 2.5 Flash ($0.30/M, Vision, 1M ctx)"],
+            ["openai/gpt-4o-mini", "GPT-4o Mini ($0.15/M, Vision)"],
+            ["deepseek/deepseek-r1", "DeepSeek R1 Reasoning ($0.70/M)"],
+            ["anthropic/claude-haiku-4-5-20251001", "Claude Haiku 4.5 ($1/M, Vision)"],
+            ["google/gemini-2.5-pro", "Gemini 2.5 Pro ($1.25/M, Vision, 1M ctx)"],
+            ["anthropic/claude-sonnet-4-6", "Claude Sonnet 4.6 ($3/M, Vision, 1M ctx)"],
+            ["openai/gpt-4o", "GPT-4o ($2.50/M, Vision)"],
+            ["anthropic/claude-opus-4-8", "Claude Opus 4.8 ($5/M, Vision, 1M ctx)"],
+          ].map(([v, l]) => `<option value="${v}" ${(settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free") === v ? "selected" : ""}>${l}</option>`).join("")}
         </select>
       </div>
       <button class="btn btn-primary btn-sm" id="save-ai">Speichern</button>

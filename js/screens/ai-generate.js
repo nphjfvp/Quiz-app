@@ -1,5 +1,5 @@
-import { loadQuizzes, saveQuizzes } from "../store.js";
-import { generateQuiz } from "../ai-service.js";
+import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
+import { generateQuiz, getModelContextLimit } from "../ai-service.js";
 import { navigate } from "../router.js";
 
 function uid() {
@@ -15,6 +15,15 @@ function esc(s) {
 export async function render(root, params = {}) {
   const prefillText = params.text ?? "";
   const prefillName = params.name ?? "";
+  const settings = await loadSettings();
+  const currentModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
+  const charLimit = getModelContextLimit(currentModel);
+
+  function fmtLimit(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+    if (n >= 1000) return Math.floor(n / 1000) + "k";
+    return n;
+  }
 
   root.innerHTML = `
     <div class="editor-header">
@@ -32,6 +41,10 @@ export async function render(root, params = {}) {
         <div class="input-group">
           <label>Lerntext eingeben oder Datei hochladen</label>
           <textarea id="ai-text" class="textarea input" rows="10" placeholder="Hier den Text einfügen, aus dem Fragen generiert werden sollen…">${esc(prefillText)}</textarea>
+          <div id="char-counter" style="font-size:0.75rem;color:var(--text-light);margin-top:4px;display:flex;justify-content:space-between">
+            <span id="char-count">0 Zeichen</span>
+            <span>Max ~${fmtLimit(charLimit)} Zeichen (${esc(currentModel.split("/").pop())})</span>
+          </div>
         </div>
 
         <div class="input-group">
@@ -55,6 +68,7 @@ export async function render(root, params = {}) {
             <option value="10" selected>10 Fragen</option>
             <option value="15">15 Fragen</option>
             <option value="20">20 Fragen</option>
+            ${charLimit > 100000 ? `<option value="30">30 Fragen</option><option value="50">50 Fragen</option>` : ""}
           </select>
         </div>
 
@@ -142,6 +156,18 @@ export async function render(root, params = {}) {
     });
   }
 
+  // --- Char counter ---
+  const charCountEl = root.querySelector("#char-count");
+  function updateCharCount() {
+    const len = textArea.value.length;
+    const over = len > charLimit;
+    charCountEl.textContent = `${len.toLocaleString("de")} Zeichen`;
+    charCountEl.style.color = over ? "var(--danger)" : "var(--text-light)";
+    if (over) charCountEl.textContent += ` (${(len - charLimit).toLocaleString("de")} zu viel!)`;
+  }
+  textArea.addEventListener("input", updateCharCount);
+  updateCharCount();
+
   // --- Back ---
   backBtn.addEventListener("click", () => navigate("home"));
 
@@ -160,12 +186,18 @@ export async function render(root, params = {}) {
     const numQuestions = parseInt(numSelect.value, 10);
     const quizName = nameInput.value.trim() || `KI-Quiz (${numQuestions} Fragen)`;
 
+    let inputText = text;
+    if (inputText.length > charLimit) {
+      if (!confirm(`Der Text ist ${(inputText.length - charLimit).toLocaleString("de")} Zeichen zu lang für das gewählte Modell. Soll der Text gekürzt werden?`)) return;
+      inputText = inputText.slice(0, charLimit);
+    }
+
     hideError();
     genBtn.disabled = true;
     genBtn.textContent = "⏳ Generiere…";
 
     try {
-      const questions = await generateQuiz(text, numQuestions);
+      const questions = await generateQuiz(inputText, numQuestions);
 
       const quiz = {
         id: uid(),
