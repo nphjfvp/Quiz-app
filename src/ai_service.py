@@ -446,6 +446,24 @@ class AIService:
          "vision": True, "context": 128000, "strengths": ["Allgemeinwissen", "Sprachen", "Bilder"]},
         {"id": "amazon/nova-2-lite-v1", "name": "Amazon Nova 2 Lite", "cost_in": 0.30, "cost_out": 2.50, "speed": "schnell",
          "vision": True, "context": 300000, "strengths": ["Allgemeinwissen", "Bilder", "Dokumente"]},
+        {"id": "deepseek/deepseek-chat", "name": "DeepSeek Chat", "cost_in": 0.14, "cost_out": 0.28, "speed": "schnell",
+         "vision": False, "context": 128000, "strengths": ["Mathematik", "Physik", "Programmierung", "Technik"]},
+        {"id": "deepseek/deepseek-r1", "name": "DeepSeek R1 (Reasoning)", "cost_in": 0.70, "cost_out": 2.50, "speed": "langsam",
+         "vision": False, "context": 164000, "strengths": ["Mathematik", "Logik", "Physik", "Programmierung"]},
+        {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.15, "cost_out": 0.60, "speed": "schnell",
+         "vision": True, "context": 1000000, "strengths": ["Medizin", "Biologie", "Naturwissenschaften", "Sprachen"]},
+        # ── Mittelklasse ──
+        {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 1.00, "cost_out": 5.00, "speed": "schnell",
+         "vision": True, "context": 200000, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
+        {"id": "google/gemini-2.5-pro", "name": "Gemini 2.5 Pro", "cost_in": 1.25, "cost_out": 10.0, "speed": "mittel",
+         "vision": True, "context": 1000000, "strengths": ["Medizin", "Jura", "Naturwissenschaften"]},
+        {"id": "openai/gpt-4o", "name": "GPT-4o", "cost_in": 2.50, "cost_out": 10.0, "speed": "mittel",
+         "vision": True, "context": 128000, "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
+        {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "cost_in": 3.00, "cost_out": 15.0, "speed": "mittel",
+         "vision": True, "context": 200000, "strengths": ["MINT", "Informatik", "Logik", "Jura"]},
+        # ── Premium ──
+        {"id": "anthropic/claude-opus-4-8", "name": "Claude Opus 4.8", "cost_in": 15.00, "cost_out": 75.0, "speed": "langsam",
+         "vision": True, "context": 200000, "strengths": ["Forschung", "komplexe Analysen", "Medizin"]},
     ]
 
     @classmethod
