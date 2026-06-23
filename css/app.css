@@ -1039,6 +1039,7 @@ a:focus-visible, [tabindex]:focus-visible {
   to { transform: translateY(0); opacity: 1; }
 }
 .td-q-text { font-weight: 700; font-size: 0.95rem; margin-bottom: 10px; line-height: 1.4; }
+.td-q-img { max-width: 100%; max-height: 140px; border-radius: var(--radius-sm); margin-bottom: 8px; display: block; }
 .td-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .td-opt {
   flex: 1 1 calc(50% - 3px); padding: 10px; border-radius: var(--radius-sm);
