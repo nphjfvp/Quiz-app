@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v30";
+const CACHE = "lerntrainer-v31";
 // Relative Pfade – werden relativ zum SW-Standort aufgelöst (funktioniert unter / und /Quiz-app/)
 const ASSETS = [
   "./",
@@ -57,19 +57,43 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
-  if (e.request.url.includes("openrouter.ai") || e.request.url.includes("googleapis.com")) return;
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const fetched = fetch(e.request)
+  const url = new URL(e.request.url);
+  if (url.href.includes("openrouter.ai") || url.href.includes("googleapis.com")) return;
+
+  // Network-first for HTML navigations and code/styles, so a new deploy always
+  // loads a consistent, fresh module graph when online (no stale-mix bugs).
+  // Falls back to cache when offline.
+  const isCode = e.request.mode === "navigate" || /\.(js|css|html|json)$/.test(url.pathname);
+  if (isCode) {
+    e.respondWith(
+      fetch(e.request)
         .then((res) => {
-          if (res.ok) {
+          if (res && res.ok) {
             const clone = res.clone();
             caches.open(CACHE).then((c) => c.put(e.request, clone));
           }
           return res;
         })
-        .catch(() => cached);
-      return cached || fetched;
-    })
+        .catch(() =>
+          caches.match(e.request).then(
+            (cached) => cached || (e.request.mode === "navigate" ? caches.match("index.html") : undefined)
+          )
+        )
+    );
+    return;
+  }
+
+  // Cache-first for other static assets (icons, images, fonts).
+  e.respondWith(
+    caches.match(e.request).then((cached) =>
+      cached ||
+      fetch(e.request).then((res) => {
+        if (res && res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, clone));
+        }
+        return res;
+      })
+    )
   );
 });
