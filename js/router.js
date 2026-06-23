@@ -14,6 +14,10 @@ export async function navigate(name, params = {}) {
   const cleanup = await handler(root, params);
   if (typeof cleanup === "function") _currentCleanup = cleanup;
   history.pushState({ screen: name, params }, "", `#${name}`);
+  // Sanfte Einblende-Animation (respektiert prefers-reduced-motion via CSS)
+  root.classList.remove("screen-enter");
+  void root.offsetWidth; // Reflow erzwingen, damit die Animation neu startet
+  root.classList.add("screen-enter");
 }
 
 window.addEventListener("popstate", (e) => {

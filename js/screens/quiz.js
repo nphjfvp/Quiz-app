@@ -1,8 +1,7 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
 import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary } from "../store.js";
 import { navigate } from "../router.js";
-
-let session = null;
+import { esc } from "../utils.js";
 
 export async function render(root, params) {
   const { quiz, mode } = params;
@@ -10,11 +9,11 @@ export async function render(root, params) {
   const questions = quiz.questions || [];
   if (!questions.length) { root.innerHTML = `<div class="empty">Keine Fragen in diesem Quiz.</div>`; return; }
 
-  session = new QuizSession(questions, mode || "single");
-  showQuestion(root, quiz);
+  const session = new QuizSession(questions, mode || "single");
+  showQuestion(root, quiz, session);
 }
 
-function showQuestion(root, quiz) {
+function showQuestion(root, quiz, session) {
   if (session.finished) { navigate("results", { session, quiz }); return; }
 
   const q = session.current;
@@ -35,13 +34,13 @@ function showQuestion(root, quiz) {
 
   if (q.question_type === "single_choice") {
     html += q.options.map((o, i) => `
-      <div class="option-card" data-idx="${i}">
+      <div class="option-card" data-idx="${i}" role="radio" aria-checked="false" tabindex="0">
         <div class="option-radio"></div>
         <span class="option-text">${esc(o.text)}</span>
       </div>`).join("");
   } else if (q.question_type === "multiple_choice") {
     html += q.options.map((o, i) => `
-      <div class="option-card" data-idx="${i}" data-mc="true">
+      <div class="option-card" data-idx="${i}" data-mc="true" role="checkbox" aria-checked="false" tabindex="0">
         <div class="option-check"></div>
         <span class="option-text">${esc(o.text)}</span>
       </div>`).join("");
@@ -139,31 +138,44 @@ function showQuestion(root, quiz) {
     mathDrawingData = setupMathCanvas(root);
   }
 
+  // Enter/Leertaste löst Klick aus (Tastaturbedienung)
+  function onActivateKey(el, handler) {
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handler(); }
+    });
+  }
+
   // Single choice selection
   let selectedSC = -1;
   root.querySelectorAll(".option-card:not([data-mc])").forEach((el) => {
-    el.addEventListener("click", () => {
+    const select = () => {
       if (feedbackShown) return;
       selectedSC = parseInt(el.dataset.idx);
-      root.querySelectorAll(".option-card:not([data-mc])").forEach((e) => e.classList.remove("selected"));
-      el.classList.add("selected");
-    });
+      root.querySelectorAll(".option-card:not([data-mc])").forEach((e) => {
+        e.classList.remove("selected"); e.setAttribute("aria-checked", "false");
+      });
+      el.classList.add("selected"); el.setAttribute("aria-checked", "true");
+    };
+    el.addEventListener("click", select);
+    onActivateKey(el, select);
   });
 
   // Multiple choice
   const mcSelected = new Set();
   root.querySelectorAll(".option-card[data-mc]").forEach((el) => {
-    el.addEventListener("click", () => {
+    const toggle = () => {
       if (feedbackShown) return;
       const idx = parseInt(el.dataset.idx);
-      if (mcSelected.has(idx)) { mcSelected.delete(idx); el.classList.remove("selected"); }
-      else { mcSelected.add(idx); el.classList.add("selected"); }
-    });
+      if (mcSelected.has(idx)) { mcSelected.delete(idx); el.classList.remove("selected"); el.setAttribute("aria-checked", "false"); }
+      else { mcSelected.add(idx); el.classList.add("selected"); el.setAttribute("aria-checked", "true"); }
+    };
+    el.addEventListener("click", toggle);
+    onActivateKey(el, toggle);
   });
 
   // Submit
   root.querySelector("#submit-btn").addEventListener("click", async () => {
-    if (feedbackShown) { session.next(); showQuestion(root, quiz); return; }
+    if (feedbackShown) { session.next(); showQuestion(root, quiz, session); return; }
 
     let answer;
     if (q.question_type === "single_choice") answer = selectedSC;
@@ -236,17 +248,16 @@ function showQuestion(root, quiz) {
 
       root.querySelector("#submit-btn").textContent = "Nächste Frage ›";
     } else {
-      showQuestion(root, quiz);
+      showQuestion(root, quiz, session);
     }
   });
 
   root.querySelector("#prev-btn")?.addEventListener("click", () => {
     session.prev();
-    showQuestion(root, quiz);
+    showQuestion(root, quiz, session);
   });
 }
 
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

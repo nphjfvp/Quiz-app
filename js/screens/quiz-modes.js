@@ -1,5 +1,6 @@
 import { loadQuizzes, loadProgress } from "../store.js";
 import { navigate } from "../router.js";
+import { esc } from "../utils.js";
 
 export async function render(root, params) {
   const quizzes = await loadQuizzes();
@@ -82,5 +83,3 @@ export async function render(root, params) {
     });
   });
 }
-
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }

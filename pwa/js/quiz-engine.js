@@ -36,10 +36,44 @@ function checkMultiple(q, selected) {
     correct_answer: [...correctSet].map((i) => options[i]?.text).join(", ") };
 }
 
+// Normalisiert Antworttext: trim, lowercase, Mehrfach-Leerzeichen + Satzzeichen am Rand weg
+function normText(s) {
+  return (s ?? "").trim().toLowerCase().replace(/\s+/g, " ").replace(/^[.,;:!?]+|[.,;:!?]+$/g, "");
+}
+
+// Levenshtein-Distanz (für kleine Tippfehler-Toleranz)
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    let cur = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+// Vergleicht eine Antwort gegen eine Lösung – akzeptiert mehrere mit ';' getrennte
+// Lösungen und erlaubt kleine Tippfehler (1 Zeichen ab Länge 5, 2 ab Länge 9).
+function answerMatches(answer, correct) {
+  const a = normText(answer);
+  if (a === "") return false;
+  const candidates = String(correct ?? "").split(";").map(normText).filter(Boolean);
+  for (const c of candidates) {
+    if (a === c) return true;
+    const allowed = c.length >= 9 ? 2 : c.length >= 5 ? 1 : 0;
+    if (allowed > 0 && levenshtein(a, c) <= allowed) return true;
+  }
+  return false;
+}
+
 function checkFreeText(q, answer) {
-  const a = (answer ?? "").trim().toLowerCase();
-  const c = (q.correct_text ?? "").trim().toLowerCase();
-  const ok = a !== "" && a === c;
+  const ok = answerMatches(answer, q.correct_text);
   return { question_id: q.id, is_correct: ok, score: ok ? q.points : 0, max_score: q.points,
     user_answer: answer ?? "", correct_answer: q.correct_text ?? "" };
 }
@@ -49,7 +83,7 @@ function checkFillBlank(q, answers) {
   const ans = answers ?? [];
   let hits = 0;
   for (let i = 0; i < Math.min(ans.length, blanks.length); i++) {
-    if ((ans[i] ?? "").trim().toLowerCase() === (blanks[i] ?? "").trim().toLowerCase()) hits++;
+    if (answerMatches(ans[i], blanks[i])) hits++;
   }
   const total = Math.max(blanks.length, 1);
   const ok = hits === total;

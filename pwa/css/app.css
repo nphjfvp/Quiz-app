@@ -208,6 +208,7 @@ body {
   -webkit-user-select: none; user-select: none;
 }
 .option-card:active { transform: scale(0.98); }
+.option-card:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .option-card.selected { border-color: var(--primary); background: var(--primary-subtle); }
 .option-card.correct { border-color: var(--success); background: var(--success-light); }
 .option-card.wrong { border-color: var(--danger); background: var(--danger-light); }
@@ -477,4 +478,23 @@ input:focus { border-color: var(--primary); }
 @supports(padding: env(safe-area-inset-top)) {
   .header { padding-top: calc(18px + env(safe-area-inset-top)); }
   #app { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+}
+
+/* ── Screen-Übergang ── */
+.screen-enter { animation: screenEnter 0.18s ease-out; }
+@keyframes screenEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Barrierefreiheit: sichtbarer Fokus für alle interaktiven Elemente ── */
+.btn:focus-visible, .card-clickable:focus-visible, .grid-card:focus-visible,
+a:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter { animation: none; }
+  * { transition-duration: 0.01ms !important; }
 }

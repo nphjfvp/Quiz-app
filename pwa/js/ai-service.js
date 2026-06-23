@@ -130,18 +130,21 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
 
 Regeln:
 - Erstelle exakt ${numQuestions} Fragen.
-- Verwende eine Mischung aus diesen Fragetypen: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "math_formula".
 - Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
 - Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.
 - Bei multiple_choice: mindestens 2 Optionen sind korrekt, mindestens 4 Optionen.
-- Bei free_text: gib den korrekten Antworttext in "correct_text" an.
+- Bei free_text: gib den korrekten Antworttext in "correct_text" an. Mehrere akzeptierte Antworten mit ';' trennen.
 - Bei fill_blank: markiere Lücken im Fragetext mit ___ und liste die Lösungswörter in "blanks" auf.
+- Bei drag_drop: nur wenn der Stoff Zuordnungen enthält (Begriff↔Definition, Ursache↔Wirkung). Liste Paare in "drag_drop_pairs" mit "source" (Begriff) und "target" (Ziel-Kategorie).
+- Bei math_formula: nur bei mathematischen/naturwissenschaftlichen Inhalten. Gib die Lösung in "correct_formula" an (z.B. "x = 2" oder "a^2 + b^2").
+- Bevorzuge Choice-/Text-Fragen; nutze drag_drop und math_formula nur, wo es inhaltlich passt.
 - Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher Text) in diesem Format:
 [
   {
-    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank",
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "math_formula",
     "question_text": "Fragetext",
     "title": "Kurztitel der Frage",
     "topic": "Themengebiet",
@@ -149,6 +152,8 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
     "options": [{"text": "Antwort", "is_correct": true}],
     "correct_text": "",
     "blanks": [],
+    "drag_drop_pairs": [{"source": "Begriff", "target": "Kategorie"}],
+    "correct_formula": "",
     "explanation": "Erklärung"
   }
 ]`;
@@ -174,6 +179,9 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
     options: q.options ?? [],
     correct_text: q.correct_text ?? "",
     blanks: q.blanks ?? [],
+    drag_drop_pairs: q.drag_drop_pairs ?? [],
+    correct_formula: q.correct_formula ?? "",
+    tolerance: q.tolerance ?? 0.001,
     explanation: q.explanation ?? "",
   }));
 }

@@ -1,14 +1,9 @@
 import { loadQuizzes, saveQuizzes } from "../store.js";
 import { navigate } from "../router.js";
+import { esc } from "../utils.js";
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
 }
 
 function emptyQuestion(type = "single_choice") {

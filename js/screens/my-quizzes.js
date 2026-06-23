@@ -1,5 +1,6 @@
 import { loadQuizzes, loadProgress } from "../store.js";
 import { navigate } from "../router.js";
+import { esc } from "../utils.js";
 
 export async function render(root) {
   const quizzes = await loadQuizzes();
@@ -50,5 +51,3 @@ export async function render(root) {
     el.addEventListener("click", () => navigate("quiz-modes", { quizId: el.dataset.quizId }));
   });
 }
-
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }

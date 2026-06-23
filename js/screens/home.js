@@ -1,6 +1,7 @@
 import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount } from "../firebase-sync.js";
+import { esc } from "../utils.js";
 
 export async function render(root) {
   const [quizzes, stats, progress, account, marked, diary] = await Promise.all([
@@ -138,10 +139,4 @@ function getBoxCounts(quiz, progress) {
     counts[b] = (counts[b] || 0) + 1;
   }
   return counts;
-}
-
-function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
 }
