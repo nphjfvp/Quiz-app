@@ -398,11 +398,61 @@ body {
   padding: 16px 20px;
   color: white;
   margin-bottom: 12px;
+  display: flex; align-items: center; gap: 14px;
+  animation: feedbackPop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .feedback.correct { background: var(--success); }
-.feedback.wrong { background: var(--danger); }
-.feedback h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; }
+.feedback.wrong { background: var(--danger); animation: feedbackPop 0.32s cubic-bezier(0.34,1.56,0.64,1), feedbackShake 0.4s ease 0.1s; }
+.feedback-icon {
+  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 900;
+  background: rgba(255,255,255,0.22);
+  animation: iconPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.08s backwards;
+}
+.feedback-body { flex: 1; min-width: 0; }
+.feedback h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 2px; }
 .feedback p { font-size: 0.85rem; opacity: 0.95; }
+.feedback-correct-answer { margin-top: 4px; font-weight: 700; }
+
+@keyframes feedbackPop {
+  from { opacity: 0; transform: scale(0.9) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes iconPop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+@keyframes feedbackShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+/* Animation, wenn eine Antwort-Karte als richtig/falsch aufgedeckt wird */
+.option-card.correct { animation: cardReveal 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.option-card.wrong { animation: cardShake 0.4s ease; }
+@keyframes cardReveal {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+@keyframes cardShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback, .feedback.wrong, .feedback-icon,
+  .option-card.correct, .option-card.wrong { animation: none; }
+}
+
+.feedback-actions { display: flex; gap: 8px; margin-bottom: 8px; }
 
 /* ── Results ── */
 .result-hero {

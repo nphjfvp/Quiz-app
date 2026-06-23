@@ -225,11 +225,14 @@ function showQuestion(root, quiz, session) {
       const icon = result.is_correct ? "✓" : "✗";
       const label = result.is_correct ? "Richtig!" : "Falsch!";
       fb.innerHTML = `<div class="feedback ${result.is_correct ? "correct" : "wrong"}">
-        <h3>${icon}  ${label}</h3>
-        <p>Punkte: ${result.score}/${result.max_score}</p>
-        ${!result.is_correct ? `<p style="margin-top:4px;font-weight:600">✓ ${esc(result.correct_answer)}</p>` : ""}
+        <div class="feedback-icon">${icon}</div>
+        <div class="feedback-body">
+          <h3>${label}</h3>
+          <p>Punkte: ${result.score}/${result.max_score}</p>
+          ${!result.is_correct ? `<p class="feedback-correct-answer">✓ ${esc(result.correct_answer)}</p>` : ""}
+        </div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div class="feedback-actions">
         <button class="btn btn-ghost btn-sm" id="mark-btn">⭐ Markieren</button>
         <button class="btn btn-ghost btn-sm" id="tutor-btn">💬 KI fragen</button>
       </div>`;
