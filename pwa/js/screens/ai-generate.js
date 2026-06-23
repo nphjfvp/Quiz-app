@@ -67,15 +67,15 @@ export async function render(root, params = {}) {
           <div id="gen-model-list" class="model-select-list">
             ${MODELS.map(m => {
               const sel = currentModel === m.id;
-              const icons = (m.vision ? "👁" : "") + (m.pdf ? "📄" : "");
+              const icons = m.vision ? "👁 Bilder" : "📝 Text";
               const ctxLabel = m.context >= 1000000 ? "1M" : Math.floor(m.context/1000) + "k";
-              return `<div class="model-option ${sel ? "selected" : ""}" data-model="${m.id}" data-vision="${m.vision}" data-pdf="${m.pdf}">
-                <div class="model-name">${esc(m.name)} <span class="model-icons">${icons || "📝"}</span></div>
+              return `<div class="model-option ${sel ? "selected" : ""}" data-model="${m.id}" data-vision="${m.vision}">
+                <div class="model-name">${esc(m.name)} <span class="model-icons">${icons}</span></div>
                 <div class="model-meta">${m.tier} · ${m.price} · ${ctxLabel} ctx</div>
               </div>`;
             }).join("")}
           </div>
-          <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = Bilder · 📄 = PDFs · 📝 = nur Text</div>
+          <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = kann Bilder sehen · 📝 = nur Text</div>
         </div>
 
         <div class="input-group">
@@ -115,8 +115,8 @@ export async function render(root, params = {}) {
   function updateModelAvailability() {
     root.querySelectorAll("#gen-model-list .model-option").forEach(el => {
       const vision = el.dataset.vision === "true";
-      const pdf = el.dataset.pdf === "true";
-      const incompatible = (uploadedFileType === "pdf" && !pdf) || (uploadedFileType === "image" && !vision);
+      // PDFs werden lokal zu Text extrahiert – nur Bilder brauchen ein Vision-Modell
+      const incompatible = uploadedFileType === "image" && !vision;
       el.classList.toggle("disabled", incompatible);
       if (incompatible && el.classList.contains("selected")) {
         el.classList.remove("selected");
