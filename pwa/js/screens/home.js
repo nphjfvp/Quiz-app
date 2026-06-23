@@ -35,7 +35,7 @@ export async function render(root) {
       <h3>Tägliches Lernen</h3>
       <p>Personalisierte Wiederholung starten</p>
     </div>
-    <span style="font-size:1.2rem">›</span>
+    <span class="chev">›</span>
   </div>`;
 
   const nq = quizzes.length;

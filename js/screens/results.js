@@ -33,9 +33,10 @@ export async function render(root, params) {
     const ok = r?.is_correct;
     const cls = ok ? "ok" : r ? "bad" : "skip";
     const icon = ok ? "✓" : r ? "✗" : "–";
+    const rowText = q.title || (q.question_text || q.text || "").slice(0, 60);
     html += `<div class="result-row ${cls}" data-qid="${q.id}">
       <span class="result-icon ${cls}">${icon}</span>
-      <span class="result-title">${esc(q.title || q.text.slice(0, 60))}</span>
+      <span class="result-title">${esc(rowText)}</span>
       ${r ? `<span class="result-score" style="color:${ok ? "var(--success)" : "var(--danger)"}">${r.score}/${r.max_score}</span>` : ""}
       <span style="color:var(--text-light)">›</span>
     </div>`;
@@ -66,8 +67,8 @@ export async function render(root, params) {
 function showDetail(root, q, result, session, quiz) {
   let html = `<button class="back-btn" id="back-results">‹ Zurück zu den Ergebnissen</button>`;
   html += `<div class="card">
-    ${q.title ? `<div class="question-title">${esc(q.title)}</div>` : ""}
-    <div class="question-text">${esc(q.text)}</div>
+    ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
+    <div class="question-text">${esc(q.question_text || q.text || "")}</div>
   </div>`;
 
   if (result) {
