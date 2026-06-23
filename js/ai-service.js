@@ -14,9 +14,19 @@ export const MODELS = [
   // ── Gratis (mit Bildern) ──
   { id: "nvidia/nemotron-nano-12b-v2-vl:free", name: "Nemotron Nano VL", tier: "gratis", context: 128000, vision: true, price: "$0" },
   { id: "nvidia/nemotron-3.5-content-safety:free", name: "Nemotron 3.5 Safety", tier: "gratis", context: 128000, vision: true, price: "$0" },
-  // ── Günstig (mit Bildern) ──
+  // ── Günstig ──
   { id: "openai/gpt-4o-mini-2024-07-18", name: "GPT-4o Mini", tier: "günstig", context: 128000, vision: true, price: "$0.15/M" },
   { id: "amazon/nova-2-lite-v1", name: "Amazon Nova 2 Lite", tier: "günstig", context: 300000, vision: true, price: "$0.30/M" },
+  { id: "deepseek/deepseek-chat", name: "DeepSeek Chat", tier: "günstig", context: 128000, vision: false, price: "$0.14/M" },
+  { id: "deepseek/deepseek-r1", name: "DeepSeek R1", tier: "günstig", context: 164000, vision: false, price: "$0.70/M" },
+  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", tier: "günstig", context: 1000000, vision: true, price: "$0.15/M" },
+  // ── Mittel ──
+  { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", tier: "mittel", context: 200000, vision: true, price: "$1/M" },
+  { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", tier: "mittel", context: 1000000, vision: true, price: "$1.25/M" },
+  { id: "openai/gpt-4o", name: "GPT-4o", tier: "mittel", context: 128000, vision: true, price: "$2.50/M" },
+  { id: "anthropic/claude-sonnet-4-6", name: "Claude Sonnet 4.6", tier: "mittel", context: 200000, vision: true, price: "$3/M" },
+  // ── Premium ──
+  { id: "anthropic/claude-opus-4-8", name: "Claude Opus 4.8", tier: "premium", context: 200000, vision: true, price: "$15/M" },
 ];
 
 export function getModelContextLimit(modelId) {
