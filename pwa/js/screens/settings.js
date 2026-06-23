@@ -8,8 +8,22 @@ export async function render(root) {
   const settings = await loadSettings();
   const account = getAccount();
 
-  let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>
-    <div class="section-title">Konto</div>`;
+  const theme = (() => { try { return localStorage.getItem("theme") || "auto"; } catch { return "auto"; } })();
+
+  let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>`;
+
+  // Darstellung / Theme
+  html += `<div class="section-title">Darstellung</div>
+    <div class="card">
+      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:10px">Farbschema der App.</div>
+      <div class="theme-picker">
+        <button class="theme-opt ${theme === "auto" ? "active" : ""}" data-theme-val="auto">🖥️ Automatisch</button>
+        <button class="theme-opt ${theme === "light" ? "active" : ""}" data-theme-val="light">☀️ Hell</button>
+        <button class="theme-opt ${theme === "dark" ? "active" : ""}" data-theme-val="dark">🌙 Dunkel</button>
+      </div>
+    </div>`;
+
+  html += `<div class="section-title">Konto</div>`;
 
   if (account) {
     html += `<div class="card">
@@ -111,6 +125,18 @@ export async function render(root) {
 
   // Navigation
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
+
+  // Theme-Auswahl
+  root.querySelectorAll(".theme-opt").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const val = btn.dataset.themeVal;
+      try {
+        if (val === "auto") { localStorage.removeItem("theme"); delete document.documentElement.dataset.theme; }
+        else { localStorage.setItem("theme", val); document.documentElement.dataset.theme = val; }
+      } catch {}
+      root.querySelectorAll(".theme-opt").forEach(b => b.classList.toggle("active", b === btn));
+    });
+  });
 
   // Auth
   if (!account) {

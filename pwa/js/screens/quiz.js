@@ -27,7 +27,7 @@ function showQuestion(root, quiz, session) {
       <span class="progress-label">Frage ${idx}/${total}</span>
     </div>
     <div class="card">
-      ${q.title ? `<div class="question-title">${esc(q.title)}</div>` : ""}
+      ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
       <div class="question-text">${esc(q.question_text || q.text)}</div>
     </div>
     <div class="card" id="answer-area">`;
@@ -35,13 +35,13 @@ function showQuestion(root, quiz, session) {
   if (q.question_type === "single_choice") {
     html += q.options.map((o, i) => `
       <div class="option-card" data-idx="${i}" role="radio" aria-checked="false" tabindex="0">
-        <div class="option-radio"></div>
+        <span class="option-key">${String.fromCharCode(65 + i)}</span>
         <span class="option-text">${esc(o.text)}</span>
       </div>`).join("");
   } else if (q.question_type === "multiple_choice") {
     html += q.options.map((o, i) => `
       <div class="option-card" data-idx="${i}" data-mc="true" role="checkbox" aria-checked="false" tabindex="0">
-        <div class="option-check"></div>
+        <span class="option-key">${String.fromCharCode(65 + i)}</span>
         <span class="option-text">${esc(o.text)}</span>
       </div>`).join("");
   } else if (q.question_type === "free_text") {
