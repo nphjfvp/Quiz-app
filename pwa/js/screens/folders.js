@@ -19,7 +19,7 @@ async function renderList(root) {
   const quizzes = await loadQuizzes();
 
   let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div class="list-header">
       <div class="section-title" style="margin:0">📁 Prüfungsordner</div>
       <button class="btn btn-primary btn-sm" id="new-folder-btn">+ Neuer Ordner</button>
     </div>
