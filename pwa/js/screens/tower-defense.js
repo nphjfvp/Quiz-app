@@ -7,7 +7,6 @@ const TILE = 40;
 const COLS = Math.floor(CANVAS_W / TILE);
 const ROWS = Math.floor(CANVAS_H / TILE);
 
-// Path the enemies walk (zigzag down the field)
 const PATH = buildPath();
 function buildPath() {
   const p = [];
@@ -27,6 +26,24 @@ function buildPath() {
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
+// Difficulty 1 (easy) .. 3 (hard) derived from type, options and points.
+function questionDifficulty(q) {
+  let d = 1;
+  const type = q.question_type;
+  if (type === "free_text" || type === "math_formula") d = 3;
+  else if (type === "multiple_choice" || type === "fill_blank" || type === "drag_drop") d = 2;
+  else if (type === "single_choice") d = (q.options?.length || 0) >= 4 ? 2 : 1;
+  if ((q.points || 1) >= 3) d = Math.max(d, 3);
+  else if ((q.points || 1) === 2) d = Math.max(d, 2);
+  return d;
+}
+
+const DIFF_LABEL = { 1: "Leicht", 2: "Mittel", 3: "Schwer" };
+const DIFF_COLOR = { 1: "#22c55e", 2: "#f59e0b", 3: "#ef4444" };
+
+// Bloons-style balloon colors by remaining HP fraction tier
+const BLOON_TIERS = ["#e11d48", "#3b82f6", "#22c55e", "#eab308", "#ec4899", "#1e293b"];
+
 export async function render(root) {
   const quizzes = await loadQuizzes();
   if (!quizzes.length) {
@@ -36,11 +53,10 @@ export async function render(root) {
     return;
   }
 
-  // Quiz selection
   root.innerHTML = `
     <div class="td-setup">
       <h2>🏰 Tower Defense</h2>
-      <p>Verteidige deine Basis! Richtige Antworten feuern Türme ab.</p>
+      <p>Verteidige deine Basis! Schwere Fragen richten mehr Schaden an.</p>
       <div class="td-quiz-select">
         <label>Quiz wählen:</label>
         <select id="td-quiz">
@@ -79,49 +95,40 @@ function startGame(root, quiz, difficulty) {
   if (!questions.length) return;
 
   const diffSettings = {
-    easy:   { speed: 0.3, spawnRate: 6000, hp: 1, baseHP: 20, coinsPerKill: 3, towerDmg: 1 },
-    normal: { speed: 0.5, spawnRate: 4500, hp: 2, baseHP: 15, coinsPerKill: 5, towerDmg: 1 },
-    hard:   { speed: 0.7, spawnRate: 3000, hp: 3, baseHP: 10, coinsPerKill: 8, towerDmg: 1 },
+    easy:   { speed: 0.28, spawnRate: 6500, hpBase: 5, hpScale: 1.3, baseHP: 20, towerDmg: 0.5, towerRate: 900 },
+    normal: { speed: 0.42, spawnRate: 5000, hpBase: 6, hpScale: 1.7, baseHP: 15, towerDmg: 0.5, towerRate: 1000 },
+    hard:   { speed: 0.58, spawnRate: 3800, hpBase: 8, hpScale: 2.2, baseHP: 10, towerDmg: 0.4, towerRate: 1100 },
   };
   const cfg = diffSettings[difficulty];
 
   const state = {
-    enemies: [],
-    towers: [],
-    projectiles: [],
-    particles: [],
-    baseHP: cfg.baseHP,
-    maxHP: cfg.baseHP,
-    score: 0,
-    coins: 0,
-    wave: 0,
-    kills: 0,
-    qIndex: 0,
-    gameOver: false,
-    paused: false,
-    currentQ: null,
-    answering: false,
-    lastSpawn: 0,
-    spawnRate: cfg.spawnRate,
-    cfg,
-    questions,
-    comboCount: 0,
+    enemies: [], towers: [], projectiles: [], particles: [], floaters: [],
+    baseHP: cfg.baseHP, maxHP: cfg.baseHP,
+    score: 0, coins: 0, wave: 0, kills: 0, qIndex: 0,
+    gameOver: false, paused: false, currentQ: null, answering: false,
+    lastSpawn: 0, spawnRate: cfg.spawnRate, cfg, questions, comboCount: 0,
   };
 
   root.innerHTML = `
     <div class="td-game">
       <div class="td-hud">
-        <div class="td-hud-item"><span class="td-hp-icon">❤️</span> <span id="td-hp">${state.baseHP}</span>/<span id="td-maxhp">${state.maxHP}</span></div>
+        <div class="td-hud-item"><span>❤️</span> <span id="td-hp">${state.baseHP}</span></div>
         <div class="td-hud-item">🪙 <span id="td-coins">0</span></div>
         <div class="td-hud-item">💀 <span id="td-kills">0</span></div>
         <div class="td-hud-item td-score">⭐ <span id="td-score">0</span></div>
       </div>
-      <canvas id="td-canvas" width="${CANVAS_W}" height="${CANVAS_H}"></canvas>
+      <div class="td-canvas-wrap">
+        <canvas id="td-canvas" width="${CANVAS_W}" height="${CANVAS_H}"></canvas>
+        <div class="td-combo" id="td-combo" style="display:none">🔥 Combo x<span id="td-combo-n">0</span></div>
+      </div>
       <div class="td-question-area" id="td-qa" style="display:none">
+        <div class="td-q-head">
+          <span class="td-q-diff" id="td-qdiff"></span>
+          <span class="td-q-reward" id="td-qreward"></span>
+        </div>
         <div class="td-q-text" id="td-qtext"></div>
         <div class="td-options" id="td-opts"></div>
       </div>
-      <div class="td-combo" id="td-combo" style="display:none">🔥 Combo x<span id="td-combo-n">0</span></div>
     </div>`;
 
   const canvas = root.querySelector("#td-canvas");
@@ -131,7 +138,6 @@ function startGame(root, quiz, difficulty) {
   const opts = root.querySelector("#td-opts");
   const comboEl = root.querySelector("#td-combo");
 
-  // Adjust canvas for device pixel ratio
   const dpr = window.devicePixelRatio || 1;
   canvas.width = CANVAS_W * dpr;
   canvas.height = CANVAS_H * dpr;
@@ -139,45 +145,37 @@ function startGame(root, quiz, difficulty) {
   canvas.style.height = CANVAS_H + "px";
   ctx.scale(dpr, dpr);
 
-  // Place initial towers along the path
   placeTowers(state);
 
-  let animId;
-  let lastTime = 0;
+  let animId, lastTime = 0;
 
   function gameLoop(ts) {
     if (state.gameOver) return;
     const dt = Math.min(ts - lastTime, 50);
     lastTime = ts;
-
     if (!state.paused) {
       update(state, dt, ts, cfg);
       updateHUD(state, root);
     }
     draw(ctx, state);
-    animId = requestAnimationFrame(gameLoop);
+    if (state.baseHP <= 0 && !state.gameOver) { endGame(state, root); return; }
+    animId = requestAnimationFrame(mainLoop);
   }
 
-  // Spawn enemies on interval
   function spawnEnemy(ts) {
     if (state.gameOver || state.paused) return;
     if (ts - state.lastSpawn > state.spawnRate) {
       state.lastSpawn = ts;
       state.wave++;
-      const hp = cfg.hp + Math.floor(state.wave / 5);
+      const hp = Math.round(cfg.hpBase + state.wave * cfg.hpScale);
       state.enemies.push({
-        pathIdx: 0, progress: 0, hp, maxHp: hp,
-        speed: cfg.speed + Math.random() * 0.1,
+        progress: 0, hp, maxHp: hp,
+        speed: cfg.speed + Math.random() * 0.08,
         x: PATH[0].col * TILE + TILE / 2,
         y: PATH[0].row * TILE + TILE / 2,
-        color: `hsl(${Math.random() * 360}, 70%, 55%)`,
-        hit: 0,
+        hit: 0, wobble: Math.random() * Math.PI * 2,
       });
-
-      // Show question when enemy appears
-      if (!state.answering) {
-        showQuestion(state, qtext, opts, qa, comboEl, root, cfg);
-      }
+      if (!state.answering) showQuestion(state, root);
     }
   }
 
@@ -189,167 +187,130 @@ function startGame(root, quiz, difficulty) {
   lastTime = performance.now();
   animId = requestAnimationFrame(mainLoop);
 
-  // Touch/click on canvas to place tower
+  // Tap empty tile to build a tower (costs 15 coins)
   canvas.addEventListener("click", (e) => {
     if (state.gameOver) return;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const col = Math.floor(x / TILE);
-    const row = Math.floor(y / TILE);
-    // Don't place on path
+    const col = Math.floor((e.clientX - rect.left) / TILE);
+    const row = Math.floor((e.clientY - rect.top) / TILE);
     if (PATH.some(p => p.col === col && p.row === row)) return;
     if (state.towers.some(t => t.col === col && t.row === row)) return;
-    if (state.coins >= 10) {
-      state.coins -= 10;
-      state.towers.push({
-        col, row,
-        x: col * TILE + TILE / 2,
-        y: row * TILE + TILE / 2,
-        range: TILE * 2.5,
-        cooldown: 0,
-        fireRate: 800,
-        dmg: cfg.towerDmg,
-        color: "#22d3ee",
-        level: 1,
-      });
+    if (state.coins >= 15) {
+      state.coins -= 15;
+      addTower(state, col, row, "#06b6d4");
+      addFloater(state, col * TILE + TILE / 2, row * TILE + TILE / 2, "-15 🪙", "#f59e0b");
+    } else {
+      addFloater(state, col * TILE + TILE / 2, row * TILE + TILE / 2, "15 🪙 nötig", "#ef4444");
     }
   });
 }
 
-function showQuestion(state, qtext, opts, qa, comboEl, root, cfg) {
-  if (state.qIndex >= state.questions.length) {
-    state.qIndex = 0;
-    shuffle(state.questions);
-  }
+function showQuestion(state, root) {
+  const qa = root.querySelector("#td-qa");
+  const qtext = root.querySelector("#td-qtext");
+  const opts = root.querySelector("#td-opts");
+  if (state.qIndex >= state.questions.length) { state.qIndex = 0; shuffle(state.questions); }
   const q = state.questions[state.qIndex++];
   state.currentQ = q;
   state.answering = true;
-  state.paused = false;
+
+  const diff = questionDifficulty(q);
+  root.querySelector("#td-qdiff").textContent = DIFF_LABEL[diff];
+  root.querySelector("#td-qdiff").style.background = DIFF_COLOR[diff];
+  root.querySelector("#td-qreward").textContent = `💥 ${3 * diff} Schaden · 🪙 ${2 * diff}`;
 
   qtext.textContent = q.text || q.title || "Frage";
   opts.innerHTML = "";
 
+  const answer = (ok) => handleAnswer(state, ok, diff, root);
+
   if (q.question_type === "single_choice" || q.question_type === "multiple_choice") {
-    const options = q.options || [];
-    options.forEach((o, i) => {
+    (q.options || []).forEach((o) => {
       const btn = document.createElement("button");
       btn.className = "td-opt";
       btn.textContent = o.text;
-      btn.addEventListener("click", () => handleAnswer(state, o.is_correct, qa, comboEl, root, cfg));
+      btn.addEventListener("click", () => answer(!!o.is_correct));
       opts.appendChild(btn);
     });
   } else if (q.question_type === "free_text") {
-    const inp = document.createElement("input");
-    inp.type = "text";
-    inp.className = "td-input";
-    inp.placeholder = "Antwort eingeben...";
-    const btn = document.createElement("button");
-    btn.className = "td-opt td-submit";
-    btn.textContent = "✓";
-    btn.addEventListener("click", () => {
-      const ans = inp.value.trim().toLowerCase();
+    addTextInput(opts, (val) => {
       const correct = (q.correct_text || "").trim().toLowerCase();
-      const ok = ans === correct || (ans.length > 2 && correct.includes(ans));
-      handleAnswer(state, ok, qa, comboEl, root, cfg);
+      const ans = val.trim().toLowerCase();
+      answer(ans.length > 0 && (ans === correct || (correct.length > 3 && correct.includes(ans)) || (ans.length > 3 && ans.includes(correct))));
     });
-    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") btn.click(); });
-    opts.appendChild(inp);
-    opts.appendChild(btn);
-    inp.focus();
   } else if (q.question_type === "fill_blank") {
     const blanks = q.blanks || [];
-    const inp = document.createElement("input");
-    inp.type = "text";
-    inp.className = "td-input";
-    inp.placeholder = "Lücke ausfüllen...";
-    const btn = document.createElement("button");
-    btn.className = "td-opt td-submit";
-    btn.textContent = "✓";
-    btn.addEventListener("click", () => {
-      const ans = inp.value.trim().toLowerCase();
-      const ok = blanks.some(b => b.trim().toLowerCase() === ans);
-      handleAnswer(state, ok, qa, comboEl, root, cfg);
+    addTextInput(opts, (val) => {
+      const ans = val.trim().toLowerCase();
+      answer(blanks.some(b => b.trim().toLowerCase() === ans));
     });
-    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") btn.click(); });
-    opts.appendChild(inp);
-    opts.appendChild(btn);
-    inp.focus();
   } else {
-    // Fallback: show as true/false
-    const btn1 = document.createElement("button");
-    btn1.className = "td-opt";
-    btn1.textContent = "Weiter →";
-    btn1.addEventListener("click", () => handleAnswer(state, true, qa, comboEl, root, cfg));
-    opts.appendChild(btn1);
+    const btn = document.createElement("button");
+    btn.className = "td-opt";
+    btn.textContent = "Weiter →";
+    btn.addEventListener("click", () => answer(true));
+    opts.appendChild(btn);
   }
-
   qa.style.display = "block";
 }
 
-function handleAnswer(state, correct, qa, comboEl, root, cfg) {
+function addTextInput(opts, onSubmit) {
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "td-input";
+  inp.placeholder = "Antwort eingeben…";
+  const btn = document.createElement("button");
+  btn.className = "td-opt td-submit";
+  btn.textContent = "✓";
+  btn.addEventListener("click", () => onSubmit(inp.value));
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter") onSubmit(inp.value); });
+  opts.appendChild(inp);
+  opts.appendChild(btn);
+  setTimeout(() => inp.focus(), 50);
+}
+
+function handleAnswer(state, correct, diff, root) {
   state.answering = false;
-  qa.style.display = "none";
+  root.querySelector("#td-qa").style.display = "none";
+  const comboEl = root.querySelector("#td-combo");
 
   if (correct) {
     state.comboCount++;
-    const multiplier = Math.min(state.comboCount, 5);
-    const earned = cfg.coinsPerKill * multiplier;
-    state.coins += earned;
-    state.score += 10 * multiplier;
+    const comboMult = 1 + Math.min(state.comboCount - 1, 4) * 0.25; // up to x2
+    const dmg = 3 * diff * comboMult;
+    const earnedCoins = Math.round(2 * diff * comboMult);
+    state.coins += earnedCoins;
+    state.score += Math.round(10 * diff * comboMult);
 
-    // Combo display
     if (state.comboCount >= 2) {
       comboEl.style.display = "block";
       root.querySelector("#td-combo-n").textContent = state.comboCount;
       comboEl.classList.add("td-combo-pop");
       setTimeout(() => comboEl.classList.remove("td-combo-pop"), 300);
-      setTimeout(() => { if (state.comboCount === parseInt(root.querySelector("#td-combo-n").textContent)) comboEl.style.display = "none"; }, 2000);
     }
 
-    // Damage all enemies
-    state.enemies.forEach(e => {
-      e.hp -= 1;
-      e.hit = 5;
-    });
-
-    // Particles
-    for (let i = 0; i < 6; i++) {
-      state.particles.push({
-        x: CANVAS_W / 2, y: CANVAS_H / 2,
-        vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
-        life: 30, color: "#22d3ee", size: 4,
-      });
+    // Cannon shot at the lead enemy (furthest along path)
+    const lead = state.enemies.filter(e => e.hp > 0).sort((a, b) => b.progress - a.progress)[0];
+    if (lead) {
+      lead.hp -= dmg;
+      lead.hit = 8;
+      addFloater(state, lead.x, lead.y - 18, `-${Math.round(dmg)}`, "#22d3ee");
+      burst(state, lead.x, lead.y, "#22d3ee", 8);
     }
   } else {
     state.comboCount = 0;
     comboEl.style.display = "none";
     state.baseHP -= 1;
-
-    // Red flash particles
-    for (let i = 0; i < 4; i++) {
-      state.particles.push({
-        x: CANVAS_W / 2, y: CANVAS_H - 20,
-        vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 3,
-        life: 20, color: "#ef4444", size: 5,
-      });
-    }
+    const lastP = PATH[PATH.length - 1];
+    burst(state, lastP.col * TILE + TILE / 2, lastP.row * TILE + TILE / 2, "#ef4444", 6);
   }
 
-  if (state.baseHP <= 0) {
-    endGame(state, root);
-    return;
-  }
-
-  // Next question after short delay
+  if (state.baseHP <= 0) return;
   setTimeout(() => {
-    if (!state.gameOver && !state.answering && state.enemies.length > 0) {
-      const qa = root.querySelector("#td-qa");
-      const qtext = root.querySelector("#td-qtext");
-      const opts = root.querySelector("#td-opts");
-      showQuestion(state, qtext, opts, qa, comboEl, root, cfg);
+    if (!state.gameOver && !state.answering && state.enemies.some(e => e.hp > 0)) {
+      showQuestion(state, root);
     }
-  }, 1500);
+  }, 900);
 }
 
 async function endGame(state, root) {
@@ -358,33 +319,34 @@ async function endGame(state, root) {
   await addCoins(earned, "tower-defense");
   await saveGameScore("tower-defense", { points: state.score, coins: earned });
 
-  root.querySelector(".td-game").innerHTML += `
-    <div class="td-gameover">
-      <h2>💀 Game Over!</h2>
-      <div class="td-go-stats">
-        <div>⭐ Score: <strong>${state.score}</strong></div>
-        <div>💀 Kills: <strong>${state.kills}</strong></div>
-        <div>🪙 Verdient: <strong>${earned}</strong> Münzen</div>
-        <div>🔥 Beste Combo: <strong>${state.comboCount}</strong>x</div>
-      </div>
-      <button class="btn-cta" id="td-retry">🔄 Nochmal</button>
-      <button class="btn-secondary" id="td-home">← Zurück</button>
-    </div>`;
-
-  root.querySelector("#td-retry")?.addEventListener("click", () => navigate("tower-defense"));
-  root.querySelector("#td-home")?.addEventListener("click", () => navigate("home"));
+  const wrap = root.querySelector(".td-game");
+  if (!wrap) return;
+  const over = document.createElement("div");
+  over.className = "td-gameover";
+  over.innerHTML = `
+    <h2>💀 Game Over!</h2>
+    <div class="td-go-stats">
+      <div>⭐ Score: <strong>${state.score}</strong></div>
+      <div>💀 Kills: <strong>${state.kills}</strong></div>
+      <div>🌊 Welle: <strong>${state.wave}</strong></div>
+      <div>🪙 Verdient: <strong>${earned}</strong> Münzen</div>
+    </div>
+    <button class="btn-cta" id="td-retry">🔄 Nochmal</button>
+    <button class="btn-secondary" id="td-home">← Zurück</button>`;
+  wrap.appendChild(over);
+  over.querySelector("#td-retry").addEventListener("click", () => navigate("tower-defense"));
+  over.querySelector("#td-home").addEventListener("click", () => navigate("home"));
 }
 
 function update(state, dt, ts, cfg) {
-  // Move enemies along path
   for (const e of state.enemies) {
     if (e.hp <= 0) continue;
     e.progress += e.speed * (dt / 1000) * 2;
+    e.wobble += dt / 200;
     const idx = Math.floor(e.progress);
     if (idx >= PATH.length - 1) {
-      e.hp = 0;
+      e.hp = 0; e.reached = true;
       state.baseHP -= 1;
-      if (state.baseHP <= 0) return;
       continue;
     }
     const frac = e.progress - idx;
@@ -394,206 +356,222 @@ function update(state, dt, ts, cfg) {
     if (e.hit > 0) e.hit--;
   }
 
-  // Remove dead enemies
-  const before = state.enemies.length;
   state.enemies = state.enemies.filter(e => {
     if (e.hp <= 0) {
-      state.kills++;
-      state.score += 5;
-      // Death particles
-      for (let i = 0; i < 4; i++) {
-        state.particles.push({
-          x: e.x, y: e.y,
-          vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3,
-          life: 15, color: e.color, size: 3,
-        });
+      if (!e.reached) {
+        state.kills++;
+        state.score += 5;
+        state.coins += 1;
+        burst(state, e.x, e.y, "#f59e0b", 6);
       }
       return false;
     }
     return true;
   });
 
-  // Tower shooting
   for (const t of state.towers) {
     t.cooldown = Math.max(0, t.cooldown - dt);
     if (t.cooldown > 0) continue;
-    const target = state.enemies.find(e => {
-      const dx = e.x - t.x, dy = e.y - t.y;
-      return Math.sqrt(dx * dx + dy * dy) <= t.range && e.hp > 0;
-    });
+    const target = state.enemies
+      .filter(e => e.hp > 0 && Math.hypot(e.x - t.x, e.y - t.y) <= t.range)
+      .sort((a, b) => b.progress - a.progress)[0];
     if (target) {
       t.cooldown = t.fireRate;
-      state.projectiles.push({
-        x: t.x, y: t.y,
-        tx: target.x, ty: target.y,
-        speed: 5, dmg: t.dmg,
-        target, progress: 0,
-      });
+      state.projectiles.push({ x: t.x, y: t.y, target, dmg: t.dmg });
     }
   }
 
-  // Move projectiles
   state.projectiles = state.projectiles.filter(p => {
-    p.progress += dt / 100;
-    p.x = lerp(p.x, p.tx, 0.15);
-    p.y = lerp(p.y, p.ty, 0.15);
-    const dx = p.x - p.target.x, dy = p.y - p.target.y;
-    if (Math.sqrt(dx * dx + dy * dy) < 8) {
+    if (!p.target || p.target.hp <= 0) return false;
+    p.x = lerp(p.x, p.target.x, 0.25);
+    p.y = lerp(p.y, p.target.y, 0.25);
+    if (Math.hypot(p.x - p.target.x, p.y - p.target.y) < 8) {
       p.target.hp -= p.dmg;
-      p.target.hit = 5;
+      p.target.hit = 6;
       return false;
     }
-    return p.progress < 30;
+    return true;
   });
 
-  // Particles
   state.particles = state.particles.filter(p => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    p.size *= 0.95;
+    p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life--; p.size *= 0.95;
     return p.life > 0;
   });
+  state.floaters = state.floaters.filter(f => { f.y -= 0.6; f.life--; return f.life > 0; });
 }
 
 function draw(ctx, state) {
   const isDark = document.documentElement.dataset.theme === "dark" ||
     (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  // Background
-  ctx.fillStyle = isDark ? "#0b1120" : "#f5fbf6";
+  // Grass background
+  const grass = isDark ? "#0f2a1e" : "#8fd19e";
+  const grass2 = isDark ? "#123524" : "#7ec48d";
+  ctx.fillStyle = grass;
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  // subtle checker
+  ctx.fillStyle = grass2;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if ((r + c) % 2 === 0) ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
 
-  // Grid
-  ctx.strokeStyle = isDark ? "#1a2540" : "#e3ece6";
-  ctx.lineWidth = 0.5;
-  for (let x = 0; x <= CANVAS_W; x += TILE) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_H); ctx.stroke();
-  }
-  for (let y = 0; y <= CANVAS_H; y += TILE) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
-  }
+  // Path as a thick rounded track
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  const pts = PATH.map(p => ({ x: p.col * TILE + TILE / 2, y: p.row * TILE + TILE / 2 }));
+  ctx.strokeStyle = isDark ? "#3b2f23" : "#caa472";
+  ctx.lineWidth = TILE * 0.8;
+  strokePath(ctx, pts);
+  ctx.strokeStyle = isDark ? "#5a4632" : "#e0c89a";
+  ctx.lineWidth = TILE * 0.6;
+  strokePath(ctx, pts);
 
-  // Path
-  ctx.fillStyle = isDark ? "#1e293b" : "#e7f7f1";
-  for (const p of PATH) {
-    ctx.fillRect(p.col * TILE, p.row * TILE, TILE, TILE);
-  }
+  // Base (home)
+  const lastP = pts[pts.length - 1];
+  drawRoundRect(ctx, lastP.x - 16, lastP.y - 16, 32, 32, 8, "#ef4444");
+  ctx.font = "18px sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("🏰", lastP.x, lastP.y);
 
-  // Base
-  ctx.fillStyle = "#ef4444";
-  const lastP = PATH[PATH.length - 1];
-  ctx.fillRect(lastP.col * TILE, lastP.row * TILE, TILE, TILE);
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 16px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("🏰", lastP.col * TILE + TILE / 2, lastP.row * TILE + TILE / 2);
-
-  // Towers
+  // Towers (monkey-style)
   for (const t of state.towers) {
-    // Range circle (subtle)
     ctx.beginPath();
     ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2);
-    ctx.fillStyle = isDark ? "rgba(34,211,238,0.05)" : "rgba(28,180,135,0.05)";
+    ctx.fillStyle = isDark ? "rgba(34,211,238,0.04)" : "rgba(28,180,135,0.05)";
     ctx.fill();
-
-    // Tower body
+    // base shadow
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath(); ctx.ellipse(t.x, t.y + 13, 13, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // body
     ctx.fillStyle = t.color;
-    ctx.beginPath();
-    ctx.arc(t.x, t.y, 14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 14px sans-serif";
-    ctx.fillText("⚡", t.x, t.y);
+    ctx.beginPath(); ctx.arc(t.x, t.y, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath(); ctx.arc(t.x, t.y, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.font = "12px sans-serif";
+    ctx.fillStyle = "#000";
+    ctx.fillText("🎯", t.x, t.y + 1);
   }
 
-  // Enemies
+  // Enemies as bloons
   for (const e of state.enemies) {
     if (e.hp <= 0) continue;
-    const radius = 12;
-    // Shadow
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.beginPath();
-    ctx.ellipse(e.x, e.y + radius + 2, radius * 0.8, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const frac = e.hp / e.maxHp;
+    const tier = Math.min(BLOON_TIERS.length - 1, Math.floor((1 - frac) * BLOON_TIERS.length));
+    const baseColor = e.hit > 0 ? "#ffffff" : BLOON_TIERS[tier];
+    const r = 12 + (e.maxHp > 20 ? 3 : 0);
+    const wob = Math.sin(e.wobble) * 1.5;
 
-    // Body
-    ctx.fillStyle = e.hit > 0 ? "#ffffff" : e.color;
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.beginPath(); ctx.ellipse(e.x, e.y + r + 3, r * 0.7, 3, 0, 0, Math.PI * 2); ctx.fill();
+
+    // balloon body
+    ctx.fillStyle = baseColor;
     ctx.beginPath();
-    ctx.arc(e.x, e.y, radius, 0, Math.PI * 2);
+    ctx.ellipse(e.x + wob, e.y, r * 0.85, r, 0, 0, Math.PI * 2);
     ctx.fill();
+    // highlight
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.beginPath(); ctx.ellipse(e.x + wob - r * 0.3, e.y - r * 0.3, r * 0.22, r * 0.32, -0.5, 0, Math.PI * 2); ctx.fill();
+    // knot
+    ctx.fillStyle = baseColor;
+    ctx.beginPath(); ctx.moveTo(e.x + wob - 3, e.y + r); ctx.lineTo(e.x + wob + 3, e.y + r); ctx.lineTo(e.x + wob, e.y + r + 4); ctx.fill();
 
     // HP bar
-    const barW = 20, barH = 3;
-    ctx.fillStyle = isDark ? "#243049" : "#ccc";
-    ctx.fillRect(e.x - barW / 2, e.y - radius - 6, barW, barH);
-    ctx.fillStyle = e.hp / e.maxHp > 0.5 ? "#22c55e" : e.hp / e.maxHp > 0.25 ? "#f59e0b" : "#ef4444";
-    ctx.fillRect(e.x - barW / 2, e.y - radius - 6, barW * (e.hp / e.maxHp), barH);
-
-    // Face
-    ctx.fillStyle = "#fff";
-    ctx.font = "10px sans-serif";
-    ctx.fillText("👾", e.x, e.y + 1);
+    const barW = 22;
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(e.x - barW / 2, e.y - r - 8, barW, 4);
+    ctx.fillStyle = frac > 0.5 ? "#22c55e" : frac > 0.25 ? "#f59e0b" : "#ef4444";
+    ctx.fillRect(e.x - barW / 2, e.y - r - 8, barW * frac, 4);
   }
 
-  // Projectiles
+  // Projectiles (darts)
   for (const p of state.projectiles) {
-    ctx.fillStyle = "#ffd43b";
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = "#fde047";
+    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#a16207"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.stroke();
   }
 
   // Particles
   for (const p of state.particles) {
-    ctx.globalAlpha = p.life / 30;
+    ctx.globalAlpha = Math.max(0, p.life / 30);
     ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
 
-  // HP bar at bottom
+  // Floating text
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const f of state.floaters) {
+    ctx.globalAlpha = Math.max(0, f.life / 40);
+    ctx.fillStyle = f.color;
+    ctx.font = "bold 13px sans-serif";
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // Base HP bar
   const hpPct = Math.max(0, state.baseHP / state.maxHP);
-  const barY = CANVAS_H - 6;
-  ctx.fillStyle = isDark ? "#1e293b" : "#e3ece6";
-  ctx.fillRect(0, barY, CANVAS_W, 6);
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fillRect(0, CANVAS_H - 6, CANVAS_W, 6);
   ctx.fillStyle = hpPct > 0.5 ? "#22c55e" : hpPct > 0.25 ? "#f59e0b" : "#ef4444";
-  ctx.fillRect(0, barY, CANVAS_W * hpPct, 6);
+  ctx.fillRect(0, CANVAS_H - 6, CANVAS_W * hpPct, 6);
+}
+
+function strokePath(ctx, pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+}
+
+function drawRoundRect(ctx, x, y, w, h, r, fill) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function burst(state, x, y, color, n) {
+  for (let i = 0; i < n; i++) {
+    state.particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4 - 1,
+      life: 25, color, size: 3 + Math.random() * 2,
+    });
+  }
+}
+
+function addFloater(state, x, y, text, color) {
+  state.floaters.push({ x, y, text, color, life: 40 });
 }
 
 function updateHUD(state, root) {
-  const hp = root.querySelector("#td-hp");
-  const coins = root.querySelector("#td-coins");
-  const kills = root.querySelector("#td-kills");
-  const score = root.querySelector("#td-score");
-  if (hp) hp.textContent = Math.max(0, state.baseHP);
-  if (coins) coins.textContent = state.coins;
-  if (kills) kills.textContent = state.kills;
-  if (score) score.textContent = state.score;
+  const set = (id, v) => { const el = root.querySelector(id); if (el) el.textContent = v; };
+  set("#td-hp", Math.max(0, state.baseHP));
+  set("#td-coins", state.coins);
+  set("#td-kills", state.kills);
+  set("#td-score", state.score);
+}
+
+function addTower(state, col, row, color) {
+  state.towers.push({
+    col, row,
+    x: col * TILE + TILE / 2, y: row * TILE + TILE / 2,
+    range: TILE * 2.5, cooldown: 0, fireRate: state.cfg.towerRate,
+    dmg: state.cfg.towerDmg, color,
+  });
 }
 
 function placeTowers(state) {
-  // Place 3 starter towers at strategic positions
-  const positions = [
-    { col: 2, row: 1 }, { col: 6, row: 3 }, { col: 2, row: 5 },
-  ].filter(p => !PATH.some(pp => pp.col === p.col && pp.row === p.row));
-
-  for (const pos of positions) {
-    state.towers.push({
-      col: pos.col, row: pos.row,
-      x: pos.col * TILE + TILE / 2,
-      y: pos.row * TILE + TILE / 2,
-      range: TILE * 2.5,
-      cooldown: 0,
-      fireRate: 1000,
-      dmg: state.cfg.towerDmg,
-      color: "#1cb487",
-      level: 1,
-    });
-  }
+  [{ col: 2, row: 1 }, { col: 6, row: 3 }, { col: 2, row: 5 }]
+    .filter(p => !PATH.some(pp => pp.col === p.col && pp.row === p.row))
+    .forEach(p => addTower(state, p.col, p.row, "#1cb487"));
 }
 
 function shuffle(arr) {

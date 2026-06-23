@@ -17,6 +17,7 @@ import { render as foldersScreen } from "./screens/folders.js";
 import { render as clozeScreen } from "./screens/cloze.js";
 import { render as gamesScreen } from "./screens/games.js";
 import { render as towerDefenseScreen } from "./screens/tower-defense.js";
+import { render as quizBattleScreen } from "./screens/quiz-battle.js";
 import { loadSettings } from "./store.js";
 import { setAccount } from "./firebase-sync.js";
 
@@ -39,6 +40,7 @@ route("folders", foldersScreen);
 route("cloze", clozeScreen);
 route("games", gamesScreen);
 route("tower-defense", towerDefenseScreen);
+route("quiz-battle", quizBattleScreen);
 
 async function init() {
   const settings = await loadSettings();
