@@ -70,7 +70,15 @@ class App(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        self.header = ctk.CTkFrame(self, fg_color=COLORS["header_bg"], corner_radius=0, height=60)
+        ctk.ThemeManager.theme["CTkButton"]["corner_radius"] = RADIUS_SM
+        ctk.ThemeManager.theme["CTkEntry"]["corner_radius"] = RADIUS_SM
+        ctk.ThemeManager.theme["CTkOptionMenu"]["corner_radius"] = RADIUS_SM
+
+        header_wrap = ctk.CTkFrame(self, fg_color=COLORS["border"], corner_radius=0, height=62)
+        header_wrap.grid(row=0, column=0, sticky="ew")
+        header_wrap.grid_columnconfigure(0, weight=1)
+        header_wrap.grid_rowconfigure(0, weight=1)
+        self.header = ctk.CTkFrame(header_wrap, fg_color=COLORS["header_bg"], corner_radius=0, height=60)
         self.header.grid(row=0, column=0, sticky="ew")
         self.header.grid_columnconfigure(1, weight=1)
 
@@ -210,17 +218,19 @@ class App(ctk.CTk):
                 self._wt_index -= 1
                 self._show_walkthrough_step()
             ctk.CTkButton(btn_frame, text="Zurück", width=80, fg_color=COLORS["text_light"],
+                         corner_radius=RADIUS_SM,
                          command=prev_step).grid(row=0, column=0, padx=5)
 
         if idx < total - 1:
             ctk.CTkButton(btn_frame, text="Weiter", width=100, fg_color=COLORS["primary"],
-                         font=("Segoe UI", 13, "bold"),
+                         font=("Segoe UI", 13, "bold"), corner_radius=RADIUS_SM,
                          command=next_step).grid(row=0, column=1, padx=5)
             ctk.CTkButton(btn_frame, text="Überspringen", width=100, fg_color=COLORS["text_light"],
+                         corner_radius=RADIUS_SM,
                          command=skip).grid(row=0, column=2, padx=5)
         else:
             ctk.CTkButton(btn_frame, text="Loslegen!", width=140, fg_color=COLORS["success"],
-                         font=("Segoe UI", 14, "bold"),
+                         font=("Segoe UI", 14, "bold"), corner_radius=RADIUS_SM,
                          command=next_step).grid(row=0, column=1, padx=5)
 
     def _clear_main(self):
@@ -1069,11 +1079,14 @@ class App(ctk.CTk):
         msg_row = {"idx": 0}
 
         def add_message(role, text):
-            bg = COLORS["primary"] if role == "user" else COLORS["card_hover"]
-            tc = "white" if role == "user" else COLORS["text"]
+            bg = COLORS["primary"] if role == "user" else COLORS["card"]
+            tc = COLORS["on_primary"] if role == "user" else COLORS["text"]
             anchor = "e" if role == "user" else "w"
-            mf = ctk.CTkFrame(chat_scroll, fg_color=bg, corner_radius=RADIUS_MD)
-            mf.grid(row=msg_row["idx"], column=0, sticky=anchor, pady=3, padx=10)
+            mf = ctk.CTkFrame(chat_scroll, fg_color=bg, corner_radius=RADIUS_LG,
+                              border_width=1, border_color=COLORS["border"] if role != "user" else "transparent")
+            mf.grid(row=msg_row["idx"], column=0, sticky=anchor, pady=4, padx=10)
+            if role == "assistant":
+                animate_color(mf, "fg_color", COLORS["bg"], COLORS["card"], 200, 8)
             self._render_rich_text(mf, text, font=("Segoe UI", 12), text_color=tc,
                                    wraplength=500, row=0, column=0, padx=12, pady=8)
             msg_row["idx"] += 1
@@ -1420,6 +1433,20 @@ class App(ctk.CTk):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _settings_card(self, parent, title, row):
+        """Create a settings section card with title."""
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                            border_width=1, border_color=COLORS["border"])
+        card.grid(row=row, column=0, sticky="ew", pady=(0, 12))
+        card.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(card)
+        ctk.CTkLabel(card, text=title, font=("Segoe UI", 14, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(12, 8), sticky="w")
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.grid(row=1, column=0, padx=15, pady=(0, 12), sticky="ew")
+        inner.grid_columnconfigure(0, weight=1)
+        return inner
+
     def show_settings(self):
         self._clear_main()
         frame = self._make_screen()
@@ -1429,35 +1456,35 @@ class App(ctk.CTk):
 
         settings = self.store.load_settings()
 
-        # API Key
-        ctk.CTkLabel(frame, text=t("settings.api_key"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=1, column=0, sticky="w")
-        api_entry = ctk.CTkEntry(frame, placeholder_text="sk-or-...", width=500, show="*")
-        api_entry.grid(row=2, column=0, sticky="w", pady=(5, 15))
+        # ── API Card ──
+        api_card = self._settings_card(frame, "KI-Konfiguration", row=1)
+        ctk.CTkLabel(api_card, text=t("settings.api_key"), font=("Segoe UI", 12, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
+        api_entry = ctk.CTkEntry(api_card, placeholder_text="sk-or-...", width=480, show="*",
+                                  corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"])
+        api_entry.grid(row=1, column=0, sticky="w", pady=(4, 10))
         if settings.get("api_key"):
             api_entry.insert(0, settings["api_key"])
 
-        # Model
-        ctk.CTkLabel(frame, text=t("settings.model"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=3, column=0, sticky="w")
-        model_entry = ctk.CTkEntry(frame, placeholder_text="nvidia/nemotron-3-super-120b-a12b:free", width=500)
-        model_entry.grid(row=4, column=0, sticky="w", pady=(5, 5))
+        ctk.CTkLabel(api_card, text=t("settings.model"), font=("Segoe UI", 12, "bold"),
+                    text_color=COLORS["text"]).grid(row=2, column=0, sticky="w")
+        model_entry = ctk.CTkEntry(api_card, placeholder_text="nvidia/nemotron-3-super-120b-a12b:free",
+                                    width=480, corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"])
+        model_entry.grid(row=3, column=0, sticky="w", pady=(4, 4))
         if settings.get("model"):
             model_entry.insert(0, settings["model"])
+        ctk.CTkLabel(api_card, text=t("settings.model_hint"),
+                    font=("Segoe UI", 10), text_color=COLORS["text_light"]
+                    ).grid(row=4, column=0, sticky="w")
 
-        ctk.CTkLabel(frame, text=t("settings.model_hint"),
-                    font=("Segoe UI", 11), text_color=COLORS["text_light"]
-                    ).grid(row=5, column=0, sticky="w", pady=(0, 10))
-
-        # Blocked models
-        ctk.CTkLabel(frame, text=t("settings.blocked_models"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=53, column=0, sticky="w", pady=(10, 0))
-        ctk.CTkLabel(frame, text=t("settings.blocked_hint"), font=("Segoe UI", 11),
-                    text_color=COLORS["text_light"], wraplength=500, justify="left"
-                    ).grid(row=54, column=0, sticky="w", pady=(2, 5))
-
-        blocked_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        blocked_frame.grid(row=55, column=0, sticky="w", pady=(0, 15))
+        # Blocked models inside API card
+        ctk.CTkLabel(api_card, text=t("settings.blocked_models"), font=("Segoe UI", 12, "bold"),
+                    text_color=COLORS["text"]).grid(row=5, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(api_card, text=t("settings.blocked_hint"), font=("Segoe UI", 10),
+                    text_color=COLORS["text_light"], wraplength=470, justify="left"
+                    ).grid(row=6, column=0, sticky="w", pady=(2, 5))
+        blocked_frame = ctk.CTkFrame(api_card, fg_color="transparent")
+        blocked_frame.grid(row=7, column=0, sticky="w")
         from .ai_service import AIService as _AIS
         blocked_set = set(settings.get("disabled_models", []))
         blocked_vars = {}
@@ -1473,106 +1500,91 @@ class App(ctk.CTk):
                          variable=var, font=("Segoe UI", 11)
                          ).grid(row=row_i, column=col_i, padx=(0, 25), pady=2, sticky="w")
 
-        # Feature toggles
-        ctk.CTkLabel(frame, text="Features", font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=6, column=0, sticky="w")
-        feat_row = ctk.CTkFrame(frame, fg_color="transparent")
-        feat_row.grid(row=7, column=0, sticky="w", pady=(5, 15))
-        fsrs_switch = ctk.CTkSwitch(feat_row, text=t("settings.fsrs"))
-        fsrs_switch.grid(row=0, column=0, padx=(0, 20))
+        # ── Features Card ──
+        feat_inner = self._settings_card(frame, "Features", row=2)
+        fsrs_switch = ctk.CTkSwitch(feat_inner, text=t("settings.fsrs"))
+        fsrs_switch.grid(row=0, column=0, padx=(0, 20), sticky="w")
         if settings.get("use_fsrs", False):
             fsrs_switch.select()
-        img_switch = ctk.CTkSwitch(feat_row, text=t("settings.images"))
+        img_switch = ctk.CTkSwitch(feat_inner, text=t("settings.images"))
         img_switch.grid(row=0, column=1, padx=(0, 20))
         if settings.get("enable_images", False):
             img_switch.select()
-        aival_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_validation"))
+        aival_switch = ctk.CTkSwitch(feat_inner, text=t("settings.ai_validation"))
         aival_switch.grid(row=0, column=2, padx=(0, 20))
         if settings.get("ai_validation", False):
             aival_switch.select()
-        detailed_switch = ctk.CTkSwitch(feat_row, text=t("settings.detailed_answer"))
-        detailed_switch.grid(row=1, column=0, padx=(0, 20), pady=(8, 0))
+        detailed_switch = ctk.CTkSwitch(feat_inner, text=t("settings.detailed_answer"))
+        detailed_switch.grid(row=1, column=0, padx=(0, 20), pady=(8, 0), sticky="w")
         if settings.get("detailed_answer", False):
             detailed_switch.select()
-        math_switch = ctk.CTkSwitch(feat_row, text=t("settings.math_mode"))
+        math_switch = ctk.CTkSwitch(feat_inner, text=t("settings.math_mode"))
         math_switch.grid(row=1, column=1, padx=(0, 20), pady=(8, 0))
         if settings.get("math_mode", False):
             math_switch.select()
-        # ── EXPERIMENTAL: AI Question Creation ── START
-        ai_create_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_question_creation"))
-        ai_create_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0), columnspan=2)
+        ai_create_switch = ctk.CTkSwitch(feat_inner, text=t("settings.ai_question_creation"))
+        ai_create_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0), columnspan=2, sticky="w")
         if settings.get("ai_question_creation", False):
             ai_create_switch.select()
-        # ── EXPERIMENTAL: AI Question Creation ── END
 
-        # Appearance & language
-        ctk.CTkLabel(frame, text=t("settings.appearance"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=8, column=0, sticky="w")
-        appear_row = ctk.CTkFrame(frame, fg_color="transparent")
-        appear_row.grid(row=9, column=0, sticky="w", pady=(5, 15))
-
-        dark_switch = ctk.CTkSwitch(appear_row, text=t("settings.dark_mode"))
-        dark_switch.grid(row=0, column=0, padx=(0, 30))
+        # ── Appearance Card ──
+        appear_inner = self._settings_card(frame, t("settings.appearance"), row=3)
+        dark_switch = ctk.CTkSwitch(appear_inner, text=t("settings.dark_mode"))
+        dark_switch.grid(row=0, column=0, padx=(0, 30), sticky="w")
         if is_dark():
             dark_switch.select()
-
-        ctk.CTkLabel(appear_row, text=t("settings.language"), font=("Segoe UI", 12),
+        ctk.CTkLabel(appear_inner, text=t("settings.language"), font=("Segoe UI", 12),
                     text_color=COLORS["text"]).grid(row=0, column=1, padx=(0, 8))
-        lang_menu = ctk.CTkOptionMenu(appear_row, values=["Deutsch", "English"], width=140)
+        lang_menu = ctk.CTkOptionMenu(appear_inner, values=["Deutsch", "English"], width=140)
         lang_menu.set("English" if get_language() == "en" else "Deutsch")
         lang_menu.grid(row=0, column=2)
 
-        # Learning profile / memory
-        ctk.CTkLabel(frame, text=t("memory.title"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=10, column=0, sticky="w", pady=(10, 0))
-        memory_switch = ctk.CTkSwitch(frame, text=t("memory.enable"), font=("Segoe UI", 12))
-        memory_switch.grid(row=11, column=0, sticky="w", pady=(5, 5))
+        # ── Memory Card ──
+        mem_inner = self._settings_card(frame, t("memory.title"), row=4)
+        memory_switch = ctk.CTkSwitch(mem_inner, text=t("memory.enable"), font=("Segoe UI", 12))
+        memory_switch.grid(row=0, column=0, sticky="w", pady=(0, 5))
         if settings.get("use_memory", False):
             memory_switch.select()
-
-        ctk.CTkLabel(frame, text=t("memory.template"), font=("Segoe UI", 11),
-                    text_color=COLORS["text_light"], wraplength=500, justify="left"
-                    ).grid(row=12, column=0, sticky="w", pady=(5, 5))
-        memory_text = ctk.CTkTextbox(frame, height=120, width=500, font=("Segoe UI", 12),
-                                     fg_color=COLORS["input_bg"])
-        memory_text.grid(row=13, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(mem_inner, text=t("memory.template"), font=("Segoe UI", 10),
+                    text_color=COLORS["text_light"], wraplength=470, justify="left"
+                    ).grid(row=1, column=0, sticky="w", pady=(0, 4))
+        memory_text = ctk.CTkTextbox(mem_inner, height=100, width=480, font=("Segoe UI", 12),
+                                     fg_color=COLORS["input_bg"], corner_radius=RADIUS_SM)
+        memory_text.grid(row=2, column=0, sticky="w", pady=(0, 5))
         existing_memory = self.store.load_memory()
         if existing_memory:
             memory_text.insert("1.0", existing_memory)
-
         mem_entries = self.store.load_memory_entries()
-        mem_btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        mem_btn_frame.grid(row=131, column=0, sticky="w", pady=(0, 10))
+        mem_btn_frame = ctk.CTkFrame(mem_inner, fg_color="transparent")
+        mem_btn_frame.grid(row=3, column=0, sticky="w")
         ctk.CTkButton(mem_btn_frame, text=t("memory.manage"),
                      fg_color=COLORS["primary_light"], font=("Segoe UI", 12), width=200,
-                     command=self.show_memory_manager
+                     corner_radius=RADIUS_SM, command=self.show_memory_manager
                      ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkLabel(mem_btn_frame, text=t("memory.count", n=len(mem_entries)),
                     font=("Segoe UI", 11), text_color=COLORS["text_light"]
                     ).grid(row=0, column=1)
 
-        # Quick actions editor link
-        ctk.CTkLabel(frame, text=t("qa.title"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=14, column=0, sticky="w", pady=(10, 0))
-        ctk.CTkButton(frame, text=t("qa.title"), fg_color=COLORS["primary_light"],
-                     font=("Segoe UI", 12), width=200,
+        # ── Quick Actions Card ──
+        qa_inner = self._settings_card(frame, t("qa.title"), row=5)
+        ctk.CTkButton(qa_inner, text=t("qa.title"), fg_color=COLORS["primary_light"],
+                     font=("Segoe UI", 12), width=200, corner_radius=RADIUS_SM,
                      command=self.show_quick_actions_editor
-                     ).grid(row=15, column=0, sticky="w", pady=(5, 15))
+                     ).grid(row=0, column=0, sticky="w")
 
-        # ── Cloud-Sync (geteilter Sync-Code mit der Mobile-App) ──
-        ctk.CTkLabel(frame, text=t("sync.title"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=16, column=0, sticky="w", pady=(10, 0))
-        ctk.CTkLabel(frame, text=t("sync.hint"), font=("Segoe UI", 11),
-                    text_color=COLORS["text_light"], wraplength=500, justify="left"
-                    ).grid(row=17, column=0, sticky="w", pady=(2, 5))
-        sync_entry = ctk.CTkEntry(frame, placeholder_text=t("sync.code_placeholder"), width=300)
-        sync_entry.grid(row=18, column=0, sticky="w", pady=(0, 8))
+        # ── Cloud-Sync Card ──
+        sync_inner = self._settings_card(frame, t("sync.title"), row=6)
+        ctk.CTkLabel(sync_inner, text=t("sync.hint"), font=("Segoe UI", 10),
+                    text_color=COLORS["text_light"], wraplength=470, justify="left"
+                    ).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        sync_entry = ctk.CTkEntry(sync_inner, placeholder_text=t("sync.code_placeholder"), width=300,
+                                   corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"])
+        sync_entry.grid(row=1, column=0, sticky="w", pady=(0, 8))
         if settings.get("sync_code"):
             sync_entry.insert(0, settings["sync_code"])
-
-        sync_status = ctk.CTkLabel(frame, text="", font=("Segoe UI", 11),
+        sync_status = ctk.CTkLabel(sync_inner, text="", font=("Segoe UI", 11),
                                    text_color=COLORS["text_light"])
-        sync_status.grid(row=20, column=0, sticky="w", pady=(2, 10))
+        sync_status.grid(row=3, column=0, sticky="w", pady=(2, 0))
 
         def _cloud_upload():
             code = cloud_sync.sanitize_code(sync_entry.get())
@@ -1639,14 +1651,14 @@ class App(ctk.CTk):
 
             threading.Thread(target=work, daemon=True).start()
 
-        sync_btn_row = ctk.CTkFrame(frame, fg_color="transparent")
-        sync_btn_row.grid(row=19, column=0, sticky="w", pady=(0, 5))
+        sync_btn_row = ctk.CTkFrame(sync_inner, fg_color="transparent")
+        sync_btn_row.grid(row=2, column=0, sticky="w", pady=(0, 5))
         ctk.CTkButton(sync_btn_row, text=t("sync.upload"), fg_color=COLORS["primary"],
-                     font=("Segoe UI", 12), width=180, command=_cloud_upload
-                     ).grid(row=0, column=0, padx=(0, 10))
+                     font=("Segoe UI", 12), width=180, corner_radius=RADIUS_SM,
+                     command=_cloud_upload).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(sync_btn_row, text=t("sync.download"), fg_color=COLORS["primary_light"],
-                     font=("Segoe UI", 12), width=180, command=_cloud_download
-                     ).grid(row=0, column=1)
+                     font=("Segoe UI", 12), width=180, corner_radius=RADIUS_SM,
+                     command=_cloud_download).grid(row=0, column=1)
 
         def save():
             s = self.store.load_settings()
@@ -1681,11 +1693,13 @@ class App(ctk.CTk):
             self.show_home()
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.grid(row=21, column=0, sticky="w", pady=(10, 0))
+        btn_frame.grid(row=7, column=0, sticky="w", pady=(10, 0))
         ctk.CTkButton(btn_frame, text=t("nav.save"), fg_color=COLORS["success"],
-                     command=save).grid(row=0, column=0, padx=(0, 10))
+                     corner_radius=RADIUS_SM, font=("Segoe UI", 13, "bold"),
+                     height=40, command=save).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_frame, text=t("nav.back"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=0, column=1)
+                     corner_radius=RADIUS_SM, command=self.show_home
+                     ).grid(row=0, column=1)
 
         def _reset_all():
             if not messagebox.askyesno("Zurücksetzen", "Wirklich ALLE Daten löschen?\nQuizze, Fortschritt, Statistiken — alles wird unwiderruflich gelöscht!"):
@@ -1704,7 +1718,8 @@ class App(ctk.CTk):
             self.show_home()
 
         ctk.CTkButton(btn_frame, text="Alle Daten zurücksetzen", fg_color=COLORS["danger"],
-                     font=("Segoe UI", 11), command=_reset_all).grid(row=0, column=2, padx=(20, 0))
+                     font=("Segoe UI", 11), corner_radius=RADIUS_SM,
+                     command=_reset_all).grid(row=0, column=2, padx=(20, 0))
 
     # ── MEMORY MANAGER ──
 
@@ -3539,14 +3554,17 @@ class App(ctk.CTk):
 
         # File selection
         file_var = StringVar()
-        file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        file_frame.grid(row=2, column=0, sticky="ew")
-        ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
-                    ).grid(row=0, column=0, padx=(0, 10))
-        ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
+        file_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                   border_width=1, border_color=COLORS["border"])
+        file_frame.grid(row=2, column=0, sticky="ew", pady=(0, 5))
+        self._bind_card_hover(file_frame, accent_color=COLORS["primary"])
+        ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen...",
+                    corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"]
+                    ).grid(row=0, column=0, padx=(15, 10), pady=12)
+        ctk.CTkButton(file_frame, text="Durchsuchen", width=100, corner_radius=RADIUS_SM,
                      command=lambda: self._on_file_selected_gen(file_var, est_label, chunk_slider, analysis_frame,
                                                                 (model_var, model_id_map, model_menu, model_rec_frame))
-                     ).grid(row=0, column=1)
+                     ).grid(row=0, column=1, padx=(0, 15), pady=12)
 
         # Estimation display
         est_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12, "bold"),
