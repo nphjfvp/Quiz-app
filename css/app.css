@@ -867,6 +867,22 @@ input:focus { border-color: var(--primary); }
 .review-save-row .btn { flex: 1; }
 
 .gen-model-hint { font-size: 0.7rem; color: var(--text-light); margin-top: 4px; }
+
+/* Question count: free input + AI-decides */
+.num-q-row { display: flex; gap: 8px; align-items: stretch; }
+.num-q-row #ai-num-questions { flex: 1; min-width: 0; }
+.num-auto-btn { white-space: nowrap; flex: 0 0 auto; }
+.num-auto-btn.active {
+  background: var(--primary); color: var(--on-primary); border-color: var(--primary);
+}
+.num-q-presets { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.num-preset {
+  flex: 1; min-width: 44px; padding: 6px 0; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.15s;
+}
+.num-preset:hover, .num-preset:active { border-color: var(--primary); background: var(--primary-subtle); color: var(--primary); }
+#ai-num-questions:disabled { opacity: 0.55; }
 .char-counter { font-size: 0.75rem; color: var(--text-light); margin-top: 4px; display: flex; justify-content: space-between; }
 .file-hint { color: var(--text-light); margin-top: 4px; display: block; font-size: 0.78rem; }
 .file-progress { display: none; margin-top: 8px; }
