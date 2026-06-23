@@ -1609,6 +1609,25 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text=t("nav.back"), fg_color=COLORS["text_light"],
                      command=self.show_home).grid(row=0, column=1)
 
+        def _reset_all():
+            if not messagebox.askyesno("Zurücksetzen", "Wirklich ALLE Daten löschen?\nQuizze, Fortschritt, Statistiken — alles wird unwiderruflich gelöscht!"):
+                return
+            if not messagebox.askyesno("Sicher?", "Dies kann NICHT rückgängig gemacht werden. Wirklich fortfahren?"):
+                return
+            self.store.save_quizzes([])
+            self.store.save_progress({})
+            self.store.save_settings({})
+            self.store.save_daily_state(None)
+            self.store.save_memory("")
+            self.quizzes = []
+            self.ai.api_key = ""
+            self.ai.model = "nvidia/nemotron-3-super-120b-a12b:free"
+            messagebox.showinfo("OK", "Alle Daten wurden gelöscht.")
+            self.show_home()
+
+        ctk.CTkButton(btn_frame, text="Alle Daten zurücksetzen", fg_color=COLORS["danger"],
+                     font=("Segoe UI", 11), command=_reset_all).grid(row=0, column=2, padx=(20, 0))
+
     # ── MEMORY MANAGER ──
 
     def show_memory_manager(self):
@@ -3881,12 +3900,24 @@ class App(ctk.CTk):
                     render_list()
                     count_label.configure(text=t("review.subtitle", n=len(quiz.questions)))
 
-                ctk.CTkButton(btns, text=t("review.edit"), width=90, height=28,
+                def _ai_edit(i=idx):
+                    self._show_ai_edit_question(quiz, i, on_done=lambda: self._show_quiz_review(quiz))
+
+                def _convert_type(i=idx):
+                    self._show_convert_type(quiz, i, on_done=lambda: self._show_quiz_review(quiz))
+
+                ctk.CTkButton(btns, text=t("review.edit"), width=70, height=28,
                              fg_color=COLORS["primary"], font=("Segoe UI", 11),
-                             command=_edit).grid(row=0, column=0, padx=(0, 6))
-                ctk.CTkButton(btns, text=t("review.delete"), width=90, height=28,
+                             command=_edit).grid(row=0, column=0, padx=(0, 4))
+                ctk.CTkButton(btns, text="KI", width=40, height=28,
+                             fg_color=COLORS["info"], font=("Segoe UI", 11),
+                             command=_ai_edit).grid(row=0, column=1, padx=(0, 4))
+                ctk.CTkButton(btns, text="Typ", width=40, height=28,
+                             fg_color=COLORS["warning"], font=("Segoe UI", 11),
+                             command=_convert_type).grid(row=0, column=2, padx=(0, 4))
+                ctk.CTkButton(btns, text=t("review.delete"), width=70, height=28,
                              fg_color=COLORS["danger"], font=("Segoe UI", 11),
-                             command=_delete).grid(row=0, column=1)
+                             command=_delete).grid(row=0, column=3)
 
         render_list()
 
@@ -3918,6 +3949,115 @@ class App(ctk.CTk):
     def _confirm_discard_review(self):
         if messagebox.askyesno(t("review.discard"), t("review.discard_confirm")):
             self.show_home()
+
+    def _show_ai_edit_question(self, quiz: Quiz, idx: int, on_done=None):
+        qq = quiz.questions[idx]
+        win = ctk.CTkToplevel(self)
+        win.title(f"Frage #{idx+1} per KI bearbeiten")
+        win.geometry("500x250")
+        win.grab_set()
+
+        ctk.CTkLabel(win, text=f"Frage: {(qq.title or qq.text or '')[:80]}",
+                    font=("Segoe UI", 12), wraplength=460).pack(padx=20, pady=(15, 5))
+        ctk.CTkLabel(win, text="Beschreibe, was die KI ändern soll:",
+                    font=("Segoe UI", 11), text_color=COLORS["text_light"]).pack(padx=20)
+        instr_entry = ctk.CTkEntry(win, width=460, placeholder_text="z.B. 'Mach die Frage schwerer' oder 'Füge eine falsche Antwort hinzu'")
+        instr_entry.pack(padx=20, pady=10)
+        status_label = ctk.CTkLabel(win, text="", font=("Segoe UI", 11), text_color=COLORS["primary"])
+        status_label.pack(padx=20)
+
+        def do_edit():
+            instruction = instr_entry.get().strip()
+            if not instruction:
+                status_label.configure(text="Bitte eine Anweisung eingeben.")
+                return
+            status_label.configure(text="⏳ KI arbeitet…")
+            win.update()
+            try:
+                q_dict = qq.to_dict() if hasattr(qq, 'to_dict') else {
+                    "question_type": qq.question_type.value if hasattr(qq.question_type, 'value') else qq.question_type,
+                    "text": qq.text, "title": qq.title, "topic": qq.topic,
+                    "options": [{"text": o.text, "is_correct": o.is_correct} for o in (qq.options or [])],
+                    "explanation": qq.explanation, "correct_text": qq.correct_text,
+                }
+                prompt = f"Aktuelle Frage:\n{json.dumps(q_dict, ensure_ascii=False, indent=2)}\n\nAnweisung: {instruction}"
+                result = self.ai._call_api([
+                    {"role": "system", "content": "Du bist ein Prüfungsexperte. Ändere die Quizfrage gemäß der Anweisung. Gib NUR das geänderte JSON-Objekt zurück, kein Markdown."},
+                    {"role": "user", "content": prompt}
+                ])
+                if result and not result.startswith("ERROR"):
+                    from .ai_service import AIService
+                    cleaned = AIService._repair_json(result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+                    data = json.loads(cleaned)
+                    new_q = self._question_from_ai_result(data, getattr(qq, 'diagram_image_path', '') or getattr(qq, 'image_path', '') or '')
+                    new_q.id = qq.id
+                    quiz.questions[idx] = new_q
+                    win.destroy()
+                    if on_done:
+                        on_done()
+                else:
+                    status_label.configure(text=f"Fehler: {result}")
+            except Exception as e:
+                status_label.configure(text=f"Fehler: {e}")
+
+        ctk.CTkButton(win, text="KI ändern", fg_color=COLORS["primary"], command=do_edit).pack(pady=10)
+
+    def _show_convert_type(self, quiz: Quiz, idx: int, on_done=None):
+        qq = quiz.questions[idx]
+        win = ctk.CTkToplevel(self)
+        win.title(f"Fragetyp ändern – Frage #{idx+1}")
+        win.geometry("400x220")
+        win.grab_set()
+
+        type_options = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop"]
+        current = qq.question_type.value if hasattr(qq.question_type, 'value') else str(qq.question_type)
+
+        ctk.CTkLabel(win, text=f"Aktueller Typ: {current}",
+                    font=("Segoe UI", 12)).pack(padx=20, pady=(15, 5))
+        ctk.CTkLabel(win, text="Neuen Typ wählen:",
+                    font=("Segoe UI", 11), text_color=COLORS["text_light"]).pack(padx=20)
+        type_var = StringVar(value=current)
+        ctk.CTkOptionMenu(win, values=type_options, variable=type_var, width=300).pack(padx=20, pady=10)
+        status_label = ctk.CTkLabel(win, text="", font=("Segoe UI", 11), text_color=COLORS["primary"])
+        status_label.pack(padx=20)
+
+        def do_convert():
+            target = type_var.get()
+            if target == current:
+                win.destroy()
+                return
+            status_label.configure(text=f"⏳ Wandle in {target} um…")
+            win.update()
+            try:
+                q_dict = qq.to_dict() if hasattr(qq, 'to_dict') else {
+                    "question_type": current,
+                    "text": qq.text, "title": qq.title, "topic": qq.topic,
+                    "options": [{"text": o.text, "is_correct": o.is_correct} for o in (qq.options or [])],
+                    "explanation": qq.explanation, "correct_text": qq.correct_text,
+                }
+                prompt = (f"Aktuelle Frage:\n{json.dumps(q_dict, ensure_ascii=False, indent=2)}\n\n"
+                         f'Wandle diese Frage in den Typ "{target}" um. Behalte den Inhalt bei.')
+                result = self.ai._call_api([
+                    {"role": "system", "content": "Du bist ein Prüfungsexperte. Wandle die Quizfrage in den angegebenen Typ um. Gib NUR das geänderte JSON-Objekt zurück, kein Markdown."},
+                    {"role": "user", "content": prompt}
+                ])
+                if result and not result.startswith("ERROR"):
+                    from .ai_service import AIService
+                    cleaned = AIService._repair_json(result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+                    data = json.loads(cleaned)
+                    data["question_type"] = target
+                    new_q = self._question_from_ai_result(data, getattr(qq, 'diagram_image_path', '') or getattr(qq, 'image_path', '') or '')
+                    new_q.id = qq.id
+                    quiz.questions[idx] = new_q
+                    win.destroy()
+                    if on_done:
+                        on_done()
+                else:
+                    status_label.configure(text=f"Fehler: {result}")
+            except Exception as e:
+                status_label.configure(text=f"Fehler: {e}")
+
+        ctk.CTkButton(win, text="Typ umwandeln", fg_color=COLORS["warning"], command=do_convert).pack(pady=10)
 
     # ── AI IMPORT ──
 

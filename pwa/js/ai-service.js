@@ -66,6 +66,14 @@ async function chatCompletion(messages, { apiKey, model, stream = false } = {}) 
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 404 && model !== DEFAULT_MODEL) {
+      const fallback = confirm(
+        `Das Modell "${model}" ist nicht verfügbar (404).\n\nSoll stattdessen "${DEFAULT_MODEL}" verwendet werden?`
+      );
+      if (fallback) {
+        return chatCompletion(messages, { apiKey, model: DEFAULT_MODEL, stream });
+      }
+    }
     throw new Error(`OpenRouter-Fehler ${res.status}: ${body}`);
   }
 
