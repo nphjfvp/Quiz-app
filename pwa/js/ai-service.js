@@ -248,3 +248,36 @@ export async function simplifyExplanation(explanation, config = {}) {
   const body = await chatCompletion(messages, { apiKey, model, stream: true });
   return readStream(body);
 }
+
+export async function editQuestionWithAI(question, instruction, targetType = null, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+
+  const typeHint = targetType && targetType !== question.question_type
+    ? `\nWICHTIG: Wandle die Frage in den Typ "${targetType}" um. Passe Optionen/Felder entsprechend an.`
+    : "";
+
+  const systemPrompt = `Du bist ein Prüfungsexperte. Du erhältst eine bestehende Quizfrage als JSON und eine Änderungsanweisung.
+Gib die überarbeitete Frage als einzelnes JSON-Objekt zurück (kein Array, kein Markdown).
+Behalte alle Felder bei und ändere nur, was nötig ist.${typeHint}
+
+Fragetypen und ihre Pflichtfelder:
+- "single_choice": options (Array mit is_correct, genau 1x true), min 3 Optionen
+- "multiple_choice": options (Array mit is_correct, min 2x true), min 4 Optionen
+- "free_text": correct_text (String)
+- "fill_blank": question_text mit ___ Lücken, blanks (Array der Lösungswörter)
+- "drag_drop": options mit drag_items und drop_targets Arrays
+- "diagram_label": diagram_labels Array
+- "mark_image": mark_regions Array
+- "math_formula": correct_formula, tolerance`;
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: `Aktuelle Frage:\n${JSON.stringify(question, null, 2)}\n\nAnweisung: ${instruction}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  const edited = parseJSON(raw);
+  if (!edited || typeof edited !== "object") throw new Error("KI-Antwort ist kein gültiges Fragen-Objekt.");
+  edited.id = question.id;
+  return edited;
+}

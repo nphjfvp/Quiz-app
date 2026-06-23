@@ -96,6 +96,16 @@ export async function render(root) {
       <div id="file-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
     </div>`;
 
+  // Reset
+  html += `<div class="section-title">Zurücksetzen</div>
+    <div class="card">
+      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px">
+        Alle lokalen Daten löschen: Quizze, Fortschritt, Statistiken und Einstellungen.
+      </div>
+      <button class="btn btn-sm" id="reset-btn" style="background:var(--danger);color:white">Alle Daten zurücksetzen</button>
+      <div id="reset-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
+    </div>`;
+
   root.innerHTML = html;
 
   // Navigation
@@ -204,6 +214,23 @@ export async function render(root) {
       if (needsPlacement) msg += ` ${needsPlacement} Diagramm-Frage(n) – bitte Labels im Editor platzieren.`;
       st.textContent = msg;
     } catch { st.textContent = "Fehler: Ungültiges Dateiformat."; }
+  });
+
+  // Reset
+  root.querySelector("#reset-btn")?.addEventListener("click", async () => {
+    const st = root.querySelector("#reset-status");
+    if (!confirm("Wirklich ALLE Daten löschen? Quizze, Fortschritt, Statistiken — alles wird unwiderruflich gelöscht!")) return;
+    if (!confirm("Bist du sicher? Dies kann NICHT rückgängig gemacht werden.")) return;
+    try {
+      const { saveQuizzes, saveProgress, saveSettings: saveSett, saveMarked: saveMark, saveStats: saveStat, saveErrorDiary, saveFolders, saveDailyState } = await import("../store.js");
+      await Promise.all([
+        saveQuizzes([]), saveProgress({}), saveSett({}), saveMark([]),
+        saveStat({}), saveErrorDiary([]), saveFolders([]), saveDailyState(null),
+      ]);
+      setAccount(null);
+      st.textContent = "✓ Alle Daten gelöscht.";
+      setTimeout(() => navigate("home"), 1500);
+    } catch { st.textContent = "Fehler beim Zurücksetzen."; }
   });
 }
 
