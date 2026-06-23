@@ -917,6 +917,29 @@ a:focus-visible, [tabindex]:focus-visible {
   outline-offset: 2px;
 }
 
+/* ── Cloze Generator ──────────────────────────────── */
+.cloze-text { font-size: 1rem; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+.cloze-inputs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
+.cloze-input-row { display: flex; align-items: center; gap: 6px; }
+.cloze-label { font-weight: 700; color: var(--primary); min-width: 32px; }
+.cloze-entry { border: 2px solid var(--border); border-radius: var(--radius-md); padding: 6px 10px; font-size: .95rem; transition: border-color .2s; }
+.cloze-entry:focus { border-color: var(--primary); outline: none; }
+.cloze-drop-zone {
+  display: inline-block; min-width: 60px; padding: 2px 10px; margin: 2px 1px;
+  border: 2px dashed var(--border); border-radius: var(--radius-md); color: var(--text-light);
+  text-align: center; transition: all .2s; cursor: pointer; vertical-align: middle;
+}
+.cloze-drop-zone.drag-over { border-color: var(--primary); background: var(--primary-subtle); }
+.cloze-drop-zone.filled { border-style: solid; border-color: var(--primary); color: var(--text); font-weight: 600; background: var(--primary-subtle); }
+.cloze-chip-pool { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0; }
+.cloze-chip {
+  display: inline-block; padding: 5px 14px; border-radius: 99px; font-weight: 600; font-size: .9rem;
+  background: var(--primary); color: #fff; cursor: grab; user-select: none; transition: all .15s;
+}
+.cloze-chip.dragging { opacity: .5; }
+.cloze-chip.selected { box-shadow: 0 0 0 3px var(--accent); transform: scale(1.05); }
+.preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
   * { transition-duration: 0.01ms !important; }

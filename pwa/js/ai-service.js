@@ -338,6 +338,67 @@ export async function simplifyExplanation(explanation, config = {}) {
   return readStream(body);
 }
 
+export async function analyzeClozeKeywords(text, minChars = 1200, maxChars = 2500, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const lengthHint = `Der Text soll zwischen ${minChars} und ${maxChars} Zeichen lang sein. `;
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein Experte für Lernmaterial. Erstelle eine EIGENE Zusammenfassung des gegebenen " +
+        "Textes als Fließtext. KOPIERE NICHT den Originaltext! " +
+        lengthHint +
+        "Identifiziere dann die wichtigsten Fachbegriffe, Zahlen und Schlüsselwörter im Text. " +
+        'Antworte mit exakt diesem JSON-Format:\n' +
+        '{"summary": "Dein zusammenfassender Fließtext hier...", ' +
+        '"keywords": [{"word": "Wort1", "index": 0}, {"word": "Wort2", "index": 50}]}\n' +
+        "WICHTIG: 'index' ist die Zeichenposition wo das Wort im summary-Text BEGINNT. " +
+        "Jedes keyword muss EXAKT so im summary vorkommen wie angegeben. " +
+        "Identifiziere 10-30 relevante Wörter.",
+    },
+    {
+      role: "user",
+      content: `Erstelle eine lernfreundliche Zusammenfassung und identifiziere Schlüsselwörter:\n\n${text}`,
+    },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  if (!raw) return { summary: text, keywords: [] };
+
+  try {
+    const obj = parseJSON(raw);
+    const summary = obj.summary || text;
+    const keywords = (obj.keywords || [])
+      .filter(kw => kw.word && summary.includes(kw.word))
+      .map(kw => ({ word: kw.word, index: summary.indexOf(kw.word) }));
+    return { summary, keywords };
+  } catch {
+    return { summary: text, keywords: [] };
+  }
+}
+
+export async function aiValidateAnswer(questionText, correctAnswer, userAnswer, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein Prüfungsbewerter. Prüfe ob die Antwort des Studenten inhaltlich korrekt ist. " +
+        "Ignoriere Tippfehler und kleine Formulierungsunterschiede. " +
+        "Antworte NUR mit 'JA' oder 'NEIN'.",
+    },
+    {
+      role: "user",
+      content:
+        `Frage: ${questionText}\nRichtige Antwort: ${correctAnswer}\nAntwort des Studenten: ${userAnswer}\n\nIst die Antwort inhaltlich korrekt? Antworte nur mit JA oder NEIN.`,
+    },
+  ];
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  if (!raw) return false;
+  return raw.trim().toUpperCase().startsWith("JA");
+}
+
 export async function editQuestionWithAI(question, instruction, targetType = null, config = {}) {
   const { apiKey, model } = await getConfig(config);
 
