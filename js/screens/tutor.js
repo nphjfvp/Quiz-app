@@ -13,10 +13,13 @@ export async function render(root, params = {}) {
   </div>`;
 
   // Question context card
+  const questionImage = params.question?.image || null;
   if (params.question) {
     const qText = params.question.text || params.question.question || JSON.stringify(params.question);
     html += `<div class="card" style="margin-bottom:0.5rem;padding:0.75rem;font-size:0.9rem;opacity:0.9">
       <strong>Frage:</strong> ${escapeHtml(qText)}
+      ${questionImage ? `<img src="${escapeHtml(questionImage)}" style="max-width:100%;border-radius:8px;margin-top:8px" alt="Aufgabenbild">` : ""}
+      ${questionImage ? `<div style="font-size:0.75rem;color:var(--text-light,#888);margin-top:4px">📷 Bild wird automatisch an die KI gesendet</div>` : ""}
     </div>`;
   }
 
@@ -105,7 +108,7 @@ export async function render(root, params = {}) {
     addTypingIndicator();
 
     try {
-      const reply = await askTutor(text, buildContext(), chatHistory);
+      const reply = await askTutor(text, buildContext(), chatHistory, {}, questionImage);
       removeTypingIndicator();
       chatHistory.push({ role: "user", content: text });
       chatHistory.push({ role: "assistant", content: reply });

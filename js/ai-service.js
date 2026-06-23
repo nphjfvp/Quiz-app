@@ -2,6 +2,7 @@ import { loadSettings } from "./store.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-4o-mini";
+const VISION_MODEL = "openai/gpt-4o-mini";
 
 function uid() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -135,38 +136,48 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
   }));
 }
 
-export async function explainAnswer(question, userAnswer, correctAnswer, config = {}) {
+export async function explainAnswer(question, userAnswer, correctAnswer, config = {}, imageUrl = null) {
   const { apiKey, model } = await getConfig(config);
+  const useVision = !!imageUrl;
+  const effectiveModel = useVision ? VISION_MODEL : model;
+
+  const textContent = `Frage: ${question}\n\nAntwort des Lernenden: ${userAnswer}\nRichtige Antwort: ${correctAnswer}\n\nErkläre bitte, warum die richtige Antwort korrekt ist und wo der Fehler lag (falls vorhanden).${useVision ? "\n\nDas Bild zeigt die zugehörige Aufgabe/das Diagramm. Beziehe dich in deiner Erklärung auf das Bild." : ""}`;
+
+  const userContent = useVision
+    ? [{ type: "text", text: textContent }, { type: "image_url", image_url: { url: imageUrl } }]
+    : textContent;
 
   const messages = [
     {
       role: "system",
       content:
-        "Du bist ein geduldiger Lerntutor. Erkläre dem Lernenden verständlich und ermutigend, warum eine Antwort richtig oder falsch ist. Antworte auf Deutsch.",
+        "Du bist ein geduldiger Lerntutor. Erkläre dem Lernenden verständlich und ermutigend, warum eine Antwort richtig oder falsch ist. Antworte auf Deutsch." + (useVision ? " Dir wird auch ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""),
     },
-    {
-      role: "user",
-      content: `Frage: ${question}\n\nAntwort des Lernenden: ${userAnswer}\nRichtige Antwort: ${correctAnswer}\n\nErkläre bitte, warum die richtige Antwort korrekt ist und wo der Fehler lag (falls vorhanden).`,
-    },
+    { role: "user", content: userContent },
   ];
 
-  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const body = await chatCompletion(messages, { apiKey, model: effectiveModel, stream: true });
   return readStream(body);
 }
 
-export async function askTutor(question, context = "", chatHistory = [], config = {}) {
+export async function askTutor(question, context = "", chatHistory = [], config = {}, imageUrl = null) {
   const { apiKey, model } = await getConfig(config);
+  const useVision = !!imageUrl && chatHistory.length === 0;
+  const effectiveModel = useVision ? VISION_MODEL : model;
+
+  const systemContent = `Du bist ein freundlicher und kompetenter Lerntutor. Hilf dem Lernenden, den Stoff zu verstehen. Antworte auf Deutsch, klar und verständlich.${useVision ? " Dir wird ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""}${context ? `\n\nKontext:\n${context}` : ""}`;
+
+  const userContent = useVision
+    ? [{ type: "text", text: question }, { type: "image_url", image_url: { url: imageUrl } }]
+    : question;
 
   const messages = [
-    {
-      role: "system",
-      content: `Du bist ein freundlicher und kompetenter Lerntutor. Hilf dem Lernenden, den Stoff zu verstehen. Antworte auf Deutsch, klar und verständlich.${context ? `\n\nKontext:\n${context}` : ""}`,
-    },
+    { role: "system", content: systemContent },
     ...chatHistory.map((m) => ({ role: m.role, content: m.content })),
-    { role: "user", content: question },
+    { role: "user", content: userContent },
   ];
 
-  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const body = await chatCompletion(messages, { apiKey, model: effectiveModel, stream: true });
   return readStream(body);
 }
 

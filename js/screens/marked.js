@@ -73,7 +73,10 @@ export async function render(root) {
       btn.addEventListener("click", () => {
         const id = btn.dataset.id;
         const q = questions.find(q => q.id === id);
-        if (q) navigate("tutor", { question: q });
+        if (q) {
+          const qImage = q.diagram_image_path || q.diagram_image || q.image_path || q.image || null;
+          navigate("tutor", { question: { ...q, text: q.question_text || q.text, image: qImage } });
+        }
       });
     });
   }

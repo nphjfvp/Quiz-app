@@ -113,7 +113,8 @@ function showDetail(root, q, result, session, quiz) {
     textEl.textContent = "Generiere Erklärung...";
     try {
       const questionText = q.question_text || q.text || q.title || "";
-      const explanation = await explainAnswer(questionText, result?.user_answer || "", result?.correct_answer || "");
+      const qImage = q.diagram_image_path || q.diagram_image || q.image_path || q.image || null;
+      const explanation = await explainAnswer(questionText, result?.user_answer || "", result?.correct_answer || "", {}, qImage);
       textEl.textContent = explanation;
     } catch (err) {
       textEl.textContent = "Fehler: " + (err.message || "KI-Erklärung konnte nicht geladen werden.");
@@ -123,7 +124,8 @@ function showDetail(root, q, result, session, quiz) {
   });
 
   root.querySelector("#ai-tutor")?.addEventListener("click", () => {
-    navigate("tutor", { question: { text: q.question_text || q.text, correct: result?.correct_answer } });
+    const qImage = q.diagram_image_path || q.diagram_image || q.image_path || q.image || null;
+    navigate("tutor", { question: { text: q.question_text || q.text, correct: result?.correct_answer, image: qImage } });
   });
 }
 
