@@ -3805,6 +3805,7 @@ class App(ctk.CTk):
                                              x=float(dl.get("x", 0.5)),
                                              y=float(dl.get("y", 0.5)))
                                 for dl in labels]
+            q._needs_placement = True
             if img_path:
                 q.diagram_image_path = img_path
         if not q.text:
@@ -3862,6 +3863,8 @@ class App(ctk.CTk):
                 meta = f"{tlabel} · {qq.topic or 'kein Thema'}"
                 if qq.diagram_image_path or qq.image_path:
                     meta += " · 🖼️ Bild"
+                if getattr(qq, '_needs_placement', False):
+                    meta += " · ⚠️ Labels platzieren!"
                 ctk.CTkLabel(card, text=meta, font=("Segoe UI", 10),
                             text_color=COLORS["text_light"], anchor="w"
                             ).grid(row=1, column=1, sticky="w", padx=5, pady=(0, 10))
