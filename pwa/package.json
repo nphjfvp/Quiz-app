@@ -1,0 +1,15 @@
+{
+  "name": "lerntrainer-pwa",
+  "version": "1.0.0",
+  "description": "Lerntrainer – Quiz & Lern-App (PWA + Capacitor)",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve . -l 3000",
+    "cap:init": "npx cap init Lerntrainer com.lerntrainer.app --web-dir .",
+    "cap:android": "npx cap add android",
+    "cap:ios": "npx cap add ios",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios"
+  }
+}
