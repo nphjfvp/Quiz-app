@@ -3,6 +3,8 @@ import { loadSettings } from "./store.js";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
+// Ultra-fast, free model for real-time game checks (explanation + free-text grading)
+const FAST_MODEL = "google/gemma-4-12b-it:free";
 
 export const MODELS = [
   // ── Gratis (nur Text) ──
@@ -507,4 +509,64 @@ Fragetypen und ihre Pflichtfelder:
   if (!edited || typeof edited !== "object") throw new Error("KI-Antwort ist kein gültiges Fragen-Objekt.");
   edited.id = question.id;
   return edited;
+}
+
+// ── Fast helpers for mini-games (use ultra-fast free model, no streaming) ──
+
+async function chatFast(messages, apiKey) {
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": globalThis.location?.origin ?? "https://lerntrainer.app",
+        "X-Title": "Lerntrainer PWA",
+      },
+      body: JSON.stringify({ model: FAST_MODEL, messages, temperature: 0.3, max_tokens: 300 }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.choices?.[0]?.message?.content ?? "").trim();
+  } catch { return null; }
+}
+
+// Check a free-text answer using AI. Returns { correct: bool, feedback: string }.
+export async function checkFreeTextAI(question, userAnswer, acceptedAnswers) {
+  const { apiKey } = await getConfig();
+  if (!apiKey) return null;
+  const messages = [
+    {
+      role: "system",
+      content: `Du bist ein strenger aber fairer Lehrer. Prüfe ob die Antwort des Schülers inhaltlich korrekt ist.
+Akzeptierte Antworten als Referenz: ${acceptedAnswers.join(", ")}
+Antworte NUR mit einem JSON-Objekt: {"correct":true/false,"feedback":"kurze Begründung in 1 Satz"}
+Sei tolerant bei Tippfehlern und Synonymen, aber die Kernaussage muss stimmen.`,
+    },
+    { role: "user", content: `Frage: ${question}\nAntwort: ${userAnswer}` },
+  ];
+  const raw = await chatFast(messages, apiKey);
+  if (!raw) return null;
+  try {
+    const m = raw.match(/\{[\s\S]*\}/);
+    return m ? JSON.parse(m[0]) : null;
+  } catch { return null; }
+}
+
+// Generate a short explanation for a wrong answer on demand.
+export async function quickExplain(question, correctAnswer, userAnswer) {
+  const { apiKey } = await getConfig();
+  if (!apiKey) return null;
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Lerntutor. Erkläre in 2-3 kurzen Sätzen, warum die richtige Antwort korrekt ist. Einfache Sprache, auf Deutsch.",
+    },
+    {
+      role: "user",
+      content: `Frage: ${question}\nRichtige Antwort: ${correctAnswer}${userAnswer ? `\nAntwort des Schülers: ${userAnswer}` : ""}\n\nErkläre kurz.`,
+    },
+  ];
+  return chatFast(messages, apiKey);
 }

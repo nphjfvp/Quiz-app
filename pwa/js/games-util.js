@@ -95,6 +95,22 @@ export function checkText(accept, value) {
   return accept.some(a => a === v || (a.length > 3 && a.includes(v)) || (v.length > 3 && v.includes(a)));
 }
 
+// AI-enhanced text check: first tries local match, then falls back to AI.
+// Returns a Promise<{correct, feedback?}>.
+export async function checkTextSmart(question, accept, value) {
+  const localOk = checkText(accept, value);
+  if (localOk) return { correct: true, feedback: null };
+  // If the user typed something non-trivial, ask AI
+  const v = norm(value);
+  if (!v || v.length < 2) return { correct: false, feedback: null };
+  try {
+    const { checkFreeTextAI } = await import("./ai-service.js");
+    const result = await checkFreeTextAI(question, value, accept);
+    if (result) return result;
+  } catch { /* no API key or network error — fall back to local */ }
+  return { correct: false, feedback: null };
+}
+
 export function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -147,14 +163,18 @@ export function buildFeedbackHtml(log) {
   if (wrong.length) {
     reviewHtml = `<h3 class="fb-h3">📌 Das solltest du dir nochmal anschauen</h3>
       <div class="fb-review">` +
-      wrong.map(e => {
+      wrong.map((e, i) => {
         const q = e.q;
         const ua = (e.userAnswer ?? "").toString().trim();
+        const hasExplanation = !!(q.explanation || e.aiFeedback);
+        const explText = q.explanation || e.aiFeedback || "";
         return `<div class="fb-item fb-item-d${q.diff || 1}">
           <div class="fb-q">${escHtml(q.prompt)}</div>
           ${ua ? `<div class="fb-ua">Deine Antwort: <span>${escHtml(ua)}</span></div>` : ""}
           <div class="fb-ca">✅ Richtig: <span>${escHtml(q.answerText || "—")}</span></div>
-          ${q.explanation ? `<div class="fb-ex">💡 ${escHtml(q.explanation)}</div>` : ""}
+          ${hasExplanation ? `<div class="fb-ex">💡 ${escHtml(explText)}</div>` : ""}
+          ${!hasExplanation ? `<button class="fb-explain-btn" data-idx="${i}">💡 Erklärung laden</button>
+            <div class="fb-ex fb-ex-ai" id="fb-ex-${i}" style="display:none"></div>` : ""}
         </div>`;
       }).join("") +
       `</div>`;
@@ -179,4 +199,32 @@ export function buildFeedbackHtml(log) {
     <div class="fb-diffs">${diffRows}</div>
     ${reviewHtml}
   </div>`;
+}
+
+// Call AFTER inserting the feedback HTML into the DOM.
+// Wires up the "💡 Erklärung laden" buttons.
+export function attachFeedbackListeners(container, log) {
+  const wrong = (log || []).filter(e => !e.correct);
+  container.querySelectorAll(".fb-explain-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.dataset.idx);
+      const e = wrong[idx];
+      if (!e) return;
+      btn.textContent = "⏳ Lädt…";
+      btn.disabled = true;
+      try {
+        const { quickExplain } = await import("./ai-service.js");
+        const text = await quickExplain(e.q.prompt, e.q.answerText || "", e.userAnswer || "");
+        const box = container.querySelector(`#fb-ex-${idx}`);
+        if (text && box) {
+          box.textContent = "💡 " + text;
+          box.style.display = "block";
+        }
+        btn.style.display = "none";
+      } catch {
+        btn.textContent = "❌ Fehler — nochmal?";
+        btn.disabled = false;
+      }
+    });
+  });
 }

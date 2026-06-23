@@ -1135,6 +1135,15 @@ a:focus-visible, [tabindex]:focus-visible {
 .fb-ex { color: #cbd5e1; font-style: italic; }
 .fb-perfect { text-align: center; color: #86efac; font-weight: 600; margin: 8px 0; }
 
+.fb-explain-btn {
+  background: rgba(251,191,36,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3);
+  border-radius: 6px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer;
+  margin-top: 4px; transition: all 0.15s;
+}
+.fb-explain-btn:hover { background: rgba(251,191,36,0.25); }
+.fb-explain-btn:disabled { opacity: 0.6; cursor: wait; }
+.fb-ex-ai { color: #93c5fd; margin-top: 4px; }
+
 /* Games Hub */
 .games-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0; }
 .game-card {
