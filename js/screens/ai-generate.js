@@ -1,5 +1,5 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
+import { generateQuiz, generateQuizFromImage, generateQuizFromImages, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
 
@@ -23,6 +23,8 @@ export async function render(root, params = {}) {
   let currentModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
   let charLimit = getModelContextLimit(currentModel);
   let uploadedFileType = null;
+  let uploadedImageData = null;
+  let pdfPageImages = null; // data-URLs of rendered PDF pages when visual mode is on
 
   function fmtLimit(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -36,7 +38,7 @@ export async function render(root, params = {}) {
       <h2>Quiz mit KI erstellen</h2>
     </div>
 
-    <div class="card" style="margin-top:1rem">
+    <div class="card mt-section">
       <div class="editor-form">
         <div class="input-group">
           <label>Quiz-Name (optional)</label>
@@ -46,23 +48,29 @@ export async function render(root, params = {}) {
         <div class="input-group">
           <label>Lerntext eingeben oder Datei hochladen</label>
           <textarea id="ai-text" class="textarea input" rows="10" placeholder="Hier den Text einfügen, aus dem Fragen generiert werden sollen…">${esc(prefillText)}</textarea>
-          <div id="char-counter" style="font-size:0.75rem;color:var(--text-light);margin-top:4px;display:flex;justify-content:space-between">
+          <div id="char-counter" class="char-counter">
             <span id="char-count">0 Zeichen</span>
             <span>Max ~${fmtLimit(charLimit)} Zeichen (${esc(currentModel.split("/").pop())})</span>
           </div>
         </div>
 
         <div class="input-group">
-          <label>Datei laden (.txt, .pdf)</label>
-          <input type="file" id="ai-file" accept=".txt,.pdf" class="input">
-          <small style="color:var(--text-light);margin-top:0.25rem;display:block">
-            PDF-Text wird automatisch extrahiert.
-          </small>
-          <div id="file-progress" style="display:none;margin-top:0.5rem">
-            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-              <div id="file-bar" style="height:100%;background:var(--primary);width:0%;transition:width 0.3s"></div>
+          <label>Datei laden (.txt, .pdf, Bild)</label>
+          <input type="file" id="ai-file" accept=".txt,.pdf,image/*" class="input">
+          <small class="file-hint">PDF-Text wird automatisch extrahiert. Bilder (Diagramme, Screenshots) werden per Vision-KI analysiert.</small>
+          <div id="visual-toggle-row" class="visual-toggle-row" style="display:none">
+            <label class="toggle-label">
+              <input type="checkbox" id="visual-toggle">
+              <span>📸 Enthält relevante Bilder</span>
+            </label>
+            <small class="file-hint">Wenn aktiv, werden PDF-Seiten als Bilder an ein Vision-Modell gesendet — so werden Diagramme, Formeln und Grafiken erkannt.</small>
+          </div>
+          <div id="img-preview" class="img-preview"></div>
+          <div id="file-progress" class="file-progress">
+            <div class="file-track">
+              <div id="file-bar" class="file-fill"></div>
             </div>
-            <small id="file-info" style="color:var(--text-light)">Extrahiere Text...</small>
+            <small id="file-info" class="file-info">Extrahiere Text...</small>
           </div>
         </div>
 
@@ -79,7 +87,7 @@ export async function render(root, params = {}) {
               </div>`;
             }).join("")}
           </div>
-          <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = kann Bilder sehen · 📝 = nur Text</div>
+          <div class="gen-model-hint">👁 = kann Bilder sehen · 📝 = nur Text</div>
         </div>
 
         <div class="input-group">
@@ -93,7 +101,7 @@ export async function render(root, params = {}) {
           </select>
         </div>
 
-        <div id="ai-error" style="display:none;color:var(--danger,#e53e3e);background:var(--danger-bg,#fff5f5);padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:0.95rem"></div>
+        <div id="ai-error" class="error-box"></div>
 
         <button id="ai-generate" class="btn btn-primary btn-lg btn-block">
           Quiz generieren
@@ -116,11 +124,17 @@ export async function render(root, params = {}) {
   const fileInfo = root.querySelector("#file-info");
 
   // --- Model selection ---
+  function needsVision() {
+    if (uploadedFileType === "image") return true;
+    if (uploadedFileType === "pdf" && root.querySelector("#visual-toggle")?.checked) return true;
+    return false;
+  }
+
   function updateModelAvailability() {
+    const requireVision = needsVision();
     root.querySelectorAll("#gen-model-list .model-option").forEach(el => {
       const vision = el.dataset.vision === "true";
-      // PDFs werden lokal zu Text extrahiert – nur Bilder brauchen ein Vision-Modell
-      const incompatible = uploadedFileType === "image" && !vision;
+      const incompatible = requireVision && !vision;
       el.classList.toggle("disabled", incompatible);
       if (incompatible && el.classList.contains("selected")) {
         el.classList.remove("selected");
@@ -150,13 +164,80 @@ export async function render(root, params = {}) {
     });
   });
 
+  root.querySelector("#visual-toggle").addEventListener("change", async () => {
+    updateModelAvailability();
+    const visualOn = root.querySelector("#visual-toggle").checked;
+    const file = fileInput.files[0];
+    if (visualOn && file && file.name.endsWith(".pdf") && !pdfPageImages) {
+      await renderPdfAsImages(file);
+    }
+    if (!visualOn) {
+      pdfPageImages = null;
+      root.querySelector("#img-preview").innerHTML = "";
+    }
+  });
+
+  async function renderPdfAsImages(file) {
+    fileProgress.style.display = "block";
+    fileBar.style.width = "10%";
+    fileInfo.textContent = "Rendere PDF-Seiten als Bilder…";
+    try {
+      const pdfjsLib = await loadPdfJs();
+      fileBar.style.width = "20%";
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const images = [];
+      const maxPages = Math.min(pdf.numPages, 20);
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const scale = 2;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d");
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        images.push(canvas.toDataURL("image/jpeg", 0.85));
+        fileBar.style.width = (20 + 80 * i / maxPages) + "%";
+        fileInfo.textContent = `Seite ${i}/${maxPages} gerendert…`;
+      }
+      pdfPageImages = images;
+      const previewDiv = root.querySelector("#img-preview");
+      previewDiv.innerHTML = `<div class="file-hint">📸 ${images.length} Seiten als Bilder geladen${pdf.numPages > 20 ? ` (max. 20 von ${pdf.numPages})` : ""}. Vision-KI wird Bilder, Diagramme und Formeln erkennen.</div>`;
+      previewDiv.innerHTML += images.slice(0, 3).map(src => `<img src="${src}" alt="PDF-Seite" style="max-height:120px;border-radius:8px;margin:4px">`).join("");
+      if (images.length > 3) previewDiv.innerHTML += `<small>… und ${images.length - 3} weitere</small>`;
+      fileInfo.textContent = `✓ ${images.length} Seiten gerendert`;
+      setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
+    } catch (err) {
+      showError("PDF-Seiten konnten nicht gerendert werden: " + (err.message || err));
+      fileProgress.style.display = "none";
+    }
+  }
+
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
     if (!file) return;
     hideError();
 
-    uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? "image" : null;
+    const isImage = file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i);
+    uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : isImage ? "image" : null;
+    uploadedImageData = null;
+    pdfPageImages = null;
+    root.querySelector("#img-preview").innerHTML = "";
+    root.querySelector("#visual-toggle-row").style.display = uploadedFileType === "pdf" ? "" : "none";
+    root.querySelector("#visual-toggle").checked = false;
     updateModelAvailability();
+
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        uploadedImageData = reader.result;
+        root.querySelector("#img-preview").innerHTML = `<img src="${uploadedImageData}" alt="Vorschau"><div class="file-hint">Bild wird per Vision-KI analysiert. „Quiz generieren" startet die Auswertung.</div>`;
+      };
+      reader.onerror = () => showError("Bild konnte nicht gelesen werden.");
+      reader.readAsDataURL(file);
+      return;
+    }
 
     if (file.name.endsWith(".txt")) {
       const reader = new FileReader();
@@ -233,8 +314,44 @@ export async function render(root, params = {}) {
   // --- Generate ---
   genBtn.addEventListener("click", async () => {
     const text = textArea.value.trim();
+    const numQuestions = parseInt(numSelect.value, 10);
+
+    // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild)
+    if (uploadedImageData && !text) {
+      const quizName = nameInput.value.trim() || `KI-Quiz (Bild)`;
+      hideError();
+      genBtn.disabled = true;
+      genBtn.textContent = "⏳ Analysiere Bild…";
+      try {
+        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel });
+        showReview(root, questions, quizName, currentModel);
+      } catch (err) {
+        showError(err.message || "Bild konnte nicht ausgewertet werden.");
+        genBtn.disabled = false;
+        genBtn.textContent = "Quiz generieren";
+      }
+      return;
+    }
+
+    // PDF visuell: Seiten als Bilder an Vision-KI
+    if (pdfPageImages && root.querySelector("#visual-toggle")?.checked) {
+      const quizName = nameInput.value.trim() || `KI-Quiz (PDF visuell)`;
+      hideError();
+      genBtn.disabled = true;
+      genBtn.textContent = `⏳ Analysiere ${pdfPageImages.length} Seiten…`;
+      try {
+        const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel }, text || undefined);
+        showReview(root, questions, quizName, currentModel);
+      } catch (err) {
+        showError(err.message || "PDF-Bilder konnten nicht ausgewertet werden.");
+        genBtn.disabled = false;
+        genBtn.textContent = "Quiz generieren";
+      }
+      return;
+    }
+
     if (!text) {
-      showError("Bitte einen Lerntext eingeben oder eine Datei hochladen.");
+      showError("Bitte einen Lerntext eingeben oder eine Datei/Bild hochladen.");
       return;
     }
     if (text.length < 50) {
@@ -242,7 +359,6 @@ export async function render(root, params = {}) {
       return;
     }
 
-    const numQuestions = parseInt(numSelect.value, 10);
     const quizName = nameInput.value.trim() || `KI-Quiz (${numQuestions} Fragen)`;
 
     let inputText = text;
@@ -283,76 +399,71 @@ function showReview(root, questions, quizName, modelId) {
 
   function renderReview() {
     let html = `<div class="editor-header">
-      <button class="btn-icon back-btn" id="review-back">←</button>
+      <button class="btn-icon" id="review-back">←</button>
       <h2>Fragen prüfen (${qs.length})</h2>
     </div>
-    <div style="font-size:0.85rem;color:var(--text-light);margin:8px 0 16px">
-      Prüfe die generierten Fragen. Du kannst sie bearbeiten, per KI ändern lassen, den Typ wechseln oder löschen.
-    </div>`;
+    <div class="review-hint">Prüfe die generierten Fragen. Du kannst sie bearbeiten, per KI ändern lassen, den Typ wechseln oder löschen.</div>`;
 
     qs.forEach((q, i) => {
       const typeLabel = Q_TYPES.find(t => t.id === q.question_type)?.label || q.question_type;
-      html += `<div class="card" style="margin-bottom:12px" data-idx="${i}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-weight:700;font-size:0.8rem;color:var(--primary)">Frage ${i + 1}</span>
-          <span style="font-size:0.7rem;background:var(--row-neutral);padding:2px 8px;border-radius:10px">${typeLabel}</span>
+      html += `<div class="card review-card" data-idx="${i}">
+        <div class="review-card-head">
+          <span class="review-card-num">Frage ${i + 1}</span>
+          <span class="tag">${typeLabel}</span>
         </div>
-        <div class="input-group" style="margin-bottom:6px">
-          <label style="font-size:0.75rem">Fragetext</label>
-          <textarea class="textarea input q-text" rows="2" style="font-size:0.85rem">${esc(q.question_text || "")}</textarea>
+        <div class="input-group">
+          <label>Fragetext</label>
+          <textarea class="textarea input q-text" rows="2">${esc(q.question_text || "")}</textarea>
         </div>`;
 
       if (q.options && q.options.length) {
-        html += `<div style="margin-bottom:6px">
-          <label style="font-size:0.75rem;color:var(--text-light)">Antworten</label>`;
+        html += `<div class="review-opts">
+          <label>Antworten</label>`;
         q.options.forEach((o, oi) => {
-          html += `<div style="display:flex;align-items:center;gap:6px;margin:3px 0">
+          html += `<div class="review-opt-row">
             <input type="checkbox" class="opt-correct" data-oi="${oi}" ${o.is_correct ? "checked" : ""}>
-            <input type="text" class="input opt-text" data-oi="${oi}" value="${esc(o.text || "")}" style="flex:1;font-size:0.8rem;padding:4px 8px">
+            <input type="text" class="input opt-text" data-oi="${oi}" value="${esc(o.text || "")}">
           </div>`;
         });
         html += `</div>`;
       }
 
       if (q.correct_text !== undefined && q.question_type === "free_text") {
-        html += `<div class="input-group" style="margin-bottom:6px">
-          <label style="font-size:0.75rem">Richtige Antwort</label>
-          <input type="text" class="input q-correct-text" value="${esc(q.correct_text || "")}" style="font-size:0.85rem">
+        html += `<div class="input-group">
+          <label>Richtige Antwort</label>
+          <input type="text" class="input q-correct-text" value="${esc(q.correct_text || "")}">
         </div>`;
       }
 
       if (q.explanation) {
-        html += `<div class="input-group" style="margin-bottom:6px">
-          <label style="font-size:0.75rem">Erklärung</label>
-          <textarea class="textarea input q-explanation" rows="2" style="font-size:0.8rem">${esc(q.explanation || "")}</textarea>
+        html += `<div class="input-group">
+          <label>Erklärung</label>
+          <textarea class="textarea input q-explanation" rows="2">${esc(q.explanation || "")}</textarea>
         </div>`;
       }
 
-      // Type conversion
-      html += `<div style="display:flex;gap:6px;align-items:center;margin:8px 0 4px;flex-wrap:wrap">
-        <select class="input q-type-select" style="font-size:0.8rem;padding:4px 8px;flex:0 0 auto">
+      html += `<div class="review-convert">
+        <select class="input q-type-select">
           ${Q_TYPES.map(t => `<option value="${t.id}" ${t.id === q.question_type ? "selected" : ""}>${t.label}</option>`).join("")}
         </select>
-        <button class="btn btn-ghost btn-sm q-convert-btn" style="font-size:0.75rem">Typ ändern</button>
+        <button class="btn btn-ghost btn-sm q-convert-btn">Typ ändern</button>
       </div>`;
 
-      // AI edit
-      html += `<div style="display:flex;gap:6px;margin:6px 0;align-items:stretch">
-        <input type="text" class="input q-ai-instruction" placeholder="KI-Anweisung, z.B. 'Mach die Frage schwerer'" style="flex:1;font-size:0.8rem;padding:4px 8px">
-        <button class="btn btn-primary btn-sm q-ai-btn" style="font-size:0.75rem;white-space:nowrap">KI ändern</button>
+      html += `<div class="review-ai-row">
+        <input type="text" class="input q-ai-instruction" placeholder="KI-Anweisung, z.B. 'Mach die Frage schwerer'">
+        <button class="btn btn-primary btn-sm q-ai-btn">KI ändern</button>
       </div>
-      <div class="q-ai-status" style="font-size:0.75rem;color:var(--text-light)"></div>`;
+      <div class="q-ai-status review-ai-status"></div>`;
 
-      // Delete
-      html += `<div style="text-align:right;margin-top:6px">
-        <button class="btn btn-ghost btn-sm q-delete-btn" style="color:var(--danger);font-size:0.75rem">Frage löschen</button>
+      html += `<div class="review-delete">
+        <button class="btn btn-ghost btn-sm q-delete-btn">Frage löschen</button>
       </div>`;
 
       html += `</div>`;
     });
 
-    html += `<div style="display:flex;gap:10px;margin:16px 0 40px">
-      <button class="btn btn-primary btn-lg" id="review-save" style="flex:1">Quiz speichern (${qs.length} Fragen)</button>
+    html += `<div class="review-save-row">
+      <button class="btn btn-primary btn-lg" id="review-save">Quiz speichern (${qs.length} Fragen)</button>
     </div>`;
 
     root.innerHTML = html;

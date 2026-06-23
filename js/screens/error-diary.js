@@ -14,8 +14,8 @@ export async function render(root) {
       <div class="section-title">📕 Fehlertagebuch</div>`;
 
     if (topics.length > 0) {
-      html += `<div style="margin-bottom:12px">
-        <select id="topic-filter" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-size:0.9rem">
+      html += `<div class="mb-row">
+        <select id="topic-filter" class="select-input">
           <option value="">Alle Themen</option>
           ${topics.map(t => `<option value="${t}" ${filter === t ? "selected" : ""}>${t}</option>`).join("")}
         </select>
@@ -23,7 +23,7 @@ export async function render(root) {
     }
 
     if (diary.length > 0) {
-      html += `<button class="btn btn-danger btn-sm" id="clear-all" style="margin-bottom:12px">Alle löschen</button>`;
+      html += `<button class="btn btn-danger btn-sm mb-row" id="clear-all">Alle löschen</button>`;
     }
 
     if (filtered.length === 0) {
@@ -31,19 +31,15 @@ export async function render(root) {
     } else {
       for (const entry of filtered) {
         const dateStr = entry.date ? new Date(entry.date).toLocaleDateString("de-DE") : "–";
-        html += `<div class="card" style="border-left:4px solid var(--danger);margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <span style="font-size:0.7rem;color:var(--text-light)">${dateStr}</span>
-            ${entry.topic ? `<span style="font-size:0.7rem;background:var(--row-neutral);padding:2px 8px;border-radius:10px">${entry.topic}</span>` : ""}
+        html += `<div class="card diary-card">
+          <div class="q-card-head">
+            <span class="q-card-quiz">${dateStr}</span>
+            ${entry.topic ? `<span class="tag">${entry.topic}</span>` : ""}
           </div>
-          <div style="font-weight:600;margin-bottom:6px;font-size:0.9rem">${entry.questionText}</div>
-          <div style="font-size:0.82rem;margin-bottom:3px">
-            <span style="color:var(--danger)">✗ Deine Antwort:</span> ${entry.userAnswer}
-          </div>
-          <div style="font-size:0.82rem">
-            <span style="color:var(--success)">✓ Richtig:</span> ${entry.correctAnswer}
-          </div>
-          ${entry.quizName ? `<div style="font-size:0.7rem;color:var(--text-light);margin-top:6px">${entry.quizName}</div>` : ""}
+          <div class="q-card-text">${entry.questionText}</div>
+          <div class="diary-line"><span class="lbl-wrong">✗ Deine Antwort:</span> ${entry.userAnswer}</div>
+          <div class="diary-line"><span class="lbl-ok">✓ Richtig:</span> ${entry.correctAnswer}</div>
+          ${entry.quizName ? `<div class="q-card-quiz" style="margin-top:6px">${entry.quizName}</div>` : ""}
           <button class="btn btn-ghost btn-sm delete-entry" data-id="${entry.id}" style="margin-top:8px">Entfernen</button>
         </div>`;
       }

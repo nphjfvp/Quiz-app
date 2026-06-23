@@ -186,6 +186,142 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
   }));
 }
 
+// Generiert Fragen direkt aus einem Bild (Screenshot, Foto, Diagramm) via Vision-Modell.
+// imageUrl: data:-URL oder http-URL. Nutzt immer ein Vision-Modell.
+export async function generateQuizFromImage(imageUrl, numQuestions = 3, language = "de", config = {}) {
+  const { apiKey } = await getConfig(config);
+  // Falls ein Vision-fähiges Modell gewählt wurde, dieses nutzen, sonst Default-Vision-Modell.
+  let model = config.model;
+  const chosen = MODELS.find((m) => m.id === model);
+  if (!chosen || !chosen.vision) model = VISION_MODEL;
+
+  const systemPrompt = `Du bist ein erfahrener Pädagoge. Analysiere das gezeigte Bild (Diagramm, Skizze, Screenshot, Tafelbild o.ä.) und erstelle daraus hochwertige Lernfragen.
+
+Regeln:
+- Erstelle bis zu ${numQuestions} Fragen, die sich auf den Bildinhalt beziehen.
+- Verwende sinnvolle Typen aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Wenn das Bild ein beschriftbares Diagramm ist, kannst du eine "diagram_label"-Frage erstellen: liste die zu beschriftenden Punkte in "diagram_labels" mit Name und relativer Position x/y (0-1) auf.
+- Jede Frage braucht eine klare Erklärung.
+- Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array (kein Markdown):
+[
+  {
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "diagram_label",
+    "question_text": "Fragetext",
+    "title": "Kurztitel",
+    "topic": "Themengebiet",
+    "points": 1,
+    "options": [{"text": "Antwort", "is_correct": true}],
+    "correct_text": "",
+    "blanks": [],
+    "diagram_labels": [{"label": "Bezeichnung", "x": 0.5, "y": 0.5}],
+    "explanation": "Erklärung"
+  }
+]`;
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: `Erstelle bis zu ${numQuestions} Prüfungsfragen auf Basis dieses Bildes.` },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ],
+    },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const raw = await readStream(body);
+  const questions = parseJSON(raw);
+  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+
+  return questions.map((q) => ({
+    id: uid(),
+    question_type: q.question_type,
+    question_text: q.question_text,
+    title: q.title ?? "",
+    topic: q.topic ?? "",
+    points: q.points ?? 1,
+    options: q.options ?? [],
+    correct_text: q.correct_text ?? "",
+    blanks: q.blanks ?? [],
+    drag_drop_pairs: q.drag_drop_pairs ?? [],
+    diagram_labels: (q.diagram_labels ?? []).map((l) => ({
+      label: l.label ?? "", x: Number(l.x ?? 0.5), y: Number(l.y ?? 0.5), _placed: false,
+    })),
+    diagram_image: q.question_type === "diagram_label" ? imageUrl : "",
+    image: (q.question_type === "single_choice" || q.question_type === "multiple_choice") ? imageUrl : "",
+    correct_formula: q.correct_formula ?? "",
+    tolerance: q.tolerance ?? 0.001,
+    explanation: q.explanation ?? "",
+  }));
+}
+
+export async function generateQuizFromImages(imageUrls, numQuestions = 5, language = "de", config = {}, additionalText = undefined) {
+  const { apiKey } = await getConfig(config);
+  let model = config.model;
+  const chosen = MODELS.find((m) => m.id === model);
+  if (!chosen || !chosen.vision) model = VISION_MODEL;
+
+  const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
+
+Regeln:
+- Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.
+- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
+- Jede Frage muss eine klare Erklärung enthalten.
+- Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array (kein Markdown):
+[
+  {
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank",
+    "question_text": "Fragetext",
+    "title": "Kurztitel",
+    "topic": "Themengebiet",
+    "points": 1,
+    "options": [{"text": "Antwort", "is_correct": true}],
+    "correct_text": "",
+    "blanks": [],
+    "explanation": "Erklärung"
+  }
+]`;
+
+  const contentParts = [
+    { type: "text", text: `Erstelle ${numQuestions} Prüfungsfragen auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
+    ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: contentParts },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const raw = await readStream(body);
+  const questions = parseJSON(raw);
+  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+
+  return questions.map((q) => ({
+    id: uid(),
+    question_type: q.question_type,
+    question_text: q.question_text,
+    title: q.title ?? "",
+    topic: q.topic ?? "",
+    points: q.points ?? 1,
+    options: q.options ?? [],
+    correct_text: q.correct_text ?? "",
+    blanks: q.blanks ?? [],
+    drag_drop_pairs: q.drag_drop_pairs ?? [],
+    correct_formula: q.correct_formula ?? "",
+    tolerance: q.tolerance ?? 0.001,
+    explanation: q.explanation ?? "",
+  }));
+}
+
 export async function explainAnswer(question, userAnswer, correctAnswer, config = {}, imageUrl = null) {
   const { apiKey, model } = await getConfig(config);
   const useVision = !!imageUrl;
@@ -263,6 +399,67 @@ export async function simplifyExplanation(explanation, config = {}) {
 
   const body = await chatCompletion(messages, { apiKey, model, stream: true });
   return readStream(body);
+}
+
+export async function analyzeClozeKeywords(text, minChars = 1200, maxChars = 2500, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const lengthHint = `Der Text soll zwischen ${minChars} und ${maxChars} Zeichen lang sein. `;
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein Experte für Lernmaterial. Erstelle eine EIGENE Zusammenfassung des gegebenen " +
+        "Textes als Fließtext. KOPIERE NICHT den Originaltext! " +
+        lengthHint +
+        "Identifiziere dann die wichtigsten Fachbegriffe, Zahlen und Schlüsselwörter im Text. " +
+        'Antworte mit exakt diesem JSON-Format:\n' +
+        '{"summary": "Dein zusammenfassender Fließtext hier...", ' +
+        '"keywords": [{"word": "Wort1", "index": 0}, {"word": "Wort2", "index": 50}]}\n' +
+        "WICHTIG: 'index' ist die Zeichenposition wo das Wort im summary-Text BEGINNT. " +
+        "Jedes keyword muss EXAKT so im summary vorkommen wie angegeben. " +
+        "Identifiziere 10-30 relevante Wörter.",
+    },
+    {
+      role: "user",
+      content: `Erstelle eine lernfreundliche Zusammenfassung und identifiziere Schlüsselwörter:\n\n${text}`,
+    },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  if (!raw) return { summary: text, keywords: [] };
+
+  try {
+    const obj = parseJSON(raw);
+    const summary = obj.summary || text;
+    const keywords = (obj.keywords || [])
+      .filter(kw => kw.word && summary.includes(kw.word))
+      .map(kw => ({ word: kw.word, index: summary.indexOf(kw.word) }));
+    return { summary, keywords };
+  } catch {
+    return { summary: text, keywords: [] };
+  }
+}
+
+export async function aiValidateAnswer(questionText, correctAnswer, userAnswer, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein Prüfungsbewerter. Prüfe ob die Antwort des Studenten inhaltlich korrekt ist. " +
+        "Ignoriere Tippfehler und kleine Formulierungsunterschiede. " +
+        "Antworte NUR mit 'JA' oder 'NEIN'.",
+    },
+    {
+      role: "user",
+      content:
+        `Frage: ${questionText}\nRichtige Antwort: ${correctAnswer}\nAntwort des Studenten: ${userAnswer}\n\nIst die Antwort inhaltlich korrekt? Antworte nur mit JA oder NEIN.`,
+    },
+  ];
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  if (!raw) return false;
+  return raw.trim().toUpperCase().startsWith("JA");
 }
 
 export async function editQuestionWithAI(question, instruction, targetType = null, config = {}) {

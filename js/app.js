@@ -14,6 +14,9 @@ import { render as errorDiaryScreen } from "./screens/error-diary.js";
 import { render as markedScreen } from "./screens/marked.js";
 import { render as pomodoroScreen } from "./screens/pomodoro.js";
 import { render as foldersScreen } from "./screens/folders.js";
+import { render as clozeScreen } from "./screens/cloze.js";
+import { render as gamesScreen } from "./screens/games.js";
+import { render as towerDefenseScreen } from "./screens/tower-defense.js";
 import { loadSettings } from "./store.js";
 import { setAccount } from "./firebase-sync.js";
 
@@ -33,6 +36,9 @@ route("error-diary", errorDiaryScreen);
 route("marked", markedScreen);
 route("pomodoro", pomodoroScreen);
 route("folders", foldersScreen);
+route("cloze", clozeScreen);
+route("games", gamesScreen);
+route("tower-defense", towerDefenseScreen);
 
 async function init() {
   const settings = await loadSettings();

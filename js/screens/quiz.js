@@ -1,7 +1,9 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
-import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary } from "../store.js";
+import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
+import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
+import { openBlackoutEditor } from "../blackout.js";
 
 export async function render(root, params) {
   const { quiz, mode } = params;
@@ -20,6 +22,7 @@ function showQuestion(root, quiz, session) {
   const total = session.questions.length;
   const idx = session.currentIndex + 1;
   let feedbackShown = false;
+  const questionStart = Date.now();
 
   // Lückentext im Satzkontext, wenn der Fragetext ___-Marker enthält
   const clozeParts = q.question_type === "fill_blank" ? String(q.question_text || "").split("___") : null;
@@ -33,6 +36,9 @@ function showQuestion(root, quiz, session) {
     <div class="card">
       ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
       ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${esc(q.question_text || q.text)}</div>`}
+      ${q.question_type === "multiple_choice" ? `<div class="mc-badge">☑️ Mehrere Antworten richtig</div>` : ""}
+      ${q.question_type === "single_choice" ? `<div class="mc-badge sc">🔘 Genau eine Antwort richtig</div>` : ""}
+      ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${q.image || q.image_path}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
     </div>
     <div class="card" id="answer-area">`;
 
@@ -127,6 +133,17 @@ function showQuestion(root, quiz, session) {
 
   root.innerHTML = html;
 
+  // Blackout button on question image
+  root.querySelector("#q-blackout-btn")?.addEventListener("click", () => {
+    const imgSrc = q.image || q.image_path;
+    if (!imgSrc) return;
+    openBlackoutEditor(imgSrc, (dataUrl) => {
+      q.image = dataUrl;
+      const img = root.querySelector("#q-img-wrap img");
+      if (img) img.src = dataUrl;
+    });
+  });
+
   // Drag & Drop setup
   const dndAssignments = {};
   if (q.question_type === "drag_drop") {
@@ -219,17 +236,30 @@ function showQuestion(root, quiz, session) {
     await saveProgress(progress);
     await logAnswer(result.is_correct);
 
+    // FSRS-Planung aktualisieren (Spaced Repetition)
+    try {
+      const fsrs = await loadFsrs();
+      const card = fsrs[q.id] || newCard(q.id);
+      const answerTimeMs = Date.now() - questionStart;
+      const rating = ratingFromResult(result.is_correct, 3);
+      fsrs[q.id] = fsrsReview(card, rating, answerTimeMs, 0.5);
+      await saveFsrs(fsrs);
+    } catch (_) { /* FSRS optional */ }
+
     if (session.mode === "single") {
       feedbackShown = true;
       const fb = root.querySelector("#feedback-area");
       const icon = result.is_correct ? "✓" : "✗";
       const label = result.is_correct ? "Richtig!" : "Falsch!";
       fb.innerHTML = `<div class="feedback ${result.is_correct ? "correct" : "wrong"}">
-        <h3>${icon}  ${label}</h3>
-        <p>Punkte: ${result.score}/${result.max_score}</p>
-        ${!result.is_correct ? `<p style="margin-top:4px;font-weight:600">✓ ${esc(result.correct_answer)}</p>` : ""}
+        <div class="feedback-icon">${icon}</div>
+        <div class="feedback-body">
+          <h3>${label}</h3>
+          <p>Punkte: ${result.score}/${result.max_score}</p>
+          ${!result.is_correct ? `<p class="feedback-correct-answer">✓ ${esc(result.correct_answer)}</p>` : ""}
+        </div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div class="feedback-actions">
         <button class="btn btn-ghost btn-sm" id="mark-btn">⭐ Markieren</button>
         <button class="btn btn-ghost btn-sm" id="tutor-btn">💬 KI fragen</button>
       </div>`;
