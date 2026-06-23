@@ -1,4 +1,6 @@
 export function checkAnswer(question, userInput) {
+  // points absichern, damit Scores nie NaN werden
+  if (typeof question.points !== "number" || !(question.points > 0)) question.points = 1;
   switch (question.question_type) {
     case "single_choice": return checkSingle(question, userInput);
     case "multiple_choice": return checkMultiple(question, userInput);
@@ -14,55 +16,63 @@ export function checkAnswer(question, userInput) {
 }
 
 function checkSingle(q, selected) {
-  const correctIdx = q.options.findIndex((o) => o.is_correct);
+  const options = q.options ?? [];
+  const correctIdx = options.findIndex((o) => o.is_correct);
   const ok = selected === correctIdx;
   return { question_id: q.id, is_correct: ok, score: ok ? q.points : 0, max_score: q.points,
-    user_answer: q.options[selected]?.text ?? "", correct_answer: q.options[correctIdx]?.text ?? "" };
+    user_answer: options[selected]?.text ?? "", correct_answer: options[correctIdx]?.text ?? "" };
 }
 
 function checkMultiple(q, selected) {
-  const correctSet = new Set(q.options.map((o, i) => o.is_correct ? i : -1).filter((i) => i >= 0));
-  const selSet = new Set(selected);
-  const ok = correctSet.size === selSet.size && [...correctSet].every((i) => selSet.has(i));
+  const options = q.options ?? [];
+  const correctSet = new Set(options.map((o, i) => o.is_correct ? i : -1).filter((i) => i >= 0));
+  const selSet = new Set(selected ?? []);
+  const ok = correctSet.size > 0 && correctSet.size === selSet.size && [...correctSet].every((i) => selSet.has(i));
   const hits = [...correctSet].filter((i) => selSet.has(i)).length;
   const wrong = [...selSet].filter((i) => !correctSet.has(i)).length;
   const score = ok ? q.points : Math.max(0, (hits / Math.max(correctSet.size, 1)) * q.points - wrong * 0.5);
   return { question_id: q.id, is_correct: ok, score: Math.round(score * 10) / 10, max_score: q.points,
-    user_answer: selected.map((i) => q.options[i]?.text).join(", "),
-    correct_answer: [...correctSet].map((i) => q.options[i]?.text).join(", ") };
+    user_answer: (selected ?? []).map((i) => options[i]?.text).join(", "),
+    correct_answer: [...correctSet].map((i) => options[i]?.text).join(", ") };
 }
 
 function checkFreeText(q, answer) {
-  const ok = answer.trim().toLowerCase() === q.correct_text.trim().toLowerCase();
+  const a = (answer ?? "").trim().toLowerCase();
+  const c = (q.correct_text ?? "").trim().toLowerCase();
+  const ok = a !== "" && a === c;
   return { question_id: q.id, is_correct: ok, score: ok ? q.points : 0, max_score: q.points,
-    user_answer: answer, correct_answer: q.correct_text };
+    user_answer: answer ?? "", correct_answer: q.correct_text ?? "" };
 }
 
 function checkFillBlank(q, answers) {
+  const blanks = q.blanks ?? [];
+  const ans = answers ?? [];
   let hits = 0;
-  for (let i = 0; i < Math.min(answers.length, q.blanks.length); i++) {
-    if (answers[i].trim().toLowerCase() === q.blanks[i].trim().toLowerCase()) hits++;
+  for (let i = 0; i < Math.min(ans.length, blanks.length); i++) {
+    if ((ans[i] ?? "").trim().toLowerCase() === (blanks[i] ?? "").trim().toLowerCase()) hits++;
   }
-  const total = Math.max(q.blanks.length, 1);
+  const total = Math.max(blanks.length, 1);
   const ok = hits === total;
   return { question_id: q.id, is_correct: ok, score: Math.round((hits / total) * q.points * 10) / 10,
-    max_score: q.points, user_answer: answers.join(" | "), correct_answer: q.blanks.join(" | ") };
+    max_score: q.points, user_answer: ans.join(" | "), correct_answer: blanks.join(" | ") };
 }
 
 function checkDragDrop(q, assignments) {
+  const pairs = q.drag_drop_pairs ?? [];
+  const asg = assignments ?? {};
   let hits = 0;
-  for (const pair of q.drag_drop_pairs) {
-    if (assignments[pair.target] === pair.source) hits++;
+  for (const pair of pairs) {
+    if (asg[pair.target] === pair.source) hits++;
   }
-  const total = Math.max(q.drag_drop_pairs.length, 1);
+  const total = Math.max(pairs.length, 1);
   const ok = hits === total;
   return { question_id: q.id, is_correct: ok, score: Math.round((hits / total) * q.points * 10) / 10,
-    max_score: q.points, user_answer: JSON.stringify(assignments),
-    correct_answer: JSON.stringify(Object.fromEntries(q.drag_drop_pairs.map((p) => [p.target, p.source]))) };
+    max_score: q.points, user_answer: JSON.stringify(asg),
+    correct_answer: JSON.stringify(Object.fromEntries(pairs.map((p) => [p.target, p.source]))) };
 }
 
 function normMath(expr) {
-  let e = expr.trim();
+  let e = (expr ?? "").trim();
   if (e.startsWith("$$") && e.endsWith("$$")) e = e.slice(2, -2);
   else if (e.startsWith("$") && e.endsWith("$")) e = e.slice(1, -1);
   e = e.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "(($1)/($2))");
@@ -125,17 +135,18 @@ function checkMarkImage(q, click) {
 }
 
 function checkMath(q, answer) {
+  const formula = q.correct_formula ?? "";
   if (!answer?.trim())
-    return { question_id: q.id, is_correct: false, score: 0, max_score: q.points, user_answer: "", correct_answer: q.correct_formula };
-  if (normMath(answer) === normMath(q.correct_formula))
-    return { question_id: q.id, is_correct: true, score: q.points, max_score: q.points, user_answer: answer, correct_answer: q.correct_formula };
+    return { question_id: q.id, is_correct: false, score: 0, max_score: q.points, user_answer: "", correct_answer: formula };
+  if (formula && normMath(answer) === normMath(formula))
+    return { question_id: q.id, is_correct: true, score: q.points, max_score: q.points, user_answer: answer, correct_answer: formula };
   const tol = q.tolerance > 0 ? q.tolerance : 0.001;
-  const uv = evalMath(answer), cv = evalMath(q.correct_formula);
+  const uv = evalMath(answer), cv = evalMath(formula);
   if (uv !== null && cv !== null) {
     const ok = cv === 0 ? Math.abs(uv) < tol : Math.abs(uv - cv) / Math.max(Math.abs(cv), 1e-10) < tol;
-    if (ok) return { question_id: q.id, is_correct: true, score: q.points, max_score: q.points, user_answer: answer, correct_answer: q.correct_formula };
+    if (ok) return { question_id: q.id, is_correct: true, score: q.points, max_score: q.points, user_answer: answer, correct_answer: formula };
   }
-  return { question_id: q.id, is_correct: false, score: 0, max_score: q.points, user_answer: answer, correct_answer: q.correct_formula };
+  return { question_id: q.id, is_correct: false, score: 0, max_score: q.points, user_answer: answer, correct_answer: formula };
 }
 
 export function updateProgress(progress, questionId, correct) {

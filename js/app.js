@@ -47,7 +47,9 @@ async function init() {
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/Quiz-app/sw.js").catch(() => {});
+    // Relativer Pfad, damit der SW sowohl unter / als auch unter /Quiz-app/ lädt
+    const swUrl = new URL("sw.js", document.baseURI).href;
+    navigator.serviceWorker.register(swUrl).catch(() => {});
   }
 
   const hash = location.hash.slice(1);
