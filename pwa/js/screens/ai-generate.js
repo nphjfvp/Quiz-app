@@ -1,5 +1,5 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
+import { generateQuiz, generateQuizFromImage, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
 
@@ -23,6 +23,7 @@ export async function render(root, params = {}) {
   let currentModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
   let charLimit = getModelContextLimit(currentModel);
   let uploadedFileType = null;
+  let uploadedImageData = null;
 
   function fmtLimit(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -53,9 +54,10 @@ export async function render(root, params = {}) {
         </div>
 
         <div class="input-group">
-          <label>Datei laden (.txt, .pdf)</label>
-          <input type="file" id="ai-file" accept=".txt,.pdf" class="input">
-          <small class="file-hint">PDF-Text wird automatisch extrahiert.</small>
+          <label>Datei laden (.txt, .pdf, Bild)</label>
+          <input type="file" id="ai-file" accept=".txt,.pdf,image/*" class="input">
+          <small class="file-hint">PDF-Text wird automatisch extrahiert. Bilder (Diagramme, Screenshots) werden per Vision-KI analysiert.</small>
+          <div id="img-preview" class="img-preview"></div>
           <div id="file-progress" class="file-progress">
             <div class="file-track">
               <div id="file-bar" class="file-fill"></div>
@@ -153,8 +155,22 @@ export async function render(root, params = {}) {
     if (!file) return;
     hideError();
 
-    uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i) ? "image" : null;
+    const isImage = file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i);
+    uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : isImage ? "image" : null;
+    uploadedImageData = null;
+    root.querySelector("#img-preview").innerHTML = "";
     updateModelAvailability();
+
+    if (isImage) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        uploadedImageData = reader.result;
+        root.querySelector("#img-preview").innerHTML = `<img src="${uploadedImageData}" alt="Vorschau"><div class="file-hint">Bild wird per Vision-KI analysiert. „Quiz generieren" startet die Auswertung.</div>`;
+      };
+      reader.onerror = () => showError("Bild konnte nicht gelesen werden.");
+      reader.readAsDataURL(file);
+      return;
+    }
 
     if (file.name.endsWith(".txt")) {
       const reader = new FileReader();
@@ -231,8 +247,27 @@ export async function render(root, params = {}) {
   // --- Generate ---
   genBtn.addEventListener("click", async () => {
     const text = textArea.value.trim();
+    const numQuestions = parseInt(numSelect.value, 10);
+
+    // Bild-Pfad: per Vision-KI auswerten
+    if (uploadedImageData && !text) {
+      const quizName = nameInput.value.trim() || `KI-Quiz (Bild)`;
+      hideError();
+      genBtn.disabled = true;
+      genBtn.textContent = "⏳ Analysiere Bild…";
+      try {
+        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel });
+        showReview(root, questions, quizName, currentModel);
+      } catch (err) {
+        showError(err.message || "Bild konnte nicht ausgewertet werden.");
+        genBtn.disabled = false;
+        genBtn.textContent = "Quiz generieren";
+      }
+      return;
+    }
+
     if (!text) {
-      showError("Bitte einen Lerntext eingeben oder eine Datei hochladen.");
+      showError("Bitte einen Lerntext eingeben oder eine Datei/Bild hochladen.");
       return;
     }
     if (text.length < 50) {
@@ -240,7 +275,6 @@ export async function render(root, params = {}) {
       return;
     }
 
-    const numQuestions = parseInt(numSelect.value, 10);
     const quizName = nameInput.value.trim() || `KI-Quiz (${numQuestions} Fragen)`;
 
     let inputText = text;

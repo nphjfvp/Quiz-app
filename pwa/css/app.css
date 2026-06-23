@@ -873,6 +873,8 @@ input:focus { border-color: var(--primary); }
 .file-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
 .file-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
 .file-info { color: var(--text-light); font-size: 0.78rem; }
+.img-preview { margin-top: 8px; }
+.img-preview img { max-width: 100%; border-radius: var(--radius-md); border: 2px solid var(--border); }
 .error-box {
   display: none; color: var(--danger); background: var(--danger-light);
   padding: 12px 14px; border-radius: var(--radius-md); margin-bottom: 12px; font-size: 0.9rem;
