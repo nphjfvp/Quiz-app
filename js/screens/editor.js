@@ -240,24 +240,30 @@ function renderQuestionEditor(root, quizzes) {
     html += `<button class="btn-secondary btn-sm" id="add-pair" style="margin-top:0.5rem">+ Paar</button>`;
   } else if (q.question_type === "diagram_label") {
     html += `<div class="editor-form">
-      <label>Bild-URL (oder Base64)</label>
-      <input type="text" id="qe-diagram-img" class="input" value="${esc(q.diagram_image || "")}" placeholder="https://... oder Datei hochladen">
-      <input type="file" id="qe-diagram-file" accept="image/*" style="font-size:0.85rem;margin-top:6px">
+      <label>Bild</label>
+      <input type="text" id="qe-diagram-img" class="input" value="${esc(q.diagram_image || "")}" placeholder="https://... oder Datei hochladen" style="margin-bottom:6px">
+      <input type="file" id="qe-diagram-file" accept="image/*" style="font-size:0.85rem">
     </div>`;
     html += `<div class="section-title" style="margin-top:1rem">Labels</div>`;
+    html += `<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:8px">Füge Labels hinzu und platziere sie per Tippen auf dem Bild.</div>`;
     html += `<div id="labels-list">`;
     for (let i = 0; i < (q.diagram_labels || []).length; i++) {
       const l = q.diagram_labels[i];
+      const placed = l.x !== undefined && l.y !== undefined && l._placed;
       html += `<div class="option-edit-row">
         <input type="text" class="input label-name" data-li="${i}" value="${esc(l.label)}" placeholder="Label ${i + 1}" style="flex:2">
-        <input type="number" class="input label-x" data-li="${i}" value="${l.x}" placeholder="X" step="0.01" min="0" max="1" style="flex:1">
-        <input type="number" class="input label-y" data-li="${i}" value="${l.y}" placeholder="Y" step="0.01" min="0" max="1" style="flex:1">
+        <span class="label-status" style="font-size:0.75rem;color:${placed ? "var(--success)" : "var(--warning)"};min-width:50px;text-align:center">${placed ? "✓ platziert" : "⚠ offen"}</span>
         <button class="btn-icon label-del" data-li="${i}" ${q.diagram_labels.length <= 1 ? "disabled" : ""}>✕</button>
       </div>`;
     }
     html += `</div>`;
     html += `<button class="btn-secondary btn-sm" id="add-label" style="margin-top:0.5rem">+ Label</button>`;
-    html += `<small class="hint" style="display:block;margin-top:4px">X/Y: 0.0 = oben-links, 1.0 = unten-rechts</small>`;
+    html += `<div class="section-title" style="margin-top:1rem">Platzierung</div>`;
+    html += `<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px">Wähle ein Label unten, dann tippe auf die Stelle im Bild.</div>`;
+    html += `<div id="placement-chips" class="dnd-chips" style="margin-bottom:8px"></div>`;
+    html += `<div id="placement-canvas-wrap" style="position:relative;width:100%;touch-action:none">
+      <canvas id="placement-canvas" style="width:100%;border-radius:var(--radius-md);border:2px solid var(--border)"></canvas>
+    </div>`;
   } else if (q.question_type === "mark_image") {
     html += `<div class="editor-form">
       <label>Bild-URL (oder Base64)</label>
@@ -307,7 +313,12 @@ function renderQuestionEditor(root, quizzes) {
 
   // Events
   root.querySelector("#qe-back").addEventListener("click", () => renderMain(root, quizzes));
-  root.querySelector("#qe-done").addEventListener("click", () => renderMain(root, quizzes));
+  root.querySelector("#qe-done").addEventListener("click", () => {
+    if (q.question_type === "diagram_label" && q.diagram_labels?.some(l => !l._placed)) {
+      if (!confirm("Einige Labels sind noch nicht platziert. Trotzdem fortfahren?")) return;
+    }
+    renderMain(root, quizzes);
+  });
 
   root.querySelector("#qe-text").addEventListener("input", (e) => { q.question_text = e.target.value; });
   root.querySelector("#qe-points").addEventListener("input", (e) => { q.points = Math.max(1, parseInt(e.target.value) || 1); });
@@ -342,14 +353,14 @@ function renderQuestionEditor(root, quizzes) {
     root.querySelector("#qe-diagram-file")?.addEventListener("change", e => {
       const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => { q.diagram_image = reader.result; root.querySelector("#qe-diagram-img").value = "(Bild hochgeladen)"; };
+      reader.onload = () => { q.diagram_image = reader.result; root.querySelector("#qe-diagram-img").value = "(Bild hochgeladen)"; renderQuestionEditor(root, quizzes); };
       reader.readAsDataURL(file);
     });
-    root.querySelectorAll(".label-name").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].label = e.target.value; }); });
-    root.querySelectorAll(".label-x").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].x = parseFloat(e.target.value) || 0; }); });
-    root.querySelectorAll(".label-y").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].y = parseFloat(e.target.value) || 0; }); });
+    root.querySelectorAll(".label-name").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].label = e.target.value; refreshPlacementUI(); }); });
     root.querySelectorAll(".label-del").forEach(btn => { btn.addEventListener("click", () => { q.diagram_labels.splice(parseInt(btn.dataset.li), 1); renderQuestionEditor(root, quizzes); }); });
-    root.querySelector("#add-label")?.addEventListener("click", () => { q.diagram_labels.push({ label: "", x: 0.5, y: 0.5 }); renderQuestionEditor(root, quizzes); });
+    root.querySelector("#add-label")?.addEventListener("click", () => { q.diagram_labels.push({ label: "", x: 0.5, y: 0.5, _placed: false }); renderQuestionEditor(root, quizzes); });
+    initDiagramPlacement(root, q, quizzes);
+    function refreshPlacementUI() { initDiagramPlacement(root, q, quizzes); }
   } else if (q.question_type === "mark_image") {
     root.querySelector("#qe-mark-img")?.addEventListener("input", e => { q.image = e.target.value; });
     root.querySelector("#qe-mark-file")?.addEventListener("change", e => {
@@ -457,4 +468,118 @@ async function saveQuiz(quizzes) {
   }
   await saveQuizzes(quizzes);
   navigate("my-quizzes");
+}
+
+const CHIP_COLORS = ["#ef4444","#f59e0b","#22c55e","#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f97316"];
+
+function initDiagramPlacement(root, q, quizzes) {
+  const canvas = root.querySelector("#placement-canvas");
+  const chipsEl = root.querySelector("#placement-chips");
+  if (!canvas || !chipsEl) return;
+  const ctx = canvas.getContext("2d");
+  const labels = q.diagram_labels || [];
+  let img = null;
+  let selectedIdx = -1;
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * 2;
+    canvas.height = rect.height * 2;
+    ctx.scale(2, 2);
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    if (img) {
+      ctx.drawImage(img, 0, 0, w, h);
+    } else {
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Lade zuerst ein Bild hoch", w / 2, h / 2);
+    }
+    for (let i = 0; i < labels.length; i++) {
+      const l = labels[i];
+      if (!l._placed || l.x === undefined) continue;
+      const color = CHIP_COLORS[i % CHIP_COLORS.length];
+      const px = l.x * w, py = l.y * h;
+      ctx.beginPath();
+      ctx.arc(px, py, 14, 0, Math.PI * 2);
+      ctx.fillStyle = color + "dd";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 9px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const short = (l.label || "?").slice(0, 4);
+      ctx.fillText(short, px, py);
+    }
+    if (selectedIdx >= 0) {
+      ctx.strokeStyle = CHIP_COLORS[selectedIdx % CHIP_COLORS.length];
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(2, 2, w - 4, h - 4);
+      ctx.setLineDash([]);
+    }
+  }
+
+  function renderChips() {
+    chipsEl.innerHTML = labels.map((l, i) => {
+      const color = CHIP_COLORS[i % CHIP_COLORS.length];
+      const active = i === selectedIdx;
+      const name = l.label || `Label ${i + 1}`;
+      return `<div class="dnd-chip ${active ? "selected" : ""} ${l._placed ? "placed" : ""}" data-pi="${i}" style="background:${color}20;border:2px solid ${color};color:var(--text);${l._placed ? "opacity:0.6" : ""}">${esc(name)}${l._placed ? " ✓" : ""}</div>`;
+    }).join("");
+    chipsEl.querySelectorAll(".dnd-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        selectedIdx = parseInt(chip.dataset.pi);
+        renderChips();
+        draw();
+      });
+    });
+  }
+
+  const imgSrc = q.diagram_image;
+  if (imgSrc && imgSrc !== "(Bild hochgeladen)") {
+    img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      canvas.style.height = (canvas.getBoundingClientRect().width * img.height / img.width) + "px";
+      draw();
+      renderChips();
+    };
+    img.onerror = () => { canvas.style.height = "200px"; draw(); renderChips(); };
+    img.src = imgSrc;
+  } else {
+    canvas.style.height = "200px";
+    draw();
+    renderChips();
+  }
+
+  function handlePlace(clientX, clientY) {
+    if (selectedIdx < 0 || selectedIdx >= labels.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    labels[selectedIdx].x = x;
+    labels[selectedIdx].y = y;
+    labels[selectedIdx]._placed = true;
+    const nextUnplaced = labels.findIndex((l, i) => i > selectedIdx && !l._placed);
+    selectedIdx = nextUnplaced >= 0 ? nextUnplaced : -1;
+    draw();
+    renderChips();
+    root.querySelectorAll(".label-status").forEach((el, i) => {
+      if (labels[i]?._placed) { el.textContent = "✓ platziert"; el.style.color = "var(--success)"; }
+    });
+  }
+
+  canvas.addEventListener("click", e => handlePlace(e.clientX, e.clientY));
+  canvas.addEventListener("touchend", e => {
+    if (!e.changedTouches[0]) return;
+    e.preventDefault();
+    handlePlace(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  });
 }

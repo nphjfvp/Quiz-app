@@ -177,9 +177,20 @@ export async function render(root) {
       const { loadQuizzes, saveQuizzes } = await import("../store.js");
       const existing = await loadQuizzes();
       const imported = Array.isArray(data) ? data : data.questions ? [data] : [];
+      let needsPlacement = 0;
+      for (const q of imported) {
+        for (const question of (q.questions || [])) {
+          if (question.question_type === "diagram_label" && question.diagram_labels) {
+            for (const l of question.diagram_labels) { if (!l._placed) l._placed = false; }
+            needsPlacement++;
+          }
+        }
+      }
       const merged = [...existing, ...imported];
       await saveQuizzes(merged);
-      st.textContent = `✓ ${imported.length} Quiz(ze) importiert!`;
+      let msg = `✓ ${imported.length} Quiz(ze) importiert!`;
+      if (needsPlacement) msg += ` ${needsPlacement} Diagramm-Frage(n) – bitte Labels im Editor platzieren.`;
+      st.textContent = msg;
     } catch { st.textContent = "Fehler: Ungültiges Dateiformat."; }
   });
 }
