@@ -15,9 +15,6 @@ import { render as markedScreen } from "./screens/marked.js";
 import { render as pomodoroScreen } from "./screens/pomodoro.js";
 import { render as foldersScreen } from "./screens/folders.js";
 import { render as clozeScreen } from "./screens/cloze.js";
-import { render as gamesScreen } from "./screens/games.js";
-import { render as towerDefenseScreen } from "./screens/tower-defense.js";
-import { render as quizBattleScreen } from "./screens/quiz-battle.js";
 import { loadSettings } from "./store.js";
 import { setAccount } from "./firebase-sync.js";
 
@@ -38,9 +35,9 @@ route("marked", markedScreen);
 route("pomodoro", pomodoroScreen);
 route("folders", foldersScreen);
 route("cloze", clozeScreen);
-route("games", gamesScreen);
-route("tower-defense", towerDefenseScreen);
-route("quiz-battle", quizBattleScreen);
+route("games", async (root) => { const m = await import("./screens/games.js"); return m.render(root); });
+route("tower-defense", async (root) => { const m = await import("./screens/tower-defense.js"); return m.render(root); });
+route("quiz-battle", async (root) => { const m = await import("./screens/quiz-battle.js"); return m.render(root); });
 
 async function init() {
   const settings = await loadSettings();
