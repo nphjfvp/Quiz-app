@@ -1,7 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
-import { buildPlayable, checkText, checkMulti, shuffle, buildFeedbackHtml } from "../games-util.js";
+import { buildPlayable, checkText, checkTextSmart, checkMulti, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 420;
 const TOWER_Y = CANVAS_H - 36;
@@ -141,10 +141,10 @@ function showQuestion(state, root, canvas) {
   const cards = root.querySelector("#qb-cards");
   cards.innerHTML = "";
 
-  const commit = (ok, userAnswer = "") => {
+  const commit = (ok, userAnswer = "", aiFeedback = null) => {
     if (state.locked) return;
     state.locked = true;
-    if (state.currentQ) state.log.push({ q: state.currentQ, correct: ok, userAnswer });
+    if (state.currentQ) state.log.push({ q: state.currentQ, correct: ok, userAnswer, aiFeedback });
     onAnswer(state, ok, root);
     if (!state.gameOver && state.towerHP > 0 && state.kills < state.goalKills) {
       setTimeout(() => showQuestion(state, root, canvas), 850);
@@ -193,7 +193,12 @@ function showQuestion(state, root, canvas) {
     const btn = document.createElement("button");
     btn.className = "td-opt td-submit";
     btn.textContent = "⚔️";
-    const check = () => commit(checkText(q.accept, inp.value), inp.value);
+    const check = async () => {
+      const localOk = checkText(q.accept, inp.value);
+      if (localOk) { commit(true, inp.value); return; }
+      const result = await checkTextSmart(q.prompt, q.accept, inp.value);
+      commit(result.correct, inp.value, result.feedback);
+    };
     btn.addEventListener("click", check);
     inp.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
     const wrap = document.createElement("div");
@@ -470,6 +475,7 @@ async function endGame(state, root, won) {
   wrap.appendChild(over);
   over.querySelector("#qb-retry").addEventListener("click", () => navigate("quiz-battle"));
   over.querySelector("#qb-home").addEventListener("click", () => navigate("home"));
+  attachFeedbackListeners(over, state.log);
 }
 
 function updateHUD(state, root) {

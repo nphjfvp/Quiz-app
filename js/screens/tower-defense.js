@@ -1,7 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
-import { buildPlayable, checkText, checkMulti, shuffle, buildFeedbackHtml } from "../games-util.js";
+import { buildPlayable, checkText, checkTextSmart, checkMulti, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -234,7 +234,7 @@ function showQuestion(state, root) {
   qtext.appendChild(txt);
   opts.innerHTML = "";
 
-  const answer = (ok, userAnswer) => handleAnswer(state, ok, diff, root, userAnswer);
+  const answer = (ok, userAnswer, feedback) => handleAnswer(state, ok, diff, root, userAnswer, feedback);
 
   if (q.kind === "choice") {
     shuffle([...q.options]).forEach((o) => {
@@ -270,7 +270,13 @@ function showQuestion(state, root) {
     });
     opts.appendChild(confirm);
   } else {
-    addTextInput(opts, (val) => answer(checkText(q.accept, val), val));
+    addTextInput(opts, async (val) => {
+      const localOk = checkText(q.accept, val);
+      if (localOk) { answer(true, val); return; }
+      // Show a brief "checking..." state, then ask AI
+      const result = await checkTextSmart(q.prompt, q.accept, val);
+      answer(result.correct, val, result.feedback);
+    });
   }
   qa.style.display = "block";
 }
@@ -290,9 +296,9 @@ function addTextInput(opts, onSubmit) {
   setTimeout(() => inp.focus(), 50);
 }
 
-function handleAnswer(state, correct, diff, root, userAnswer = "") {
+function handleAnswer(state, correct, diff, root, userAnswer = "", aiFeedback = null) {
   state.answering = false;
-  if (state.currentQ) state.log.push({ q: state.currentQ, correct, userAnswer });
+  if (state.currentQ) state.log.push({ q: state.currentQ, correct, userAnswer, aiFeedback });
   root.querySelector("#td-qa").style.display = "none";
   const comboEl = root.querySelector("#td-combo");
 
@@ -367,6 +373,7 @@ async function endGame(state, root, won) {
   wrap.appendChild(over);
   over.querySelector("#td-retry").addEventListener("click", () => navigate("tower-defense"));
   over.querySelector("#td-home").addEventListener("click", () => navigate("home"));
+  attachFeedbackListeners(over, state.log);
 }
 
 function update(state, dt, ts, cfg) {
