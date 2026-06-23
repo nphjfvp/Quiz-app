@@ -1,5 +1,5 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, generateQuizFromImage, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
+import { generateQuiz, generateQuizFromImage, generateQuizFromImages, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
 
@@ -24,6 +24,7 @@ export async function render(root, params = {}) {
   let charLimit = getModelContextLimit(currentModel);
   let uploadedFileType = null;
   let uploadedImageData = null;
+  let pdfPageImages = null; // data-URLs of rendered PDF pages when visual mode is on
 
   function fmtLimit(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -57,6 +58,13 @@ export async function render(root, params = {}) {
           <label>Datei laden (.txt, .pdf, Bild)</label>
           <input type="file" id="ai-file" accept=".txt,.pdf,image/*" class="input">
           <small class="file-hint">PDF-Text wird automatisch extrahiert. Bilder (Diagramme, Screenshots) werden per Vision-KI analysiert.</small>
+          <div id="visual-toggle-row" class="visual-toggle-row" style="display:none">
+            <label class="toggle-label">
+              <input type="checkbox" id="visual-toggle">
+              <span>📸 Enthält relevante Bilder</span>
+            </label>
+            <small class="file-hint">Wenn aktiv, werden PDF-Seiten als Bilder an ein Vision-Modell gesendet — so werden Diagramme, Formeln und Grafiken erkannt.</small>
+          </div>
           <div id="img-preview" class="img-preview"></div>
           <div id="file-progress" class="file-progress">
             <div class="file-track">
@@ -116,11 +124,17 @@ export async function render(root, params = {}) {
   const fileInfo = root.querySelector("#file-info");
 
   // --- Model selection ---
+  function needsVision() {
+    if (uploadedFileType === "image") return true;
+    if (uploadedFileType === "pdf" && root.querySelector("#visual-toggle")?.checked) return true;
+    return false;
+  }
+
   function updateModelAvailability() {
+    const requireVision = needsVision();
     root.querySelectorAll("#gen-model-list .model-option").forEach(el => {
       const vision = el.dataset.vision === "true";
-      // PDFs werden lokal zu Text extrahiert – nur Bilder brauchen ein Vision-Modell
-      const incompatible = uploadedFileType === "image" && !vision;
+      const incompatible = requireVision && !vision;
       el.classList.toggle("disabled", incompatible);
       if (incompatible && el.classList.contains("selected")) {
         el.classList.remove("selected");
@@ -150,6 +164,56 @@ export async function render(root, params = {}) {
     });
   });
 
+  root.querySelector("#visual-toggle").addEventListener("change", async () => {
+    updateModelAvailability();
+    const visualOn = root.querySelector("#visual-toggle").checked;
+    const file = fileInput.files[0];
+    if (visualOn && file && file.name.endsWith(".pdf") && !pdfPageImages) {
+      await renderPdfAsImages(file);
+    }
+    if (!visualOn) {
+      pdfPageImages = null;
+      root.querySelector("#img-preview").innerHTML = "";
+    }
+  });
+
+  async function renderPdfAsImages(file) {
+    fileProgress.style.display = "block";
+    fileBar.style.width = "10%";
+    fileInfo.textContent = "Rendere PDF-Seiten als Bilder…";
+    try {
+      const pdfjsLib = await loadPdfJs();
+      fileBar.style.width = "20%";
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const images = [];
+      const maxPages = Math.min(pdf.numPages, 20);
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const scale = 2;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext("2d");
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        images.push(canvas.toDataURL("image/jpeg", 0.85));
+        fileBar.style.width = (20 + 80 * i / maxPages) + "%";
+        fileInfo.textContent = `Seite ${i}/${maxPages} gerendert…`;
+      }
+      pdfPageImages = images;
+      const previewDiv = root.querySelector("#img-preview");
+      previewDiv.innerHTML = `<div class="file-hint">📸 ${images.length} Seiten als Bilder geladen${pdf.numPages > 20 ? ` (max. 20 von ${pdf.numPages})` : ""}. Vision-KI wird Bilder, Diagramme und Formeln erkennen.</div>`;
+      previewDiv.innerHTML += images.slice(0, 3).map(src => `<img src="${src}" alt="PDF-Seite" style="max-height:120px;border-radius:8px;margin:4px">`).join("");
+      if (images.length > 3) previewDiv.innerHTML += `<small>… und ${images.length - 3} weitere</small>`;
+      fileInfo.textContent = `✓ ${images.length} Seiten gerendert`;
+      setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
+    } catch (err) {
+      showError("PDF-Seiten konnten nicht gerendert werden: " + (err.message || err));
+      fileProgress.style.display = "none";
+    }
+  }
+
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
     if (!file) return;
@@ -158,7 +222,10 @@ export async function render(root, params = {}) {
     const isImage = file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i);
     uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : isImage ? "image" : null;
     uploadedImageData = null;
+    pdfPageImages = null;
     root.querySelector("#img-preview").innerHTML = "";
+    root.querySelector("#visual-toggle-row").style.display = uploadedFileType === "pdf" ? "" : "none";
+    root.querySelector("#visual-toggle").checked = false;
     updateModelAvailability();
 
     if (isImage) {
@@ -249,7 +316,7 @@ export async function render(root, params = {}) {
     const text = textArea.value.trim();
     const numQuestions = parseInt(numSelect.value, 10);
 
-    // Bild-Pfad: per Vision-KI auswerten
+    // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild)
     if (uploadedImageData && !text) {
       const quizName = nameInput.value.trim() || `KI-Quiz (Bild)`;
       hideError();
@@ -260,6 +327,23 @@ export async function render(root, params = {}) {
         showReview(root, questions, quizName, currentModel);
       } catch (err) {
         showError(err.message || "Bild konnte nicht ausgewertet werden.");
+        genBtn.disabled = false;
+        genBtn.textContent = "Quiz generieren";
+      }
+      return;
+    }
+
+    // PDF visuell: Seiten als Bilder an Vision-KI
+    if (pdfPageImages && root.querySelector("#visual-toggle")?.checked) {
+      const quizName = nameInput.value.trim() || `KI-Quiz (PDF visuell)`;
+      hideError();
+      genBtn.disabled = true;
+      genBtn.textContent = `⏳ Analysiere ${pdfPageImages.length} Seiten…`;
+      try {
+        const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel }, text || undefined);
+        showReview(root, questions, quizName, currentModel);
+      } catch (err) {
+        showError(err.message || "PDF-Bilder konnten nicht ausgewertet werden.");
         genBtn.disabled = false;
         genBtn.textContent = "Quiz generieren";
       }

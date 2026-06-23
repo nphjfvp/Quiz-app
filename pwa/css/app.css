@@ -917,6 +917,11 @@ a:focus-visible, [tabindex]:focus-visible {
   outline-offset: 2px;
 }
 
+/* ── Visual Toggle ───────────────────────────────── */
+.visual-toggle-row { margin-top: 10px; padding: 10px 14px; background: var(--primary-subtle); border-radius: var(--radius-md); border-left: 3px solid var(--primary); }
+.toggle-label { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.toggle-label input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+
 /* ── Cloze Generator ──────────────────────────────── */
 .cloze-text { font-size: 1rem; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
 .cloze-inputs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }

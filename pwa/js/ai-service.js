@@ -259,6 +259,69 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
   }));
 }
 
+export async function generateQuizFromImages(imageUrls, numQuestions = 5, language = "de", config = {}, additionalText = undefined) {
+  const { apiKey } = await getConfig(config);
+  let model = config.model;
+  const chosen = MODELS.find((m) => m.id === model);
+  if (!chosen || !chosen.vision) model = VISION_MODEL;
+
+  const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
+
+Regeln:
+- Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.
+- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
+- Jede Frage muss eine klare Erklärung enthalten.
+- Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array (kein Markdown):
+[
+  {
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank",
+    "question_text": "Fragetext",
+    "title": "Kurztitel",
+    "topic": "Themengebiet",
+    "points": 1,
+    "options": [{"text": "Antwort", "is_correct": true}],
+    "correct_text": "",
+    "blanks": [],
+    "explanation": "Erklärung"
+  }
+]`;
+
+  const contentParts = [
+    { type: "text", text: `Erstelle ${numQuestions} Prüfungsfragen auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
+    ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: contentParts },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const raw = await readStream(body);
+  const questions = parseJSON(raw);
+  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+
+  return questions.map((q) => ({
+    id: uid(),
+    question_type: q.question_type,
+    question_text: q.question_text,
+    title: q.title ?? "",
+    topic: q.topic ?? "",
+    points: q.points ?? 1,
+    options: q.options ?? [],
+    correct_text: q.correct_text ?? "",
+    blanks: q.blanks ?? [],
+    drag_drop_pairs: q.drag_drop_pairs ?? [],
+    correct_formula: q.correct_formula ?? "",
+    tolerance: q.tolerance ?? 0.001,
+    explanation: q.explanation ?? "",
+  }));
+}
+
 export async function explainAnswer(question, userAnswer, correctAnswer, config = {}, imageUrl = null) {
   const { apiKey, model } = await getConfig(config);
   const useVision = !!imageUrl;
