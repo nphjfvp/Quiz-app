@@ -1,7 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
-import { buildPlayable, checkText, shuffle } from "../games-util.js";
+import { buildPlayable, checkText, checkMulti, shuffle } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -237,6 +237,31 @@ function showQuestion(state, root) {
       btn.addEventListener("click", () => answer(!!o.correct));
       opts.appendChild(btn);
     });
+  } else if (q.kind === "multi") {
+    const shuffled = shuffle([...q.options]);
+    const selected = new Set();
+    const hint = document.createElement("div");
+    hint.className = "td-multi-hint";
+    hint.textContent = "Mehrere richtig — alle auswählen, dann bestätigen";
+    opts.appendChild(hint);
+    shuffled.forEach((o, i) => {
+      const btn = document.createElement("button");
+      btn.className = "td-opt td-opt-multi";
+      btn.textContent = o.text;
+      btn.addEventListener("click", () => {
+        if (selected.has(i)) { selected.delete(i); btn.classList.remove("selected"); }
+        else { selected.add(i); btn.classList.add("selected"); }
+      });
+      opts.appendChild(btn);
+    });
+    const confirm = document.createElement("button");
+    confirm.className = "td-opt td-submit td-multi-confirm";
+    confirm.textContent = "✓ Bestätigen";
+    confirm.addEventListener("click", () => {
+      const chosen = shuffled.filter((_, i) => selected.has(i));
+      answer(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))));
+    });
+    opts.appendChild(confirm);
   } else {
     addTextInput(opts, (val) => answer(checkText(q.accept, val)));
   }
