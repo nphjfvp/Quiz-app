@@ -25,7 +25,7 @@ from .models import (
 from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
 from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
-from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL
+from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL, animate_color
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
 from . import cloud_sync
@@ -266,9 +266,9 @@ class App(ctk.CTk):
             acc_text = f"👤 {account['email']}"
         else:
             acc_text = t("account.login_cta")
-        ctk.CTkButton(welcome, text=acc_text, width=160, height=34, corner_radius=10,
-                     fg_color="white", text_color=COLORS["primary_dark"],
-                     hover_color="#ecfdf5", font=("Segoe UI", 12, "bold"),
+        ctk.CTkButton(welcome, text=acc_text, width=160, height=36, corner_radius=RADIUS_MD,
+                     fg_color=COLORS["accent"], text_color=COLORS["primary_dark"],
+                     hover_color="#ffe066", font=("Segoe UI", 12, "bold"),
                      command=self.show_account
                      ).grid(row=0, column=1, rowspan=2, padx=25, pady=15, sticky="e")
         row += 1
@@ -303,8 +303,8 @@ class App(ctk.CTk):
                      font=("Segoe UI", 12), text_color=COLORS["header_sub"]
                      ).grid(row=1, column=1, padx=5, pady=(0, 15), sticky="w")
         ctk.CTkButton(daily_card, text=t("daily.start"), width=130, height=38,
-                     corner_radius=10, fg_color="white", text_color=COLORS["primary_dark"],
-                     hover_color="#ecfdf5", font=("Segoe UI", 13, "bold"),
+                     corner_radius=RADIUS_MD, fg_color=COLORS["accent"], text_color=COLORS["primary_dark"],
+                     hover_color="#ffe066", font=("Segoe UI", 13, "bold"),
                      command=self.show_daily
                      ).grid(row=0, column=2, rowspan=2, padx=20, pady=15)
         row += 1
@@ -443,49 +443,77 @@ class App(ctk.CTk):
                         ).grid(row=1, column=0, pady=30)
 
     def _home_card(self, parent, col, row, icon, title, desc, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
-                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"),
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                           border_width=2, border_color=COLORS.get("border", "#e3ece6"),
                            cursor="hand2")
         card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=color))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+
+        # Color accent bar at top
+        accent_bar = ctk.CTkFrame(card, fg_color=color, corner_radius=4, height=4)
+        accent_bar.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 0))
+
+        def on_enter(_):
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), color, 150, 6)
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 150, 6)
+
+        def on_leave(_):
+            animate_color(card, "border_color", color, COLORS.get("border", "#e3ece6"), 150, 6)
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 150, 6)
+
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
         card.bind("<Button-1>", lambda e: command())
 
         ctk.CTkLabel(card, text=icon, font=("Segoe UI", 30)
-                    ).grid(row=0, column=0, padx=15, pady=(16, 4))
+                    ).grid(row=1, column=0, padx=15, pady=(12, 4))
         tl = ctk.CTkLabel(card, text=title, font=("Segoe UI", 15, "bold"),
                           text_color=COLORS["text"])
-        tl.grid(row=1, column=0, padx=15, pady=(2, 2))
+        tl.grid(row=2, column=0, padx=15, pady=(2, 2))
         tl.bind("<Button-1>", lambda e: command())
         dl = ctk.CTkLabel(card, text=desc, font=("Segoe UI", 11),
                           text_color=COLORS["text_light"], wraplength=170)
-        dl.grid(row=2, column=0, padx=15, pady=(0, 16))
+        dl.grid(row=3, column=0, padx=15, pady=(0, 16))
         dl.bind("<Button-1>", lambda e: command())
 
     def _mini_card(self, parent, col, row, icon, title, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=10,
-                           border_width=1, border_color=COLORS.get("border", "#e2e8f0"),
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                           border_width=1, border_color=COLORS.get("border", "#e3ece6"),
                            cursor="hand2")
         card.grid(row=row, column=col, padx=4, pady=4, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=color))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+
+        def on_enter(_):
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), color, 120, 5)
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 120, 5)
+
+        def on_leave(_):
+            animate_color(card, "border_color", color, COLORS.get("border", "#e3ece6"), 120, 5)
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 120, 5)
+
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
         card.bind("<Button-1>", lambda e: command())
-        ctk.CTkLabel(card, text=icon, font=("Segoe UI", 20)
-                    ).grid(row=0, column=0, pady=(10, 2))
+        ctk.CTkLabel(card, text=icon, font=("Segoe UI", 22)
+                    ).grid(row=0, column=0, pady=(12, 2))
         tl = ctk.CTkLabel(card, text=title, font=("Segoe UI", 11, "bold"),
                           text_color=COLORS["text"])
-        tl.grid(row=1, column=0, padx=6, pady=(0, 10))
+        tl.grid(row=1, column=0, padx=6, pady=(0, 12))
         tl.bind("<Button-1>", lambda e: command())
 
     def _action_card(self, parent, col, row, title, desc, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
-                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"))
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                           border_width=2, border_color=COLORS.get("border", "#e3ece6"))
         card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=color))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+        card.bind("<Enter>", lambda e: (
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), color, 150, 6),
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 150, 6),
+        ))
+        card.bind("<Leave>", lambda e: (
+            animate_color(card, "border_color", color, COLORS.get("border", "#e3ece6"), 150, 6),
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 150, 6),
+        ))
 
         color_bar = ctk.CTkFrame(card, fg_color=color, corner_radius=4, height=5)
         color_bar.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
@@ -501,12 +529,18 @@ class App(ctk.CTk):
                      command=command).grid(row=3, column=0, padx=15, pady=(0, 14))
 
     def _quiz_card(self, parent, quiz: Quiz, row: int):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
-                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"))
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                           border_width=2, border_color=COLORS.get("border", "#e3ece6"))
         card.grid(row=row, column=0, sticky="ew", pady=5)
         card.grid_columnconfigure(1, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=COLORS["primary"]))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+        card.bind("<Enter>", lambda e: (
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), COLORS["primary"], 120, 5),
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 120, 5),
+        ))
+        card.bind("<Leave>", lambda e: (
+            animate_color(card, "border_color", COLORS["primary"], COLORS.get("border", "#e3ece6"), 120, 5),
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 120, 5),
+        ))
 
         accent = ctk.CTkFrame(card, fg_color=COLORS["primary"], width=5, corner_radius=3)
         accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
@@ -4934,25 +4968,47 @@ class App(ctk.CTk):
                                         border_color=COLORS["input_bg"], cursor="hand2")
                 row_card.grid(row=idx, column=0, padx=16, pady=5, sticky="ew")
                 row_card.grid_columnconfigure(1, weight=1)
-                rb = ctk.CTkRadioButton(row_card, text="", variable=answer_var, value=idx,
-                                        width=24)
-                rb.grid(row=0, column=0, padx=(14, 8), pady=12)
+
+                # Letter badge (A, B, C, D...)
+                badge = ctk.CTkLabel(row_card, text=chr(65 + idx), width=32, height=32,
+                                     corner_radius=8, font=("Segoe UI", 13, "bold"),
+                                     fg_color=COLORS.get("border", "#e3ece6"),
+                                     text_color=COLORS["primary"])
+                badge.grid(row=0, column=0, padx=(14, 8), pady=12)
+
                 lbl = ctk.CTkLabel(row_card, text=option.text, font=("Segoe UI", 14),
                                    text_color=COLORS["text"], wraplength=560, justify="left")
                 lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
+
+                def on_enter(_e, rc=row_card):
+                    if answer_var.get() != idx:
+                        animate_color(rc, "fg_color", COLORS["input_bg"], COLORS.get("card_hover", "#eef7f2"), 100, 5)
+
+                def on_leave(_e, rc=row_card):
+                    if answer_var.get() != idx:
+                        animate_color(rc, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["input_bg"], 100, 5)
+
+                row_card.bind("<Enter>", on_enter)
+                row_card.bind("<Leave>", on_leave)
 
                 def _select(_e=None):
                     answer_var.set(idx)
                 row_card.bind("<Button-1>", _select)
                 lbl.bind("<Button-1>", _select)
-                return row_card
+                badge.bind("<Button-1>", _select)
+                return row_card, badge
 
-            sc_rows = [_make_sc_row(i, opt) for i, opt in enumerate(q.options)]
+            sc_items = [_make_sc_row(i, opt) for i, opt in enumerate(q.options)]
 
             def _refresh_sc(*_):
                 sel = answer_var.get()
-                for i, rc in enumerate(sc_rows):
-                    rc.configure(border_color=COLORS["primary"] if i == sel else COLORS["input_bg"])
+                for i, (rc, bg) in enumerate(sc_items):
+                    is_sel = i == sel
+                    rc.configure(border_color=COLORS["primary"] if is_sel else COLORS["input_bg"])
+                    bg.configure(
+                        fg_color=COLORS["primary"] if is_sel else COLORS.get("border", "#e3ece6"),
+                        text_color=COLORS.get("on_primary", "#fff") if is_sel else COLORS["primary"],
+                    )
             answer_var.trace_add("write", _refresh_sc)
             answer_widgets.append(answer_var)
 
@@ -4966,23 +5022,44 @@ class App(ctk.CTk):
                 row_card.grid(row=i, column=0, padx=16, pady=5, sticky="ew")
                 row_card.grid_columnconfigure(1, weight=1)
 
-                def _mk_refresh(rc, v):
+                badge = ctk.CTkLabel(row_card, text=chr(65 + i), width=32, height=32,
+                                     corner_radius=8, font=("Segoe UI", 13, "bold"),
+                                     fg_color=COLORS.get("border", "#e3ece6"),
+                                     text_color=COLORS["primary"])
+                badge.grid(row=0, column=0, padx=(14, 8), pady=12)
+
+                def _mk_refresh(rc, v, bg):
                     def _r(*_):
-                        rc.configure(border_color=COLORS["primary"] if v.get() else COLORS["input_bg"])
+                        is_sel = v.get()
+                        rc.configure(border_color=COLORS["primary"] if is_sel else COLORS["input_bg"])
+                        bg.configure(
+                            fg_color=COLORS["primary"] if is_sel else COLORS.get("border", "#e3ece6"),
+                            text_color=COLORS.get("on_primary", "#fff") if is_sel else COLORS["primary"],
+                        )
                     return _r
-                refresh = _mk_refresh(row_card, var)
-                cb = ctk.CTkCheckBox(row_card, text="", variable=var, width=24, command=refresh)
-                cb.grid(row=0, column=0, padx=(14, 8), pady=12)
+                refresh = _mk_refresh(row_card, var, badge)
                 lbl = ctk.CTkLabel(row_card, text=opt.text, font=("Segoe UI", 14),
                                    text_color=COLORS["text"], wraplength=560, justify="left")
                 lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
+
+                def _on_enter(_e, rc=row_card, v=var):
+                    if not v.get():
+                        animate_color(rc, "fg_color", COLORS["input_bg"], COLORS.get("card_hover", "#eef7f2"), 100, 5)
+
+                def _on_leave(_e, rc=row_card, v=var):
+                    if not v.get():
+                        animate_color(rc, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["input_bg"], 100, 5)
+
+                row_card.bind("<Enter>", _on_enter)
+                row_card.bind("<Leave>", _on_leave)
 
                 def _toggle(v=var, r=refresh):
                     v.set(not v.get())
                     r()
                 row_card.bind("<Button-1>", lambda e, fn=_toggle: fn())
                 lbl.bind("<Button-1>", lambda e, fn=_toggle: fn())
-                answer_widgets.append((cb, var, i))
+                badge.bind("<Button-1>", lambda e, fn=_toggle: fn())
+                answer_widgets.append((None, var, i))
 
         elif q.question_type == QuestionType.FREE_TEXT:
             entry = ctk.CTkEntry(answer_frame, width=500, placeholder_text="Deine Antwort eingeben...",
@@ -5831,13 +5908,17 @@ class App(ctk.CTk):
                 for w in feedback_frame.winfo_children():
                     w.destroy()
                 color = COLORS["success"] if result.is_correct else COLORS["danger"]
-                fb = ctk.CTkFrame(feedback_frame, fg_color=color, corner_radius=RADIUS_LG)
+                bg_start = COLORS["card"]
+                fb = ctk.CTkFrame(feedback_frame, fg_color=bg_start, corner_radius=RADIUS_LG)
                 fb.grid(row=0, column=0, sticky="ew", pady=10)
                 fb.grid_columnconfigure(0, weight=1)
+                animate_color(fb, "fg_color", bg_start, color, 300, 10)
                 icon = "✓" if result.is_correct else "✗"
                 text = t("quiz.correct") if result.is_correct else t("quiz.wrong")
-                ctk.CTkLabel(fb, text=f"{icon}  {text}", font=("Segoe UI", 17, "bold"),
-                            text_color="white").grid(row=0, column=0, padx=22, pady=(12, 5), sticky="w")
+                icon_lbl = ctk.CTkLabel(fb, text=icon, font=("Segoe UI", 28, "bold"), text_color="white")
+                icon_lbl.grid(row=0, column=0, padx=(22, 8), pady=(14, 5), sticky="w")
+                ctk.CTkLabel(fb, text=text, font=("Segoe UI", 17, "bold"),
+                            text_color="white").grid(row=0, column=1, padx=(0, 22), pady=(14, 5), sticky="w")
                 ctk.CTkLabel(fb, text=t("quiz.points", score=result.score, max=result.max_score),
                             font=("Segoe UI", 12), text_color="white"
                             ).grid(row=1, column=0, padx=22, pady=(0, 5), sticky="w")
@@ -6483,12 +6564,13 @@ class App(ctk.CTk):
         maximum = self.session.max_possible_score
         pct = (total / maximum * 100) if maximum > 0 else 0
 
-        # Score card – celebratory hero
+        # Score card – celebratory hero with fade-in
         color = COLORS["success"] if pct >= 60 else COLORS["warning"] if pct >= 40 else COLORS["danger"]
         emoji = "🎉" if pct >= 80 else "👍" if pct >= 60 else "💪" if pct >= 40 else "📚"
-        score_card = ctk.CTkFrame(scroll, fg_color=color, corner_radius=RADIUS_XL)
+        score_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_XL)
         score_card.grid(row=0, column=0, sticky="ew", pady=(0, 18))
         score_card.grid_columnconfigure(0, weight=1)
+        animate_color(score_card, "fg_color", COLORS["card"], color, 400, 12)
 
         ctk.CTkLabel(score_card, text=f"{emoji}  {t('results.title')}",
                     font=("Segoe UI", 18, "bold"), text_color="white"

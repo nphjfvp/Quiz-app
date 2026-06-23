@@ -133,3 +133,57 @@ def apply_theme(dark: bool):
     COLORS.clear()
     COLORS.update(palette)
     ctk.set_appearance_mode("dark" if dark else "light")
+
+
+# ── Animation Helpers ──
+
+def animate_color(widget, prop: str, from_color: str, to_color: str, duration_ms: int = 200, steps: int = 10):
+    """Smoothly transition a widget color property over duration_ms."""
+    def hex_to_rgb(h):
+        h = h.lstrip("#")
+        return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+
+    def rgb_to_hex(r, g, b):
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    try:
+        r1, g1, b1 = hex_to_rgb(from_color)
+        r2, g2, b2 = hex_to_rgb(to_color)
+    except (ValueError, IndexError):
+        return
+
+    delay = max(1, duration_ms // steps)
+    for i in range(steps + 1):
+        t = i / steps
+        r = int(r1 + (r2 - r1) * t)
+        g = int(g1 + (g2 - g1) * t)
+        b = int(b1 + (b2 - b1) * t)
+        color = rgb_to_hex(r, g, b)
+        widget.after(delay * i, lambda c=color: widget.configure(**{prop: c}))
+
+
+def fade_in(widget, duration_ms: int = 250, steps: int = 8):
+    """Simulate fade-in by animating from bg color to target fg_color."""
+    try:
+        target = widget.cget("fg_color")
+        bg = COLORS.get("bg", "#f5fbf6")
+        if target and target != "transparent":
+            animate_color(widget, "fg_color", bg, target, duration_ms, steps)
+    except Exception:
+        pass
+
+
+def pop_scale(widget, duration_ms: int = 150):
+    """Quick scale pop animation for feedback."""
+    original_font = widget.cget("font")
+    if not original_font:
+        return
+    try:
+        family = original_font.cget("family") if hasattr(original_font, "cget") else "Segoe UI"
+        size = original_font.cget("size") if hasattr(original_font, "cget") else 14
+    except Exception:
+        return
+    big_size = int(size * 1.2)
+    widget.configure(font=(family, big_size, "bold"))
+    widget.after(duration_ms, lambda: widget.configure(font=original_font))
+
