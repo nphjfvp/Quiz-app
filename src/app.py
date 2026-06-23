@@ -82,7 +82,7 @@ class App(ctk.CTk):
 
         self.header_subtitle = ctk.CTkLabel(
             self.header, text=t("app.subtitle"),
-            font=("Segoe UI", 12), text_color="#a7f3d0"
+            font=("Segoe UI", 12), text_color=COLORS["header_sub"]
         )
         self.header_subtitle.grid(row=0, column=1, padx=10, pady=12, sticky="w")
 
@@ -259,7 +259,7 @@ class App(ctk.CTk):
                      font=("Segoe UI", 20, "bold"), text_color="white"
                      ).grid(row=0, column=0, padx=25, pady=(20, 4), sticky="w")
         ctk.CTkLabel(welcome, text=t("home.welcome_sub"),
-                     font=("Segoe UI", 13), text_color="#a7f3d0"
+                     font=("Segoe UI", 13), text_color=COLORS["header_sub"]
                      ).grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
         account = self.store.load_settings().get("account")
         if account and account.get("email"):
@@ -300,7 +300,7 @@ class App(ctk.CTk):
                      font=("Segoe UI", 17, "bold"), text_color="white"
                      ).grid(row=0, column=1, padx=5, pady=(15, 0), sticky="w")
         ctk.CTkLabel(daily_card, text=t("daily.card_desc"),
-                     font=("Segoe UI", 12), text_color="#a7f3d0"
+                     font=("Segoe UI", 12), text_color=COLORS["header_sub"]
                      ).grid(row=1, column=1, padx=5, pady=(0, 15), sticky="w")
         ctk.CTkButton(daily_card, text=t("daily.start"), width=130, height=38,
                      corner_radius=10, fg_color="white", text_color=COLORS["primary_dark"],
@@ -1597,7 +1597,7 @@ class App(ctk.CTk):
             self.header_title.configure(text=f"🎓 {t('app.header')}")
             self.header.configure(fg_color=COLORS["header_bg"])
             self.header_title.configure(text_color="white")
-            self.header_subtitle.configure(text_color="#a7f3d0")
+            self.header_subtitle.configure(text_color=COLORS["header_sub"])
             self.main_frame.configure(fg_color=COLORS["bg"])
             messagebox.showinfo("OK", t("settings.saved"))
             self.show_home()
