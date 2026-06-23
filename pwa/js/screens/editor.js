@@ -23,6 +23,18 @@ function emptyQuestion(type = "single_choice") {
   } else if (type === "fill_blank") {
     q.question_text = "Der ___ ist blau.";
     q.blanks = ["Himmel"];
+  } else if (type === "drag_drop") {
+    q.drag_drop_pairs = [{ source: "", target: "" }];
+  } else if (type === "diagram_label") {
+    q.diagram_image = "";
+    q.diagram_labels = [{ label: "", x: 0.5, y: 0.5 }];
+  } else if (type === "mark_image") {
+    q.image = "";
+    q.mark_regions = [{ type: "circle", x: 0.5, y: 0.5, radius: 0.1 }];
+  } else if (type === "math_formula") {
+    q.correct_formula = "";
+    q.tolerance = 0.001;
+    q.formula_sheet = "";
   }
   return q;
 }
@@ -64,7 +76,7 @@ function renderMain(root, quizzes) {
   } else {
     for (let i = 0; i < quiz.questions.length; i++) {
       const q = quiz.questions[i];
-      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke" }[q.question_type] || q.question_type;
+      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke", drag_drop: "D&D", diagram_label: "Diagramm", mark_image: "Markieren", math_formula: "Mathe" }[q.question_type] || q.question_type;
       html += `<div class="question-row" data-qi="${i}">
         <div class="q-num">${i + 1}</div>
         <div class="q-info">
@@ -121,6 +133,10 @@ function showTypeChooser(root, quizzes) {
     { type: "multiple_choice", label: "Multiple Choice", icon: "☑️", desc: "Mehrere richtige Antworten" },
     { type: "free_text", label: "Freitext", icon: "✍️", desc: "Antwort eintippen" },
     { type: "fill_blank", label: "Lückentext", icon: "📝", desc: "Lücken ausfüllen (___)" },
+    { type: "drag_drop", label: "Drag & Drop", icon: "🔀", desc: "Begriffe zuordnen" },
+    { type: "diagram_label", label: "Diagramm", icon: "🏷️", desc: "Bild beschriften" },
+    { type: "mark_image", label: "Bild markieren", icon: "📍", desc: "Stelle im Bild markieren" },
+    { type: "math_formula", label: "Mathe-Formel", icon: "🔢", desc: "Formel / Berechnung" },
   ];
 
   let html = `<div class="editor-header">
@@ -157,7 +173,7 @@ function renderQuestionEditor(root, quizzes) {
   const q = quiz.questions[editingIndex];
   if (!q) { renderMain(root, quizzes); return; }
 
-  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext" }[q.question_type] || q.question_type;
+  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext", drag_drop: "Drag & Drop", diagram_label: "Diagramm", mark_image: "Bild markieren", math_formula: "Mathe-Formel" }[q.question_type] || q.question_type;
 
   let html = `<div class="editor-header">
     <button class="btn-icon" id="qe-back">←</button>
@@ -208,6 +224,79 @@ function renderQuestionEditor(root, quizzes) {
     }
     html += `</div>`;
     html += `<button class="btn-secondary btn-sm" id="add-blank" style="margin-top:0.5rem">+ Lücke</button>`;
+  } else if (q.question_type === "drag_drop") {
+    html += `<div class="section-title" style="margin-top:1rem">Zuordnungspaare</div>`;
+    html += `<div id="pairs-list">`;
+    for (let i = 0; i < q.drag_drop_pairs.length; i++) {
+      const p = q.drag_drop_pairs[i];
+      html += `<div class="option-edit-row">
+        <input type="text" class="input pair-src" data-pi="${i}" value="${esc(p.source)}" placeholder="Quelle ${i + 1}" style="flex:1">
+        <span style="color:var(--text-light);font-size:0.8rem">→</span>
+        <input type="text" class="input pair-tgt" data-pi="${i}" value="${esc(p.target)}" placeholder="Ziel ${i + 1}" style="flex:1">
+        <button class="btn-icon pair-del" data-pi="${i}" ${q.drag_drop_pairs.length <= 1 ? "disabled" : ""}>✕</button>
+      </div>`;
+    }
+    html += `</div>`;
+    html += `<button class="btn-secondary btn-sm" id="add-pair" style="margin-top:0.5rem">+ Paar</button>`;
+  } else if (q.question_type === "diagram_label") {
+    html += `<div class="editor-form">
+      <label>Bild-URL (oder Base64)</label>
+      <input type="text" id="qe-diagram-img" class="input" value="${esc(q.diagram_image || "")}" placeholder="https://... oder Datei hochladen">
+      <input type="file" id="qe-diagram-file" accept="image/*" style="font-size:0.85rem;margin-top:6px">
+    </div>`;
+    html += `<div class="section-title" style="margin-top:1rem">Labels</div>`;
+    html += `<div id="labels-list">`;
+    for (let i = 0; i < (q.diagram_labels || []).length; i++) {
+      const l = q.diagram_labels[i];
+      html += `<div class="option-edit-row">
+        <input type="text" class="input label-name" data-li="${i}" value="${esc(l.label)}" placeholder="Label ${i + 1}" style="flex:2">
+        <input type="number" class="input label-x" data-li="${i}" value="${l.x}" placeholder="X" step="0.01" min="0" max="1" style="flex:1">
+        <input type="number" class="input label-y" data-li="${i}" value="${l.y}" placeholder="Y" step="0.01" min="0" max="1" style="flex:1">
+        <button class="btn-icon label-del" data-li="${i}" ${q.diagram_labels.length <= 1 ? "disabled" : ""}>✕</button>
+      </div>`;
+    }
+    html += `</div>`;
+    html += `<button class="btn-secondary btn-sm" id="add-label" style="margin-top:0.5rem">+ Label</button>`;
+    html += `<small class="hint" style="display:block;margin-top:4px">X/Y: 0.0 = oben-links, 1.0 = unten-rechts</small>`;
+  } else if (q.question_type === "mark_image") {
+    html += `<div class="editor-form">
+      <label>Bild-URL (oder Base64)</label>
+      <input type="text" id="qe-mark-img" class="input" value="${esc(q.image || "")}" placeholder="https://...">
+      <input type="file" id="qe-mark-file" accept="image/*" style="font-size:0.85rem;margin-top:6px">
+    </div>`;
+    html += `<div class="section-title" style="margin-top:1rem">Markierungs-Regionen</div>`;
+    html += `<div id="regions-list">`;
+    for (let i = 0; i < (q.mark_regions || []).length; i++) {
+      const r = q.mark_regions[i];
+      html += `<div class="option-edit-row" style="flex-wrap:wrap;gap:4px">
+        <select class="input region-type" data-ri="${i}" style="flex:1;min-width:80px">
+          <option value="circle" ${r.type === "circle" ? "selected" : ""}>Kreis</option>
+          <option value="polygon" ${r.type === "polygon" ? "selected" : ""}>Polygon</option>
+        </select>
+        ${r.type === "circle" ? `
+          <input type="number" class="input region-x" data-ri="${i}" value="${r.x}" placeholder="X" step="0.01" min="0" max="1" style="flex:1">
+          <input type="number" class="input region-y" data-ri="${i}" value="${r.y}" placeholder="Y" step="0.01" min="0" max="1" style="flex:1">
+          <input type="number" class="input region-r" data-ri="${i}" value="${r.radius}" placeholder="Radius" step="0.01" min="0" max="1" style="flex:1">
+        ` : `<input type="text" class="input region-pts" data-ri="${i}" value="${(r.points || []).map(p => p.join(",")).join("; ")}" placeholder="x1,y1; x2,y2; ..." style="flex:3">`}
+        <button class="btn-icon region-del" data-ri="${i}" ${q.mark_regions.length <= 1 ? "disabled" : ""}>✕</button>
+      </div>`;
+    }
+    html += `</div>`;
+    html += `<button class="btn-secondary btn-sm" id="add-region" style="margin-top:0.5rem">+ Region</button>`;
+  } else if (q.question_type === "math_formula") {
+    html += `<div class="editor-form">
+      <label>Richtige Formel / Ergebnis</label>
+      <input type="text" id="qe-formula" class="input" value="${esc(q.correct_formula || "")}" placeholder="z.B. x = 42 oder $\\frac{1}{2}$">
+    </div>`;
+    html += `<div class="editor-form">
+      <label>Toleranz (numerisch)</label>
+      <input type="number" id="qe-tolerance" class="input input-sm" value="${q.tolerance || 0.001}" step="0.001" min="0">
+      <small class="hint">Relative Abweichung für numerische Vergleiche</small>
+    </div>`;
+    html += `<div class="editor-form">
+      <label>Formelsammlung (optional)</label>
+      <textarea id="qe-formulas" class="input textarea" rows="3" placeholder="Formeln die als Hilfe angezeigt werden...">${esc(q.formula_sheet || "")}</textarea>
+    </div>`;
   }
 
   html += `<div class="editor-bottom-bar">
@@ -237,6 +326,62 @@ function renderQuestionEditor(root, quizzes) {
       q.blanks.push("");
       renderQuestionEditor(root, quizzes);
     });
+  } else if (q.question_type === "drag_drop") {
+    root.querySelectorAll(".pair-src").forEach(input => {
+      input.addEventListener("input", e => { q.drag_drop_pairs[parseInt(e.target.dataset.pi)].source = e.target.value; });
+    });
+    root.querySelectorAll(".pair-tgt").forEach(input => {
+      input.addEventListener("input", e => { q.drag_drop_pairs[parseInt(e.target.dataset.pi)].target = e.target.value; });
+    });
+    root.querySelectorAll(".pair-del").forEach(btn => {
+      btn.addEventListener("click", () => { q.drag_drop_pairs.splice(parseInt(btn.dataset.pi), 1); renderQuestionEditor(root, quizzes); });
+    });
+    root.querySelector("#add-pair")?.addEventListener("click", () => { q.drag_drop_pairs.push({ source: "", target: "" }); renderQuestionEditor(root, quizzes); });
+  } else if (q.question_type === "diagram_label") {
+    root.querySelector("#qe-diagram-img")?.addEventListener("input", e => { q.diagram_image = e.target.value; });
+    root.querySelector("#qe-diagram-file")?.addEventListener("change", e => {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { q.diagram_image = reader.result; root.querySelector("#qe-diagram-img").value = "(Bild hochgeladen)"; };
+      reader.readAsDataURL(file);
+    });
+    root.querySelectorAll(".label-name").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].label = e.target.value; }); });
+    root.querySelectorAll(".label-x").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].x = parseFloat(e.target.value) || 0; }); });
+    root.querySelectorAll(".label-y").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].y = parseFloat(e.target.value) || 0; }); });
+    root.querySelectorAll(".label-del").forEach(btn => { btn.addEventListener("click", () => { q.diagram_labels.splice(parseInt(btn.dataset.li), 1); renderQuestionEditor(root, quizzes); }); });
+    root.querySelector("#add-label")?.addEventListener("click", () => { q.diagram_labels.push({ label: "", x: 0.5, y: 0.5 }); renderQuestionEditor(root, quizzes); });
+  } else if (q.question_type === "mark_image") {
+    root.querySelector("#qe-mark-img")?.addEventListener("input", e => { q.image = e.target.value; });
+    root.querySelector("#qe-mark-file")?.addEventListener("change", e => {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { q.image = reader.result; root.querySelector("#qe-mark-img").value = "(Bild hochgeladen)"; };
+      reader.readAsDataURL(file);
+    });
+    root.querySelectorAll(".region-type").forEach(sel => {
+      sel.addEventListener("change", e => {
+        const i = parseInt(e.target.dataset.ri);
+        q.mark_regions[i].type = e.target.value;
+        if (e.target.value === "circle") { q.mark_regions[i].x = 0.5; q.mark_regions[i].y = 0.5; q.mark_regions[i].radius = 0.1; delete q.mark_regions[i].points; }
+        else { q.mark_regions[i].points = [[0.3,0.3],[0.7,0.3],[0.7,0.7],[0.3,0.7]]; delete q.mark_regions[i].x; delete q.mark_regions[i].y; delete q.mark_regions[i].radius; }
+        renderQuestionEditor(root, quizzes);
+      });
+    });
+    root.querySelectorAll(".region-x").forEach(input => { input.addEventListener("input", e => { q.mark_regions[parseInt(e.target.dataset.ri)].x = parseFloat(e.target.value) || 0; }); });
+    root.querySelectorAll(".region-y").forEach(input => { input.addEventListener("input", e => { q.mark_regions[parseInt(e.target.dataset.ri)].y = parseFloat(e.target.value) || 0; }); });
+    root.querySelectorAll(".region-r").forEach(input => { input.addEventListener("input", e => { q.mark_regions[parseInt(e.target.dataset.ri)].radius = parseFloat(e.target.value) || 0.1; }); });
+    root.querySelectorAll(".region-pts").forEach(input => {
+      input.addEventListener("input", e => {
+        const pts = e.target.value.split(";").map(s => s.trim().split(",").map(Number)).filter(p => p.length === 2 && !p.some(isNaN));
+        q.mark_regions[parseInt(e.target.dataset.ri)].points = pts;
+      });
+    });
+    root.querySelectorAll(".region-del").forEach(btn => { btn.addEventListener("click", () => { q.mark_regions.splice(parseInt(btn.dataset.ri), 1); renderQuestionEditor(root, quizzes); }); });
+    root.querySelector("#add-region")?.addEventListener("click", () => { q.mark_regions.push({ type: "circle", x: 0.5, y: 0.5, radius: 0.1 }); renderQuestionEditor(root, quizzes); });
+  } else if (q.question_type === "math_formula") {
+    root.querySelector("#qe-formula")?.addEventListener("input", e => { q.correct_formula = e.target.value; });
+    root.querySelector("#qe-tolerance")?.addEventListener("input", e => { q.tolerance = parseFloat(e.target.value) || 0.001; });
+    root.querySelector("#qe-formulas")?.addEventListener("input", e => { q.formula_sheet = e.target.value; });
   }
 }
 

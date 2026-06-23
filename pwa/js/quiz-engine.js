@@ -6,6 +6,8 @@ export function checkAnswer(question, userInput) {
     case "fill_blank": return checkFillBlank(question, userInput);
     case "drag_drop": return checkDragDrop(question, userInput);
     case "math_formula": return checkMath(question, userInput);
+    case "diagram_label": return checkDiagramLabel(question, userInput);
+    case "mark_image": return checkMarkImage(question, userInput);
     default:
       return { question_id: question.id, is_correct: false, score: 0, max_score: question.points, user_answer: String(userInput), correct_answer: "" };
   }
@@ -76,6 +78,50 @@ function evalMath(expr) {
     if (!/^[0-9.+\-*/() mathsqrpi]+$/i.test(c)) return null;
     return Function(`"use strict"; return (${c})`)();
   } catch { return null; }
+}
+
+function checkDiagramLabel(q, placements) {
+  const labels = q.diagram_labels || [];
+  const tol = 0.13;
+  let hits = 0;
+  for (const lbl of labels) {
+    const p = placements?.[lbl.label];
+    if (p) {
+      const dist = Math.sqrt((p.x - lbl.x) ** 2 + (p.y - lbl.y) ** 2);
+      if (dist <= tol) hits++;
+    }
+  }
+  const total = Math.max(labels.length, 1);
+  const ok = hits === total;
+  return { question_id: q.id, is_correct: ok, score: Math.round((hits / total) * q.points * 10) / 10,
+    max_score: q.points, user_answer: JSON.stringify(placements),
+    correct_answer: labels.map(l => `${l.label} (${l.x},${l.y})`).join(", ") };
+}
+
+function pointInPolygon(x, y, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i][0], yi = points[i][1];
+    const xj = points[j][0], yj = points[j][1];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function checkMarkImage(q, click) {
+  const regions = q.mark_regions || [];
+  if (!click) return { question_id: q.id, is_correct: false, score: 0, max_score: q.points, user_answer: "", correct_answer: "Markierung im Bild" };
+  let hit = false;
+  for (const r of regions) {
+    if (r.type === "circle") {
+      const dist = Math.sqrt((click.x - r.x) ** 2 + (click.y - r.y) ** 2);
+      if (dist <= r.radius) { hit = true; break; }
+    } else if (r.type === "polygon" && r.points) {
+      if (pointInPolygon(click.x, click.y, r.points)) { hit = true; break; }
+    }
+  }
+  return { question_id: q.id, is_correct: hit, score: hit ? q.points : 0, max_score: q.points,
+    user_answer: `(${click.x.toFixed(3)},${click.y.toFixed(3)})`, correct_answer: "Markierung im Bild" };
 }
 
 function checkMath(q, answer) {
