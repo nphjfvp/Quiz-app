@@ -7274,16 +7274,29 @@ class App(ctk.CTk):
                 source_box.insert("1.0", text)
 
         # Length presets
-        LENGTH_PRESETS = {
-            "Sehr kurz": (200, 500),
-            "Kurz": (500, 1200),
-            "Mittel": (1200, 2500),
-            "Lang": (2500, 5000),
-            "Sehr lang": (5000, 10000),
-        }
+        def _make_presets():
+            mx = _get_max_chars_for_model()
+            return {
+                "Sehr kurz": (200, min(500, mx)),
+                "Kurz": (500, min(1200, mx)),
+                "Mittel": (1200, min(2500, mx)),
+                "Lang": (2500, min(max(5000, mx // 4), mx)),
+                "Sehr lang": (max(5000, mx // 4), mx),
+            }
+        LENGTH_PRESETS = _make_presets()
         MIN_CHARS_ABS = 100
-        MAX_CHARS_ABS = 15000
         MIN_GAP = 200
+
+        def _get_max_chars_for_model():
+            from .ai_service import AIService
+            if hasattr(self, '_current_gen_model') and self._current_gen_model:
+                m = next((m for m in AIService.RECOMMENDED_MODELS if m["id"] == self._current_gen_model), None)
+            else:
+                m = next((m for m in AIService.RECOMMENDED_MODELS if m["id"] == self.ai.model), None)
+            ctx = m.get("context", 128000) if m else 128000
+            return max(5000, int((ctx - 6000) * 3.5))
+
+        MAX_CHARS_ABS = _get_max_chars_for_model()
 
         ctk.CTkLabel(scroll, text="Textlänge:", font=("Segoe UI", 13, "bold"),
                     text_color=COLORS["text"]).grid(row=row, column=0, sticky="w", pady=(10, 0))
@@ -7339,7 +7352,7 @@ class App(ctk.CTk):
                 try:
                     mn = max(MIN_CHARS_ABS, int(min_entry.get()))
                     mx = max(mn + MIN_GAP, int(max_entry.get()))
-                    mx = min(mx, MAX_CHARS_ABS)
+                    mx = min(mx, _get_max_chars_for_model())
                     return mn, mx
                 except ValueError:
                     pass

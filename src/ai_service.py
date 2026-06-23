@@ -425,22 +425,36 @@ class AIService:
     # ── Model Recommendations ──
 
     RECOMMENDED_MODELS = [
-        {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "cost_in": 3.0, "cost_out": 15.0, "speed": "mittel",
-         "vision": True, "strengths": ["MINT", "Informatik", "Logik", "Programmierung", "Jura"]},
-        {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.15, "cost_out": 0.6, "speed": "schnell",
-         "vision": True, "strengths": ["Medizin", "Gesundheit", "Biologie", "Naturwissenschaften", "Sprachen"]},
-        {"id": "deepseek/deepseek-chat", "name": "DeepSeek V3", "cost_in": 0.27, "cost_out": 1.10, "speed": "mittel",
-         "vision": False, "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
-        {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 0.80, "cost_out": 4.0, "speed": "schnell",
-         "vision": True, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
+        # ── Gratis ──
+        {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "name": "Nemotron 3 Ultra (gratis)", "cost_in": 0, "cost_out": 0, "speed": "mittel",
+         "vision": False, "context": 1000000, "strengths": ["MINT", "Logik", "Mathematik", "Physik"]},
+        {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "Nemotron 3 Super (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": False, "context": 1000000, "strengths": ["Allgemeinwissen", "Informatik", "Technik"]},
+        {"id": "qwen/qwen3.6-plus-preview:free", "name": "Qwen 3.6 Plus (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": True, "context": 1000000, "strengths": ["Sprachen", "Allgemeinwissen", "Naturwissenschaften"]},
+        {"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "name": "Nemotron Nano Omni (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": True, "context": 128000, "strengths": ["Allgemeinwissen", "Bilder"]},
+        # ── Günstig ──
+        {"id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "cost_in": 0.09, "cost_out": 0.18, "speed": "schnell",
+         "vision": False, "context": 1000000, "strengths": ["Mathematik", "Physik", "Ingenieurwesen", "Technik"]},
+        {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.30, "cost_out": 2.50, "speed": "schnell",
+         "vision": True, "context": 1000000, "strengths": ["Medizin", "Biologie", "Naturwissenschaften", "Sprachen"]},
+        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "cost_in": 0.15, "cost_out": 0.60, "speed": "schnell",
+         "vision": True, "context": 128000, "strengths": ["Allgemeinwissen", "Sprachen"]},
+        {"id": "deepseek/deepseek-r1", "name": "DeepSeek R1 (Reasoning)", "cost_in": 0.70, "cost_out": 2.50, "speed": "langsam",
+         "vision": False, "context": 164000, "strengths": ["Mathematik", "Logik", "Physik", "Programmierung"]},
+        {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 1.00, "cost_out": 5.00, "speed": "schnell",
+         "vision": True, "context": 200000, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
+        # ── Mittelklasse ──
+        {"id": "google/gemini-2.5-pro", "name": "Gemini 2.5 Pro", "cost_in": 1.25, "cost_out": 10.0, "speed": "mittel",
+         "vision": True, "context": 1000000, "strengths": ["Medizin", "Jura", "Naturwissenschaften"]},
+        {"id": "anthropic/claude-sonnet-4-6", "name": "Claude Sonnet 4.6", "cost_in": 3.00, "cost_out": 15.0, "speed": "mittel",
+         "vision": True, "context": 1000000, "strengths": ["MINT", "Informatik", "Logik", "Jura"]},
         {"id": "openai/gpt-4o", "name": "GPT-4o", "cost_in": 2.50, "cost_out": 10.0, "speed": "mittel",
-         "vision": True, "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
-        {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "cost_in": 0.15, "cost_out": 0.6, "speed": "schnell",
-         "vision": True, "strengths": ["Allgemeinwissen", "Sprachen"]},
-        {"id": "meta-llama/llama-3.3-70b-instruct", "name": "Llama 3.3 70B", "cost_in": 0.20, "cost_out": 0.20, "speed": "mittel",
-         "vision": False, "strengths": ["Informatik", "Programmierung"]},
-        {"id": "mistralai/mistral-large-2411", "name": "Mistral Large", "cost_in": 2.0, "cost_out": 6.0, "speed": "mittel",
-         "vision": False, "strengths": ["Sprachen", "Literatur", "Europäische Geschichte"]},
+         "vision": True, "context": 128000, "strengths": ["Geschichte", "Philosophie", "Sozialwissenschaften"]},
+        # ── Premium ──
+        {"id": "anthropic/claude-opus-4-8", "name": "Claude Opus 4.8", "cost_in": 5.00, "cost_out": 25.0, "speed": "langsam",
+         "vision": True, "context": 1000000, "strengths": ["Forschung", "komplexe Analysen", "Medizin"]},
     ]
 
     @classmethod

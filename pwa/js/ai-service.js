@@ -1,8 +1,32 @@
 import { loadSettings } from "./store.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "openai/gpt-4o-mini";
-const VISION_MODEL = "openai/gpt-4o-mini";
+const DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
+const VISION_MODEL = "qwen/qwen3.6-plus-preview:free";
+
+const MODEL_CONTEXT = {
+  "nvidia/nemotron-3-ultra-550b-a55b:free": 1000000,
+  "nvidia/nemotron-3-super-120b-a12b:free": 1000000,
+  "qwen/qwen3.6-plus-preview:free": 1000000,
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": 128000,
+  "deepseek/deepseek-v4-flash": 1000000,
+  "google/gemini-2.5-flash": 1000000,
+  "openai/gpt-4o-mini": 128000,
+  "deepseek/deepseek-r1": 164000,
+  "anthropic/claude-haiku-4-5-20251001": 200000,
+  "google/gemini-2.5-pro": 1000000,
+  "anthropic/claude-sonnet-4-6": 1000000,
+  "openai/gpt-4o": 128000,
+  "anthropic/claude-opus-4-8": 1000000,
+};
+
+export function getModelContextLimit(modelId) {
+  const ctx = MODEL_CONTEXT[modelId] || 128000;
+  const reserveForOutput = 4000;
+  const reserveForPrompt = 2000;
+  const availableTokens = ctx - reserveForOutput - reserveForPrompt;
+  return Math.floor(availableTokens * 3.5);
+}
 
 function uid() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
