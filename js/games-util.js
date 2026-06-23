@@ -12,7 +12,8 @@ function norm(s) {
 export function normalizeQuestion(q) {
   if (!q) return null;
   const image = q.image || q.image_data || null;
-  const prompt = (q.text || q.title || "").trim();
+  // PWA stores the question text in `question_text`; fall back to text/title.
+  const prompt = (q.question_text || q.text || q.title || "").trim();
   const type = q.question_type;
 
   if (type === "single_choice" || type === "multiple_choice") {
@@ -20,7 +21,10 @@ export function normalizeQuestion(q) {
       .filter(o => (o.text ?? "").toString().trim().length > 0)
       .map(o => ({ text: o.text, correct: !!o.is_correct }));
     if (options.length < 2 || !options.some(o => o.correct)) return null;
-    return { prompt: prompt || "Wähle die richtige Antwort", image, kind: "choice", options, accept: [] };
+    const correctCount = options.filter(o => o.correct).length;
+    // multiple_choice with >1 correct → must pick all correct; otherwise single pick
+    const kind = (type === "multiple_choice" && correctCount > 1) ? "multi" : "choice";
+    return { prompt: prompt || "Wähle die richtige Antwort", image, kind, options, accept: [] };
   }
 
   if (type === "free_text") {
@@ -74,6 +78,13 @@ export function difficultyOfNormalized(n) {
   if (n.kind === "text") return 3;
   if (n.options.length >= 4) return 2;
   return 1;
+}
+
+// Multi-select correctness: the selected set must exactly match the correct set.
+export function checkMulti(options, selectedIdx) {
+  const correct = options.map((o, i) => (o.correct ? i : -1)).filter(i => i >= 0).sort((a, b) => a - b);
+  const sel = [...selectedIdx].sort((a, b) => a - b);
+  return sel.length === correct.length && sel.every((v, k) => v === correct[k]);
 }
 
 export function checkText(accept, value) {

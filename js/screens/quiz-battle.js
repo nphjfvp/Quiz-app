@@ -1,7 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
-import { buildPlayable, checkText, shuffle } from "../games-util.js";
+import { buildPlayable, checkText, checkMulti, shuffle } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 420;
 const TOWER_Y = CANVAS_H - 36;
@@ -154,6 +154,32 @@ function showQuestion(state, root, canvas) {
       makeDraggable(card, canvas, () => commit(!!o.correct));
       cards.appendChild(card);
     });
+  } else if (q.kind === "multi") {
+    const shuffled = shuffle([...q.options]);
+    const selected = new Set();
+    const hint = document.createElement("div");
+    hint.className = "qb-multi-hint";
+    hint.textContent = "Mehrere richtig — antippen zum Wählen, dann „Angreifen" ziehen";
+    cards.appendChild(hint);
+    shuffled.forEach((o, i) => {
+      const card = document.createElement("div");
+      card.className = "qb-card qb-card-select";
+      card.textContent = o.text;
+      card.addEventListener("click", () => {
+        if (selected.has(i)) { selected.delete(i); card.classList.remove("selected"); }
+        else { selected.add(i); card.classList.add("selected"); }
+        attackCard.textContent = `⚔️ Angreifen (${selected.size})`;
+      });
+      cards.appendChild(card);
+    });
+    const attackCard = document.createElement("div");
+    attackCard.className = "qb-card qb-attack-card";
+    attackCard.textContent = "⚔️ Angreifen (0)";
+    makeDraggable(attackCard, canvas, () => {
+      const chosen = shuffled.filter((_, i) => selected.has(i));
+      commit(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))));
+    });
+    cards.appendChild(attackCard);
   } else {
     const inp = document.createElement("input");
     inp.type = "text";

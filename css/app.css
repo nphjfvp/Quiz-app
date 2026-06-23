@@ -1040,6 +1040,11 @@ a:focus-visible, [tabindex]:focus-visible {
 }
 .td-q-text { font-weight: 700; font-size: 0.95rem; margin-bottom: 10px; line-height: 1.4; }
 .td-q-img { max-width: 100%; max-height: 140px; border-radius: var(--radius-sm); margin-bottom: 8px; display: block; }
+.td-multi-hint, .qb-multi-hint { flex-basis: 100%; width: 100%; font-size: 0.72rem; color: var(--text-light); margin-bottom: 2px; }
+.td-opt-multi.selected { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
+.td-multi-confirm { flex-basis: 100%; }
+.qb-card-select.selected { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
+.qb-attack-card { flex-basis: 100%; background: var(--warning); color: #000; border-color: var(--warning); }
 .td-options { display: flex; flex-wrap: wrap; gap: 6px; }
 .td-opt {
   flex: 1 1 calc(50% - 3px); padding: 10px; border-radius: var(--radius-sm);
