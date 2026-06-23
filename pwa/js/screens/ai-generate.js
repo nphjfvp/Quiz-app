@@ -1,6 +1,14 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, getModelContextLimit, MODELS } from "../ai-service.js";
+import { generateQuiz, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
 import { navigate } from "../router.js";
+
+const Q_TYPES = [
+  { id: "single_choice", label: "Single Choice" },
+  { id: "multiple_choice", label: "Multiple Choice" },
+  { id: "free_text", label: "Freitext" },
+  { id: "fill_blank", label: "Lückentext" },
+  { id: "drag_drop", label: "Drag & Drop" },
+];
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -253,20 +261,7 @@ export async function render(root, params = {}) {
 
     try {
       const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel });
-
-      const quiz = {
-        id: uid(),
-        name: quizName,
-        questions,
-        description: "KI-generiert",
-        created: new Date().toISOString(),
-      };
-
-      const quizzes = await loadQuizzes();
-      quizzes.push(quiz);
-      await saveQuizzes(quizzes);
-
-      navigate("quiz-modes", { quizId: quiz.id });
+      showReview(root, questions, quizName, currentModel);
     } catch (err) {
       showError(err.message || "Beim Generieren ist ein Fehler aufgetreten.");
       genBtn.disabled = false;
@@ -283,4 +278,194 @@ export async function render(root, params = {}) {
   function hideError() {
     errorBox.style.display = "none";
   }
+}
+
+// ─── Review Screen ──────────────────────────────────────────────────
+
+function showReview(root, questions, quizName, modelId) {
+  let qs = [...questions];
+
+  function renderReview() {
+    let html = `<div class="editor-header">
+      <button class="btn-icon back-btn" id="review-back">←</button>
+      <h2>Fragen prüfen (${qs.length})</h2>
+    </div>
+    <div style="font-size:0.85rem;color:var(--text-light);margin:8px 0 16px">
+      Prüfe die generierten Fragen. Du kannst sie bearbeiten, per KI ändern lassen, den Typ wechseln oder löschen.
+    </div>`;
+
+    qs.forEach((q, i) => {
+      const typeLabel = Q_TYPES.find(t => t.id === q.question_type)?.label || q.question_type;
+      html += `<div class="card" style="margin-bottom:12px" data-idx="${i}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:700;font-size:0.8rem;color:var(--primary)">Frage ${i + 1}</span>
+          <span style="font-size:0.7rem;background:var(--row-neutral);padding:2px 8px;border-radius:10px">${typeLabel}</span>
+        </div>
+        <div class="input-group" style="margin-bottom:6px">
+          <label style="font-size:0.75rem">Fragetext</label>
+          <textarea class="textarea input q-text" rows="2" style="font-size:0.85rem">${esc(q.question_text || "")}</textarea>
+        </div>`;
+
+      if (q.options && q.options.length) {
+        html += `<div style="margin-bottom:6px">
+          <label style="font-size:0.75rem;color:var(--text-light)">Antworten</label>`;
+        q.options.forEach((o, oi) => {
+          html += `<div style="display:flex;align-items:center;gap:6px;margin:3px 0">
+            <input type="checkbox" class="opt-correct" data-oi="${oi}" ${o.is_correct ? "checked" : ""}>
+            <input type="text" class="input opt-text" data-oi="${oi}" value="${esc(o.text || "")}" style="flex:1;font-size:0.8rem;padding:4px 8px">
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      if (q.correct_text !== undefined && q.question_type === "free_text") {
+        html += `<div class="input-group" style="margin-bottom:6px">
+          <label style="font-size:0.75rem">Richtige Antwort</label>
+          <input type="text" class="input q-correct-text" value="${esc(q.correct_text || "")}" style="font-size:0.85rem">
+        </div>`;
+      }
+
+      if (q.explanation) {
+        html += `<div class="input-group" style="margin-bottom:6px">
+          <label style="font-size:0.75rem">Erklärung</label>
+          <textarea class="textarea input q-explanation" rows="2" style="font-size:0.8rem">${esc(q.explanation || "")}</textarea>
+        </div>`;
+      }
+
+      // Type conversion
+      html += `<div style="display:flex;gap:6px;align-items:center;margin:8px 0 4px;flex-wrap:wrap">
+        <select class="input q-type-select" style="font-size:0.8rem;padding:4px 8px;flex:0 0 auto">
+          ${Q_TYPES.map(t => `<option value="${t.id}" ${t.id === q.question_type ? "selected" : ""}>${t.label}</option>`).join("")}
+        </select>
+        <button class="btn btn-ghost btn-sm q-convert-btn" style="font-size:0.75rem">Typ ändern</button>
+      </div>`;
+
+      // AI edit
+      html += `<div style="display:flex;gap:6px;margin:6px 0;align-items:stretch">
+        <input type="text" class="input q-ai-instruction" placeholder="KI-Anweisung, z.B. 'Mach die Frage schwerer'" style="flex:1;font-size:0.8rem;padding:4px 8px">
+        <button class="btn btn-primary btn-sm q-ai-btn" style="font-size:0.75rem;white-space:nowrap">KI ändern</button>
+      </div>
+      <div class="q-ai-status" style="font-size:0.75rem;color:var(--text-light)"></div>`;
+
+      // Delete
+      html += `<div style="text-align:right;margin-top:6px">
+        <button class="btn btn-ghost btn-sm q-delete-btn" style="color:var(--danger);font-size:0.75rem">Frage löschen</button>
+      </div>`;
+
+      html += `</div>`;
+    });
+
+    html += `<div style="display:flex;gap:10px;margin:16px 0 40px">
+      <button class="btn btn-primary btn-lg" id="review-save" style="flex:1">Quiz speichern (${qs.length} Fragen)</button>
+    </div>`;
+
+    root.innerHTML = html;
+    bindReviewEvents();
+  }
+
+  function syncManualEdits(card, idx) {
+    const q = qs[idx];
+    const textEl = card.querySelector(".q-text");
+    if (textEl) q.question_text = textEl.value;
+    const correctTextEl = card.querySelector(".q-correct-text");
+    if (correctTextEl) q.correct_text = correctTextEl.value;
+    const explEl = card.querySelector(".q-explanation");
+    if (explEl) q.explanation = explEl.value;
+    card.querySelectorAll(".opt-text").forEach(el => {
+      const oi = parseInt(el.dataset.oi);
+      if (q.options?.[oi]) q.options[oi].text = el.value;
+    });
+    card.querySelectorAll(".opt-correct").forEach(el => {
+      const oi = parseInt(el.dataset.oi);
+      if (q.options?.[oi]) q.options[oi].is_correct = el.checked;
+    });
+  }
+
+  function syncAllEdits() {
+    root.querySelectorAll(".card[data-idx]").forEach(card => {
+      syncManualEdits(card, parseInt(card.dataset.idx));
+    });
+  }
+
+  function bindReviewEvents() {
+    root.querySelector("#review-back")?.addEventListener("click", () => {
+      if (confirm("Zurück? Nicht gespeicherte Änderungen gehen verloren.")) {
+        render(root);
+      }
+    });
+
+    root.querySelector("#review-save")?.addEventListener("click", async () => {
+      syncAllEdits();
+      if (qs.length === 0) { alert("Keine Fragen zum Speichern."); return; }
+      const quiz = {
+        id: uid(),
+        name: quizName,
+        questions: qs,
+        description: "KI-generiert",
+        created: new Date().toISOString(),
+      };
+      const quizzes = await loadQuizzes();
+      quizzes.push(quiz);
+      await saveQuizzes(quizzes);
+      navigate("quiz-modes", { quizId: quiz.id });
+    });
+
+    // Delete
+    root.querySelectorAll(".q-delete-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const card = btn.closest(".card[data-idx]");
+        const idx = parseInt(card.dataset.idx);
+        syncAllEdits();
+        qs.splice(idx, 1);
+        renderReview();
+      });
+    });
+
+    // AI edit
+    root.querySelectorAll(".q-ai-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const card = btn.closest(".card[data-idx]");
+        const idx = parseInt(card.dataset.idx);
+        syncManualEdits(card, idx);
+        const instruction = card.querySelector(".q-ai-instruction").value.trim();
+        const st = card.querySelector(".q-ai-status");
+        if (!instruction) { st.textContent = "Bitte eine Anweisung eingeben."; return; }
+        btn.disabled = true;
+        st.textContent = "⏳ KI arbeitet…";
+        try {
+          const edited = await editQuestionWithAI(qs[idx], instruction, null, { model: modelId });
+          qs[idx] = { ...edited, id: qs[idx].id };
+          renderReview();
+        } catch (e) {
+          st.textContent = "Fehler: " + e.message;
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Type conversion
+    root.querySelectorAll(".q-convert-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const card = btn.closest(".card[data-idx]");
+        const idx = parseInt(card.dataset.idx);
+        syncManualEdits(card, idx);
+        const targetType = card.querySelector(".q-type-select").value;
+        if (targetType === qs[idx].question_type) return;
+        const st = card.querySelector(".q-ai-status");
+        btn.disabled = true;
+        st.textContent = `⏳ Wandle in ${targetType} um…`;
+        try {
+          const edited = await editQuestionWithAI(qs[idx], `Wandle diese Frage in den Typ "${targetType}" um. Behalte den Inhalt bei.`, targetType, { model: modelId });
+          edited.question_type = targetType;
+          qs[idx] = { ...edited, id: qs[idx].id };
+          renderReview();
+        } catch (e) {
+          st.textContent = "Fehler: " + e.message;
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  renderReview();
 }
