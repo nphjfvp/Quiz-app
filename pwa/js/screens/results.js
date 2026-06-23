@@ -1,5 +1,6 @@
 import { navigate } from "../router.js";
 import { explainAnswer } from "../ai-service.js";
+import { esc } from "../utils.js";
 
 export async function render(root, params) {
   const { session, quiz } = params;
@@ -128,5 +129,3 @@ function showDetail(root, q, result, session, quiz) {
     navigate("tutor", { question: { text: q.question_text || q.text, correct: result?.correct_answer, image: qImage } });
   });
 }
-
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }

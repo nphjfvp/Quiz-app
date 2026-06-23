@@ -9,6 +9,47 @@ from typing import Optional
 from .models import Question, QuestionType, QuestionProgress, Quiz, DataStore
 
 
+def _norm_text(s: str) -> str:
+    """Normalisiert Antworttext: trim, lowercase, Mehrfach-Leerzeichen + Randsatzzeichen weg."""
+    import re
+    s = (s or "").strip().lower()
+    s = re.sub(r"\s+", " ", s)
+    s = re.sub(r"^[.,;:!?]+|[.,;:!?]+$", "", s)
+    return s
+
+
+def _levenshtein(a: str, b: str) -> int:
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost))
+        prev = cur
+    return prev[-1]
+
+
+def _answer_matches(answer: str, correct: str) -> bool:
+    """Akzeptiert mehrere mit ';' getrennte Lösungen und kleine Tippfehler
+    (1 Zeichen ab Länge 5, 2 ab Länge 9)."""
+    a = _norm_text(answer)
+    if a == "":
+        return False
+    for c in (_norm_text(x) for x in str(correct or "").split(";")):
+        if not c:
+            continue
+        if a == c:
+            return True
+        allowed = 2 if len(c) >= 9 else 1 if len(c) >= 5 else 0
+        if allowed > 0 and _levenshtein(a, c) <= allowed:
+            return True
+    return False
+
+
 @dataclass
 class AnswerResult:
     question_id: str
@@ -99,15 +140,13 @@ class QuizSession:
         return AnswerResult(q.id, is_correct, round(score, 1), q.points, user_text, correct_text)
 
     def _check_free_text(self, q: Question, answer: str) -> AnswerResult:
-        normalized_answer = answer.strip().lower()
-        normalized_correct = q.correct_text.strip().lower()
-        is_correct = normalized_answer == normalized_correct
+        is_correct = _answer_matches(answer, q.correct_text)
         return AnswerResult(q.id, is_correct, q.points if is_correct else 0, q.points, answer, q.correct_text)
 
     def _check_fill_blank(self, q: Question, answers: list[str]) -> AnswerResult:
         correct_count = 0
         for given, expected in zip(answers, q.blanks):
-            if given.strip().lower() == expected.strip().lower():
+            if _answer_matches(given, expected):
                 correct_count += 1
         total = max(len(q.blanks), 1)
         score = (correct_count / total) * q.points

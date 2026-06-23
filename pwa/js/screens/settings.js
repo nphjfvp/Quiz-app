@@ -2,6 +2,7 @@ import { loadSettings, saveSettings } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount, setAccount, signIn, signUp, pullAll, pushAll, pullBySyncCode } from "../firebase-sync.js";
 import { MODELS } from "../ai-service.js";
+import { esc } from "../utils.js";
 
 export async function render(root) {
   const settings = await loadSettings();
@@ -233,5 +234,3 @@ export async function render(root) {
     } catch { st.textContent = "Fehler beim Zurücksetzen."; }
   });
 }
-
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }

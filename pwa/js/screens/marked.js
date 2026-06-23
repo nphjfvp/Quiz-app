@@ -1,7 +1,6 @@
 import { loadMarked, saveMarked, loadQuizzes } from "../store.js";
 import { navigate } from "../router.js";
-
-function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+import { esc } from "../utils.js";
 
 export async function render(root) {
   let marked = await loadMarked();

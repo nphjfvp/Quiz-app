@@ -1,6 +1,7 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
 import { generateQuiz, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
 import { navigate } from "../router.js";
+import { esc } from "../utils.js";
 
 const Q_TYPES = [
   { id: "single_choice", label: "Single Choice" },
@@ -8,16 +9,11 @@ const Q_TYPES = [
   { id: "free_text", label: "Freitext" },
   { id: "fill_blank", label: "Lückentext" },
   { id: "drag_drop", label: "Drag & Drop" },
+  { id: "math_formula", label: "Mathe-Formel" },
 ];
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s;
-  return d.innerHTML;
 }
 
 export async function render(root, params = {}) {
