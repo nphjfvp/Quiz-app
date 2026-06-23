@@ -1,7 +1,8 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
-import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary } from "../store.js";
+import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
+import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 
 export async function render(root, params) {
   const { quiz, mode } = params;
@@ -20,6 +21,7 @@ function showQuestion(root, quiz, session) {
   const total = session.questions.length;
   const idx = session.currentIndex + 1;
   let feedbackShown = false;
+  const questionStart = Date.now();
 
   // Lückentext im Satzkontext, wenn der Fragetext ___-Marker enthält
   const clozeParts = q.question_type === "fill_blank" ? String(q.question_text || "").split("___") : null;
@@ -220,6 +222,16 @@ function showQuestion(root, quiz, session) {
     progress = updateProgress(progress, q.id, result.is_correct);
     await saveProgress(progress);
     await logAnswer(result.is_correct);
+
+    // FSRS-Planung aktualisieren (Spaced Repetition)
+    try {
+      const fsrs = await loadFsrs();
+      const card = fsrs[q.id] || newCard(q.id);
+      const answerTimeMs = Date.now() - questionStart;
+      const rating = ratingFromResult(result.is_correct, 3);
+      fsrs[q.id] = fsrsReview(card, rating, answerTimeMs, 0.5);
+      await saveFsrs(fsrs);
+    } catch (_) { /* FSRS optional */ }
 
     if (session.mode === "single") {
       feedbackShown = true;

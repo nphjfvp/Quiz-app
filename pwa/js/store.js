@@ -87,6 +87,13 @@ export async function saveFolders(folders) {
   await set("folders", folders);
 }
 
+export async function loadFsrs() {
+  return (await get("fsrs")) ?? {};
+}
+export async function saveFsrs(data) {
+  await set("fsrs", data);
+}
+
 export async function logAnswer(correct) {
   const stats = await loadStats();
   const today = new Date().toISOString().slice(0, 10);

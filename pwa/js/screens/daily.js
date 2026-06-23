@@ -1,5 +1,6 @@
-import { loadQuizzes, loadProgress, loadDailyState, saveDailyState } from "../store.js";
+import { loadQuizzes, loadProgress, loadDailyState, saveDailyState, loadFsrs } from "../store.js";
 import { navigate } from "../router.js";
+import { daysUntilDue, retrievability } from "../fsrs.js";
 
 export async function render(root) {
   const quizzes = await loadQuizzes();
@@ -16,7 +17,8 @@ export async function render(root) {
 
   // Create daily plan if needed
   if (!daily || daily.date !== today) {
-    daily = createDailyPlan(quizzes, progress, today);
+    const fsrs = await loadFsrs();
+    daily = createDailyPlan(quizzes, progress, today, fsrs);
     await saveDailyState(daily);
   }
 
@@ -75,17 +77,27 @@ export async function render(root) {
   });
 }
 
-function createDailyPlan(quizzes, progress, today) {
+function createDailyPlan(quizzes, progress, today, fsrs = {}) {
   const allQs = quizzes.flatMap(q => q.questions || []);
 
-  // Prioritize: box 1 > box 2 > box 3 > not-seen > box 4 > box 5
+  // FSRS-Priorisierung: neue/überfällige Karten zuerst, dann nach geringer Recall-Wahrscheinlichkeit.
   const scored = allQs.map(q => {
-    const p = progress[q.id];
-    const box = p?.box ?? 1;
-    const seen = p?.last_seen ?? "";
-    const priority = [0, 50, 40, 30, 10, 5][box] ?? 20;
-    const daysSince = seen ? Math.max(0, (Date.now() - new Date(seen).getTime()) / 86400000) : 100;
-    return { q, score: priority + Math.min(daysSince, 30) };
+    const card = fsrs[q.id];
+    let score;
+    if (!card || card.state === "new" || !card.last_review) {
+      // Noch nie / als neu gesehen → höchste Priorität
+      const p = progress[q.id];
+      const box = p?.box ?? 1;
+      score = 1000 - box * 10; // neue/Box-1 zuerst
+    } else {
+      const due = daysUntilDue(card);          // <0 = überfällig
+      const recall = retrievability(card);      // 0..1, niedrig = vergessen
+      // Überfällige Tage stark gewichten, niedriger Recall erhöht Priorität
+      score = 500 + Math.max(0, -due) * 20 + (1 - recall) * 100;
+      // Noch nicht fällige Karten (due > 0) nach unten
+      if (due > 0) score = 200 - Math.min(due, 30) * 5;
+    }
+    return { q, score };
   });
 
   scored.sort((a, b) => b.score - a.score);

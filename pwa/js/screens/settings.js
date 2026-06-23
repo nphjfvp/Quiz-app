@@ -239,10 +239,10 @@ export async function render(root) {
     if (!confirm("Wirklich ALLE Daten löschen? Quizze, Fortschritt, Statistiken — alles wird unwiderruflich gelöscht!")) return;
     if (!confirm("Bist du sicher? Dies kann NICHT rückgängig gemacht werden.")) return;
     try {
-      const { saveQuizzes, saveProgress, saveSettings: saveSett, saveMarked: saveMark, saveStats: saveStat, saveErrorDiary, saveFolders, saveDailyState } = await import("../store.js");
+      const { saveQuizzes, saveProgress, saveSettings: saveSett, saveMarked: saveMark, saveStats: saveStat, saveErrorDiary, saveFolders, saveDailyState, saveFsrs } = await import("../store.js");
       await Promise.all([
         saveQuizzes([]), saveProgress({}), saveSett({}), saveMark([]),
-        saveStat({}), saveErrorDiary([]), saveFolders([]), saveDailyState(null),
+        saveStat({}), saveErrorDiary([]), saveFolders([]), saveDailyState(null), saveFsrs({}),
       ]);
       setAccount(null);
       st.textContent = "✓ Alle Daten gelöscht.";
