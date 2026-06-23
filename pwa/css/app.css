@@ -869,6 +869,13 @@ input:focus { border-color: var(--primary); }
   padding: 12px 14px; border-radius: var(--radius-md); margin-bottom: 12px; font-size: 0.9rem;
 }
 
+/* ── Einstellungen ── */
+.card-desc { font-size: 0.85rem; color: var(--text-light); margin-bottom: 10px; line-height: 1.4; }
+.status-line { font-size: 0.8rem; color: var(--text-light); margin-top: 8px; }
+.error-line { color: var(--danger); font-size: 0.8rem; margin-bottom: 8px; }
+.account-label { font-size: 0.85rem; color: var(--text-light); }
+.account-email { font-size: 1rem; font-weight: 700; margin: 4px 0; }
+
 /* ── Safe areas for notched phones ── */
 @supports(padding: env(safe-area-inset-top)) {
   .header { padding-top: calc(18px + env(safe-area-inset-top)); }
