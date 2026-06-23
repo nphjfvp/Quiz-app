@@ -7,9 +7,9 @@ export async function render(root) {
   const progress = await loadProgress();
 
   let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div class="list-header">
       <div class="section-title" style="margin:0">📚 Meine Quizze</div>
-      <button class="btn-primary btn-sm" id="new-quiz-btn">+ Neu</button>
+      <button class="btn btn-primary btn-sm" id="new-quiz-btn">+ Neu</button>
     </div>`;
 
   if (!quizzes.length) {
@@ -31,8 +31,8 @@ export async function render(root) {
         <div class="quiz-boxes">
           ${[1,2,3,4,5].map(b => `<span class="quiz-box box-${b}">${counts[b]||0}</span>`).join("")}
         </div>
-        <button class="btn-icon" style="width:32px;height:32px;font-size:0.8rem" data-edit-id="${quiz.id}">✏️</button>
-        <span style="color:var(--text-light)">›</span>
+        <button class="btn-icon btn-icon-sm" data-edit-id="${quiz.id}">✏️</button>
+        <span class="row-chev">›</span>
       </div>`;
     }
   }

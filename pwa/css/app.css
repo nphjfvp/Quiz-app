@@ -479,25 +479,40 @@ input:focus { border-color: var(--primary); }
 /* ── Quiz List ── */
 .quiz-row {
   background: var(--card);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  padding: 12px 16px;
-  margin-bottom: 8px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  border-bottom-width: var(--opt-border-bottom);
+  padding: 13px 16px;
+  margin-bottom: 9px;
   display: flex; align-items: center; gap: 12px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
 }
-.quiz-row:hover { border-color: var(--primary); }
-.quiz-accent { width: 4px; border-radius: 2px; background: var(--primary); align-self: stretch; }
-.quiz-info { flex: 1; }
-.quiz-info h4 { font-size: 0.9rem; font-weight: 700; }
-.quiz-info small { color: var(--text-light); font-size: 0.75rem; }
+.quiz-row:hover { border-color: var(--primary); background: var(--card-hover); }
+.quiz-row:active { transform: scale(0.99); }
+.quiz-accent { width: 4px; border-radius: 2px; background: var(--primary); align-self: stretch; min-height: 32px; }
+.quiz-info { flex: 1; min-width: 0; }
+.quiz-info h4 { font-size: 0.95rem; font-weight: 800; }
+.quiz-info small { color: var(--text-light); font-size: 0.76rem; }
 .quiz-boxes { display: flex; gap: 3px; }
 .quiz-box {
-  width: 22px; height: 22px; border-radius: 11px;
-  font-size: 0.65rem; font-weight: 700; color: white;
+  width: 24px; height: 24px; border-radius: 12px;
+  font-size: 0.68rem; font-weight: 800; color: white;
   display: flex; align-items: center; justify-content: center;
 }
+
+/* Listen-Kopfzeile (Titel + Aktion) */
+.list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.btn-icon-sm { width: 34px; height: 34px; font-size: 0.85rem; }
+.row-chev { color: var(--text-light); font-size: 1.2rem; }
+
+/* Quiz-Hero (Modi-Auswahl) */
+.quiz-hero {
+  background: var(--cta-bg); color: var(--cta-text);
+  border-radius: var(--radius-xl); padding: 22px 18px; margin-bottom: 16px; text-align: center;
+}
+.quiz-hero-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 2px; }
+.quiz-hero-sub { font-size: 0.85rem; opacity: 0.82; }
 
 /* ── Leitner box colors ── */
 .box-1 { background: var(--box1); }

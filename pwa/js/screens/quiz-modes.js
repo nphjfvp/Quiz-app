@@ -22,11 +22,11 @@ export async function render(root, params) {
   const topics = [...new Set(quiz.questions.map(q => q.topic).filter(Boolean))];
 
   let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>
-    <div class="card" style="text-align:center">
-      <div style="font-size:1.2rem;font-weight:700;margin-bottom:4px">${esc(quiz.name)}</div>
-      <div style="font-size:0.85rem;color:var(--text-light)">${n} Fragen</div>
-      <div class="quiz-boxes" style="justify-content:center;margin-top:10px">
-        ${[1,2,3,4,5].map(b => `<span class="quiz-box box-${b}" style="width:28px;height:28px;font-size:0.75rem">${counts[b]||0}</span>`).join("")}
+    <div class="quiz-hero">
+      <div class="quiz-hero-title">${esc(quiz.name)}</div>
+      <div class="quiz-hero-sub">${n} Fragen</div>
+      <div class="quiz-boxes" style="justify-content:center;margin-top:12px">
+        ${[1,2,3,4,5].map(b => `<span class="quiz-box box-${b}">${counts[b]||0}</span>`).join("")}
       </div>
     </div>
 
