@@ -61,7 +61,7 @@ function showQuestion(root, quiz) {
     html += `<div id="dnd-chips" class="dnd-chips"></div>`;
     html += `<div id="dnd-targets" class="dnd-targets"></div>`;
   } else if (q.question_type === "diagram_label") {
-    html += `<div style="margin-bottom:8px;font-size:0.8rem;color:var(--text-light)">Ziehe die Labels auf die richtigen Stellen im Diagramm.</div>`;
+    html += `<div style="margin-bottom:8px;font-size:0.8rem;color:var(--text-light)">Ziehe die Labels auf die markierten Einrast-Zonen im Diagramm.</div>`;
     html += `<div id="diagram-container" style="position:relative;width:100%;touch-action:none">
       <canvas id="diagram-canvas" style="width:100%;border-radius:var(--radius-md);border:2px solid var(--border)"></canvas>
     </div>`;
@@ -314,12 +314,13 @@ function setupDragDrop(root, q, assignments) {
 }
 
 function setupDiagramLabel(root, q, placements) {
+  const container = root.querySelector("#diagram-container");
   const canvas = root.querySelector("#diagram-canvas");
   const chipsEl = root.querySelector("#diagram-chips");
   const ctx = canvas.getContext("2d");
   const labels = q.diagram_labels || [];
   let img = null;
-  let selectedLabel = null;
+  const SNAP_RADIUS = 0.10;
 
   function draw() {
     const rect = canvas.getBoundingClientRect();
@@ -329,33 +330,153 @@ function setupDiagramLabel(root, q, placements) {
     const w = rect.width, h = rect.height;
     ctx.clearRect(0, 0, w, h);
     if (img) ctx.drawImage(img, 0, 0, w, h);
-    else { ctx.fillStyle = "var(--input-bg)"; ctx.fillRect(0, 0, w, h); ctx.fillStyle = "#999"; ctx.font = "14px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kein Bild verfügbar", w/2, h/2); }
+    else { ctx.fillStyle = "#e2e8f0"; ctx.fillRect(0, 0, w, h); ctx.fillStyle = "#999"; ctx.font = "14px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kein Bild verfügbar", w/2, h/2); }
 
+    // Draw snap zones
+    for (let i = 0; i < labels.length; i++) {
+      const l = labels[i];
+      const px = l.x * w, py = l.y * h;
+      const snapPx = SNAP_RADIUS * Math.max(w, h);
+      ctx.beginPath();
+      ctx.arc(px, py, snapPx, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(100,100,100,0.08)";
+      ctx.fill();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "rgba(100,100,100,0.25)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Draw placed labels
     for (const [label, pos] of Object.entries(placements)) {
       const idx = labels.findIndex(l => l.label === label);
       const color = CHIP_COLORS[idx % CHIP_COLORS.length];
       const px = pos.x * w, py = pos.y * h;
-      ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI * 2);
-      ctx.fillStyle = color + "cc"; ctx.fill();
-      ctx.fillStyle = "#fff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(label.slice(0, 3), px, py);
+      ctx.beginPath(); ctx.arc(px, py, 16, 0, Math.PI * 2);
+      ctx.fillStyle = color + "dd"; ctx.fill();
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(label.slice(0, 5), px, py);
     }
+  }
+
+  // Floating drag ghost element
+  let dragGhost = null;
+  let dragLabel = null;
+
+  function createGhost(label, color, x, y) {
+    dragGhost = document.createElement("div");
+    dragGhost.className = "drag-ghost";
+    dragGhost.textContent = label;
+    dragGhost.style.cssText = `position:fixed;left:${x-30}px;top:${y-18}px;z-index:9999;pointer-events:none;
+      background:${color}dd;color:#fff;font-size:0.8rem;font-weight:700;padding:6px 14px;border-radius:20px;
+      box-shadow:0 4px 16px rgba(0,0,0,0.3);transform:scale(1.1);transition:transform 0.1s`;
+    document.body.appendChild(dragGhost);
+  }
+
+  function moveGhost(x, y) {
+    if (dragGhost) { dragGhost.style.left = (x - 30) + "px"; dragGhost.style.top = (y - 18) + "px"; }
+  }
+
+  function removeGhost() {
+    if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+  }
+
+  function trySnap(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const fx = (clientX - rect.left) / rect.width;
+    const fy = (clientY - rect.top) / rect.height;
+    const aspect = rect.width / rect.height;
+    let bestDist = Infinity, bestIdx = -1;
+    for (let i = 0; i < labels.length; i++) {
+      const l = labels[i];
+      const alreadyPlaced = Object.entries(placements).some(([k, v]) => k !== dragLabel && Math.abs(v.x - l.x) < 0.02 && Math.abs(v.y - l.y) < 0.02);
+      if (alreadyPlaced) continue;
+      const dx = (fx - l.x) * aspect;
+      const dy = fy - l.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < SNAP_RADIUS * Math.max(1, aspect) && dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+    return bestIdx;
   }
 
   function renderChips() {
     const placed = new Set(Object.keys(placements));
-    chipsEl.innerHTML = labels.filter(l => !placed.has(l.label)).map((l, i) =>
-      `<div class="dnd-chip ${selectedLabel === l.label ? "selected" : ""}" data-label="${esc(l.label)}" style="background:${CHIP_COLORS[i % CHIP_COLORS.length]}20;border:2px solid ${CHIP_COLORS[i % CHIP_COLORS.length]};color:var(--text)">${esc(l.label)}</div>`
-    ).join("");
-    chipsEl.innerHTML += Object.keys(placements).map(label =>
-      `<div class="dnd-chip placed" data-remove="${esc(label)}" style="opacity:0.6;text-decoration:line-through">${esc(label)} ✕</div>`
-    ).join("");
-    chipsEl.querySelectorAll("[data-label]").forEach(chip => {
-      chip.addEventListener("click", () => { selectedLabel = chip.dataset.label; renderChips(); });
+    chipsEl.innerHTML = "";
+    labels.forEach((l, i) => {
+      if (placed.has(l.label)) return;
+      const color = CHIP_COLORS[i % CHIP_COLORS.length];
+      const chip = document.createElement("div");
+      chip.className = "dnd-chip";
+      chip.textContent = l.label;
+      chip.dataset.label = l.label;
+      chip.dataset.idx = i;
+      chip.style.cssText = `background:${color}20;border:2px solid ${color};color:var(--text);cursor:grab;user-select:none;touch-action:none`;
+      chipsEl.appendChild(chip);
+      bindChipDrag(chip, l.label, color);
     });
-    chipsEl.querySelectorAll("[data-remove]").forEach(chip => {
-      chip.addEventListener("click", () => { delete placements[chip.dataset.remove]; selectedLabel = null; renderChips(); draw(); });
+    // Show placed chips as removable
+    for (const label of Object.keys(placements)) {
+      const idx = labels.findIndex(l => l.label === label);
+      const chip = document.createElement("div");
+      chip.className = "dnd-chip placed";
+      chip.textContent = label + " ✕";
+      chip.style.cssText = "opacity:0.5;text-decoration:line-through;cursor:pointer";
+      chip.addEventListener("click", () => { delete placements[label]; draw(); renderChips(); });
+      chipsEl.appendChild(chip);
+    }
+  }
+
+  function bindChipDrag(chip, label, color) {
+    // Touch drag
+    chip.addEventListener("touchstart", e => {
+      e.preventDefault();
+      dragLabel = label;
+      const t = e.touches[0];
+      createGhost(label, color, t.clientX, t.clientY);
+    }, { passive: false });
+    chip.addEventListener("touchmove", e => {
+      e.preventDefault();
+      moveGhost(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: false });
+    chip.addEventListener("touchend", e => {
+      e.preventDefault();
+      if (!dragLabel) return;
+      const t = e.changedTouches[0];
+      const snapIdx = trySnap(t.clientX, t.clientY);
+      if (snapIdx >= 0) {
+        placements[dragLabel] = { x: labels[snapIdx].x, y: labels[snapIdx].y };
+      }
+      dragLabel = null;
+      removeGhost();
+      draw(); renderChips();
     });
+
+    // Mouse drag
+    let mouseDown = false;
+    chip.addEventListener("mousedown", e => {
+      mouseDown = true;
+      dragLabel = label;
+      createGhost(label, color, e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    const onMouseMove = e => { if (mouseDown) moveGhost(e.clientX, e.clientY); };
+    const onMouseUp = e => {
+      if (!mouseDown) return;
+      mouseDown = false;
+      if (dragLabel) {
+        const snapIdx = trySnap(e.clientX, e.clientY);
+        if (snapIdx >= 0) {
+          placements[dragLabel] = { x: labels[snapIdx].x, y: labels[snapIdx].y };
+        }
+        dragLabel = null;
+      }
+      removeGhost();
+      draw(); renderChips();
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   }
 
   const imgSrc = q.diagram_image_path || q.diagram_image;
@@ -371,27 +492,6 @@ function setupDiagramLabel(root, q, placements) {
     canvas.style.height = "200px";
     draw(); renderChips();
   }
-
-  canvas.addEventListener("click", e => {
-    if (!selectedLabel) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    placements[selectedLabel] = { x, y };
-    selectedLabel = null;
-    draw(); renderChips();
-  });
-  canvas.addEventListener("touchend", e => {
-    if (!selectedLabel || !e.changedTouches[0]) return;
-    e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const t = e.changedTouches[0];
-    const x = (t.clientX - rect.left) / rect.width;
-    const y = (t.clientY - rect.top) / rect.height;
-    placements[selectedLabel] = { x, y };
-    selectedLabel = null;
-    draw(); renderChips();
-  });
 }
 
 function setupMarkImage(root, q) {
