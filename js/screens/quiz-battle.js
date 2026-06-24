@@ -54,7 +54,7 @@ function startBattle(root, quiz) {
     enemy: null, enemyLevel: 1, correctTotal: 0,
     score: 0, coins: 0, kills: 0, qIndex: 0,
     gameOver: false, won: false, currentQ: null, currentDiff: 1, locked: false,
-    goalKills: 5, log: [],
+    goalKills: 5, log: [], questions,
   };
 
   root.innerHTML = `
