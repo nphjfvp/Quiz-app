@@ -1,6 +1,7 @@
 """Main application UI using CustomTkinter."""
 
 import os
+import sys
 import random
 import threading
 import time
@@ -35,6 +36,21 @@ from . import auth
 ctk.set_default_color_theme("blue")
 
 
+def _resolve_data_dir() -> str:
+    """Return a stable, writable data directory.
+
+    When running as a PyInstaller bundle (sys.frozen), __file__ lives inside a
+    temporary _MEIxxxx folder that is wiped on every launch — saving data there
+    means everything (quizzes, progress, login) is lost on restart. So in that
+    case we store data in a persistent per-user location instead.
+    """
+    if getattr(sys, "frozen", False):
+        base = os.environ.get("APPDATA") or os.environ.get("XDG_DATA_HOME") \
+            or os.path.join(os.path.expanduser("~"), ".local", "share")
+        return str(Path(base) / "Lerntrainer" / "data")
+    return str(Path(__file__).parent.parent / "data")
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -42,7 +58,7 @@ class App(ctk.CTk):
         self.geometry("1100x750")
         self.minsize(800, 600)
 
-        self.store = DataStore(str(Path(__file__).parent.parent / "data"))
+        self.store = DataStore(_resolve_data_dir())
         self.quizzes = self.store.load_quizzes()
         self.formula_sheets = self.store.load_formula_sheets()
         self.folders = self.store.load_folders()
@@ -66,6 +82,14 @@ class App(ctk.CTk):
 
         if not self.store.load_settings().get("walkthrough_done"):
             self.after(500, self._start_walkthrough)
+
+        # On startup, pull cloud data so a fresh device/restart keeps everything
+        def _after_download(merged):
+            if merged:
+                self.quizzes = self.store.load_quizzes()
+                self._fsrs_data = self.store.load_fsrs()
+                self.show_home()
+        self.after(800, lambda: self._auto_sync_download(_after_download))
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
@@ -626,7 +650,7 @@ class App(ctk.CTk):
     def _delete_quiz(self, quiz: Quiz):
         if messagebox.askyesno("Quiz löschen", f"'{quiz.name}' wirklich löschen?"):
             self.quizzes = [q for q in self.quizzes if q.id != quiz.id]
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
             self.show_home()
 
     # ── DAILY LEARNING ──
@@ -1284,7 +1308,7 @@ class App(ctk.CTk):
             except Exception as e:
                 errors.append(f"{Path(path).name}: {e}")
         if imported:
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
         if imported and not errors:
             messagebox.showinfo("Import", f"{len(imported)} Quiz(ze) importiert:\n" + "\n".join(f"• {n}" for n in imported))
         elif imported and errors:
@@ -1336,13 +1360,30 @@ class App(ctk.CTk):
                 self.store.save_settings(s)
                 self.show_account()
 
+            def _download_now():
+                status.configure(text="Lade Daten aus der Cloud…", text_color=COLORS["text_light"])
+                self.update_idletasks()
+                def _done(merged):
+                    if merged:
+                        self.quizzes = self.store.load_quizzes()
+                        self._fsrs_data = self.store.load_fsrs()
+                        status.configure(text="✓ Daten aus Cloud geladen!", text_color=COLORS["success"])
+                    else:
+                        status.configure(text="Keine Cloud-Daten gefunden.", text_color=COLORS["text_light"])
+                self._auto_sync_download(_done)
+
             btns = ctk.CTkFrame(frame, fg_color="transparent")
             btns.grid(row=3, column=0, sticky="w", pady=(0, 10))
-            ctk.CTkButton(btns, text=t("account.sync_now"), fg_color=COLORS["primary"],
-                         width=180, command=lambda: self._account_sync(status)
+            ctk.CTkButton(btns, text="☁️ Hochladen", fg_color=COLORS["primary"],
+                         width=150, command=lambda: self._account_sync(status)
                          ).grid(row=0, column=0, padx=(0, 10))
+            ctk.CTkButton(btns, text="⬇️ Aus Cloud laden", fg_color=COLORS["success"],
+                         width=160, command=_download_now).grid(row=0, column=1, padx=(0, 10))
             ctk.CTkButton(btns, text=t("account.logout"), fg_color=COLORS["danger"],
-                         width=140, command=_logout).grid(row=0, column=1)
+                         width=120, command=_logout).grid(row=0, column=2)
+            ctk.CTkLabel(frame, text="💡 Quizze & Fortschritt werden automatisch nach jedem Quiz synchronisiert.",
+                        font=("Segoe UI", 11), text_color=COLORS["text_light"], wraplength=520,
+                        justify="left").grid(row=4, column=0, sticky="w", pady=(0, 5))
         else:
             # Login / register view
             mode = StringVar(value="login")
@@ -1389,7 +1430,13 @@ class App(ctk.CTk):
                     s = self.store.load_settings()
                     s["account"] = acc
                     self.store.save_settings(s)
-                    self.after(0, self.show_account)
+                    def _after_login():
+                        self.show_account()
+                        # Pull existing cloud data for this account
+                        self._auto_sync_download(lambda merged: merged and (
+                            setattr(self, "quizzes", self.store.load_quizzes()),
+                            setattr(self, "_fsrs_data", self.store.load_fsrs())))
+                    self.after(0, _after_login)
 
                 threading.Thread(target=worker, daemon=True).start()
 
@@ -1442,6 +1489,84 @@ class App(ctk.CTk):
             msg = t("account.sync_ok") if ok else t("sync.error")
             color = COLORS["success"] if ok else COLORS["danger"]
             self.after(0, lambda: status_label.configure(text=msg, text_color=color))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _save_quizzes(self):
+        """Persist quizzes locally and trigger a best-effort cloud sync."""
+        self.store.save_quizzes(self.quizzes)
+        self._auto_sync_background()
+
+    def _auto_sync_background(self):
+        """Silently upload quizzes + progress to the cloud if logged in.
+
+        Called automatically after creating or finishing a quiz so progress
+        and quizzes are preserved across devices without manual action.
+        """
+        settings = self.store.load_settings()
+        account = settings.get("account")
+        if not account:
+            return
+
+        def worker():
+            try:
+                acc = auth.ensure_valid(account)
+                if acc is not account:
+                    s = self.store.load_settings()
+                    s["account"] = acc
+                    self.store.save_settings(s)
+                code = cloud_sync.sanitize_code("acc_" + acc.get("uid", ""))
+                from dataclasses import asdict as _asdict
+                quizzes_data = [q.to_dict() for q in self.quizzes]
+                progress_data = {k: _asdict(v) for k, v in self.store.load_progress().items()}
+                cloud_sync.upload(code, "quizzes", quizzes_data)
+                cloud_sync.upload(code, "progress", progress_data)
+            except Exception:
+                pass  # auto-sync is best-effort; never disrupt the user
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _auto_sync_download(self, on_done=None):
+        """Silently download cloud quizzes + progress and merge into local data.
+
+        Called on startup/login so a fresh device pulls existing data.
+        """
+        settings = self.store.load_settings()
+        account = settings.get("account")
+        if not account:
+            if on_done:
+                on_done(False)
+            return
+
+        def worker():
+            merged = False
+            try:
+                acc = auth.ensure_valid(account)
+                if acc is not account:
+                    s = self.store.load_settings()
+                    s["account"] = acc
+                    self.store.save_settings(s)
+                code = cloud_sync.sanitize_code("acc_" + acc.get("uid", ""))
+                remote_quizzes = cloud_sync.download(code, "quizzes")
+                if remote_quizzes:
+                    local_by_id = {q.id: q for q in self.quizzes}
+                    for rq in remote_quizzes:
+                        try:
+                            quiz = Quiz.from_dict(rq)
+                            local_by_id[quiz.id] = quiz  # remote wins on conflict
+                        except Exception:
+                            continue
+                    self.quizzes = list(local_by_id.values())
+                    self._save_quizzes()
+                    merged = True
+                remote_progress = cloud_sync.download(code, "progress")
+                if remote_progress:
+                    self.store.merge_progress(remote_progress)
+                    merged = True
+            except Exception:
+                pass
+            if on_done:
+                self.after(0, lambda: on_done(merged))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1651,7 +1776,7 @@ class App(ctk.CTk):
                         return
                     if quizzes_data is not None:
                         self.quizzes = [Quiz.from_dict(q) for q in quizzes_data]
-                        self.store.save_quizzes(self.quizzes)
+                        self._save_quizzes()
                     if progress_data is not None:
                         from .models import QuestionProgress as _QP
                         prog = {k: _QP(**v) for k, v in progress_data.items()}
@@ -1949,7 +2074,7 @@ class App(ctk.CTk):
                 self.quizzes[idx] = quiz
             else:
                 self.quizzes.append(quiz)
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
             messagebox.showinfo("Gespeichert", f"Quiz '{quiz.name}' mit {len(quiz.questions)} Fragen gespeichert!")
             self.show_home()
 
@@ -4241,7 +4366,7 @@ class App(ctk.CTk):
                 return
             quiz.description = f"{len(quiz.questions)} Fragen"
             self.quizzes.append(quiz)
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
             messagebox.showinfo("OK", t("review.saved", n=len(quiz.questions)))
             self.show_home()
 
@@ -4533,7 +4658,7 @@ class App(ctk.CTk):
                             questions=all_questions,
                         )
                         self.quizzes.append(quiz)
-                        self.store.save_quizzes(self.quizzes)
+                        self._save_quizzes()
                         err_text = f"\n{len(errors)} Fehler" if errors else ""
                         messagebox.showinfo("Fertig",
                             f"{len(all_questions)} Fragen in {em}:{es:02d} min importiert!{err_text}")
@@ -4590,7 +4715,7 @@ class App(ctk.CTk):
             if existing:
                 idx = self.quizzes.index(existing[0])
                 self.quizzes[idx] = quiz
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
             self.show_quiz_modes(quiz)
 
         ctk.CTkButton(date_frame, text="Speichern", width=80, fg_color=COLORS["primary"],
@@ -7031,6 +7156,9 @@ class App(ctk.CTk):
         # Auto-memory: record weak topics
         if self.store.load_settings().get("use_memory", False):
             self._auto_record_memory(self.session)
+
+        # Auto-sync progress to cloud (best-effort, silent)
+        self._auto_sync_background()
 
         # Details — clickable rows
         ctk.CTkLabel(scroll, text=t("results.details"), font=("Segoe UI", 16, "bold"),

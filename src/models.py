@@ -239,7 +239,7 @@ class Quiz:
 class DataStore:
     def __init__(self, data_dir: str = "data"):
         self.data_dir = Path(data_dir)
-        self.data_dir.mkdir(exist_ok=True)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         self.quizzes_file = self.data_dir / "quizzes.json"
         self.progress_file = self.data_dir / "progress.json"
         self.settings_file = self.data_dir / "settings.json"
@@ -289,6 +289,28 @@ class DataStore:
 
     def save_progress(self, progress: dict[str, QuestionProgress]):
         self._atomic_write(self.progress_file, {k: asdict(v) for k, v in progress.items()})
+
+    def merge_progress(self, remote: dict):
+        """Merge a remote progress dict into local progress.
+
+        For each question, keep the entry with more total attempts (a rough
+        proxy for "more up to date"); newly seen remote entries are added.
+        """
+        local = self.load_progress()
+        for qid, rdata in (remote or {}).items():
+            try:
+                rp = QuestionProgress(**rdata)
+            except Exception:
+                continue
+            lp = local.get(qid)
+            if lp is None:
+                local[qid] = rp
+            else:
+                r_total = rp.times_correct + rp.times_wrong
+                l_total = lp.times_correct + lp.times_wrong
+                if r_total > l_total:
+                    local[qid] = rp
+        self.save_progress(local)
 
     def load_settings(self) -> dict:
         return self._read_json(self.settings_file, {})
