@@ -448,6 +448,7 @@ class App(ctk.CTk):
             ("📓", t("diary.card_title"), COLORS["danger"], self.show_error_diary),
             ("📅", t("plan.card_title"), COLORS["success"], self.show_study_plan),
             ("🎮", "Mini-Games", COLORS["info"], self.show_games),
+            ("🖌️", "Bild-Editor", COLORS["primary_dark"], lambda: self.show_image_editor()),
         ]
         for idx, (icon, title_, color, cmd) in enumerate(mini_tools):
             self._mini_card(tools_grid, idx % 4, idx // 4, icon, title_, color, cmd)
@@ -2224,6 +2225,12 @@ class App(ctk.CTk):
                 q_img_entry.insert(0, question.image_path)
             ctk.CTkButton(img_frame, text=t("editor.image_add"), width=100,
                          command=lambda: self._browse_image(q_img_entry)).grid(row=0, column=2, padx=3)
+            ctk.CTkButton(img_frame, text="✏️ Bearbeiten", width=100,
+                         fg_color=COLORS["info"],
+                         command=lambda: self.show_image_editor(
+                             q_img_entry.get() if q_img_entry.get().strip() else None,
+                             on_save=lambda p: (q_img_entry.delete(0, "end"), q_img_entry.insert(0, p))
+                         )).grid(row=0, column=4, padx=3)
             def remove_img():
                 q_img_entry.delete(0, "end")
             ctk.CTkButton(img_frame, text=t("editor.image_remove"), width=100,
@@ -2723,6 +2730,161 @@ class App(ctk.CTk):
         if path:
             entry.delete(0, "end")
             entry.insert(0, path)
+
+    def show_image_editor(self, image_path=None, on_save=None):
+        if Image is None:
+            messagebox.showerror("Fehler", "Pillow (PIL) wird benötigt. Installiere mit: pip install Pillow")
+            return
+
+        win = ctk.CTkToplevel(self)
+        win.title("Bild-Editor — Beschriftungen übermalen")
+        win.geometry("900x700")
+        win.transient(self)
+        win.grab_set()
+
+        state = {"img": None, "tk_img": None, "path": image_path, "color": "#FFFFFF",
+                 "brush": 20, "drawing": False, "scale": 1.0}
+
+        toolbar = ctk.CTkFrame(win, fg_color=COLORS["card"], height=50)
+        toolbar.pack(fill="x", padx=5, pady=5)
+
+        def load_image(path=None):
+            if not path:
+                path = filedialog.askopenfilename(
+                    filetypes=[("Bilder", "*.png *.jpg *.jpeg *.bmp *.gif *.webp"), ("Alle", "*.*")])
+            if not path or not os.path.exists(path):
+                return
+            state["path"] = path
+            state["img"] = Image.open(path).convert("RGB")
+            win.title(f"Bild-Editor — {Path(path).name}")
+            fit_and_show()
+
+        def fit_and_show():
+            img = state["img"]
+            if not img:
+                return
+            cw, ch = canvas.winfo_width(), canvas.winfo_height()
+            if cw < 10:
+                cw, ch = 850, 580
+            scale = min(cw / img.width, ch / img.height, 1.0)
+            state["scale"] = scale
+            disp = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+            state["tk_img"] = ImageTk.PhotoImage(disp)
+            canvas.delete("all")
+            canvas.create_image(cw // 2, ch // 2, image=state["tk_img"], anchor="center")
+
+        def canvas_to_img(cx, cy):
+            img = state["img"]
+            if not img:
+                return None, None
+            cw, ch = canvas.winfo_width(), canvas.winfo_height()
+            scale = state["scale"]
+            dw, dh = int(img.width * scale), int(img.height * scale)
+            ox, oy = (cw - dw) // 2, (ch - dh) // 2
+            ix = int((cx - ox) / scale)
+            iy = int((cy - oy) / scale)
+            if 0 <= ix < img.width and 0 <= iy < img.height:
+                return ix, iy
+            return None, None
+
+        def on_press(e):
+            state["drawing"] = True
+            paint(e)
+
+        def on_move(e):
+            if state["drawing"]:
+                paint(e)
+
+        def on_release(e):
+            state["drawing"] = False
+
+        def paint(e):
+            img = state["img"]
+            if not img:
+                return
+            ix, iy = canvas_to_img(e.x, e.y)
+            if ix is None:
+                return
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(img)
+            r = state["brush"] // 2
+            draw.ellipse([ix - r, iy - r, ix + r, iy + r], fill=state["color"])
+            scale = state["scale"]
+            sx, sy = e.x, e.y
+            sr = int(r * scale)
+            canvas.create_oval(sx - sr, sy - sr, sx + sr, sy + sr,
+                             fill=state["color"], outline="", tags="paint")
+
+        def set_color(c):
+            state["color"] = c
+            white_btn.configure(border_color=COLORS["primary"] if c == "#FFFFFF" else COLORS["border"])
+            black_btn.configure(border_color=COLORS["primary"] if c == "#000000" else COLORS["border"])
+
+        def save_image():
+            img = state["img"]
+            if not img:
+                return
+            path = filedialog.asksaveasfilename(
+                initialfile=Path(state["path"]).stem + "_edit.png" if state["path"] else "edited.png",
+                defaultextension=".png",
+                filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg")])
+            if path:
+                img.save(path)
+                state["path"] = path
+                if on_save:
+                    on_save(path)
+                messagebox.showinfo("Gespeichert", f"Bild gespeichert: {Path(path).name}")
+
+        def save_overwrite():
+            img = state["img"]
+            if not img or not state["path"]:
+                return
+            if not messagebox.askyesno("Überschreiben", f"'{Path(state['path']).name}' wirklich überschreiben?"):
+                return
+            img.save(state["path"])
+            messagebox.showinfo("Gespeichert", "Bild überschrieben!")
+
+        ctk.CTkButton(toolbar, text="📂 Öffnen", width=90, command=load_image,
+                      fg_color=COLORS["primary"]).pack(side="left", padx=4)
+
+        white_btn = ctk.CTkButton(toolbar, text="⬜ Weiß", width=80,
+                                  fg_color="#f0f0f0", text_color="#000",
+                                  border_width=2, border_color=COLORS["primary"],
+                                  hover_color="#e0e0e0",
+                                  command=lambda: set_color("#FFFFFF"))
+        white_btn.pack(side="left", padx=4)
+
+        black_btn = ctk.CTkButton(toolbar, text="⬛ Schwarz", width=90,
+                                  fg_color="#333333", text_color="#fff",
+                                  border_width=2, border_color=COLORS["border"],
+                                  hover_color="#555555",
+                                  command=lambda: set_color("#000000"))
+        black_btn.pack(side="left", padx=4)
+
+        ctk.CTkLabel(toolbar, text="Pinsel:", font=("Segoe UI", 12)).pack(side="left", padx=(12, 4))
+        brush_label = ctk.CTkLabel(toolbar, text="20px", font=("Segoe UI", 12, "bold"), width=40)
+        brush_label.pack(side="left")
+        brush_slider = ctk.CTkSlider(toolbar, from_=5, to=80, number_of_steps=15, width=140)
+        brush_slider.set(20)
+        def on_brush(v):
+            state["brush"] = int(v)
+            brush_label.configure(text=f"{int(v)}px")
+        brush_slider.configure(command=on_brush)
+        brush_slider.pack(side="left", padx=4)
+
+        ctk.CTkButton(toolbar, text="💾 Speichern als", width=110, command=save_image,
+                      fg_color=COLORS["success"]).pack(side="right", padx=4)
+        ctk.CTkButton(toolbar, text="💾 Überschreiben", width=110, command=save_overwrite,
+                      fg_color=COLORS["warning"]).pack(side="right", padx=4)
+
+        canvas = tk.Canvas(win, bg="#888888", highlightthickness=0, cursor="crosshair")
+        canvas.pack(fill="both", expand=True, padx=5, pady=(0, 5))
+        canvas.bind("<Button-1>", on_press)
+        canvas.bind("<B1-Motion>", on_move)
+        canvas.bind("<ButtonRelease-1>", on_release)
+
+        if image_path and os.path.exists(image_path):
+            win.after(100, lambda: load_image(image_path))
 
     def _load_diagram_image(self, image_path, max_w=520, max_h=360):
         """Load and scale a diagram image. Returns (PhotoImage|None, width, height)."""
