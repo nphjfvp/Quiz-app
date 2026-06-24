@@ -171,7 +171,7 @@ function showQuestion(state, root, canvas) {
     const selected = new Set();
     const hint = document.createElement("div");
     hint.className = "qb-multi-hint";
-    hint.textContent = "Mehrere richtig — antippen zum Wählen, dann „Angreifen" ziehen";
+    hint.textContent = "Mehrere richtig — antippen zum Wählen, dann „Angreifen“ ziehen";
     cards.appendChild(hint);
     shuffled.forEach((o, i) => {
       const card = document.createElement("div");
