@@ -58,6 +58,28 @@ def _build_playable(questions):
     return out
 
 
+def _game_sources(self):
+    """Build selectable play sources for the games: each quiz and each folder.
+
+    Returns a list of (label, questions) tuples. Folders combine the questions
+    of all contained quizzes so a whole exam can be played at once.
+    """
+    sources = []
+    for q in self.quizzes:
+        sources.append((f"📄 {q.name or 'Quiz'} ({len(q.questions)})", list(q.questions)))
+    folders = getattr(self, "folders", None) or []
+    by_id = {q.id: q for q in self.quizzes}
+    for f in folders:
+        combined = []
+        for qid in f.quiz_ids:
+            qz = by_id.get(qid)
+            if qz:
+                combined.extend(qz.questions)
+        if combined:
+            sources.append((f"📁 {f.name or 'Ordner'} ({len(combined)} Fragen)", combined))
+    return sources
+
+
 def _get_diff(q):
     w = getattr(q, "weight", 1.0)
     if w <= 1.0:
@@ -213,14 +235,15 @@ def show_tower_defense(self):
                  font=("Segoe UI", 13), text_color=COLORS["text_light"]
                  ).grid(row=1, column=0, sticky="w", pady=(0, 14))
 
-    # Quiz select
+    # Quiz / folder select
     quiz_frame = ctk.CTkFrame(scroll, fg_color="transparent")
     quiz_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-    ctk.CTkLabel(quiz_frame, text="Quiz wählen:", font=("Segoe UI", 13)
+    ctk.CTkLabel(quiz_frame, text="Quiz/Ordner wählen:", font=("Segoe UI", 13)
                  ).grid(row=0, column=0, padx=(0, 10), sticky="w")
-    quiz_names = [f"{q.name or 'Quiz'} ({len(q.questions)})" for q in self.quizzes]
+    sources = _game_sources(self)
+    quiz_names = [label for label, _ in sources]
     quiz_var = StringVar(value=quiz_names[0] if quiz_names else "")
-    quiz_dd = ctk.CTkOptionMenu(quiz_frame, values=quiz_names, variable=quiz_var, width=300)
+    quiz_dd = ctk.CTkOptionMenu(quiz_frame, values=quiz_names, variable=quiz_var, width=320)
     quiz_dd.grid(row=0, column=1, sticky="w")
 
     # Difficulty
@@ -235,14 +258,13 @@ def show_tower_defense(self):
 
     def start():
         from tkinter import messagebox
-        if not self.quizzes:
+        if not sources:
             messagebox.showinfo("Hinweis", "Es sind noch keine Quizze vorhanden. Erstelle zuerst ein Quiz.")
             return
         idx = quiz_names.index(quiz_var.get()) if quiz_var.get() in quiz_names else 0
-        quiz = self.quizzes[idx]
-        questions = _build_playable(quiz.questions)
+        questions = _build_playable(sources[idx][1])
         if not questions:
-            messagebox.showinfo("Hinweis", "Dieses Quiz hat keine für Spiele geeigneten Fragen.")
+            messagebox.showinfo("Hinweis", "Diese Auswahl hat keine für Spiele geeigneten Fragen.")
             return
         _run_td(self, questions, diff_var.get())
 
@@ -798,14 +820,15 @@ def show_quiz_battle(self):
                  font=("Segoe UI", 13), text_color=COLORS["text_light"]
                  ).grid(row=1, column=0, sticky="w", pady=(0, 14))
 
-    # Quiz
+    # Quiz / folder
     quiz_frame = ctk.CTkFrame(scroll, fg_color="transparent")
     quiz_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-    ctk.CTkLabel(quiz_frame, text="Quiz wählen:", font=("Segoe UI", 13)
+    ctk.CTkLabel(quiz_frame, text="Quiz/Ordner wählen:", font=("Segoe UI", 13)
                  ).grid(row=0, column=0, padx=(0, 10), sticky="w")
-    quiz_names = [f"{q.name or 'Quiz'} ({len(q.questions)})" for q in self.quizzes]
+    sources = _game_sources(self)
+    quiz_names = [label for label, _ in sources]
     quiz_var = StringVar(value=quiz_names[0] if quiz_names else "")
-    ctk.CTkOptionMenu(quiz_frame, values=quiz_names, variable=quiz_var, width=300
+    ctk.CTkOptionMenu(quiz_frame, values=quiz_names, variable=quiz_var, width=320
                       ).grid(row=0, column=1, sticky="w")
 
     # Difficulty
@@ -831,14 +854,13 @@ def show_quiz_battle(self):
 
     def start():
         from tkinter import messagebox
-        if not self.quizzes:
+        if not sources:
             messagebox.showinfo("Hinweis", "Es sind noch keine Quizze vorhanden. Erstelle zuerst ein Quiz.")
             return
         idx = quiz_names.index(quiz_var.get()) if quiz_var.get() in quiz_names else 0
-        quiz = self.quizzes[idx]
-        questions = _build_playable(quiz.questions)
+        questions = _build_playable(sources[idx][1])
         if not questions:
-            messagebox.showinfo("Hinweis", "Dieses Quiz hat keine für Spiele geeigneten Fragen.")
+            messagebox.showinfo("Hinweis", "Diese Auswahl hat keine für Spiele geeigneten Fragen.")
             return
         _run_qb(self, questions, diff_var.get(), mode_var.get())
 
