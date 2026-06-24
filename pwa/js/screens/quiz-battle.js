@@ -346,7 +346,7 @@ function cpuTurn(state, root) {
     pop.className = "qb-cpu-pop qb-cpu-bad show";
     pop.textContent = "🤖 ✗";
   }
-  if (pop) setTimeout(() => pop.classList.remove("show"), 1200);
+  if (pop) setTimeout(() => pop.classList.remove("show"), 2200);
 }
 
 function onAnswer(state, correct, root) {

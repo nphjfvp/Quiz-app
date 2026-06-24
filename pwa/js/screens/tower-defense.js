@@ -110,7 +110,7 @@ function startGame(root, quiz, difficulty) {
     baseHP: cfg.baseHP, maxHP: cfg.baseHP,
     score: 0, coins: 0, wave: 0, kills: 0, qIndex: 0,
     gameOver: false, won: false, paused: false, currentQ: null, answering: false,
-    lastSpawn: 0, spawnRate: cfg.spawnRate, cfg, questions, comboCount: 0,
+    lastSpawn: performance.now() - cfg.spawnRate, spawnRate: cfg.spawnRate, cfg, questions, comboCount: 0,
     goalWaves: cfg.goalWaves, log: [],
   };
   _activeState = state;
