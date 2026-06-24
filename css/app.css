@@ -1177,6 +1177,34 @@ a:focus-visible, [tabindex]:focus-visible {
 /* ── QUIZ BATTLE ── */
 .qb-game { display: flex; flex-direction: column; align-items: center; padding: 8px; position: relative; }
 .qb-canvas-wrap { position: relative; }
+
+/* Modus-Auswahl (Verteidigung / Duell vs. KI) */
+.qb-mode {
+  flex: 1; padding: 9px 6px; border-radius: var(--radius-sm);
+  border: 2px solid var(--border); background: var(--opt-bg); color: var(--text);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.qb-mode.active { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
+.qb-mode-desc { display: block; margin-top: 6px; font-size: 0.74rem; color: var(--text-light); }
+
+/* KI-Antwort-Popup im Duell-Modus */
+.qb-cpu-pop {
+  position: absolute; left: 50%; top: 8px;
+  transform: translateX(-50%) translateY(-6px);
+  max-width: 80%; padding: 6px 12px; border-radius: 999px;
+  font-size: 0.82rem; font-weight: 700; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none; opacity: 0; transition: opacity 0.2s, transform 0.2s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 5;
+}
+.qb-cpu-pop.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.qb-cpu-ok { background: #16a34a; color: #fff; animation: qb-pop 0.3s; }
+.qb-cpu-bad { background: #dc2626; color: #fff; animation: qb-pop 0.3s; }
+@keyframes qb-pop {
+  0% { transform: translateX(-50%) scale(0.6); }
+  60% { transform: translateX(-50%) scale(1.12); }
+  100% { transform: translateX(-50%) scale(1); }
+}
 #qb-canvas { border-radius: var(--radius-md); border: 2px solid var(--border); touch-action: none; max-width: 100%; }
 .qb-question {
   width: 100%; max-width: 360px; margin-top: 8px; background: var(--card);
