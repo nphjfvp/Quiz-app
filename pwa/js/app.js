@@ -35,6 +35,8 @@ route("marked", markedScreen);
 route("pomodoro", pomodoroScreen);
 route("folders", foldersScreen);
 route("cloze", clozeScreen);
+route("achievements", async (root) => { const m = await import("./screens/achievements.js"); return m.render(root); });
+route("sr-dashboard", async (root) => { const m = await import("./screens/sr-dashboard.js"); return m.render(root); });
 route("games", async (root) => { const m = await import("./screens/games.js"); return m.render(root); });
 route("tower-defense", async (root) => { const m = await import("./screens/tower-defense.js"); return m.render(root); });
 route("quiz-battle", async (root) => { const m = await import("./screens/quiz-battle.js"); return m.render(root); });

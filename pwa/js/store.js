@@ -170,3 +170,11 @@ export function getStreak(stats) {
   max = Math.max(max, s);
   return { current, max };
 }
+
+// ── Achievements ──
+export async function loadAchievements() {
+  return (await get("achievements")) ?? {};
+}
+export async function saveAchievements(data) {
+  await set("achievements", data);
+}

@@ -464,6 +464,10 @@ class AIService:
          "vision": False, "context": 164000, "strengths": ["Mathematik", "Logik", "Physik", "Programmierung"]},
         {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.15, "cost_out": 0.60, "speed": "schnell",
          "vision": True, "context": 1000000, "strengths": ["Medizin", "Biologie", "Naturwissenschaften", "Sprachen"]},
+        {"id": "google/gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "cost_in": 0.075, "cost_out": 0.30, "speed": "schnell",
+         "vision": True, "context": 1000000, "strengths": ["Allgemeinwissen", "Sprachen", "Bilder"]},
+        {"id": "thudm/glm-4-32b:free", "name": "GLM-4 32B (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": False, "context": 32768, "strengths": ["MINT", "Sprachen", "Allgemeinwissen"]},
         # ── Mittelklasse ──
         {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 1.00, "cost_out": 5.00, "speed": "schnell",
          "vision": True, "context": 200000, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
