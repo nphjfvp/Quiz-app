@@ -341,6 +341,37 @@ class DataStore:
         texts[filename] = text
         self._atomic_write(self.data_dir / "source_texts.json", texts)
 
+    # ── Study materials (Skript/Vorlesung linked to a quiz) ──
+
+    def load_materials(self) -> dict:
+        """Returns {quiz_id: {"text": str, "name": str, "saved": iso}}."""
+        return self._read_json(self.data_dir / "materials.json", {})
+
+    def save_materials(self, materials: dict):
+        self._atomic_write(self.data_dir / "materials.json", materials)
+
+    def save_material(self, quiz_id: str, material: dict):
+        m = self.load_materials()
+        m[quiz_id] = material
+        self.save_materials(m)
+
+    def get_material(self, quiz_id: str):
+        return self.load_materials().get(quiz_id)
+
+    def delete_material(self, quiz_id: str):
+        m = self.load_materials()
+        if quiz_id in m:
+            del m[quiz_id]
+            self.save_materials(m)
+
+    # ── Achievements ──
+
+    def load_achievements(self) -> dict:
+        return self._read_json(self.data_dir / "achievements.json", {})
+
+    def save_achievements(self, data: dict):
+        self._atomic_write(self.data_dir / "achievements.json", data)
+
     # ── Folders ──
 
     def load_folders(self) -> list[Folder]:

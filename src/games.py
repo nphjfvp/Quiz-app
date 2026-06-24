@@ -195,6 +195,18 @@ def show_games(self):
     _game_card(self, grid, 1, 0, "⚔️", "Quiz Battle",
                "Beantworte Fragen und sende Krieger ins Feld!",
                COLORS["danger"], self.show_quiz_battle)
+    _game_card(self, grid, 0, 1, "⚡", "Speed-Quiz",
+               "60 Sekunden, Combo-Multiplikator — wie viele schaffst du?",
+               COLORS["warning"], self.show_speed_quiz)
+    _game_card(self, grid, 1, 1, "💰", "Wer wird Millionär",
+               "15 Fragen, 3 Joker, sichere Stufen.",
+               COLORS["success"], self.show_millionaire)
+    _game_card(self, grid, 0, 2, "💀", "Galgenmännchen",
+               "Errate den Begriff Buchstabe für Buchstabe!",
+               COLORS["info"], self.show_hangman)
+    _game_card(self, grid, 1, 2, "👹", "Boss-Kampf",
+               "Besiege deine schwächsten Fragen im Kampf!",
+               COLORS["danger"], self.show_boss_fight)
 
 
 def _game_card(self, parent, col, row, icon, title, desc, color, command):

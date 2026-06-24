@@ -3753,6 +3753,9 @@ class App(ctk.CTk):
                         progress_label.configure(
                             text=f"{len(questions)} Fragen in {em}:{es:02d} min generiert.")
                         progress_bar.set(1.0)
+                        # Remember the source file so we can optionally link it as
+                        # study material after the quiz is saved.
+                        quiz._source_file = file_var.get()
                         # Review screen: approve / edit / delete before saving
                         self._show_quiz_review(quiz)
                     else:
@@ -4031,6 +4034,29 @@ class App(ctk.CTk):
             quiz.description = f"{len(quiz.questions)} Fragen"
             self.quizzes.append(quiz)
             self._save_quizzes()
+
+            # Offer to link the source document as study material so the
+            # KI-Lernmodus can use it later.
+            src = getattr(quiz, "_source_file", "")
+            if src and Path(src).exists():
+                link = messagebox.askyesno(
+                    "Material verknüpfen",
+                    "Möchtest du das Quellmaterial (Skript/PDF) mit dem Quiz "
+                    "verknüpfen?\n\nDamit kann dir die KI im Lernmodus gezielt "
+                    "helfen — auch zu Themen, die nicht im Quiz vorkommen.")
+                if link:
+                    try:
+                        text = self.ai._read_file_as_text(src)
+                        if text and len(text.strip()) > 50:
+                            self.store.save_material(quiz.id, {
+                                "text": text.strip(),
+                                "name": Path(src).name,
+                                "saved": datetime.now().isoformat(),
+                            })
+                    except Exception as e:
+                        messagebox.showwarning(
+                            "Hinweis", f"Material konnte nicht gespeichert werden:\n{e}")
+
             messagebox.showinfo("OK", t("review.saved", n=len(quiz.questions)))
             self.show_home()
 
@@ -4480,6 +4506,9 @@ class App(ctk.CTk):
              lambda: self._start_quiz(quiz, "topic", count=20, topic=selected_topic())),
             (t("modes.flashcards"), t("modes.flashcards_sub"), COLORS["primary_dark"],
              lambda: self._start_flashcards(quiz, topic=selected_topic())),
+            ("📖 KI-Lernmodus",
+             "Mit Quellmaterial" if self.store.get_material(quiz.id) else "Schwächen gezielt lernen",
+             COLORS["info"], lambda: self.show_study(quiz)),
         ]
         for i, (title_, desc, color, cmd) in enumerate(cards):
             card = ctk.CTkFrame(modes, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
@@ -7641,6 +7670,13 @@ App.show_quiz_battle = show_quiz_battle
 App._run_td = _run_td
 App._run_qb = _run_qb
 
+# --- Bind extra games (speed-quiz, millionaire, hangman, boss-fight) ---
+from .games_extra import (show_speed_quiz, show_millionaire, show_hangman, show_boss_fight)
+App.show_speed_quiz = show_speed_quiz
+App.show_millionaire = show_millionaire
+App.show_hangman = show_hangman
+App.show_boss_fight = show_boss_fight
+
 # --- Bind extracted screen modules ---
 from .screens_formula import show_formula_sheets, _delete_formula_sheet, show_create_formula_sheet, show_formula_sheet_view, _show_formula_explorer, _show_formula_explain
 App.show_formula_sheets = show_formula_sheets
@@ -7671,4 +7707,9 @@ App._start_flashcards = _start_flashcards
 App._show_flashcard = _show_flashcard
 App._flash_done = _flash_done
 App.show_random_mode = show_random_mode
+
+from .screens_study import show_study, show_socratic, _link_material
+App.show_study = show_study
+App.show_socratic = show_socratic
+App._link_material = _link_material
 
