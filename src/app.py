@@ -2409,6 +2409,13 @@ class App(ctk.CTk):
                 ctk.CTkButton(img_row, text="Bild laden", width=90, fg_color=COLORS["text_light"],
                             command=reload_diagram_canvas).grid(row=0, column=2)
 
+                def edit_diagram_img():
+                    p = img_entry.get().strip() if img_entry.get().strip() else None
+                    self.show_image_editor(p, on_save=lambda path: (
+                        img_entry.delete(0, "end"), img_entry.insert(0, path), reload_diagram_canvas()))
+                ctk.CTkButton(img_row, text="✏️ Bearbeiten", width=100, fg_color=COLORS["info"],
+                            command=edit_diagram_img).grid(row=0, column=3, padx=(6, 0))
+
                 # add new label
                 add_row = ctk.CTkFrame(specific_frame, fg_color="transparent")
                 add_row.grid(row=6, column=0, sticky="w", pady=(8, 0))
