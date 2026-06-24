@@ -218,7 +218,7 @@ def show_tower_defense(self):
     quiz_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
     ctk.CTkLabel(quiz_frame, text="Quiz wählen:", font=("Segoe UI", 13)
                  ).grid(row=0, column=0, padx=(0, 10), sticky="w")
-    quiz_names = [f"{q.title or q.text or 'Quiz'} ({len(q.questions)})" for q in self.quizzes]
+    quiz_names = [f"{q.name or 'Quiz'} ({len(q.questions)})" for q in self.quizzes]
     quiz_var = StringVar(value=quiz_names[0] if quiz_names else "")
     quiz_dd = ctk.CTkOptionMenu(quiz_frame, values=quiz_names, variable=quiz_var, width=300)
     quiz_dd.grid(row=0, column=1, sticky="w")
@@ -234,11 +234,14 @@ def show_tower_defense(self):
                            font=("Segoe UI", 12)).grid(row=0, column=i + 1, padx=8)
 
     def start():
+        from tkinter import messagebox
+        if not self.quizzes:
+            messagebox.showinfo("Hinweis", "Es sind noch keine Quizze vorhanden. Erstelle zuerst ein Quiz.")
+            return
         idx = quiz_names.index(quiz_var.get()) if quiz_var.get() in quiz_names else 0
         quiz = self.quizzes[idx]
         questions = _build_playable(quiz.questions)
         if not questions:
-            from tkinter import messagebox
             messagebox.showinfo("Hinweis", "Dieses Quiz hat keine für Spiele geeigneten Fragen.")
             return
         _run_td(self, questions, diff_var.get())
@@ -800,7 +803,7 @@ def show_quiz_battle(self):
     quiz_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
     ctk.CTkLabel(quiz_frame, text="Quiz wählen:", font=("Segoe UI", 13)
                  ).grid(row=0, column=0, padx=(0, 10), sticky="w")
-    quiz_names = [f"{q.title or q.text or 'Quiz'} ({len(q.questions)})" for q in self.quizzes]
+    quiz_names = [f"{q.name or 'Quiz'} ({len(q.questions)})" for q in self.quizzes]
     quiz_var = StringVar(value=quiz_names[0] if quiz_names else "")
     ctk.CTkOptionMenu(quiz_frame, values=quiz_names, variable=quiz_var, width=300
                       ).grid(row=0, column=1, sticky="w")
@@ -827,11 +830,14 @@ def show_quiz_battle(self):
                        font=("Segoe UI", 12)).grid(row=0, column=2, padx=8)
 
     def start():
+        from tkinter import messagebox
+        if not self.quizzes:
+            messagebox.showinfo("Hinweis", "Es sind noch keine Quizze vorhanden. Erstelle zuerst ein Quiz.")
+            return
         idx = quiz_names.index(quiz_var.get()) if quiz_var.get() in quiz_names else 0
         quiz = self.quizzes[idx]
         questions = _build_playable(quiz.questions)
         if not questions:
-            from tkinter import messagebox
             messagebox.showinfo("Hinweis", "Dieses Quiz hat keine für Spiele geeigneten Fragen.")
             return
         _run_qb(self, questions, diff_var.get(), mode_var.get())
