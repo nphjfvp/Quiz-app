@@ -3,6 +3,59 @@
 // "pick an option" or "type the answer" challenge are dropped, so a game
 // never shows a broken/meaningless question.
 
+// Source picker shown before a game starts. Lets the player choose which
+// quiz/Klausur to practise (or all of them). Resolves to the chosen
+// questions array, or null if the player went back.
+export async function pickQuizSource(root, opts = {}) {
+  const { title = "🎮 Spiel", subtitle = "Was möchtest du üben?" } = opts;
+  const { loadQuizzes } = await import("./store.js");
+  const { navigate } = await import("./router.js");
+  const esc = (s) => (s ?? "").toString()
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const quizzes = await loadQuizzes();
+  if (!quizzes.length) {
+    root.innerHTML = `<div style="padding:30px 20px;text-align:center"><h3>Keine Quizze vorhanden</h3>
+      <p>Erstelle zuerst ein Quiz.</p>
+      <button class="btn btn-primary" id="gs-back">← Zurück</button></div>`;
+    root.querySelector("#gs-back").addEventListener("click", () => navigate("games"));
+    return null;
+  }
+
+  const allQs = quizzes.flatMap(q => q.questions || []);
+  return new Promise((resolve) => {
+    let html = `<div class="game-setup">
+      <h2 class="game-setup-title">${esc(title)}</h2>
+      <p class="game-setup-sub">${esc(subtitle)}</p>
+      <div class="game-setup-list">
+        <button class="game-src-btn game-src-all" data-idx="all">
+          <span class="game-src-name">🌐 Alle Quizze</span>
+          <span class="game-src-meta">${allQs.length} Fragen</span>
+        </button>`;
+    quizzes.forEach((q, i) => {
+      const n = (q.questions || []).length;
+      html += `<button class="game-src-btn" data-idx="${i}"${n === 0 ? " disabled" : ""}>
+        <span class="game-src-name">${esc(q.name || "Quiz")}</span>
+        <span class="game-src-meta">${n} Fragen</span>
+      </button>`;
+    });
+    html += `</div>
+      <button class="btn-secondary" id="gs-back" style="margin-top:16px;width:100%">← Zurück</button>
+    </div>`;
+    root.innerHTML = html;
+
+    root.querySelectorAll(".game-src-btn").forEach(btn => {
+      if (btn.disabled) return;
+      btn.addEventListener("click", () => {
+        const idx = btn.dataset.idx;
+        resolve(idx === "all" ? allQs : (quizzes[+idx].questions || []));
+      });
+    });
+    root.querySelector("#gs-back").addEventListener("click", () => {
+      navigate("games"); resolve(null);
+    });
+  });
+}
+
 function norm(s) {
   return (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
 }

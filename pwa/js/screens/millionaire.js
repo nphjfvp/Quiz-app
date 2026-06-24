@@ -1,5 +1,5 @@
 import { loadQuizzes, loadProgress, addCoins, saveGameScore } from "../store.js";
-import { buildPlayable, shuffle, checkText, buildFeedbackHtml, attachFeedbackListeners, difficultyOfNormalized } from "../games-util.js";
+import { buildPlayable, shuffle, checkText, buildFeedbackHtml, attachFeedbackListeners, difficultyOfNormalized, pickQuizSource } from "../games-util.js";
 import { navigate } from "../router.js";
 import { mathEsc } from "../utils.js";
 
@@ -13,9 +13,9 @@ const PRIZES = [
 const SAFE_LEVELS = [4, 9];
 
 export async function render(root) {
-  const quizzes = await loadQuizzes();
-  const allQs = quizzes.flatMap(q => q.questions || []);
-  let playable = buildPlayable(allQs).filter(q => q.kind === "choice");
+  const chosen = await pickQuizSource(root, { title: "💰 Wer wird Millionär", subtitle: "Welches Quiz möchtest du üben?" });
+  if (!chosen) return;
+  let playable = buildPlayable(chosen).filter(q => q.kind === "choice");
   if (playable.length < 5) {
     root.innerHTML = `<div style="padding:30px 20px;text-align:center"><h3>Zu wenige Single/Multiple-Choice Fragen</h3><p>Mindestens 5 nötig.</p><button class="btn btn-primary" id="b">← Zurück</button></div>`;
     root.querySelector("#b").addEventListener("click", () => navigate("games"));
