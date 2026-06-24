@@ -386,7 +386,7 @@ export async function render(root, params = {}) {
       genBtn.textContent = "⏳ Analysiere Bild…";
       try {
         const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel, detailLevel });
-        showReview(root, questions, quizName, currentModel);
+        showReview(root, questions, quizName, currentModel, "");
       } catch (err) {
         showError(err.message || "Bild konnte nicht ausgewertet werden.");
         genBtn.disabled = false;
@@ -403,7 +403,7 @@ export async function render(root, params = {}) {
       genBtn.textContent = `⏳ Analysiere ${pdfPageImages.length} Seiten…`;
       try {
         const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel }, text || undefined);
-        showReview(root, questions, quizName, currentModel);
+        showReview(root, questions, quizName, currentModel, text || "");
       } catch (err) {
         showError(err.message || "PDF-Bilder konnten nicht ausgewertet werden.");
         genBtn.disabled = false;
@@ -435,7 +435,7 @@ export async function render(root, params = {}) {
 
     try {
       const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel });
-      showReview(root, questions, quizName, currentModel);
+      showReview(root, questions, quizName, currentModel, inputText);
     } catch (err) {
       showError(err.message || "Beim Generieren ist ein Fehler aufgetreten.");
       genBtn.disabled = false;
@@ -456,8 +456,9 @@ export async function render(root, params = {}) {
 
 // ─── Review Screen ──────────────────────────────────────────────────
 
-function showReview(root, questions, quizName, modelId) {
+function showReview(root, questions, quizName, modelId, sourceText = "") {
   let qs = [...questions];
+  const _sourceText = sourceText;
 
   function renderReview() {
     let html = `<div class="editor-header">
@@ -576,6 +577,15 @@ function showReview(root, questions, quizName, modelId) {
       const quizzes = await loadQuizzes();
       quizzes.push(quiz);
       await saveQuizzes(quizzes);
+
+      if (_sourceText && _sourceText.length > 100) {
+        const { saveMaterial } = await import("../store.js");
+        const doSave = confirm("Möchtest du das Quellmaterial (Skript/PDF-Text) mit dem Quiz verknüpfen?\n\nDamit kann die KI dir gezielt beim Lernen helfen — auch zu Themen, die nicht im Quiz vorkommen.");
+        if (doSave) {
+          await saveMaterial(quiz.id, { text: _sourceText, name: quizName, saved: new Date().toISOString() });
+        }
+      }
+
       navigate("quiz-modes", { quizId: quiz.id });
     });
 

@@ -1279,6 +1279,17 @@ a:focus-visible, [tabindex]:focus-visible {
 .forecast-bar { width:100%; border-radius:4px 4px 0 0; min-height:4px; transition:height 0.3s; }
 .forecast-label { font-size:0.7rem; color:var(--text-light); }
 
+/* ── Study Mode ── */
+.study-overview { text-align:center; padding:20px; }
+.study-overview h3 { margin:0 0 12px; }
+.study-stats-row { display:flex; justify-content:center; gap:24px; margin:12px 0; }
+.study-stat { display:flex; flex-direction:column; align-items:center; }
+.study-stat-num { font-size:1.5rem; font-weight:800; color:var(--primary); }
+.study-stat-label { font-size:0.75rem; color:var(--text-light); }
+.study-material-badge { font-size:0.8rem; margin-top:8px; padding:4px 12px; border-radius:20px; background:var(--primary-subtle); display:inline-block; }
+.study-suggest-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.study-suggest-btn { font-size:0.85rem !important; white-space:nowrap; }
+
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
   * { transition-duration: 0.01ms !important; }

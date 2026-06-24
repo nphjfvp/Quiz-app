@@ -1,4 +1,4 @@
-import { loadQuizzes, loadProgress } from "../store.js";
+import { loadQuizzes, loadProgress, getMaterial } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
 
@@ -7,7 +7,7 @@ export async function render(root, params) {
   const quiz = quizzes.find((q) => q.id === params.quizId);
   if (!quiz) { navigate("home"); return; }
 
-  const progress = await loadProgress();
+  const [progress, material] = await Promise.all([loadProgress(), getMaterial(params.quizId)]);
   const n = quiz.questions?.length ?? 0;
   const counts = {};
   for (const q of (quiz.questions || [])) {
@@ -44,11 +44,25 @@ export async function render(root, params) {
       </div>
     </div>`;
 
+  html += `<div class="grid-card card-clickable" id="mode-study" style="margin-bottom:12px;text-align:center">
+    <div class="icon">📖</div>
+    <div class="title">KI-Lernmodus</div>
+    <div class="desc">${material ? "Mit Quellmaterial" : "Schwächen gezielt lernen"}</div>
+  </div>`;
+
   if (weakQs.length > 0) {
     html += `<div class="grid-card card-clickable" id="mode-weak" style="margin-bottom:12px;text-align:center">
       <div class="icon">🎯</div>
       <div class="title">Schwache Fragen (${weakQs.length})</div>
       <div class="desc">Box 1–2 wiederholen</div>
+    </div>`;
+  }
+
+  if (!material) {
+    html += `<div class="card" style="padding:12px;margin-bottom:12px;text-align:center">
+      <small>📄 Quellmaterial verknüpfen (Skript/Vorlesung)</small><br>
+      <input type="file" id="material-upload" accept=".txt,.pdf" style="margin-top:8px;font-size:0.85rem">
+      <div id="material-status" style="font-size:0.8rem;margin-top:4px"></div>
     </div>`;
   }
 
@@ -70,6 +84,7 @@ export async function render(root, params) {
   root.innerHTML = html;
 
   root.querySelector("#back-btn").addEventListener("click", () => navigate("my-quizzes"));
+  root.querySelector("#mode-study")?.addEventListener("click", () => navigate("study", { quizId: quiz.id }));
   root.querySelector("#mode-single")?.addEventListener("click", () => navigate("quiz", { quiz, mode: "single" }));
   root.querySelector("#mode-exam")?.addEventListener("click", () => navigate("quiz", { quiz, mode: "exam" }));
   root.querySelector("#mode-weak")?.addEventListener("click", () => {
@@ -81,5 +96,48 @@ export async function render(root, params) {
       const filtered = { ...quiz, questions: quiz.questions.filter(q => q.topic === el.dataset.topic) };
       navigate("quiz", { quiz: filtered, mode: "single" });
     });
+  });
+
+  root.querySelector("#material-upload")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const st = root.querySelector("#material-status");
+    st.textContent = "Lade...";
+    try {
+      let text = "";
+      if (file.name.endsWith(".pdf")) {
+        const pdfjsLib = await loadPdfJs();
+        const ab = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(" ") + "\n\n";
+          st.textContent = `Seite ${i}/${pdf.numPages}...`;
+        }
+      } else {
+        text = await file.text();
+      }
+      if (text.trim().length < 20) { st.textContent = "Datei enthält zu wenig Text."; return; }
+      const { saveMaterial } = await import("../store.js");
+      await saveMaterial(quiz.id, { text: text.trim(), name: file.name, saved: new Date().toISOString() });
+      st.textContent = "✓ Material verknüpft!";
+      setTimeout(() => render(root, params), 1500);
+    } catch (err) { st.textContent = "Fehler: " + (err.message || err); }
+  });
+}
+
+async function loadPdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = () => {
+      const lib = window.pdfjsLib;
+      if (lib) { lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; resolve(lib); }
+      else reject(new Error("pdf.js nicht geladen"));
+    };
+    script.onerror = () => reject(new Error("pdf.js nicht geladen"));
+    document.head.appendChild(script);
   });
 }
