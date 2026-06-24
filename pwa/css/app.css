@@ -1296,6 +1296,8 @@ a:focus-visible, [tabindex]:focus-visible {
 .speed-opt.wrong { border-color:var(--danger); background:var(--danger-light); }
 .speed-input-row { display:flex; gap:8px; }
 .speed-input { flex:1; }
+.speed-multi { display:flex; flex-direction:column; gap:8px; }
+.speed-multi .speed-input { width:100%; }
 .speed-result { text-align:center; padding:24px 0; }
 .speed-final-score { font-size:2rem; font-weight:800; color:var(--primary); margin:8px 0; }
 .speed-stats { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; color:var(--text-light); font-size:0.95rem; margin:12px 0; }

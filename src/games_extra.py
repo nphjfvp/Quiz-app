@@ -194,22 +194,34 @@ def _run_speed(self, questions):
                               command=lambda oo=o: handle(q, oo["correct"], oo["text"])
                               ).grid(row=i + 1, column=0, sticky="ew", pady=3)
         else:
-            entry = ctk.CTkEntry(qbox, height=40, font=("Segoe UI", 14), placeholder_text="Antwort…")
-            entry.grid(row=1, column=0, sticky="ew", pady=4)
-            entry.focus_set()
+            entries = []
+            if q["kind"] == "multi_text":
+                for i in range(len(q["blanks"])):
+                    e = ctk.CTkEntry(qbox, height=40, font=("Segoe UI", 14),
+                                     placeholder_text=f"Lücke {i + 1}…")
+                    e.grid(row=1 + i, column=0, sticky="ew", pady=4)
+                    entries.append(e)
+            else:
+                e = ctk.CTkEntry(qbox, height=40, font=("Segoe UI", 14), placeholder_text="Antwort…")
+                e.grid(row=1, column=0, sticky="ew", pady=4)
+                entries.append(e)
+            entries[0].focus_set()
 
             def submit(_=None):
-                val = entry.get().strip()
-                if not val:
+                vals = [e.get().strip() for e in entries]
+                if any(not v for v in vals):
                     return
                 if q["kind"] == "multi_text":
-                    ok = _check_multi_text(q["blanks"], [val])
+                    ok = _check_multi_text(q["blanks"], vals)
+                    val = ", ".join(vals)
                 else:
-                    ok = _check_text(q["accept"], val)
+                    ok = _check_text(q["accept"], vals[0])
+                    val = vals[0]
                 handle(q, ok, val)
-            entry.bind("<Return>", submit)
+            for e in entries:
+                e.bind("<Return>", submit)
             ctk.CTkButton(qbox, text="OK", height=36, fg_color=COLORS["primary"],
-                          command=submit).grid(row=2, column=0, sticky="w", pady=4)
+                          command=submit).grid(row=1 + len(entries), column=0, sticky="w", pady=4)
 
     def end():
         st["running"] = False
@@ -574,20 +586,30 @@ def _run_boss(self, questions):
                               command=lambda oo=o: resolve(oo["correct"])
                               ).grid(row=i, column=0, sticky="ew", pady=3)
         else:
-            entry = ctk.CTkEntry(qbox, height=40, font=("Segoe UI", 14), placeholder_text="Antwort…")
-            entry.grid(row=0, column=0, sticky="ew", pady=4)
-            entry.focus_set()
+            entries = []
+            if q["kind"] == "multi_text":
+                for i in range(len(q["blanks"])):
+                    e = ctk.CTkEntry(qbox, height=40, font=("Segoe UI", 14),
+                                     placeholder_text=f"Lücke {i + 1}…")
+                    e.grid(row=i, column=0, sticky="ew", pady=4)
+                    entries.append(e)
+            else:
+                e = ctk.CTkEntry(qbox, height=40, font=("Segoe UI", 14), placeholder_text="Antwort…")
+                e.grid(row=0, column=0, sticky="ew", pady=4)
+                entries.append(e)
+            entries[0].focus_set()
 
             def submit(_=None):
-                val = entry.get().strip()
-                if not val:
+                vals = [e.get().strip() for e in entries]
+                if any(not v for v in vals):
                     return
-                ok = (_check_multi_text(q["blanks"], [val]) if q["kind"] == "multi_text"
-                      else _check_text(q["accept"], val))
+                ok = (_check_multi_text(q["blanks"], vals) if q["kind"] == "multi_text"
+                      else _check_text(q["accept"], vals[0]))
                 resolve(ok)
-            entry.bind("<Return>", submit)
+            for e in entries:
+                e.bind("<Return>", submit)
             ctk.CTkButton(qbox, text="⚔️ Angriff!", height=36, fg_color=COLORS["primary"],
-                          command=submit).grid(row=1, column=0, sticky="w", pady=4)
+                          command=submit).grid(row=len(entries), column=0, sticky="w", pady=4)
 
     def finish(won):
         coins = st["score"] // (3 if won else 5)

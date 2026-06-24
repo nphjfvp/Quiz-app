@@ -72,6 +72,12 @@ export async function render(root) {
         html += `<button class="boss-opt" data-correct="${o.correct}">${mathEsc(o.text)}</button>`;
       });
       html += `</div>`;
+    } else if (q.kind === "multi_text") {
+      html += `<div class="speed-multi">` +
+        q.blanks.map((_, i) =>
+          `<input type="text" class="input speed-input" data-blank="${i}" placeholder="Lücke ${i + 1}..."${i === 0 ? " autofocus" : ""}>`
+        ).join("") +
+        `<button class="btn btn-primary" id="boss-submit">⚔️ Angriff!</button></div>`;
     } else {
       html += `<div class="speed-input-row">
         <input type="text" class="input speed-input" id="boss-ans" placeholder="Antwort..." autofocus>
@@ -91,17 +97,21 @@ export async function render(root) {
         });
       });
     } else {
-      const inp = root.querySelector("#boss-ans");
       const sub = root.querySelector("#boss-submit");
+      const inputs = q.kind === "multi_text"
+        ? [...root.querySelectorAll(".speed-input[data-blank]")]
+        : [root.querySelector("#boss-ans")];
       const submit = async () => {
-        const val = inp.value.trim();
-        if (!val) return;
-        inp.disabled = true;
+        const vals = inputs.map(i => i.value.trim());
+        if (vals.some(v => !v)) return;
+        inputs.forEach(i => i.disabled = true);
         sub.disabled = true;
-        let correct;
+        let correct, val;
         if (q.kind === "multi_text") {
-          correct = checkMultiText(q.blanks, [val]);
+          correct = checkMultiText(q.blanks, vals);
+          val = vals.join(", ");
         } else {
+          val = vals[0];
           correct = checkText(q.accept, val);
           if (!correct) {
             sub.textContent = "🤖 …";
@@ -112,8 +122,8 @@ export async function render(root) {
         resolveAttack(q, correct, val);
       };
       sub.addEventListener("click", submit);
-      inp.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
-      inp.focus();
+      inputs.forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") submit(); }));
+      inputs[0].focus();
     }
   }
 

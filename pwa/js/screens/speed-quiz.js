@@ -82,7 +82,13 @@ export async function render(root) {
         html += `<button class="speed-opt" data-idx="${i}" data-correct="${o.correct}">${mathEsc(o.text)}</button>`;
       });
       html += `</div>`;
-    } else if (q.kind === "text" || q.kind === "multi_text") {
+    } else if (q.kind === "multi_text") {
+      html += `<div class="speed-multi">` +
+        q.blanks.map((_, i) =>
+          `<input type="text" class="input speed-input" data-blank="${i}" placeholder="Lücke ${i + 1}..."${i === 0 ? " autofocus" : ""}>`
+        ).join("") +
+        `<button class="btn btn-primary" id="speed-submit">OK</button></div>`;
+    } else if (q.kind === "text") {
       html += `<div class="speed-input-row">
         <input type="text" class="input speed-input" id="speed-ans" placeholder="Antwort..." autofocus>
         <button class="btn btn-primary" id="speed-submit">OK</button>
@@ -102,26 +108,29 @@ export async function render(root) {
         });
       });
     } else {
-      const inp = qArea.querySelector("#speed-ans");
       const sub = qArea.querySelector("#speed-submit");
+      const inputs = q.kind === "multi_text"
+        ? [...qArea.querySelectorAll(".speed-input[data-blank]")]
+        : [qArea.querySelector("#speed-ans")];
       const submit = () => {
-        const val = inp.value.trim();
-        if (!val) return;
-        let correct = false;
+        const vals = inputs.map(i => i.value.trim());
+        if (vals.some(v => !v)) return;
+        let correct, val;
         if (q.kind === "multi_text") {
-          correct = checkMultiText(q.blanks, [val]);
+          correct = checkMultiText(q.blanks, vals);
+          val = vals.join(", ");
         } else {
-          correct = checkText(q.accept, val);
+          correct = checkText(q.accept, vals[0]);
+          val = vals[0];
         }
         handleAnswer(q, correct, val);
-        inp.style.borderColor = correct ? "var(--success)" : "var(--danger)";
-        inp.disabled = true;
+        inputs.forEach(i => { i.style.borderColor = correct ? "var(--success)" : "var(--danger)"; i.disabled = true; });
         sub.disabled = true;
         setTimeout(nextQuestion, correct ? 300 : 800);
       };
       sub.addEventListener("click", submit);
-      inp.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
-      inp.focus();
+      inputs.forEach(i => i.addEventListener("keydown", e => { if (e.key === "Enter") submit(); }));
+      inputs[0].focus();
     }
   }
 
