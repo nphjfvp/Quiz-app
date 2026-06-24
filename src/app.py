@@ -1614,10 +1614,12 @@ class App(ctk.CTk):
                     font=("Segoe UI", 10), text_color=COLORS["text_light"]
                     ).grid(row=4, column=0, sticky="w")
 
-        # Blocked models inside API card
+        # Model picker + blocked models inside API card
         ctk.CTkLabel(api_card, text=t("settings.blocked_models"), font=("Segoe UI", 12, "bold"),
                     text_color=COLORS["text"]).grid(row=5, column=0, sticky="w", pady=(10, 0))
-        ctk.CTkLabel(api_card, text=t("settings.blocked_hint"), font=("Segoe UI", 10),
+        ctk.CTkLabel(api_card,
+                    text="Klicke auf ein Modell, um es oben als aktives Modell zu übernehmen. Mit dem 🔒-Schalter sperrst du teure Modelle.",
+                    font=("Segoe UI", 10),
                     text_color=COLORS["text_light"], wraplength=470, justify="left"
                     ).grid(row=6, column=0, sticky="w", pady=(2, 5))
         blocked_frame = ctk.CTkFrame(api_card, fg_color="transparent")
@@ -1625,17 +1627,30 @@ class App(ctk.CTk):
         from .ai_service import AIService as _AIS
         blocked_set = set(settings.get("disabled_models", []))
         blocked_vars = {}
+
+        def _use_model(mid):
+            model_entry.delete(0, "end")
+            model_entry.insert(0, mid)
+            model_entry.focus_set()
+
         for i, m in enumerate(_AIS.RECOMMENDED_MODELS):
             cost = m["cost_in"] + m["cost_out"]
-            cost_label = f"${cost:.1f}/1M"
+            cost_label = "gratis" if cost == 0 else f"${cost:.1f}/1M"
             icons = "👁" if m.get("vision") else "📝"
             var = BooleanVar(value=(m["id"] in blocked_set))
             blocked_vars[m["id"]] = var
             row_i = i // 2
             col_i = i % 2
-            ctk.CTkSwitch(blocked_frame, text=f"{m['name']} {icons} ({cost_label})",
-                         variable=var, font=("Segoe UI", 11)
-                         ).grid(row=row_i, column=col_i, padx=(0, 25), pady=2, sticky="w")
+            row_frame = ctk.CTkFrame(blocked_frame, fg_color="transparent")
+            row_frame.grid(row=row_i, column=col_i, padx=(0, 20), pady=2, sticky="w")
+            ctk.CTkButton(row_frame, text=f"{m['name']} {icons} ({cost_label})",
+                         font=("Segoe UI", 11), anchor="w", height=26,
+                         fg_color="transparent", text_color=COLORS["text"],
+                         hover_color=COLORS.get("card_hover", "#eef7f2"),
+                         command=lambda mid=m["id"]: _use_model(mid)
+                         ).pack(side="left")
+            ctk.CTkSwitch(row_frame, text="🔒", variable=var, width=44,
+                         font=("Segoe UI", 11)).pack(side="left", padx=(4, 0))
 
         # ── Features Card ──
         feat_inner = self._settings_card(frame, "Features", row=2)
