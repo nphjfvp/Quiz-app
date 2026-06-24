@@ -6152,8 +6152,10 @@ class App(ctk.CTk):
                                 ).grid(row=2, column=0, padx=22, pady=(0, 12), sticky="w")
 
                 # KI validation for free text: check if semantically correct
-                if (not result.is_correct and q.question_type == QuestionType.FREE_TEXT
-                        and self.ai.api_key and result.user_answer.strip()):
+                _ki_text_types = {QuestionType.FREE_TEXT, QuestionType.FILL_BLANK, QuestionType.MATH_FORMULA}
+                _ki_user_ans = "; ".join(result.user_answer) if isinstance(result.user_answer, list) else (result.user_answer or "")
+                if (not result.is_correct and q.question_type in _ki_text_types
+                        and self.ai.api_key and _ki_user_ans.strip()):
                     ki_val_frame = ctk.CTkFrame(feedback_frame, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
                     ki_val_frame.grid(row=3, column=0, sticky="ew", pady=(5, 0))
                     ki_val_frame.grid_columnconfigure(0, weight=1)
@@ -6176,7 +6178,7 @@ class App(ctk.CTk):
                             {"role": "user", "content": (
                                 f"Frage: {q.text}\n"
                                 f"Musterlösung: {q.correct_text}\n"
-                                f"Antwort des Studenten: {result.user_answer}"
+                                f"Antwort des Studenten: {_ki_user_ans}"
                             )},
                         ]
                         resp = self.ai._call_api(msgs, max_tokens=512)

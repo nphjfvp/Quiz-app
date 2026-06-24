@@ -299,9 +299,9 @@ function showQuestion(root, quiz, session) {
         await saveErrorDiary(diary);
       }
 
-      // KI-Bewertung für Freitext: vergleicht Musterlösung + Antwort semantisch.
-      // Wenn inhaltlich richtig (nur anders formuliert) → als richtig werten lassen.
-      if (!result.is_correct && q.question_type === "free_text" && (result.user_answer || "").trim()) {
+      const textTypes = ["free_text", "fill_blank", "math_formula"];
+      const userAns = Array.isArray(result.user_answer) ? result.user_answer.join("; ") : (result.user_answer || "");
+      if (!result.is_correct && textTypes.includes(q.question_type) && userAns.trim()) {
         const kiBox = document.createElement("div");
         kiBox.className = "ki-validate";
         kiBox.innerHTML = `<div class="ki-validate-status">🤖 KI prüft, ob deine Antwort inhaltlich richtig ist…</div>`;
@@ -309,9 +309,15 @@ function showQuestion(root, quiz, session) {
         (async () => {
           try {
             const { checkFreeTextAI } = await import("../ai-service.js");
+            const { loadSettings } = await import("../store.js");
+            const settings = await loadSettings();
+            if (!settings.apiKey) {
+              kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI-Prüfung nicht verfügbar – bitte API-Key in den <a href="#settings">Einstellungen</a> hinterlegen.</div>`;
+              return;
+            }
             const accepted = String(q.correct_text || result.correct_answer || "").split(/[;|]/).map(s => s.trim()).filter(Boolean);
-            const r = await checkFreeTextAI(q.question_text || q.text || "", result.user_answer, accepted);
-            if (!r) { kiBox.remove(); return; }
+            const r = await checkFreeTextAI(q.question_text || q.text || "", userAns, accepted);
+            if (!r) { kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI-Prüfung fehlgeschlagen.</div>`; return; }
             if (r.correct) {
               kiBox.innerHTML = `<div class="ki-validate-ok">🤖 KI: Inhaltlich richtig!</div>
                 ${r.feedback ? `<div class="ki-validate-fb">${mathEsc(r.feedback)}</div>` : ""}
@@ -326,7 +332,9 @@ function showQuestion(root, quiz, session) {
               kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI: Inhaltlich nicht korrekt.</div>
                 ${r.feedback ? `<div class="ki-validate-fb">${mathEsc(r.feedback)}</div>` : ""}`;
             }
-          } catch { kiBox.remove(); }
+          } catch (e) {
+            kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI-Prüfung fehlgeschlagen.</div>`;
+          }
         })();
       }
 
