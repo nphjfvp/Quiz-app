@@ -1,6 +1,6 @@
 import { askTutor } from "../ai-service.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, mathEsc } from "../utils.js";
 
 export async function render(root, params = {}) {
   const chatHistory = [];
@@ -38,7 +38,7 @@ export async function render(root, params = {}) {
   function addMessage(role, content) {
     const div = document.createElement("div");
     div.className = `tutor-bubble ${role}`;
-    div.textContent = content;
+    div.innerHTML = mathEsc(content);
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return div;

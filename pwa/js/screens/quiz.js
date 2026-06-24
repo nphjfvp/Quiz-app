@@ -1,7 +1,7 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
 import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, mathEsc } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
 
@@ -34,8 +34,8 @@ function showQuestion(root, quiz, session) {
       <span class="progress-label">Frage ${idx}/${total}</span>
     </div>
     <div class="card">
-      ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
-      ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${esc(q.question_text || q.text)}</div>`}
+      ${(q.topic || q.title) ? `<div class="question-title">${mathEsc(q.topic || q.title)}</div>` : ""}
+      ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${mathEsc(q.question_text || q.text)}</div>`}
       ${q.question_type === "multiple_choice" ? `<div class="mc-badge">☑️ Mehrere Antworten richtig</div>` : ""}
       ${q.question_type === "single_choice" ? `<div class="mc-badge sc">🔘 Genau eine Antwort richtig</div>` : ""}
       ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${q.image || q.image_path}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
@@ -46,13 +46,13 @@ function showQuestion(root, quiz, session) {
     html += q.options.map((o, i) => `
       <div class="option-card" data-idx="${i}" role="radio" aria-checked="false" tabindex="0">
         <span class="option-key">${String.fromCharCode(65 + i)}</span>
-        <span class="option-text">${esc(o.text)}</span>
+        <span class="option-text">${mathEsc(o.text)}</span>
       </div>`).join("");
   } else if (q.question_type === "multiple_choice") {
     html += q.options.map((o, i) => `
       <div class="option-card" data-idx="${i}" data-mc="true" role="checkbox" aria-checked="false" tabindex="0">
         <span class="option-key">${String.fromCharCode(65 + i)}</span>
-        <span class="option-text">${esc(o.text)}</span>
+        <span class="option-text">${mathEsc(o.text)}</span>
       </div>`).join("");
   } else if (q.question_type === "free_text") {
     html += `<div class="input-group">
@@ -112,7 +112,7 @@ function showQuestion(root, quiz, session) {
         <label>Formel / Ergebnis</label>
         <input type="text" id="math-input" class="input" placeholder="z.B. x = 2 oder $\\frac{a}{b}$">
       </div>
-      ${q.formula_sheet ? `<details class="formula-sheet"><summary>Formelsammlung</summary><pre>${esc(q.formula_sheet)}</pre></details>` : ""}
+      ${q.formula_sheet ? `<details class="formula-sheet"><summary>Formelsammlung</summary><div class="formula-sheet-body">${mathEsc(q.formula_sheet)}</div></details>` : ""}
     </div>`;
     html += `<div id="math-tab-draw" style="display:none">
       <canvas id="math-canvas" width="560" height="200" class="media-canvas" style="touch-action:none;background:var(--input-bg)"></canvas>
@@ -273,7 +273,7 @@ function showQuestion(root, quiz, session) {
         <div class="feedback-body">
           <h3>${label}</h3>
           <p>Punkte: ${result.score}/${result.max_score}</p>
-          ${!result.is_correct ? `<p class="feedback-correct-answer">✓ ${esc(result.correct_answer)}</p>` : ""}
+          ${!result.is_correct ? `<p class="feedback-correct-answer">✓ ${mathEsc(result.correct_answer)}</p>` : ""}
         </div>
       </div>
       <div class="feedback-actions">

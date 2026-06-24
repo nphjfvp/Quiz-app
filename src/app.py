@@ -5414,7 +5414,8 @@ class App(ctk.CTk):
                                      text_color=COLORS["primary"])
                 badge.grid(row=0, column=0, padx=(14, 8), pady=12)
 
-                lbl = ctk.CTkLabel(row_card, text=option.text, font=("Segoe UI", 14),
+                opt_display = latex_to_plain(option.text) if has_latex(option.text) else option.text
+                lbl = ctk.CTkLabel(row_card, text=opt_display, font=("Segoe UI", 14),
                                    text_color=COLORS["text"], wraplength=560, justify="left")
                 lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
 
