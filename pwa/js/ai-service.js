@@ -140,21 +140,22 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
 
 Regeln:
 - ${countRule}
-- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "math_formula".
+- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula".
 - Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
 - Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.
 - Bei multiple_choice: mindestens 2 Optionen sind korrekt, mindestens 4 Optionen.
 - Bei free_text: gib den korrekten Antworttext in "correct_text" an. Mehrere akzeptierte Antworten mit ';' trennen.
 - Bei fill_blank: markiere Lücken im Fragetext mit ___ und liste die Lösungswörter in "blanks" auf.
-- Bei drag_drop: nur wenn der Stoff Zuordnungen enthält (Begriff↔Definition, Ursache↔Wirkung). Liste Paare in "drag_drop_pairs" mit "source" (Begriff) und "target" (Ziel-Kategorie).
+- Bei drag_drop: nur wenn 1:1-Zuordnungen (Begriff↔Definition). Liste Paare in "drag_drop_pairs" mit "source" und "target".
+- Bei drag_category: wenn mehrere Begriffe in Kategorien eingeordnet werden sollen (z.B. 6 Begriffe auf 2 Kategorien). Nutze "drag_drop_pairs" wobei "source" der Begriff und "target" die Kategorie ist. Kategorien dürfen mehrfach vorkommen.
 - Bei math_formula: nur bei mathematischen/naturwissenschaftlichen Inhalten. Gib die Lösung in "correct_formula" an (z.B. "x = 2" oder "a^2 + b^2").
-- Bevorzuge Choice-/Text-Fragen; nutze drag_drop und math_formula nur, wo es inhaltlich passt.
+- Bevorzuge Choice-/Text-Fragen; nutze drag_drop, drag_category und math_formula nur, wo es inhaltlich passt.
 - Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher Text) in diesem Format:
 [
   {
-    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "math_formula",
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "drag_category" | "math_formula",
     "question_text": "Fragetext",
     "title": "Kurztitel der Frage",
     "topic": "Themengebiet",

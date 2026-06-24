@@ -9,6 +9,7 @@ const Q_TYPES = [
   { id: "free_text", label: "Freitext" },
   { id: "fill_blank", label: "Lückentext" },
   { id: "drag_drop", label: "Drag & Drop" },
+  { id: "drag_category", label: "Kategorie-Zuordnung" },
   { id: "math_formula", label: "Mathe-Formel" },
 ];
 

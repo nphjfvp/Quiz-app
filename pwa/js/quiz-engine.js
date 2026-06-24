@@ -7,6 +7,7 @@ export function checkAnswer(question, userInput) {
     case "free_text": return checkFreeText(question, userInput);
     case "fill_blank": return checkFillBlank(question, userInput);
     case "drag_drop": return checkDragDrop(question, userInput);
+    case "drag_category": return checkDragCategory(question, userInput);
     case "math_formula": return checkMath(question, userInput);
     case "diagram_label": return checkDiagramLabel(question, userInput);
     case "mark_image": return checkMarkImage(question, userInput);
@@ -103,6 +104,23 @@ function checkDragDrop(q, assignments) {
   return { question_id: q.id, is_correct: ok, score: Math.round((hits / total) * q.points * 10) / 10,
     max_score: q.points, user_answer: JSON.stringify(asg),
     correct_answer: JSON.stringify(Object.fromEntries(pairs.map((p) => [p.target, p.source]))) };
+}
+
+function checkDragCategory(q, assignments) {
+  const pairs = q.drag_drop_pairs ?? [];
+  const asg = assignments ?? {};
+  let hits = 0;
+  for (const pair of pairs) {
+    const assigned = asg[pair.source];
+    if (assigned === pair.target) hits++;
+  }
+  const total = Math.max(pairs.length, 1);
+  const ok = hits === total;
+  const correctMap = {};
+  for (const p of pairs) correctMap[p.source] = p.target;
+  return { question_id: q.id, is_correct: ok, score: Math.round((hits / total) * q.points * 10) / 10,
+    max_score: q.points, user_answer: JSON.stringify(asg),
+    correct_answer: JSON.stringify(correctMap) };
 }
 
 function normMath(expr) {

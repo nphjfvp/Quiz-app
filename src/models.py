@@ -16,6 +16,7 @@ class QuestionType(str, Enum):
     FREE_TEXT = "free_text"
     FILL_BLANK = "fill_blank"
     DRAG_DROP = "drag_drop"
+    DRAG_CATEGORY = "drag_category"
     DIAGRAM_LABEL = "diagram_label"
     MARK_IMAGE = "mark_image"
     MATH_FORMULA = "math_formula"

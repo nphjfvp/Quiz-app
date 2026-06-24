@@ -81,6 +81,15 @@ function showQuestion(root, quiz, session) {
     html += `<div class="question-hint">Ziehe die Begriffe auf die passenden Ziele (oder tippe Begriff &amp; dann Ziel).</div>`;
     html += `<div id="dnd-chips" class="dnd-chips"></div>`;
     html += `<div id="dnd-targets" class="dnd-targets"></div>`;
+  } else if (q.question_type === "drag_category") {
+    const cats = [...new Set((q.drag_drop_pairs ?? []).map(p => p.target))];
+    html += `<div class="question-hint">Ordne jeden Begriff der richtigen Kategorie zu (tippe Begriff, dann Kategorie).</div>`;
+    html += `<div id="dc-items" class="dnd-chips"></div>`;
+    html += `<div id="dc-categories" class="dc-categories">${cats.map(c =>
+      `<div class="dc-cat" data-cat="${esc(c)}">
+        <div class="dc-cat-title">${esc(c)}</div>
+        <div class="dc-cat-items" data-cat="${esc(c)}"></div>
+      </div>`).join("")}</div>`;
   } else if (q.question_type === "diagram_label") {
     html += `<div class="question-hint">Ziehe die Labels auf die markierten Einrast-Zonen im Diagramm.</div>`;
     html += `<div id="diagram-container" class="media-canvas-wrap">
@@ -150,6 +159,12 @@ function showQuestion(root, quiz, session) {
     setupDragDrop(root, q, dndAssignments);
   }
 
+  // Drag Category setup
+  const dcAssignments = {};
+  if (q.question_type === "drag_category") {
+    setupDragCategory(root, q, dcAssignments);
+  }
+
   // Diagram Label setup
   const diagramPlacements = {};
   if (q.question_type === "diagram_label") {
@@ -217,6 +232,8 @@ function showQuestion(root, quiz, session) {
     else if (q.question_type === "fill_blank") answer = [...root.querySelectorAll(".blank-input")].map(e => e.value);
     else if (q.question_type === "drag_drop") {
       answer = { ...dndAssignments };
+    } else if (q.question_type === "drag_category") {
+      answer = { ...dcAssignments };
     } else if (q.question_type === "diagram_label") {
       answer = { ...diagramPlacements };
     } else if (q.question_type === "mark_image") {
@@ -369,6 +386,67 @@ function setupDragDrop(root, q, assignments) {
     });
   }
   renderDnd();
+}
+
+function setupDragCategory(root, q, assignments) {
+  const pairs = q.drag_drop_pairs ?? [];
+  const items = shuffle(pairs.map(p => p.source));
+  const cats = [...new Set(pairs.map(p => p.target))];
+  const itemsEl = root.querySelector("#dc-items");
+  const catsEl = root.querySelector("#dc-categories");
+
+  function renderDC() {
+    const assigned = new Set(Object.keys(assignments));
+    itemsEl.innerHTML = items.filter(s => !assigned.has(s)).map((s, i) =>
+      `<div class="dnd-chip" data-item="${esc(s)}" style="background:${CHIP_COLORS[i % CHIP_COLORS.length]}20;border:2px solid ${CHIP_COLORS[i % CHIP_COLORS.length]};color:var(--text);cursor:pointer">${esc(s)}</div>`
+    ).join("");
+
+    cats.forEach(cat => {
+      const slot = catsEl.querySelector(`.dc-cat-items[data-cat="${CSS.escape(cat)}"]`);
+      if (!slot) return;
+      const catItems = Object.entries(assignments).filter(([, c]) => c === cat).map(([item]) => item);
+      slot.innerHTML = catItems.map(item =>
+        `<span class="dnd-assigned dc-assigned" data-item="${esc(item)}">${esc(item)} ✕</span>`
+      ).join("") || `<span class="dc-placeholder">Hierher ziehen</span>`;
+    });
+
+    let selectedChip = null;
+    itemsEl.querySelectorAll(".dnd-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        itemsEl.querySelectorAll(".dnd-chip").forEach(c => c.classList.remove("selected"));
+        chip.classList.add("selected");
+        selectedChip = chip.dataset.item;
+      });
+      chip.addEventListener("dragstart", e => {
+        e.dataTransfer.setData("text/plain", chip.dataset.item);
+      });
+    });
+
+    catsEl.querySelectorAll(".dc-cat").forEach(catEl => {
+      catEl.addEventListener("click", () => {
+        if (selectedChip) {
+          assignments[selectedChip] = catEl.dataset.cat;
+          selectedChip = null;
+          renderDC();
+        }
+      });
+      catEl.addEventListener("dragover", e => e.preventDefault());
+      catEl.addEventListener("drop", e => {
+        e.preventDefault();
+        const item = e.dataTransfer.getData("text/plain");
+        if (item) { assignments[item] = catEl.dataset.cat; renderDC(); }
+      });
+    });
+
+    catsEl.querySelectorAll(".dc-assigned").forEach(el => {
+      el.addEventListener("click", e => {
+        e.stopPropagation();
+        delete assignments[el.dataset.item];
+        renderDC();
+      });
+    });
+  }
+  renderDC();
 }
 
 function setupDiagramLabel(root, q, placements) {

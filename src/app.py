@@ -1906,6 +1906,7 @@ class App(ctk.CTk):
                     QuestionType.FREE_TEXT: "FT",
                     QuestionType.FILL_BLANK: "LT",
                     QuestionType.DRAG_DROP: "DD",
+                    QuestionType.DRAG_CATEGORY: "DK",
                     QuestionType.DIAGRAM_LABEL: "DL",
                 }.get(q.question_type, "?")
                 ctk.CTkLabel(qf, text=f"[{type_text}] {q.title or q.text[:50]}",
@@ -1985,6 +1986,7 @@ class App(ctk.CTk):
             "Freitext": QuestionType.FREE_TEXT.value,
             "Lückentext": QuestionType.FILL_BLANK.value,
             "Drag & Drop (Zuordnung)": QuestionType.DRAG_DROP.value,
+            "Kategorien zuordnen": QuestionType.DRAG_CATEGORY.value,
             "Diagramm beschriften": QuestionType.DIAGRAM_LABEL.value,
             "Markieren (Bild)": QuestionType.MARK_IMAGE.value,
             "Mathe-Formel": QuestionType.MATH_FORMULA.value,
@@ -2043,6 +2045,7 @@ class App(ctk.CTk):
             for i, (lbl, val) in enumerate([
                 (t("ai_create.type_diagram"), "diagram_label"),
                 (t("ai_create.type_dnd"), "drag_drop"),
+                ("Kategorien", "drag_category"),
                 (t("ai_create.type_sc"), "single_choice"),
             ]):
                 ctk.CTkRadioButton(ai_type_frame, text=lbl, variable=ai_type_var, value=val,
@@ -2135,7 +2138,7 @@ class App(ctk.CTk):
                                 options_data.append({"text": o.get("text", ""),
                                                      "is_correct": o.get("is_correct", False)})
                             rebuild_options()
-                        elif rtype == "drag_drop" and result.get("drag_drop_pairs"):
+                        elif rtype in ("drag_drop", "drag_category") and result.get("drag_drop_pairs"):
                             question.drag_drop_pairs = []
                             for p in result["drag_drop_pairs"]:
                                 question.drag_drop_pairs.append(
@@ -2299,8 +2302,9 @@ class App(ctk.CTk):
                     blanks_box.insert("1.0", "\n".join(question.blanks))
                 options_widgets.append(("blanks", blanks_box))
 
-            elif qt == QuestionType.DRAG_DROP.value:
-                ctk.CTkLabel(specific_frame, text="Zuordnungspaare (Begriff → Ziel)",
+            elif qt in (QuestionType.DRAG_DROP.value, QuestionType.DRAG_CATEGORY.value):
+                pair_label = "Zuordnungspaare (Element → Kategorie)" if qt == QuestionType.DRAG_CATEGORY.value else "Zuordnungspaare (Begriff → Ziel)"
+                ctk.CTkLabel(specific_frame, text=pair_label,
                            font=("Segoe UI", 13, "bold")).grid(row=0, column=0, sticky="w")
                 for i, pair in enumerate(question.drag_drop_pairs if question.drag_drop_pairs else [{"source": "", "target": ""}] * 3):
                     row_f = ctk.CTkFrame(specific_frame, fg_color="transparent")
@@ -2683,7 +2687,7 @@ class App(ctk.CTk):
                     if item[0] == "blanks":
                         text = item[1].get("1.0", "end-1c").strip()
                         question.blanks = [b.strip() for b in text.split("\n") if b.strip()]
-            elif qt == QuestionType.DRAG_DROP:
+            elif qt in (QuestionType.DRAG_DROP, QuestionType.DRAG_CATEGORY):
                 pairs = []
                 for item in options_widgets:
                     if item[0] == "dd_pair":
@@ -3773,6 +3777,7 @@ class App(ctk.CTk):
             ("Freitext", "free_text"),
             ("Lückentext", "fill_blank"),
             ("Drag & Drop", "drag_drop"),
+            ("Kategorien zuordnen", "drag_category"),
             ("Mathe-Formel", "math_formula"),
         ]
         qt_vars = {}
@@ -4118,7 +4123,7 @@ class App(ctk.CTk):
                          for o in result.get("options", []) if o.get("text")]
             if img_path:
                 q.image_path = img_path
-        elif qtype == QuestionType.DRAG_DROP:
+        elif qtype in (QuestionType.DRAG_DROP, QuestionType.DRAG_CATEGORY):
             q.drag_drop_pairs = [DragDropPair(source=p.get("source", ""), target=p.get("target", ""))
                                  for p in result.get("drag_drop_pairs", [])]
         elif qtype == QuestionType.DIAGRAM_LABEL:
@@ -4158,6 +4163,7 @@ class App(ctk.CTk):
             QuestionType.FREE_TEXT: "Freitext",
             QuestionType.FILL_BLANK: "Lückentext",
             QuestionType.DRAG_DROP: "Drag & Drop",
+            QuestionType.DRAG_CATEGORY: "Kategorien",
             QuestionType.DIAGRAM_LABEL: "Diagramm",
             QuestionType.MARK_IMAGE: "Bild markieren",
             QuestionType.MATH_FORMULA: "Mathe-Formel",
@@ -4313,7 +4319,7 @@ class App(ctk.CTk):
         win.geometry("400x220")
         win.grab_set()
 
-        type_options = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop"]
+        type_options = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category"]
         current = qq.question_type.value if hasattr(qq.question_type, 'value') else str(qq.question_type)
 
         ctk.CTkLabel(win, text=f"Aktueller Typ: {current}",
@@ -5607,6 +5613,120 @@ class App(ctk.CTk):
 
             answer_widgets.append(("dnd_canvas", dnd_assignments))
 
+        elif q.question_type == QuestionType.DRAG_CATEGORY:
+            ctk.CTkLabel(answer_frame, text="Ordne die Elemente den richtigen Kategorien zu:",
+                        font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
+                        ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
+
+            # Build category structure: {category_name: [correct_sources]}
+            categories = {}
+            for p in q.drag_drop_pairs:
+                categories.setdefault(p.target, [])
+            cat_names = list(categories.keys())
+
+            items = [p.source for p in q.drag_drop_pairs]
+            random.shuffle(items)
+
+            # State: which items are assigned to which category
+            cat_assignments = {cat: [] for cat in cat_names}
+            unassigned_items = list(items)
+
+            cat_container = ctk.CTkFrame(answer_frame, fg_color="transparent")
+            cat_container.grid(row=1, column=0, padx=10, pady=(0, 12), sticky="ew")
+
+            # Pool frame for unassigned items
+            pool_label = ctk.CTkLabel(cat_container, text="Verfügbare Elemente:",
+                                       font=("Segoe UI", 11, "bold"), text_color=COLORS["text_light"])
+            pool_label.grid(row=0, column=0, columnspan=max(len(cat_names), 1), sticky="w", padx=5, pady=(0, 5))
+            pool_frame = ctk.CTkFrame(cat_container, fg_color=COLORS.get("input_bg", "#f8f9fa"),
+                                       corner_radius=8, height=60)
+            pool_frame.grid(row=1, column=0, columnspan=max(len(cat_names), 1), sticky="ew", padx=5, pady=(0, 10))
+
+            # Category bucket frames
+            cat_frames = {}
+            cat_item_frames = {}
+            n_cols = min(len(cat_names), 4)
+            for ci, cat in enumerate(cat_names):
+                col = ci % n_cols
+                row_offset = 2 + (ci // n_cols) * 2
+                cat_container.grid_columnconfigure(col, weight=1)
+                bucket = ctk.CTkFrame(cat_container, fg_color=COLORS.get("card", "#ffffff"),
+                                       corner_radius=8, border_width=2,
+                                       border_color=COLORS.get("primary", "#3366cc"))
+                bucket.grid(row=row_offset, column=col, sticky="nsew", padx=5, pady=5)
+                bucket.grid_columnconfigure(0, weight=1)
+                ctk.CTkLabel(bucket, text=cat, font=("Segoe UI", 12, "bold"),
+                            text_color=COLORS.get("primary", "#3366cc")
+                            ).grid(row=0, column=0, padx=10, pady=(8, 5), sticky="w")
+                items_inner = ctk.CTkFrame(bucket, fg_color="transparent")
+                items_inner.grid(row=1, column=0, sticky="ew", padx=5, pady=(0, 8))
+                items_inner.grid_columnconfigure(0, weight=1)
+                cat_frames[cat] = bucket
+                cat_item_frames[cat] = items_inner
+
+            def _dc_refresh():
+                # Refresh pool
+                for w in pool_frame.winfo_children():
+                    w.destroy()
+                for idx_i, item in enumerate(unassigned_items):
+                    btn = ctk.CTkButton(pool_frame, text=item, width=120, height=30,
+                                         fg_color=COLORS.get("primary", "#3366cc"),
+                                         font=("Segoe UI", 11, "bold"),
+                                         command=lambda it=item: _dc_pick_item(it))
+                    btn.grid(row=idx_i // 4, column=idx_i % 4, padx=4, pady=4)
+                if not unassigned_items:
+                    ctk.CTkLabel(pool_frame, text="(leer)", font=("Segoe UI", 10),
+                                text_color=COLORS["text_light"]).grid(row=0, column=0, padx=10, pady=5)
+
+                # Refresh category buckets
+                for cat in cat_names:
+                    inner = cat_item_frames[cat]
+                    for w in inner.winfo_children():
+                        w.destroy()
+                    for ji, it in enumerate(cat_assignments[cat]):
+                        btn = ctk.CTkButton(inner, text=it, width=110, height=26,
+                                             fg_color=COLORS.get("success", "#27ae60"),
+                                             font=("Segoe UI", 10),
+                                             command=lambda item=it, c=cat: _dc_unassign(item, c))
+                        btn.grid(row=ji // 3, column=ji % 3, padx=3, pady=2)
+                    if not cat_assignments[cat]:
+                        ctk.CTkLabel(inner, text="hierher zuordnen", font=("Segoe UI", 9),
+                                    text_color=COLORS["text_light"]).grid(row=0, column=0, padx=5, pady=3)
+
+            _dc_selected_item = {"item": None}
+
+            def _dc_pick_item(item):
+                _dc_selected_item["item"] = item
+                # Show category selection buttons
+                for cat in cat_names:
+                    cat_frames[cat].configure(border_color=COLORS.get("warning", "#ff9800"))
+                    # Bind click on the whole bucket
+                    def assign(e=None, c=cat, it=item):
+                        if _dc_selected_item["item"]:
+                            _dc_assign(_dc_selected_item["item"], c)
+                    cat_frames[cat].bind("<Button-1>", assign)
+                    cat_item_frames[cat].bind("<Button-1>", assign)
+
+            def _dc_assign(item, category):
+                if item in unassigned_items:
+                    unassigned_items.remove(item)
+                    cat_assignments[category].append(item)
+                _dc_selected_item["item"] = None
+                for cat in cat_names:
+                    cat_frames[cat].configure(border_color=COLORS.get("primary", "#3366cc"))
+                    cat_frames[cat].unbind("<Button-1>")
+                    cat_item_frames[cat].unbind("<Button-1>")
+                _dc_refresh()
+
+            def _dc_unassign(item, category):
+                if item in cat_assignments[category]:
+                    cat_assignments[category].remove(item)
+                    unassigned_items.append(item)
+                _dc_refresh()
+
+            _dc_refresh()
+            answer_widgets.append(("drag_category", cat_assignments))
+
         elif q.question_type == QuestionType.DIAGRAM_LABEL:
             ctk.CTkLabel(answer_frame, text=t("dnd.diagram_hint"),
                         font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
@@ -6161,6 +6281,12 @@ class App(ctk.CTk):
                             if val != "-- Auswählen --":
                                 result[target] = val
                 return result
+            elif q.question_type == QuestionType.DRAG_CATEGORY:
+                for item in answer_widgets:
+                    if isinstance(item, tuple) and len(item) == 2 and item[0] == "drag_category":
+                        # Return as {category: [items]} dict
+                        return dict(item[1])
+                return {}
             elif q.question_type == QuestionType.DIAGRAM_LABEL:
                 return diagram_get_positions() if diagram_get_positions else {}
             elif q.question_type == QuestionType.MARK_IMAGE:
@@ -7317,7 +7443,7 @@ class App(ctk.CTk):
             return q.correct_text or "—"
         if qt == QuestionType.FILL_BLANK:
             return " | ".join(q.blanks) or "—"
-        if qt == QuestionType.DRAG_DROP:
+        if qt in (QuestionType.DRAG_DROP, QuestionType.DRAG_CATEGORY):
             return "\n".join(f"{p.source} → {p.target}" for p in q.drag_drop_pairs) or "—"
         if qt == QuestionType.DIAGRAM_LABEL:
             return ", ".join(l.label for l in q.diagram_labels) or "—"
