@@ -3947,9 +3947,23 @@ class App(ctk.CTk):
                 num_entry.configure(state="normal")
                 num_entry.delete(0, "end")
                 num_entry.insert(0, "20")
+        detail_var = StringVar(value="normal")
+        detail_frame = ctk.CTkFrame(num_frame, fg_color="transparent")
+        detail_frame.grid(row=2, column=0, columnspan=6, sticky="w", pady=(5, 0))
+        detail_frame.grid_remove()
+        ctk.CTkLabel(detail_frame, text="Genauigkeit:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 8))
+        for val, label in [("compact", "🎯 Kompakt"), ("normal", "⚖️ Normal"), ("thorough", "🔬 Max. gründlich")]:
+            ctk.CTkRadioButton(detail_frame, text=label, variable=detail_var, value=val,
+                              font=("Segoe UI", 11)).pack(side="left", padx=(0, 10))
+        def _toggle_auto_with_detail():
+            _toggle_auto()
+            if auto_count_var.get():
+                detail_frame.grid()
+            else:
+                detail_frame.grid_remove()
         ctk.CTkCheckBox(num_frame, text="So viele wie sinnvoll (KI entscheidet)",
                         variable=auto_count_var, font=("Segoe UI", 11),
-                        command=_toggle_auto).grid(row=1, column=0, columnspan=6, sticky="w", pady=(5, 0))
+                        command=_toggle_auto_with_detail).grid(row=1, column=0, columnspan=6, sticky="w", pady=(5, 0))
 
         def _get_num():
             if auto_count_var.get():
@@ -4059,7 +4073,8 @@ class App(ctk.CTk):
                     questions = self.ai.generate_from_slides(
                         file_var.get(), _get_num() or 20, progress_cb,
                         question_types=selected_types or None,
-                        focus_topics=focus, auto_count=is_auto)
+                        focus_topics=focus, auto_count=is_auto,
+                        detail_level=detail_var.get())
                 except Exception as exc:
                     msg = str(exc)
                     self.after(0, lambda m=msg: (
@@ -4068,10 +4083,11 @@ class App(ctk.CTk):
                     ))
                     return
 
-                # Optional: image/diagram questions from PDF via vision
-                if img_q_var.get():
+                # Auto-enable image extraction when no text questions generated (e.g. image-only PDFs)
+                use_images = img_q_var.get() or (not questions and file_var.get().lower().endswith(".pdf"))
+                if use_images:
                     self.after(0, lambda: progress_label.configure(
-                        text=t("gen.extracting_images")))
+                        text=t("gen.extracting_images") if img_q_var.get() else "Kein Text erkannt – extrahiere Bilder aus PDF…"))
                     img_questions = self._generate_image_questions(
                         file_var.get(), progress_label)
                     questions = (questions or []) + img_questions

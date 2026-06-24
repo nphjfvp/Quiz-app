@@ -896,6 +896,15 @@ input:focus { border-color: var(--primary); }
 }
 .num-preset:hover, .num-preset:active { border-color: var(--primary); background: var(--primary-subtle); color: var(--primary); }
 #ai-num-questions:disabled { opacity: 0.55; }
+.detail-level-row { margin-top: 10px; padding: 10px 14px; background: var(--primary-subtle); border-radius: var(--radius-md); border-left: 3px solid var(--primary); }
+.detail-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.detail-preset {
+  flex: 1; min-width: 80px; padding: 8px 6px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.detail-preset:hover { border-color: var(--primary); }
+.detail-preset.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .char-counter { font-size: 0.75rem; color: var(--text-light); margin-top: 4px; display: flex; justify-content: space-between; }
 .file-hint { color: var(--text-light); margin-top: 4px; display: block; font-size: 0.78rem; }
 .file-progress { display: none; margin-top: 8px; }
@@ -987,7 +996,7 @@ a:focus-visible, [tabindex]:focus-visible {
 .cloze-chip-pool { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0; }
 .cloze-chip {
   display: inline-block; padding: 5px 14px; border-radius: 99px; font-weight: 600; font-size: .9rem;
-  background: var(--primary); color: #fff; cursor: grab; user-select: none; transition: all .15s;
+  background: var(--primary); color: var(--on-primary); cursor: grab; user-select: none; transition: all .15s;
 }
 .cloze-chip.dragging { opacity: .5; }
 .cloze-chip.selected { box-shadow: 0 0 0 3px var(--accent); transform: scale(1.05); }

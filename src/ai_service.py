@@ -53,6 +53,7 @@ from .models import (
 
 GENERATE_SYSTEM_PROMPT_BASE = """Du bist ein Experte für das Erstellen von Prüfungsfragen aus Vorlesungsunterlagen.
 Erstelle hochwertige Fragen in verschiedenen Formaten.
+WICHTIG: Erstelle Fragen zu ALLEN Inhalten – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
 Dein Output MUSS exakt dieses Format haben – ein JSON-Objekt mit zwei Feldern:
 {{
@@ -127,7 +128,7 @@ Dein Output MUSS exakt dieses Format haben:
 }
 
 Regeln:
-- Importiere JEDE einzelne Frage aus dem Dokument
+- Importiere ABSOLUT JEDE einzelne Frage aus dem Dokument – überspringe KEINE einzige Frage
 - Erkenne den Fragetyp automatisch
 - Wenn Antworten gegeben sind, markiere die richtigen
 - Behalte den originalen Fragentext bei"""
@@ -631,7 +632,8 @@ class AIService:
                               progress_callback: Callable | None = None,
                               question_types: list[str] | None = None,
                               focus_topics: dict[str, float] | None = None,
-                              auto_count: bool = False) -> list[Question]:
+                              auto_count: bool = False,
+                              detail_level: str = "normal") -> list[Question]:
         full_text = self._read_file_as_text(file_path)
         chunks = self._chunk_with_overlap(full_text)
         if not chunks:
@@ -662,8 +664,13 @@ class AIService:
                     f"{rolling_summary}\n\n---\n\n"
                 )
 
+            detail_hint = ""
+            if auto_count and detail_level == "thorough":
+                detail_hint = " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt und jeder Formel mindestens eine Frage. Lieber zu viele als zu wenige!"
+            elif auto_count and detail_level == "compact":
+                detail_hint = " Konzentriere dich auf die wichtigsten Kernkonzepte."
             count_instruction = (
-                f"Erstelle so viele Prüfungsfragen wie sinnvoll für diesen Abschnitt."
+                f"Erstelle so viele Prüfungsfragen wie sinnvoll für diesen Abschnitt.{detail_hint}"
                 if auto_count else
                 f"Erstelle {per_chunk} Prüfungsfragen zu diesem Inhalt."
             )

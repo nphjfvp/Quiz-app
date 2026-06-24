@@ -129,14 +129,21 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
   const { apiKey, model } = await getConfig(config);
 
   const auto = !(numQuestions > 0);
+  const detail = config.detailLevel || "normal";
+  const detailHint = detail === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt und jeder Formel mindestens eine Frage. Lieber zu viele Fragen als zu wenige!"
+    : detail === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte und erstelle nur die wesentlichsten Fragen."
+    : "";
   const countRule = auto
-    ? "Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele."
+    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele.${detailHint}`
     : `Erstelle exakt ${numQuestions} Fragen.`;
   const countAsk = auto
     ? "So viele Prüfungsfragen wie sinnvoll"
     : `${numQuestions} Prüfungsfragen`;
 
   const systemPrompt = `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
+WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
 - ${countRule}
@@ -277,12 +284,19 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
   const autoImg = !(numQuestions > 0);
+  const detailImg = config.detailLevel || "normal";
+  const detailHintImg = detailImg === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt, jeder Formel und jedem Diagramm mindestens eine Frage. Lieber zu viele als zu wenige!"
+    : detailImg === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte."
+    : "";
   const countRuleImg = autoImg
-    ? "Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken."
+    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken.${detailHintImg}`
     : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
   const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
 
   const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
+WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf ALLEN Seiten – jedes Konzept, jede Definition, jeder Fakt, jede Formel soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
 - ${countRuleImg}
