@@ -1,14 +1,14 @@
 import { loadQuizzes, loadProgress, addCoins, saveGameScore } from "../store.js";
-import { buildPlayable, shuffle, checkText, checkMultiText, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
+import { buildPlayable, shuffle, checkText, checkMultiText, buildFeedbackHtml, attachFeedbackListeners, pickQuizSource } from "../games-util.js";
 import { navigate } from "../router.js";
 import { mathEsc } from "../utils.js";
 
 export async function render(root) {
-  const quizzes = await loadQuizzes();
-  const allQs = quizzes.flatMap(q => q.questions || []);
-  const playable = shuffle(buildPlayable(allQs));
+  const chosen = await pickQuizSource(root, { title: "⚡ Speed-Quiz", subtitle: "Welches Quiz möchtest du üben?" });
+  if (!chosen) return;
+  const playable = shuffle(buildPlayable(chosen));
   if (!playable.length) {
-    root.innerHTML = `<div style="padding:30px 20px;text-align:center"><h3>Keine Fragen verfügbar</h3><p>Erstelle zuerst ein Quiz.</p><button class="btn btn-primary" id="b">← Zurück</button></div>`;
+    root.innerHTML = `<div style="padding:30px 20px;text-align:center"><h3>Keine spielbaren Fragen</h3><p>Dieses Quiz enthält keine passenden Fragen.</p><button class="btn btn-primary" id="b">← Zurück</button></div>`;
     root.querySelector("#b").addEventListener("click", () => navigate("games"));
     return;
   }

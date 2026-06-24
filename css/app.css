@@ -1299,6 +1299,24 @@ a:focus-visible, [tabindex]:focus-visible {
 .speed-multi { display:flex; flex-direction:column; gap:8px; }
 .speed-multi .speed-input { width:100%; }
 .speed-result { text-align:center; padding:24px 0; }
+
+/* Shared game source picker */
+.game-setup { padding:8px 0; }
+.game-setup-title { text-align:center; margin-bottom:4px; }
+.game-setup-sub { text-align:center; color:var(--text-light); font-size:0.9rem; margin-bottom:16px; }
+.game-setup-list { display:flex; flex-direction:column; gap:8px; }
+.game-src-btn {
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  width:100%; padding:14px 16px; border-radius:12px;
+  background:var(--card); border:1px solid var(--border); color:var(--text);
+  cursor:pointer; text-align:left; font-size:1rem; transition:border-color .15s, transform .05s;
+}
+.game-src-btn:hover:not([disabled]) { border-color:var(--primary); }
+.game-src-btn:active:not([disabled]) { transform:scale(0.99); }
+.game-src-btn[disabled] { opacity:0.45; cursor:not-allowed; }
+.game-src-all { border-color:var(--primary); background:var(--primary-light, rgba(28,180,135,0.08)); }
+.game-src-name { font-weight:600; }
+.game-src-meta { color:var(--text-light); font-size:0.82rem; white-space:nowrap; }
 .speed-final-score { font-size:2rem; font-weight:800; color:var(--primary); margin:8px 0; }
 .speed-stats { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; color:var(--text-light); font-size:0.95rem; margin:12px 0; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }

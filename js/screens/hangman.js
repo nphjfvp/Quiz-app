@@ -1,12 +1,12 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
-import { buildPlayable, shuffle } from "../games-util.js";
+import { buildPlayable, shuffle, pickQuizSource } from "../games-util.js";
 import { navigate } from "../router.js";
 import { mathEsc } from "../utils.js";
 
 export async function render(root) {
-  const quizzes = await loadQuizzes();
-  const allQs = quizzes.flatMap(q => q.questions || []);
-  let playable = buildPlayable(allQs).filter(q => q.kind === "text" && q.accept[0]?.length >= 3 && q.accept[0]?.length <= 30);
+  const chosen = await pickQuizSource(root, { title: "💀 Galgenmännchen", subtitle: "Welches Quiz möchtest du üben?" });
+  if (!chosen) return;
+  let playable = buildPlayable(chosen).filter(q => q.kind === "text" && q.accept[0]?.length >= 3 && q.accept[0]?.length <= 30);
   playable = shuffle(playable);
   if (playable.length < 3) {
     root.innerHTML = `<div style="padding:30px 20px;text-align:center"><h3>Zu wenige Freitext-Fragen</h3><p>Mindestens 3 mit kurzer Antwort nötig.</p><button class="btn btn-primary" id="b">← Zurück</button></div>`;

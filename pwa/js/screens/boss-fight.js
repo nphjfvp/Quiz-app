@@ -1,11 +1,13 @@
 import { loadQuizzes, loadProgress, addCoins, saveGameScore } from "../store.js";
-import { buildPlayable, shuffle, checkText, checkTextSmart, checkMultiText, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
+import { buildPlayable, shuffle, checkText, checkTextSmart, checkMultiText, buildFeedbackHtml, attachFeedbackListeners, pickQuizSource } from "../games-util.js";
 import { navigate } from "../router.js";
 import { mathEsc } from "../utils.js";
 
 export async function render(root) {
-  const [quizzes, progress] = await Promise.all([loadQuizzes(), loadProgress()]);
-  const allQs = quizzes.flatMap(q => q.questions || []);
+  const chosen = await pickQuizSource(root, { title: "👹 Boss-Kampf", subtitle: "Welches Quiz möchtest du bekämpfen?" });
+  if (!chosen) return;
+  const progress = await loadProgress();
+  const allQs = chosen;
 
   const scored = allQs.map(q => {
     const p = progress[q.id];
