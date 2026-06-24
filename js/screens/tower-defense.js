@@ -603,8 +603,20 @@ function drawArena(ctx, isDark, now) {
     }
   }
 
+  // Spectator crowd packed into the thin wall border (frames the whole pit)
+  const crowdCols = ["#e2725b", "#5b8def", "#46b46e", "#e0b341", "#b06fd4", "#d96fa3", "#dcdcdc"];
+  const pad = 12;
+  let ci = 0;
+  const dot = (x, y) => {
+    const bob = Math.sin(now / 260 + ci) * 0.8;
+    ctx.fillStyle = crowdCols[ci++ % crowdCols.length];
+    ctx.beginPath(); ctx.arc(x, y + bob, 2.3, 0, Math.PI * 2); ctx.fill();
+  };
+  for (let x = 5; x < CANVAS_W - 3; x += 9) { dot(x, 5); dot(x + 4, 10); }       // top
+  for (let x = 5; x < CANVAS_W - 3; x += 9) { dot(x, CANVAS_H - 10); dot(x + 4, CANVAS_H - 5); } // bottom
+  for (let y = 16; y < CANVAS_H - 14; y += 9) { dot(5, y); dot(CANVAS_W - 5, y); }  // sides
+
   // Inner arena floor (inset sand pit)
-  const pad = 10;
   const floor1 = isDark ? "#3a3024" : "#cdb288";
   const floor2 = isDark ? "#332b20" : "#c2a679";
   drawRoundRect(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14, floor1);
