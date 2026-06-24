@@ -29,10 +29,36 @@
     <div class="empty" style="padding-top:60px">Wird geladen…</div>
   </main>
   <script type="module" src="js/app.js"></script>
+  <script type="module">
+    // If app.js fails to load/execute, show the error after 4s
+    setTimeout(() => {
+      const app = document.getElementById("app");
+      if (app && app.querySelector(".empty")) {
+        app.innerHTML = `<div style="padding:40px 20px;text-align:center">
+          <h2>⚠️ App konnte nicht geladen werden</h2>
+          <p style="color:#888;margin:12px 0">Möglicherweise ist ein veralteter Cache aktiv.</p>
+          <button onclick="navigator.serviceWorker.getRegistrations().then(r=>r.forEach(w=>w.unregister())).then(()=>{caches.keys().then(k=>Promise.all(k.map(c=>caches.delete(c)))).then(()=>location.reload())})" style="padding:12px 24px;font-size:1rem;border-radius:8px;background:#0d9488;color:#fff;border:none;cursor:pointer">
+            🔄 Cache leeren & neu laden
+          </button>
+        </div>`;
+      }
+    }, 4000);
+  </script>
   <script>
-    // Force new service worker to activate immediately
+    // ?reset in URL → nuke all SW + caches, then reload clean
+    if (location.search.includes("reset")) {
+      navigator.serviceWorker.getRegistrations().then(function(r) {
+        r.forEach(function(w) { w.unregister(); });
+      }).then(function() {
+        return caches.keys();
+      }).then(function(k) {
+        return Promise.all(k.map(function(c) { return caches.delete(c); }));
+      }).then(function() {
+        location.replace(location.pathname);
+      });
+    }
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
+      navigator.serviceWorker.addEventListener("controllerchange", function() { location.reload(); });
     }
   </script>
 </body>
