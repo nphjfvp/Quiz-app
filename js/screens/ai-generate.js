@@ -9,6 +9,7 @@ const Q_TYPES = [
   { id: "free_text", label: "Freitext" },
   { id: "fill_blank", label: "Lückentext" },
   { id: "drag_drop", label: "Drag & Drop" },
+  { id: "drag_category", label: "Kategorie-Zuordnung" },
   { id: "math_formula", label: "Mathe-Formel" },
 ];
 
@@ -100,6 +101,15 @@ export async function render(root, params = {}) {
             ${[5, 10, 20, 30, 50].map(n => `<button type="button" class="num-preset" data-n="${n}">${n}</button>`).join("")}
           </div>
           <small class="file-hint" id="num-q-hint">Frei wählbar (1–500) oder die KI bestimmt die sinnvolle Anzahl selbst.</small>
+          <div id="detail-level-row" class="detail-level-row" style="display:none">
+            <label style="font-size:0.85rem;font-weight:600;margin-bottom:4px;display:block">Genauigkeit</label>
+            <div class="detail-presets">
+              <button type="button" class="detail-preset" data-level="compact">🎯 Kompakt</button>
+              <button type="button" class="detail-preset active" data-level="normal">⚖️ Normal</button>
+              <button type="button" class="detail-preset" data-level="thorough">🔬 Maximal gründlich</button>
+            </div>
+            <small class="file-hint" id="detail-hint">Normal: Eine Frage pro wichtigem Konzept.</small>
+          </div>
         </div>
 
         <div id="ai-error" class="error-box"></div>
@@ -124,10 +134,27 @@ export async function render(root, params = {}) {
 
   // --- Question count: free input + AI-decides toggle ---
   let autoCount = false;
+  let detailLevel = "normal";
+  const detailRow = root.querySelector("#detail-level-row");
+  const detailHintEl = root.querySelector("#detail-hint");
+  const DETAIL_HINTS = {
+    compact: "Kompakt: Nur die wichtigsten Kernkonzepte.",
+    normal: "Normal: Eine Frage pro wichtigem Konzept.",
+    thorough: "Maximal gründlich: Zu JEDEM Fakt, jeder Definition und Formel eine Frage.",
+  };
+  root.querySelectorAll(".detail-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll(".detail-preset").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      detailLevel = btn.dataset.level;
+      detailHintEl.textContent = DETAIL_HINTS[detailLevel];
+    });
+  });
   function setAuto(on) {
     autoCount = on;
     numAutoBtn.classList.toggle("active", on);
     numInput.disabled = on;
+    detailRow.style.display = on ? "" : "none";
     if (on) {
       numInput.value = "";
       numInput.placeholder = "🤖 KI entscheidet";
@@ -292,8 +319,17 @@ export async function render(root, params = {}) {
           fileInfo.textContent = `Seite ${i}/${pdf.numPages}...`;
         }
         textArea.value = text.trim();
-        fileInfo.textContent = `✓ ${pdf.numPages} Seiten extrahiert`;
-        setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
+        const extractedLen = text.replace(/\s/g, "").length;
+        if (extractedLen < 50) {
+          root.querySelector("#visual-toggle-row").style.display = "";
+          root.querySelector("#visual-toggle").checked = true;
+          updateModelAvailability();
+          fileInfo.textContent = `⚠ Kaum Text erkannt – visueller Modus aktiviert`;
+          await renderPdfAsImages(file);
+        } else {
+          fileInfo.textContent = `✓ ${pdf.numPages} Seiten extrahiert`;
+          setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
+        }
       } catch (err) {
         showError("PDF konnte nicht gelesen werden: " + (err.message || err));
         fileProgress.style.display = "none";
@@ -349,8 +385,8 @@ export async function render(root, params = {}) {
       genBtn.disabled = true;
       genBtn.textContent = "⏳ Analysiere Bild…";
       try {
-        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel });
-        showReview(root, questions, quizName, currentModel);
+        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel, detailLevel });
+        showReview(root, questions, quizName, currentModel, "");
       } catch (err) {
         showError(err.message || "Bild konnte nicht ausgewertet werden.");
         genBtn.disabled = false;
@@ -366,8 +402,8 @@ export async function render(root, params = {}) {
       genBtn.disabled = true;
       genBtn.textContent = `⏳ Analysiere ${pdfPageImages.length} Seiten…`;
       try {
-        const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel }, text || undefined);
-        showReview(root, questions, quizName, currentModel);
+        const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel }, text || undefined);
+        showReview(root, questions, quizName, currentModel, text || "");
       } catch (err) {
         showError(err.message || "PDF-Bilder konnten nicht ausgewertet werden.");
         genBtn.disabled = false;
@@ -398,8 +434,8 @@ export async function render(root, params = {}) {
     genBtn.textContent = "⏳ Generiere…";
 
     try {
-      const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel });
-      showReview(root, questions, quizName, currentModel);
+      const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel });
+      showReview(root, questions, quizName, currentModel, inputText);
     } catch (err) {
       showError(err.message || "Beim Generieren ist ein Fehler aufgetreten.");
       genBtn.disabled = false;
@@ -420,8 +456,9 @@ export async function render(root, params = {}) {
 
 // ─── Review Screen ──────────────────────────────────────────────────
 
-function showReview(root, questions, quizName, modelId) {
+function showReview(root, questions, quizName, modelId, sourceText = "") {
   let qs = [...questions];
+  const _sourceText = sourceText;
 
   function renderReview() {
     let html = `<div class="editor-header">
@@ -540,6 +577,15 @@ function showReview(root, questions, quizName, modelId) {
       const quizzes = await loadQuizzes();
       quizzes.push(quiz);
       await saveQuizzes(quizzes);
+
+      if (_sourceText && _sourceText.length > 100) {
+        const { saveMaterial } = await import("../store.js");
+        const doSave = confirm("Möchtest du das Quellmaterial (Skript/PDF-Text) mit dem Quiz verknüpfen?\n\nDamit kann die KI dir gezielt beim Lernen helfen — auch zu Themen, die nicht im Quiz vorkommen.");
+        if (doSave) {
+          await saveMaterial(quiz.id, { text: _sourceText, name: quizName, saved: new Date().toISOString() });
+        }
+      }
+
       navigate("quiz-modes", { quizId: quiz.id });
     });
 

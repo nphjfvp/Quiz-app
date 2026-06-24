@@ -1,6 +1,6 @@
 import { navigate } from "../router.js";
 import { explainAnswer } from "../ai-service.js";
-import { esc } from "../utils.js";
+import { esc, mathEsc } from "../utils.js";
 
 export async function render(root, params) {
   const { session, quiz } = params;
@@ -67,8 +67,8 @@ export async function render(root, params) {
 function showDetail(root, q, result, session, quiz) {
   let html = `<button class="back-btn" id="back-results">‹ Zurück zu den Ergebnissen</button>`;
   html += `<div class="card">
-    ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
-    <div class="question-text">${esc(q.question_text || q.text || "")}</div>
+    ${(q.topic || q.title) ? `<div class="question-title">${mathEsc(q.topic || q.title)}</div>` : ""}
+    <div class="question-text">${mathEsc(q.question_text || q.text || "")}</div>
   </div>`;
 
   if (result) {
@@ -80,16 +80,16 @@ function showDetail(root, q, result, session, quiz) {
     </div>`;
     html += `<div class="card">
       <div style="font-size:0.8rem;color:var(--text-light);margin-bottom:4px">Deine Antwort:</div>
-      <div style="font-size:0.9rem;margin-bottom:10px">${esc(result.user_answer || "–")}</div>
+      <div style="font-size:0.9rem;margin-bottom:10px">${mathEsc(result.user_answer || "–")}</div>
       <div style="font-size:0.8rem;color:var(--text-light);margin-bottom:4px">Richtige Antwort:</div>
-      <div style="font-size:0.9rem;font-weight:600;color:var(--success)">${esc(result.correct_answer || "–")}</div>
+      <div style="font-size:0.9rem;font-weight:600;color:var(--success)">${mathEsc(result.correct_answer || "–")}</div>
     </div>`;
   }
 
   if (q.explanation) {
     html += `<div class="card">
       <div style="font-size:0.8rem;color:var(--text-light);margin-bottom:4px">Erklärung</div>
-      <div style="font-size:0.9rem">${esc(q.explanation)}</div>
+      <div style="font-size:0.9rem">${mathEsc(q.explanation)}</div>
     </div>`;
   }
 
@@ -117,7 +117,7 @@ function showDetail(root, q, result, session, quiz) {
       const questionText = q.question_text || q.text || q.title || "";
       const qImage = q.diagram_image_path || q.diagram_image || q.image_path || q.image || null;
       const explanation = await explainAnswer(questionText, result?.user_answer || "", result?.correct_answer || "", {}, qImage);
-      textEl.textContent = explanation;
+      textEl.innerHTML = mathEsc(explanation);
     } catch (err) {
       textEl.textContent = "Fehler: " + (err.message || "KI-Erklärung konnte nicht geladen werden.");
     }

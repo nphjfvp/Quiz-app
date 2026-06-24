@@ -35,9 +35,17 @@ route("marked", markedScreen);
 route("pomodoro", pomodoroScreen);
 route("folders", foldersScreen);
 route("cloze", clozeScreen);
+route("achievements", async (root) => { const m = await import("./screens/achievements.js"); return m.render(root); });
+route("sr-dashboard", async (root) => { const m = await import("./screens/sr-dashboard.js"); return m.render(root); });
+route("study", async (root, params) => { const m = await import("./screens/study.js"); return m.render(root, params); });
 route("games", async (root) => { const m = await import("./screens/games.js"); return m.render(root); });
 route("tower-defense", async (root) => { const m = await import("./screens/tower-defense.js"); return m.render(root); });
 route("quiz-battle", async (root) => { const m = await import("./screens/quiz-battle.js"); return m.render(root); });
+route("speed-quiz", async (root) => { const m = await import("./screens/speed-quiz.js"); return m.render(root); });
+route("millionaire", async (root) => { const m = await import("./screens/millionaire.js"); return m.render(root); });
+route("hangman", async (root) => { const m = await import("./screens/hangman.js"); return m.render(root); });
+route("boss-fight", async (root) => { const m = await import("./screens/boss-fight.js"); return m.render(root); });
+route("socratic", async (root, params) => { const m = await import("./screens/socratic.js"); return m.render(root, params); });
 
 async function init() {
   const settings = await loadSettings();

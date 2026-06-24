@@ -1,6 +1,7 @@
 import { loadQuizzes, saveQuizzes } from "../store.js";
 import { navigate } from "../router.js";
 import { esc } from "../utils.js";
+import { openBlackoutEditor } from "../blackout.js";
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -19,6 +20,8 @@ function emptyQuestion(type = "single_choice") {
     q.question_text = "Der ___ ist blau.";
     q.blanks = ["Himmel"];
   } else if (type === "drag_drop") {
+    q.drag_drop_pairs = [{ source: "", target: "" }];
+  } else if (type === "drag_category") {
     q.drag_drop_pairs = [{ source: "", target: "" }];
   } else if (type === "diagram_label") {
     q.diagram_image = "";
@@ -64,14 +67,14 @@ function renderMain(root, quizzes) {
     <input type="text" id="quiz-name" class="input" value="${esc(quiz.name)}" placeholder="z.B. Biologie Kapitel 3">
   </div>`;
 
-  html += `<div class="section-title" style="margin-top:1rem">Fragen (${quiz.questions.length})</div>`;
+  html += `<div class="section-title">Fragen (${quiz.questions.length})</div>`;
 
   if (quiz.questions.length === 0) {
     html += `<div class="empty">Noch keine Fragen. Tippe auf + um eine hinzuzufügen.</div>`;
   } else {
     for (let i = 0; i < quiz.questions.length; i++) {
       const q = quiz.questions[i];
-      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke", drag_drop: "D&D", diagram_label: "Diagramm", mark_image: "Markieren", math_formula: "Mathe" }[q.question_type] || q.question_type;
+      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke", drag_drop: "D&D", drag_category: "Zuordnung", diagram_label: "Diagramm", mark_image: "Markieren", math_formula: "Mathe" }[q.question_type] || q.question_type;
       html += `<div class="question-row" data-qi="${i}">
         <div class="q-num">${i + 1}</div>
         <div class="q-info">
@@ -129,6 +132,7 @@ function showTypeChooser(root, quizzes) {
     { type: "free_text", label: "Freitext", icon: "✍️", desc: "Antwort eintippen" },
     { type: "fill_blank", label: "Lückentext", icon: "📝", desc: "Lücken ausfüllen (___)" },
     { type: "drag_drop", label: "Drag & Drop", icon: "🔀", desc: "Begriffe zuordnen" },
+    { type: "drag_category", label: "Kategorie-Zuordnung", icon: "🗂️", desc: "Begriffe in Kategorien einordnen" },
     { type: "diagram_label", label: "Diagramm", icon: "🏷️", desc: "Bild beschriften" },
     { type: "mark_image", label: "Bild markieren", icon: "📍", desc: "Stelle im Bild markieren" },
     { type: "math_formula", label: "Mathe-Formel", icon: "🔢", desc: "Formel / Berechnung" },
@@ -147,7 +151,7 @@ function showTypeChooser(root, quizzes) {
         <strong>${t.label}</strong>
         <small>${t.desc}</small>
       </div>
-      <span style="color:var(--text-light)">›</span>
+      <span class="type-chev">›</span>
     </div>`;
   }
 
@@ -168,7 +172,7 @@ function renderQuestionEditor(root, quizzes) {
   const q = quiz.questions[editingIndex];
   if (!q) { renderMain(root, quizzes); return; }
 
-  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext", drag_drop: "Drag & Drop", diagram_label: "Diagramm", mark_image: "Bild markieren", math_formula: "Mathe-Formel" }[q.question_type] || q.question_type;
+  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext", drag_drop: "Drag & Drop", drag_category: "Kategorie-Zuordnung", diagram_label: "Diagramm", mark_image: "Bild markieren", math_formula: "Mathe-Formel" }[q.question_type] || q.question_type;
 
   let html = `<div class="editor-header">
     <button class="btn-icon" id="qe-back">←</button>
@@ -187,7 +191,7 @@ function renderQuestionEditor(root, quizzes) {
   </div>`;
 
   if (q.question_type === "single_choice" || q.question_type === "multiple_choice") {
-    html += `<div class="section-title" style="margin-top:1rem">Antwortmöglichkeiten</div>`;
+    html += `<div class="section-title" class="mt-section">Antwortmöglichkeiten</div>`;
     html += `<div id="options-list">`;
     for (let i = 0; i < q.options.length; i++) {
       const o = q.options[i];
@@ -199,7 +203,7 @@ function renderQuestionEditor(root, quizzes) {
       </div>`;
     }
     html += `</div>`;
-    html += `<button class="btn-secondary btn-sm" id="add-option" style="margin-top:0.5rem">+ Antwort</button>`;
+    html += `<button class="btn-secondary btn-sm" id="add-option" class="mt-sm">+ Antwort</button>`;
   } else if (q.question_type === "free_text") {
     html += `<div class="editor-form">
       <label>Richtige Antwort</label>
@@ -208,7 +212,7 @@ function renderQuestionEditor(root, quizzes) {
     </div>`;
   } else if (q.question_type === "fill_blank") {
     const blanks = q.blanks || [];
-    html += `<div class="section-title" style="margin-top:1rem">Lücken-Antworten (in Reihenfolge)</div>`;
+    html += `<div class="section-title" class="mt-section">Lücken-Antworten (in Reihenfolge)</div>`;
     html += `<div id="blanks-list">`;
     for (let i = 0; i < blanks.length; i++) {
       html += `<div class="option-edit-row">
@@ -218,72 +222,89 @@ function renderQuestionEditor(root, quizzes) {
       </div>`;
     }
     html += `</div>`;
-    html += `<button class="btn-secondary btn-sm" id="add-blank" style="margin-top:0.5rem">+ Lücke</button>`;
+    html += `<button class="btn-secondary btn-sm" id="add-blank" class="mt-sm">+ Lücke</button>`;
   } else if (q.question_type === "drag_drop") {
-    html += `<div class="section-title" style="margin-top:1rem">Zuordnungspaare</div>`;
+    html += `<div class="section-title" class="mt-section">Zuordnungspaare</div>`;
     html += `<div id="pairs-list">`;
     for (let i = 0; i < q.drag_drop_pairs.length; i++) {
       const p = q.drag_drop_pairs[i];
       html += `<div class="option-edit-row">
-        <input type="text" class="input pair-src" data-pi="${i}" value="${esc(p.source)}" placeholder="Quelle ${i + 1}" style="flex:1">
-        <span style="color:var(--text-light);font-size:0.8rem">→</span>
-        <input type="text" class="input pair-tgt" data-pi="${i}" value="${esc(p.target)}" placeholder="Ziel ${i + 1}" style="flex:1">
+        <input type="text" class="input pair-src" data-pi="${i}" value="${esc(p.source)}" placeholder="Quelle ${i + 1}">
+        <span class="pair-arrow">→</span>
+        <input type="text" class="input pair-tgt" data-pi="${i}" value="${esc(p.target)}" placeholder="Ziel ${i + 1}">
         <button class="btn-icon pair-del" data-pi="${i}" ${q.drag_drop_pairs.length <= 1 ? "disabled" : ""}>✕</button>
       </div>`;
     }
     html += `</div>`;
-    html += `<button class="btn-secondary btn-sm" id="add-pair" style="margin-top:0.5rem">+ Paar</button>`;
+    html += `<button class="btn-secondary btn-sm" id="add-pair" class="mt-sm">+ Paar</button>`;
+  } else if (q.question_type === "drag_category") {
+    html += `<div class="section-title" class="mt-section">Begriffe &amp; Kategorien</div>`;
+    html += `<div class="editor-canvas-hint">Jeder Begriff gehört zu einer Kategorie. Kategorien können mehrfach vorkommen.</div>`;
+    html += `<div id="pairs-list">`;
+    for (let i = 0; i < q.drag_drop_pairs.length; i++) {
+      const p = q.drag_drop_pairs[i];
+      html += `<div class="option-edit-row">
+        <input type="text" class="input pair-src" data-pi="${i}" value="${esc(p.source)}" placeholder="Begriff ${i + 1}">
+        <span class="pair-arrow">→</span>
+        <input type="text" class="input pair-tgt" data-pi="${i}" value="${esc(p.target)}" placeholder="Kategorie">
+        <button class="btn-icon pair-del" data-pi="${i}" ${q.drag_drop_pairs.length <= 1 ? "disabled" : ""}>✕</button>
+      </div>`;
+    }
+    html += `</div>`;
+    html += `<button class="btn-secondary btn-sm" id="add-pair" class="mt-sm">+ Eintrag</button>`;
   } else if (q.question_type === "diagram_label") {
     html += `<div class="editor-form">
       <label>Bild</label>
-      <input type="text" id="qe-diagram-img" class="input" value="${esc(q.diagram_image || "")}" placeholder="https://... oder Datei hochladen" style="margin-bottom:6px">
-      <input type="file" id="qe-diagram-file" accept="image/*" style="font-size:0.85rem">
+      <input type="text" id="qe-diagram-img" class="input" value="${esc(q.diagram_image || "")}" placeholder="https://... oder Datei hochladen">
+      <input type="file" id="qe-diagram-file" accept="image/*" class="editor-file-input">
+      ${q.diagram_image ? `<button class="btn btn-sm btn-ghost" id="qe-blackout-diagram">✏️ Bild schwärzen</button>` : ""}
     </div>`;
-    html += `<div class="section-title" style="margin-top:1rem">Labels</div>`;
-    html += `<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:8px">Füge Labels hinzu und platziere sie per Tippen auf dem Bild.</div>`;
+    html += `<div class="section-title" class="mt-section">Labels</div>`;
+    html += `<div class="editor-canvas-hint">Füge Labels hinzu und platziere sie per Tippen auf dem Bild.</div>`;
     html += `<div id="labels-list">`;
     for (let i = 0; i < (q.diagram_labels || []).length; i++) {
       const l = q.diagram_labels[i];
       const placed = l.x !== undefined && l.y !== undefined && l._placed;
       html += `<div class="option-edit-row">
-        <input type="text" class="input label-name" data-li="${i}" value="${esc(l.label)}" placeholder="Label ${i + 1}" style="flex:2">
-        <span class="label-status" style="font-size:0.75rem;color:${placed ? "var(--success)" : "var(--warning)"};min-width:50px;text-align:center">${placed ? "✓ platziert" : "⚠ offen"}</span>
+        <input type="text" class="input label-name" data-li="${i}" value="${esc(l.label)}" placeholder="Label ${i + 1}">
+        <span class="label-status ${placed ? "placed" : "open"}">${placed ? "✓ platziert" : "⚠ offen"}</span>
         <button class="btn-icon label-del" data-li="${i}" ${q.diagram_labels.length <= 1 ? "disabled" : ""}>✕</button>
       </div>`;
     }
     html += `</div>`;
-    html += `<button class="btn-secondary btn-sm" id="add-label" style="margin-top:0.5rem">+ Label</button>`;
-    html += `<div class="section-title" style="margin-top:1rem">Platzierung</div>`;
-    html += `<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px">Wähle ein Label unten, dann tippe auf die Stelle im Bild.</div>`;
-    html += `<div id="placement-chips" class="dnd-chips" style="margin-bottom:8px"></div>`;
-    html += `<div id="placement-canvas-wrap" style="position:relative;width:100%;touch-action:none">
-      <canvas id="placement-canvas" style="width:100%;border-radius:var(--radius-md);border:2px solid var(--border)"></canvas>
+    html += `<button class="btn-secondary btn-sm" id="add-label" class="mt-sm">+ Label</button>`;
+    html += `<div class="section-title" class="mt-section">Platzierung</div>`;
+    html += `<div class="editor-canvas-hint">Wähle ein Label unten, dann tippe auf die Stelle im Bild.</div>`;
+    html += `<div id="placement-chips" class="dnd-chips"></div>`;
+    html += `<div id="placement-canvas-wrap" class="media-canvas-wrap">
+      <canvas id="placement-canvas" class="media-canvas"></canvas>
     </div>`;
   } else if (q.question_type === "mark_image") {
     html += `<div class="editor-form">
       <label>Bild-URL (oder Base64)</label>
       <input type="text" id="qe-mark-img" class="input" value="${esc(q.image || "")}" placeholder="https://...">
-      <input type="file" id="qe-mark-file" accept="image/*" style="font-size:0.85rem;margin-top:6px">
+      <input type="file" id="qe-mark-file" accept="image/*" class="editor-file-input">
+      ${q.image ? `<button class="btn btn-sm btn-ghost" id="qe-blackout-mark">✏️ Bild schwärzen</button>` : ""}
     </div>`;
-    html += `<div class="section-title" style="margin-top:1rem">Markierungs-Regionen</div>`;
+    html += `<div class="section-title" class="mt-section">Markierungs-Regionen</div>`;
     html += `<div id="regions-list">`;
     for (let i = 0; i < (q.mark_regions || []).length; i++) {
       const r = q.mark_regions[i];
-      html += `<div class="option-edit-row" style="flex-wrap:wrap;gap:4px">
-        <select class="input region-type" data-ri="${i}" style="flex:1;min-width:80px">
+      html += `<div class="option-edit-row region-row">
+        <select class="input region-type" data-ri="${i}">
           <option value="circle" ${r.type === "circle" ? "selected" : ""}>Kreis</option>
           <option value="polygon" ${r.type === "polygon" ? "selected" : ""}>Polygon</option>
         </select>
         ${r.type === "circle" ? `
-          <input type="number" class="input region-x" data-ri="${i}" value="${r.x}" placeholder="X" step="0.01" min="0" max="1" style="flex:1">
-          <input type="number" class="input region-y" data-ri="${i}" value="${r.y}" placeholder="Y" step="0.01" min="0" max="1" style="flex:1">
-          <input type="number" class="input region-r" data-ri="${i}" value="${r.radius}" placeholder="Radius" step="0.01" min="0" max="1" style="flex:1">
-        ` : `<input type="text" class="input region-pts" data-ri="${i}" value="${(r.points || []).map(p => p.join(",")).join("; ")}" placeholder="x1,y1; x2,y2; ..." style="flex:3">`}
+          <input type="number" class="input region-val region-x" data-ri="${i}" value="${r.x}" placeholder="X" step="0.01" min="0" max="1">
+          <input type="number" class="input region-val region-y" data-ri="${i}" value="${r.y}" placeholder="Y" step="0.01" min="0" max="1">
+          <input type="number" class="input region-val region-r" data-ri="${i}" value="${r.radius}" placeholder="Radius" step="0.01" min="0" max="1">
+        ` : `<input type="text" class="input region-pts" data-ri="${i}" value="${(r.points || []).map(p => p.join(",")).join("; ")}" placeholder="x1,y1; x2,y2; ...">`}
         <button class="btn-icon region-del" data-ri="${i}" ${q.mark_regions.length <= 1 ? "disabled" : ""}>✕</button>
       </div>`;
     }
     html += `</div>`;
-    html += `<button class="btn-secondary btn-sm" id="add-region" style="margin-top:0.5rem">+ Region</button>`;
+    html += `<button class="btn-secondary btn-sm" id="add-region" class="mt-sm">+ Region</button>`;
   } else if (q.question_type === "math_formula") {
     html += `<div class="editor-form">
       <label>Richtige Formel / Ergebnis</label>
@@ -332,7 +353,7 @@ function renderQuestionEditor(root, quizzes) {
       q.blanks.push("");
       renderQuestionEditor(root, quizzes);
     });
-  } else if (q.question_type === "drag_drop") {
+  } else if (q.question_type === "drag_drop" || q.question_type === "drag_category") {
     root.querySelectorAll(".pair-src").forEach(input => {
       input.addEventListener("input", e => { q.drag_drop_pairs[parseInt(e.target.dataset.pi)].source = e.target.value; });
     });
@@ -351,6 +372,10 @@ function renderQuestionEditor(root, quizzes) {
       reader.onload = () => { q.diagram_image = reader.result; root.querySelector("#qe-diagram-img").value = "(Bild hochgeladen)"; renderQuestionEditor(root, quizzes); };
       reader.readAsDataURL(file);
     });
+    root.querySelector("#qe-blackout-diagram")?.addEventListener("click", () => {
+      if (!q.diagram_image) return;
+      openBlackoutEditor(q.diagram_image, (dataUrl) => { q.diagram_image = dataUrl; renderQuestionEditor(root, quizzes); });
+    });
     root.querySelectorAll(".label-name").forEach(input => { input.addEventListener("input", e => { q.diagram_labels[parseInt(e.target.dataset.li)].label = e.target.value; refreshPlacementUI(); }); });
     root.querySelectorAll(".label-del").forEach(btn => { btn.addEventListener("click", () => { q.diagram_labels.splice(parseInt(btn.dataset.li), 1); renderQuestionEditor(root, quizzes); }); });
     root.querySelector("#add-label")?.addEventListener("click", () => { q.diagram_labels.push({ label: "", x: 0.5, y: 0.5, _placed: false }); renderQuestionEditor(root, quizzes); });
@@ -361,8 +386,12 @@ function renderQuestionEditor(root, quizzes) {
     root.querySelector("#qe-mark-file")?.addEventListener("change", e => {
       const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => { q.image = reader.result; root.querySelector("#qe-mark-img").value = "(Bild hochgeladen)"; };
+      reader.onload = () => { q.image = reader.result; root.querySelector("#qe-mark-img").value = "(Bild hochgeladen)"; renderQuestionEditor(root, quizzes); };
       reader.readAsDataURL(file);
+    });
+    root.querySelector("#qe-blackout-mark")?.addEventListener("click", () => {
+      if (!q.image) return;
+      openBlackoutEditor(q.image, (dataUrl) => { q.image = dataUrl; renderQuestionEditor(root, quizzes); });
     });
     root.querySelectorAll(".region-type").forEach(sel => {
       sel.addEventListener("change", e => {
@@ -533,8 +562,8 @@ function initDiagramPlacement(root, q, quizzes) {
 
   function updateStatusBadges() {
     root.querySelectorAll(".label-status").forEach((el, i) => {
-      if (labels[i]?._placed) { el.textContent = "✓ platziert"; el.style.color = "var(--success)"; }
-      else { el.textContent = "⚠ offen"; el.style.color = "var(--warning)"; }
+      if (labels[i]?._placed) { el.textContent = "✓ platziert"; el.className = "label-status placed"; }
+      else { el.textContent = "⚠ offen"; el.className = "label-status open"; }
     });
   }
 

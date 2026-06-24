@@ -744,6 +744,19 @@ input:focus { border-color: var(--primary); }
 }
 .dnd-assigned:hover { opacity: 0.85; }
 
+/* ── Drag Category ── */
+.dc-categories { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.dc-cat {
+  flex: 1; min-width: 140px; background: var(--input-bg); border: 2px dashed var(--border);
+  border-radius: var(--radius-lg); padding: 14px; min-height: 100px;
+  transition: border-color 0.15s, background 0.15s; cursor: pointer;
+}
+.dc-cat:hover, .dc-cat:focus { border-color: var(--primary); }
+.dc-cat-title { font-weight: 800; font-size: 0.95rem; margin-bottom: 8px; text-align: center; }
+.dc-cat-items { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 32px; }
+.dc-assigned { font-size: 0.78rem; }
+.dc-placeholder { font-size: 0.78rem; color: var(--text-light); opacity: 0.6; }
+
 /* ── Model selection list ── */
 .model-select-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; padding: 4px 0; }
 .model-option {
@@ -883,6 +896,15 @@ input:focus { border-color: var(--primary); }
 }
 .num-preset:hover, .num-preset:active { border-color: var(--primary); background: var(--primary-subtle); color: var(--primary); }
 #ai-num-questions:disabled { opacity: 0.55; }
+.detail-level-row { margin-top: 10px; padding: 10px 14px; background: var(--primary-subtle); border-radius: var(--radius-md); border-left: 3px solid var(--primary); }
+.detail-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.detail-preset {
+  flex: 1; min-width: 80px; padding: 8px 6px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.detail-preset:hover { border-color: var(--primary); }
+.detail-preset.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
 .char-counter { font-size: 0.75rem; color: var(--text-light); margin-top: 4px; display: flex; justify-content: space-between; }
 .file-hint { color: var(--text-light); margin-top: 4px; display: block; font-size: 0.78rem; }
 .file-progress { display: none; margin-top: 8px; }
@@ -974,7 +996,7 @@ a:focus-visible, [tabindex]:focus-visible {
 .cloze-chip-pool { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0; }
 .cloze-chip {
   display: inline-block; padding: 5px 14px; border-radius: 99px; font-weight: 600; font-size: .9rem;
-  background: var(--primary); color: #fff; cursor: grab; user-select: none; transition: all .15s;
+  background: var(--primary); color: var(--on-primary); cursor: grab; user-select: none; transition: all .15s;
 }
 .cloze-chip.dragging { opacity: .5; }
 .cloze-chip.selected { box-shadow: 0 0 0 3px var(--accent); transform: scale(1.05); }
@@ -1227,6 +1249,133 @@ a:focus-visible, [tabindex]:focus-visible {
 }
 .qb-text-row { display: flex; gap: 8px; width: 100%; }
 .qb-text-row .td-input { flex: 1; }
+
+/* ── KI free-text validation ── */
+.ki-validate { margin-top:12px; padding:12px 14px; border-radius:10px; background:var(--card-bg); border:1px solid var(--border); }
+.ki-validate-status { font-size:0.85rem; color:var(--text-light); }
+.ki-validate-ok { font-size:0.9rem; font-weight:700; color:var(--success); margin-bottom:6px; }
+.ki-validate-no { font-size:0.9rem; font-weight:700; color:var(--danger); margin-bottom:6px; }
+.ki-validate-fb { font-size:0.85rem; color:var(--text); margin-bottom:8px; line-height:1.4; }
+
+/* ── Multi-blank input rows ── */
+.td-blank-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.td-blank-label { font-size:0.8rem; color:var(--text-light); min-width:60px; }
+.td-blank-row .td-input { flex:1; }
+
+/* ── Achievements ── */
+.achievement-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:12px; margin-bottom:6px; background:var(--card-bg); border:1px solid var(--border); }
+.achievement-row.locked { opacity:0.5; }
+.achievement-row.unlocked { border-color:var(--warning); }
+.achievement-icon { font-size:1.5rem; flex-shrink:0; }
+.achievement-info { flex:1; min-width:0; }
+.achievement-name { font-weight:700; font-size:0.9rem; }
+.achievement-desc { font-size:0.8rem; color:var(--text-light); }
+.achievement-date { font-size:0.7rem; color:var(--text-light); white-space:nowrap; }
+
+/* ── SR Dashboard Forecast ── */
+.forecast-chart { display:flex; gap:6px; align-items:flex-end; height:120px; padding:8px 0; }
+.forecast-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.forecast-num { font-size:0.75rem; font-weight:700; }
+.forecast-bar { width:100%; border-radius:4px 4px 0 0; min-height:4px; transition:height 0.3s; }
+.forecast-label { font-size:0.7rem; color:var(--text-light); }
+
+/* ── Speed Quiz ── */
+.speed-hud { display:flex; justify-content:space-between; align-items:center; padding:12px 0; font-weight:700; }
+.speed-timer { font-size:1.3rem; } .speed-timer.urgent { color:var(--danger); animation:pulse .5s infinite; }
+.speed-score { font-size:1.2rem; color:var(--primary); }
+.speed-combo { font-size:0.9rem; color:var(--warning); min-height:1.2em; transition:all .2s; }
+.speed-combo.active { font-weight:700; }
+.speed-progress { height:6px; background:var(--border); border-radius:3px; margin-bottom:16px; overflow:hidden; }
+.speed-bar { height:100%; background:var(--primary); border-radius:3px; transition:width 1s linear; }
+.speed-q-area { min-height:200px; }
+.speed-prompt { font-size:1.1rem; font-weight:600; margin-bottom:16px; line-height:1.5; }
+.speed-options { display:flex; flex-direction:column; gap:8px; }
+.speed-opt { padding:14px 16px; border:2px solid var(--border); border-radius:12px; background:var(--card); cursor:pointer; font-size:1rem; text-align:left; transition:all .15s; }
+.speed-opt:hover { border-color:var(--primary); }
+.speed-opt.correct { border-color:var(--success); background:var(--success-light); }
+.speed-opt.wrong { border-color:var(--danger); background:var(--danger-light); }
+.speed-input-row { display:flex; gap:8px; }
+.speed-input { flex:1; }
+.speed-multi { display:flex; flex-direction:column; gap:8px; }
+.speed-multi .speed-input { width:100%; }
+.speed-result { text-align:center; padding:24px 0; }
+.speed-final-score { font-size:2rem; font-weight:800; color:var(--primary); margin:8px 0; }
+.speed-stats { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; color:var(--text-light); font-size:0.95rem; margin:12px 0; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* ── Millionaire ── */
+.mill-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.mill-prize { font-size:1.5rem; font-weight:800; color:var(--warning); }
+.mill-level { color:var(--text-light); }
+.mill-ladder { display:flex; flex-direction:column; gap:2px; margin-bottom:16px; font-size:0.75rem; max-height:180px; overflow-y:auto; }
+.mill-step { padding:3px 10px; border-radius:4px; background:var(--input-bg); color:var(--text-light); }
+.mill-step.current { background:var(--warning); color:#fff; font-weight:700; }
+.mill-step.done { background:var(--success-light); color:var(--success); }
+.mill-step.safe { border-left:3px solid var(--warning); }
+.mill-question { font-size:1.1rem; font-weight:600; margin-bottom:16px; line-height:1.5; padding:16px; background:var(--card); border-radius:12px; }
+.mill-options { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+.mill-opt { padding:14px 16px; border:2px solid var(--border); border-radius:12px; background:var(--card); cursor:pointer; font-size:1rem; text-align:left; transition:all .15s; }
+.mill-opt:hover { border-color:var(--primary); }
+.mill-opt.correct { border-color:var(--success); background:var(--success-light); }
+.mill-opt.wrong { border-color:var(--danger); background:var(--danger-light); }
+.mill-opt.eliminated { opacity:0.3; text-decoration:line-through; }
+.mill-letter { font-weight:700; color:var(--primary); margin-right:8px; }
+.mill-jokers { display:flex; gap:8px; justify-content:center; margin-top:12px; }
+.mill-joker { padding:8px 16px; border:2px solid var(--primary); border-radius:20px; background:transparent; color:var(--primary); font-weight:600; cursor:pointer; font-size:0.85rem; }
+.mill-joker:hover { background:var(--primary-subtle); }
+.mill-joker.used { opacity:0.3; border-color:var(--border); color:var(--text-light); }
+.mill-audience-result { margin-top:12px; padding:12px; background:var(--card); border-radius:12px; }
+.mill-aud-bar { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:0.85rem; }
+.mill-aud-fill { height:18px; background:var(--primary); border-radius:4px; transition:width .5s; }
+.mill-end { text-align:center; padding:24px 0; }
+
+/* ── Hangman ── */
+.hm-header { display:flex; justify-content:space-between; font-weight:600; margin-bottom:12px; }
+.hm-prompt { font-size:1rem; font-weight:600; margin-bottom:12px; line-height:1.5; }
+.hm-figure { display:flex; justify-content:center; margin:12px 0; }
+.hangman-svg { width:120px; height:140px; color:var(--text); }
+.hm-word { text-align:center; font-size:1.8rem; font-family:monospace; letter-spacing:4px; margin:16px 0; font-weight:700; }
+.hm-keyboard { display:flex; flex-wrap:wrap; gap:4px; justify-content:center; }
+.hm-key { width:36px; height:36px; border:2px solid var(--border); border-radius:8px; background:var(--card); font-size:0.9rem; font-weight:600; cursor:pointer; }
+.hm-key:hover { border-color:var(--primary); }
+.hm-key.correct { background:var(--success-light); border-color:var(--success); color:var(--success); }
+.hm-key.wrong { background:var(--danger-light); border-color:var(--danger); color:var(--danger); opacity:0.5; }
+.hm-result { text-align:center; padding:16px; border-radius:12px; font-size:1.1rem; font-weight:600; margin:12px 0; }
+.hm-result.won { background:var(--success-light); color:var(--success); }
+.hm-result.lost { background:var(--danger-light); color:var(--danger); }
+
+/* ── Boss Fight ── */
+.boss-arena { display:flex; align-items:center; justify-content:space-around; padding:16px 0; }
+.boss-sprite { text-align:center; flex:1; }
+.boss-icon { font-size:3rem; }
+.boss-name { font-weight:700; margin:4px 0; }
+.boss-bar { height:12px; background:var(--border); border-radius:6px; overflow:hidden; margin:4px 10px; }
+.boss-bar-fill { height:100%; background:var(--danger); border-radius:6px; transition:width .5s; }
+.player-bar .boss-bar-fill, .player-fill { background:var(--success); }
+.boss-hp-text { font-size:0.75rem; color:var(--text-light); }
+.boss-vs { font-size:1.5rem; }
+.boss-combo { text-align:center; font-weight:700; color:var(--warning); min-height:1.4em; }
+.boss-question { font-size:1.05rem; font-weight:600; margin:12px 0; line-height:1.5; }
+.boss-options { display:flex; flex-direction:column; gap:8px; }
+.boss-opt { padding:14px 16px; border:2px solid var(--border); border-radius:12px; background:var(--card); cursor:pointer; font-size:1rem; text-align:left; }
+.boss-opt:hover { border-color:var(--primary); }
+.boss-opt.correct { border-color:var(--success); background:var(--success-light); }
+.boss-opt.wrong { border-color:var(--danger); background:var(--danger-light); }
+.boss-hit-msg { position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); padding:16px 24px; border-radius:12px; font-weight:700; font-size:1.2rem; z-index:100; animation:hitFade 1s forwards; }
+.boss-hit-msg.player-hit { background:var(--success-light); color:var(--success); }
+.boss-hit-msg.boss-hit { background:var(--danger-light); color:var(--danger); }
+@keyframes hitFade { 0%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-80%) scale(1.2)} }
+
+/* ── Study Mode ── */
+.study-overview { text-align:center; padding:20px; }
+.study-overview h3 { margin:0 0 12px; }
+.study-stats-row { display:flex; justify-content:center; gap:24px; margin:12px 0; }
+.study-stat { display:flex; flex-direction:column; align-items:center; }
+.study-stat-num { font-size:1.5rem; font-weight:800; color:var(--primary); }
+.study-stat-label { font-size:0.75rem; color:var(--text-light); }
+.study-material-badge { font-size:0.8rem; margin-top:8px; padding:4px 12px; border-radius:20px; background:var(--primary-subtle); display:inline-block; }
+.study-suggest-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.study-suggest-btn { font-size:0.85rem !important; white-space:nowrap; }
 
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }

@@ -1,7 +1,7 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
 import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, mathEsc } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
 
@@ -34,8 +34,8 @@ function showQuestion(root, quiz, session) {
       <span class="progress-label">Frage ${idx}/${total}</span>
     </div>
     <div class="card">
-      ${(q.topic || q.title) ? `<div class="question-title">${esc(q.topic || q.title)}</div>` : ""}
-      ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${esc(q.question_text || q.text)}</div>`}
+      ${(q.topic || q.title) ? `<div class="question-title">${mathEsc(q.topic || q.title)}</div>` : ""}
+      ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${mathEsc(q.question_text || q.text)}</div>`}
       ${q.question_type === "multiple_choice" ? `<div class="mc-badge">☑️ Mehrere Antworten richtig</div>` : ""}
       ${q.question_type === "single_choice" ? `<div class="mc-badge sc">🔘 Genau eine Antwort richtig</div>` : ""}
       ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${q.image || q.image_path}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
@@ -46,13 +46,13 @@ function showQuestion(root, quiz, session) {
     html += q.options.map((o, i) => `
       <div class="option-card" data-idx="${i}" role="radio" aria-checked="false" tabindex="0">
         <span class="option-key">${String.fromCharCode(65 + i)}</span>
-        <span class="option-text">${esc(o.text)}</span>
+        <span class="option-text">${mathEsc(o.text)}</span>
       </div>`).join("");
   } else if (q.question_type === "multiple_choice") {
     html += q.options.map((o, i) => `
       <div class="option-card" data-idx="${i}" data-mc="true" role="checkbox" aria-checked="false" tabindex="0">
         <span class="option-key">${String.fromCharCode(65 + i)}</span>
-        <span class="option-text">${esc(o.text)}</span>
+        <span class="option-text">${mathEsc(o.text)}</span>
       </div>`).join("");
   } else if (q.question_type === "free_text") {
     html += `<div class="input-group">
@@ -81,6 +81,15 @@ function showQuestion(root, quiz, session) {
     html += `<div class="question-hint">Ziehe die Begriffe auf die passenden Ziele (oder tippe Begriff &amp; dann Ziel).</div>`;
     html += `<div id="dnd-chips" class="dnd-chips"></div>`;
     html += `<div id="dnd-targets" class="dnd-targets"></div>`;
+  } else if (q.question_type === "drag_category") {
+    const cats = [...new Set((q.drag_drop_pairs ?? []).map(p => p.target))];
+    html += `<div class="question-hint">Ordne jeden Begriff der richtigen Kategorie zu (tippe Begriff, dann Kategorie).</div>`;
+    html += `<div id="dc-items" class="dnd-chips"></div>`;
+    html += `<div id="dc-categories" class="dc-categories">${cats.map(c =>
+      `<div class="dc-cat" data-cat="${esc(c)}">
+        <div class="dc-cat-title">${esc(c)}</div>
+        <div class="dc-cat-items" data-cat="${esc(c)}"></div>
+      </div>`).join("")}</div>`;
   } else if (q.question_type === "diagram_label") {
     html += `<div class="question-hint">Ziehe die Labels auf die markierten Einrast-Zonen im Diagramm.</div>`;
     html += `<div id="diagram-container" class="media-canvas-wrap">
@@ -103,7 +112,7 @@ function showQuestion(root, quiz, session) {
         <label>Formel / Ergebnis</label>
         <input type="text" id="math-input" class="input" placeholder="z.B. x = 2 oder $\\frac{a}{b}$">
       </div>
-      ${q.formula_sheet ? `<details class="formula-sheet"><summary>Formelsammlung</summary><pre>${esc(q.formula_sheet)}</pre></details>` : ""}
+      ${q.formula_sheet ? `<details class="formula-sheet"><summary>Formelsammlung</summary><div class="formula-sheet-body">${mathEsc(q.formula_sheet)}</div></details>` : ""}
     </div>`;
     html += `<div id="math-tab-draw" style="display:none">
       <canvas id="math-canvas" width="560" height="200" class="media-canvas" style="touch-action:none;background:var(--input-bg)"></canvas>
@@ -148,6 +157,12 @@ function showQuestion(root, quiz, session) {
   const dndAssignments = {};
   if (q.question_type === "drag_drop") {
     setupDragDrop(root, q, dndAssignments);
+  }
+
+  // Drag Category setup
+  const dcAssignments = {};
+  if (q.question_type === "drag_category") {
+    setupDragCategory(root, q, dcAssignments);
   }
 
   // Diagram Label setup
@@ -217,6 +232,8 @@ function showQuestion(root, quiz, session) {
     else if (q.question_type === "fill_blank") answer = [...root.querySelectorAll(".blank-input")].map(e => e.value);
     else if (q.question_type === "drag_drop") {
       answer = { ...dndAssignments };
+    } else if (q.question_type === "drag_category") {
+      answer = { ...dcAssignments };
     } else if (q.question_type === "diagram_label") {
       answer = { ...diagramPlacements };
     } else if (q.question_type === "mark_image") {
@@ -256,7 +273,7 @@ function showQuestion(root, quiz, session) {
         <div class="feedback-body">
           <h3>${label}</h3>
           <p>Punkte: ${result.score}/${result.max_score}</p>
-          ${!result.is_correct ? `<p class="feedback-correct-answer">✓ ${esc(result.correct_answer)}</p>` : ""}
+          ${!result.is_correct ? `<p class="feedback-correct-answer">✓ ${mathEsc(result.correct_answer)}</p>` : ""}
         </div>
       </div>
       <div class="feedback-actions">
@@ -280,6 +297,45 @@ function showQuestion(root, quiz, session) {
         diary.unshift({ id: Date.now().toString(36), date: new Date().toISOString(), questionText: q.question_text || q.text || "", userAnswer: result.user_answer, correctAnswer: result.correct_answer, topic: q.topic || "", quizName: quiz.name || "" });
         if (diary.length > 500) diary.length = 500;
         await saveErrorDiary(diary);
+      }
+
+      const textTypes = ["free_text", "fill_blank", "math_formula"];
+      const userAns = Array.isArray(result.user_answer) ? result.user_answer.join("; ") : (result.user_answer || "");
+      if (!result.is_correct && textTypes.includes(q.question_type) && userAns.trim()) {
+        const kiBox = document.createElement("div");
+        kiBox.className = "ki-validate";
+        kiBox.innerHTML = `<div class="ki-validate-status">🤖 KI prüft, ob deine Antwort inhaltlich richtig ist…</div>`;
+        fb.appendChild(kiBox);
+        (async () => {
+          try {
+            const { checkFreeTextAI } = await import("../ai-service.js");
+            const { loadSettings } = await import("../store.js");
+            const settings = await loadSettings();
+            if (!settings.apiKey) {
+              kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI-Prüfung nicht verfügbar – bitte API-Key in den <a href="#settings">Einstellungen</a> hinterlegen.</div>`;
+              return;
+            }
+            const accepted = String(q.correct_text || result.correct_answer || "").split(/[;|]/).map(s => s.trim()).filter(Boolean);
+            const r = await checkFreeTextAI(q.question_text || q.text || "", userAns, accepted);
+            if (!r) { kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI-Prüfung fehlgeschlagen.</div>`; return; }
+            if (r.correct) {
+              kiBox.innerHTML = `<div class="ki-validate-ok">🤖 KI: Inhaltlich richtig!</div>
+                ${r.feedback ? `<div class="ki-validate-fb">${mathEsc(r.feedback)}</div>` : ""}
+                <button class="btn btn-success btn-sm" id="ki-accept">Als richtig werten</button>`;
+              kiBox.querySelector("#ki-accept")?.addEventListener("click", async () => {
+                let pr = await loadProgress();
+                pr = updateProgress(pr, q.id, true);
+                await saveProgress(pr);
+                kiBox.innerHTML = `<div class="ki-validate-ok">✓ Als richtig gewertet!</div>`;
+              });
+            } else {
+              kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI: Inhaltlich nicht korrekt.</div>
+                ${r.feedback ? `<div class="ki-validate-fb">${mathEsc(r.feedback)}</div>` : ""}`;
+            }
+          } catch (e) {
+            kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI-Prüfung fehlgeschlagen.</div>`;
+          }
+        })();
       }
 
       // Highlight correct/wrong options
@@ -369,6 +425,67 @@ function setupDragDrop(root, q, assignments) {
     });
   }
   renderDnd();
+}
+
+function setupDragCategory(root, q, assignments) {
+  const pairs = q.drag_drop_pairs ?? [];
+  const items = shuffle(pairs.map(p => p.source));
+  const cats = [...new Set(pairs.map(p => p.target))];
+  const itemsEl = root.querySelector("#dc-items");
+  const catsEl = root.querySelector("#dc-categories");
+
+  function renderDC() {
+    const assigned = new Set(Object.keys(assignments));
+    itemsEl.innerHTML = items.filter(s => !assigned.has(s)).map((s, i) =>
+      `<div class="dnd-chip" data-item="${esc(s)}" style="background:${CHIP_COLORS[i % CHIP_COLORS.length]}20;border:2px solid ${CHIP_COLORS[i % CHIP_COLORS.length]};color:var(--text);cursor:pointer">${esc(s)}</div>`
+    ).join("");
+
+    cats.forEach(cat => {
+      const slot = catsEl.querySelector(`.dc-cat-items[data-cat="${CSS.escape(cat)}"]`);
+      if (!slot) return;
+      const catItems = Object.entries(assignments).filter(([, c]) => c === cat).map(([item]) => item);
+      slot.innerHTML = catItems.map(item =>
+        `<span class="dnd-assigned dc-assigned" data-item="${esc(item)}">${esc(item)} ✕</span>`
+      ).join("") || `<span class="dc-placeholder">Hierher ziehen</span>`;
+    });
+
+    let selectedChip = null;
+    itemsEl.querySelectorAll(".dnd-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        itemsEl.querySelectorAll(".dnd-chip").forEach(c => c.classList.remove("selected"));
+        chip.classList.add("selected");
+        selectedChip = chip.dataset.item;
+      });
+      chip.addEventListener("dragstart", e => {
+        e.dataTransfer.setData("text/plain", chip.dataset.item);
+      });
+    });
+
+    catsEl.querySelectorAll(".dc-cat").forEach(catEl => {
+      catEl.addEventListener("click", () => {
+        if (selectedChip) {
+          assignments[selectedChip] = catEl.dataset.cat;
+          selectedChip = null;
+          renderDC();
+        }
+      });
+      catEl.addEventListener("dragover", e => e.preventDefault());
+      catEl.addEventListener("drop", e => {
+        e.preventDefault();
+        const item = e.dataTransfer.getData("text/plain");
+        if (item) { assignments[item] = catEl.dataset.cat; renderDC(); }
+      });
+    });
+
+    catsEl.querySelectorAll(".dc-assigned").forEach(el => {
+      el.addEventListener("click", e => {
+        e.stopPropagation();
+        delete assignments[el.dataset.item];
+        renderDC();
+      });
+    });
+  }
+  renderDC();
 }
 
 function setupDiagramLabel(root, q, placements) {

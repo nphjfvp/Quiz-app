@@ -9,6 +9,8 @@
   <meta name="description" content="Lerntrainer – Quiz & Lern-App, offline-fähig">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
   <link rel="stylesheet" href="css/app.css">
   <title>Lerntrainer</title>
   <script>
@@ -28,6 +30,92 @@
   <main id="app">
     <div class="empty" style="padding-top:60px">Wird geladen…</div>
   </main>
+  <script>
+    // --- Robuste Cache-Wiederherstellung ---------------------------------
+    // Ein alter, "cache-first" Service Worker kann veraltete Module ausliefern,
+    // sodass die App gar nicht erst startet. Wir erkennen das und räumen den
+    // Cache + SW EINMALIG automatisch auf (per sessionStorage gegen Endlosschleife).
+    (function () {
+      var RECOVER_KEY = "lt-recover-attempt";
+
+      function nuke(reload) {
+        var done = function () {
+          if (reload) location.replace(location.pathname);
+        };
+        var p = Promise.resolve();
+        if ("serviceWorker" in navigator) {
+          p = navigator.serviceWorker.getRegistrations()
+            .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+            .catch(function () {});
+        }
+        p.then(function () {
+          if (window.caches && caches.keys) {
+            return caches.keys().then(function (k) {
+              return Promise.all(k.map(function (c) { return caches.delete(c); }));
+            });
+          }
+        }).catch(function () {}).then(done);
+      }
+
+      // Manueller Reset über ?reset
+      if (location.search.indexOf("reset") !== -1) { nuke(true); return; }
+
+      // Automatische Wiederherstellung: einmal pro Tab-Sitzung
+      function autoRecover(why) {
+        try {
+          if (sessionStorage.getItem(RECOVER_KEY)) return false; // schon versucht
+          sessionStorage.setItem(RECOVER_KEY, why || "1");
+        } catch (e) {}
+        nuke(true);
+        return true;
+      }
+      window.__ltAutoRecover = autoRecover;
+
+      // Modul-/Skriptfehler abfangen (z. B. veraltetes Modul ohne passenden Export)
+      window.addEventListener("error", function (e) {
+        var t = e && e.target;
+        if (t && (t.tagName === "SCRIPT" || t.tagName === "LINK")) {
+          autoRecover("script-load");
+        }
+      }, true);
+      window.addEventListener("unhandledrejection", function () {
+        var app = document.getElementById("app");
+        if (app && app.querySelector(".empty")) autoRecover("promise");
+      });
+
+      // Sobald ein neuer SW die Kontrolle übernimmt: frisch laden
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.addEventListener("controllerchange", function () {
+          location.reload();
+        });
+      }
+    })();
+  </script>
   <script type="module" src="js/app.js"></script>
+  <script type="module">
+    // Boot-Wächter: Wenn nach 3,5 s immer noch nur der Lade-Platzhalter steht,
+    // ist der App-Start fehlgeschlagen → automatische Wiederherstellung versuchen.
+    setTimeout(function () {
+      var app = document.getElementById("app");
+      if (!app || !app.querySelector(".empty")) return; // App läuft – alles gut
+      // Erst automatisch reparieren (einmalig). Falls das schon lief, Button zeigen.
+      if (window.__ltAutoRecover && window.__ltAutoRecover("boot-timeout")) {
+        app.innerHTML = '<div style="padding:40px 20px;text-align:center">'
+          + '<h2>🔄 App wird repariert…</h2>'
+          + '<p style="color:#888;margin:12px 0">Veralteter Cache wird geleert, gleich geht’s weiter.</p></div>';
+        return;
+      }
+      app.innerHTML = '<div style="padding:40px 20px;text-align:center">'
+        + '<h2>⚠️ App konnte nicht geladen werden</h2>'
+        + '<p style="color:#888;margin:12px 0">Tippe auf den Button, um den Cache zu leeren.</p>'
+        + '<button id="lt-reset-btn" style="padding:12px 24px;font-size:1rem;border-radius:8px;background:#0d9488;color:#fff;border:none;cursor:pointer">🔄 Cache leeren &amp; neu laden</button>'
+        + '</div>';
+      var btn = document.getElementById("lt-reset-btn");
+      if (btn) btn.addEventListener("click", function () {
+        try { sessionStorage.removeItem("lt-recover-attempt"); } catch (e) {}
+        location.replace(location.pathname + "?reset");
+      });
+    }, 3500);
+  </script>
 </body>
 </html>

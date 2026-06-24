@@ -20,27 +20,27 @@ export async function render(root) {
   let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>
     <div class="section-title">📊 Statistik</div>
 
-    <div class="card" style="text-align:center">
-      <div style="display:flex;justify-content:space-around">
+    <div class="card">
+      <div class="stat-summary">
         <div>
-          <div style="font-size:1.8rem;font-weight:800;color:var(--streak)">${streak}</div>
-          <div style="font-size:0.75rem;color:var(--text-light)">Tage Streak</div>
+          <div class="stat-num streak">${streak}</div>
+          <div class="stat-label">Tage Streak</div>
         </div>
         <div>
-          <div style="font-size:1.8rem;font-weight:800;color:var(--primary)">${avgPct}%</div>
-          <div style="font-size:0.75rem;color:var(--text-light)">Ø Richtig (14T)</div>
+          <div class="stat-num primary">${avgPct}%</div>
+          <div class="stat-label">Ø Richtig (14T)</div>
         </div>
         <div>
-          <div style="font-size:1.8rem;font-weight:800;color:var(--text)">${totalAnswered}</div>
-          <div style="font-size:0.75rem;color:var(--text-light)">Antworten (14T)</div>
+          <div class="stat-num">${totalAnswered}</div>
+          <div class="stat-label">Antworten (14T)</div>
         </div>
       </div>
     </div>`;
 
   // Heatmap (13 weeks)
   html += `<div class="section-title">Aktivität (13 Wochen)</div>
-    <div class="card" style="overflow-x:auto">
-      <div style="display:grid;grid-template-columns:repeat(13,1fr);grid-template-rows:repeat(7,1fr);gap:2px;min-width:260px">`;
+    <div class="card card-scroll-x">
+      <div class="heatmap">`;
   const today = new Date();
   const dayOfWeek = today.getDay() || 7;
   const startDate = new Date(today);
@@ -58,17 +58,17 @@ export async function render(root) {
       if (count >= 15) color = "var(--primary)";
       if (count >= 30) color = "var(--primary-dark)";
       const isFuture = date > today;
-      html += `<div style="width:100%;aspect-ratio:1;border-radius:2px;background:${isFuture ? "transparent" : color}" title="${key}: ${count}"></div>`;
+      html += `<div class="heatmap-cell" style="background:${isFuture ? "transparent" : color}" title="${key}: ${count}"></div>`;
     }
   }
   html += `</div>
-    <div style="display:flex;justify-content:flex-end;gap:4px;margin-top:6px;font-size:0.65rem;color:var(--text-light);align-items:center">
+    <div class="heatmap-legend">
       <span>Wenig</span>
-      <div style="width:10px;height:10px;border-radius:2px;background:var(--border)"></div>
-      <div style="width:10px;height:10px;border-radius:2px;background:var(--primary-subtle)"></div>
-      <div style="width:10px;height:10px;border-radius:2px;background:var(--primary-light)"></div>
-      <div style="width:10px;height:10px;border-radius:2px;background:var(--primary)"></div>
-      <div style="width:10px;height:10px;border-radius:2px;background:var(--primary-dark)"></div>
+      <i style="background:var(--border)"></i>
+      <i style="background:var(--primary-subtle)"></i>
+      <i style="background:var(--primary-light)"></i>
+      <i style="background:var(--primary)"></i>
+      <i style="background:var(--primary-dark)"></i>
       <span>Viel</span>
     </div>
   </div>`;
@@ -76,17 +76,17 @@ export async function render(root) {
   // Leitner boxes
   html += `<div class="section-title">Leitner-Boxen</div>
     <div class="card">
-      <div style="display:flex;gap:8px;align-items:flex-end;height:80px;margin-bottom:8px">
+      <div class="box-chart">
         ${[1,2,3,4,5].map(b => {
           const pct = totalCards > 0 ? (boxes[b] / totalCards * 100) : 0;
-          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center">
-            <div style="font-size:0.7rem;font-weight:700;margin-bottom:2px">${boxes[b]}</div>
-            <div style="width:100%;background:var(--box${b});border-radius:4px 4px 0 0;height:${Math.max(pct, 5)}%"></div>
+          return `<div class="box-col">
+            <div class="box-col-num">${boxes[b]}</div>
+            <div class="box-bar box-${b}" style="height:${Math.max(pct, 5)}%"></div>
           </div>`;
         }).join("")}
       </div>
-      <div style="display:flex;gap:8px">
-        ${[1,2,3,4,5].map(b => `<div style="flex:1;text-align:center;font-size:0.7rem;color:var(--text-light)">Box ${b}</div>`).join("")}
+      <div class="box-labels">
+        ${[1,2,3,4,5].map(b => `<span>Box ${b}</span>`).join("")}
       </div>
     </div>
 
@@ -96,13 +96,13 @@ export async function render(root) {
     for (const [date, d] of days) {
       const pct = d.answered > 0 ? Math.round((d.correct / d.answered) * 100) : 0;
       const barColor = pct >= 60 ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--danger)";
-      html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-        <span style="font-size:0.75rem;color:var(--text-light);width:70px">${date.slice(5)}</span>
-        <div style="flex:1;height:8px;background:var(--row-neutral);border-radius:4px;overflow:hidden">
-          <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px"></div>
+      html += `<div class="day-row">
+        <span class="day-label">${date.slice(5)}</span>
+        <div class="day-track">
+          <div class="day-fill" style="width:${pct}%;background:${barColor}"></div>
         </div>
-        <span style="font-size:0.75rem;font-weight:600;width:40px;text-align:right">${pct}%</span>
-        <span style="font-size:0.7rem;color:var(--text-light);width:50px">${d.correct}/${d.answered}</span>
+        <span class="day-pct">${pct}%</span>
+        <span class="day-frac">${d.correct}/${d.answered}</span>
       </div>`;
     }
   } else {

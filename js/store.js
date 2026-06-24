@@ -170,3 +170,28 @@ export function getStreak(stats) {
   max = Math.max(max, s);
   return { current, max };
 }
+
+// ── Achievements ──
+export async function loadAchievements() {
+  return (await get("achievements")) ?? {};
+}
+export async function saveAchievements(data) {
+  await set("achievements", data);
+}
+
+// ── Study Materials ──
+export async function loadMaterials() {
+  return (await get("materials")) ?? {};
+}
+export async function saveMaterials(data) {
+  await set("materials", data);
+}
+export async function saveMaterial(quizId, material) {
+  const m = await loadMaterials();
+  m[quizId] = material;
+  await set("materials", m);
+}
+export async function getMaterial(quizId) {
+  const m = await loadMaterials();
+  return m[quizId] ?? null;
+}

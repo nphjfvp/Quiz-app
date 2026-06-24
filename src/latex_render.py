@@ -16,6 +16,33 @@ except ImportError:
 # Matches $...$ (inline) and $$...$$ (display) but not \$
 _LATEX_RE = re.compile(r'(?<![\\])\$\$(.+?)\$\$|(?<![\\])\$(.+?)\$', re.DOTALL)
 
+# Detects bare LaTeX commands/markup that the AI sometimes emits without $ delimiters
+_BARE_LATEX_RE = re.compile(
+    r'\\(?:frac|sqrt|sum|prod|int|lim|cdot|times|leq|geq|neq|approx|pm|infty|partial'
+    r'|alpha|beta|gamma|delta|theta|lambda|mu|sigma|pi|omega|Delta|Sigma|Omega'
+    r'|left|right|text|mathrm|mathbf|vec|hat|bar|overline|begin|end)\b'
+    r'|[A-Za-z0-9\)\]\}]\s*\^\s*[A-Za-z0-9\{\(]'      # exponent: x^2, a^{n}
+    r'|[A-Za-z0-9\)\]\}]\s*_\s*[A-Za-z0-9\{\(]'        # subscript: x_i, a_{n}
+)
+
+
+def autowrap_latex(text: str) -> str:
+    """Wrap bare LaTeX tokens (no $ delimiters) in $...$ so the renderer picks
+    them up. Token-based so prose stays intact: 'Berechne \\frac{1}{2}' becomes
+    'Berechne $\\frac{1}{2}$'. Leaves text that already contains $ untouched."""
+    if not text or "$" in text:
+        return text
+    if not _BARE_LATEX_RE.search(text):
+        return text
+    out = []
+    for token in text.split(" "):
+        if token and _BARE_LATEX_RE.search(token):
+            out.append(f"${token}$")
+        else:
+            out.append(token)
+    return " ".join(out)
+
+
 
 def can_render() -> bool:
     return HAS_MATPLOTLIB
@@ -90,4 +117,4 @@ def latex_to_plain(text: str) -> str:
 
 
 def has_latex(text: str) -> bool:
-    return bool(_LATEX_RE.search(text))
+    return bool(_LATEX_RE.search(text) or _BARE_LATEX_RE.search(text))

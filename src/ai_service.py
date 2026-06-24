@@ -53,6 +53,7 @@ from .models import (
 
 GENERATE_SYSTEM_PROMPT_BASE = """Du bist ein Experte für das Erstellen von Prüfungsfragen aus Vorlesungsunterlagen.
 Erstelle hochwertige Fragen in verschiedenen Formaten.
+WICHTIG: Erstelle Fragen zu ALLEN Inhalten – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
 Dein Output MUSS exakt dieses Format haben – ein JSON-Objekt mit zwei Feldern:
 {{
@@ -127,7 +128,7 @@ Dein Output MUSS exakt dieses Format haben:
 }
 
 Regeln:
-- Importiere JEDE einzelne Frage aus dem Dokument
+- Importiere ABSOLUT JEDE einzelne Frage aus dem Dokument – überspringe KEINE einzige Frage
 - Erkenne den Fragetyp automatisch
 - Wenn Antworten gegeben sind, markiere die richtigen
 - Behalte den originalen Fragentext bei"""
@@ -463,6 +464,10 @@ class AIService:
          "vision": False, "context": 164000, "strengths": ["Mathematik", "Logik", "Physik", "Programmierung"]},
         {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "cost_in": 0.15, "cost_out": 0.60, "speed": "schnell",
          "vision": True, "context": 1000000, "strengths": ["Medizin", "Biologie", "Naturwissenschaften", "Sprachen"]},
+        {"id": "google/gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "cost_in": 0.075, "cost_out": 0.30, "speed": "schnell",
+         "vision": True, "context": 1000000, "strengths": ["Allgemeinwissen", "Sprachen", "Bilder"]},
+        {"id": "thudm/glm-4-32b:free", "name": "GLM-4 32B (gratis)", "cost_in": 0, "cost_out": 0, "speed": "schnell",
+         "vision": False, "context": 32768, "strengths": ["MINT", "Sprachen", "Allgemeinwissen"]},
         # ── Mittelklasse ──
         {"id": "anthropic/claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "cost_in": 1.00, "cost_out": 5.00, "speed": "schnell",
          "vision": True, "context": 200000, "strengths": ["BWL", "VWL", "Geisteswissenschaften", "Pädagogik"]},
@@ -631,7 +636,8 @@ class AIService:
                               progress_callback: Callable | None = None,
                               question_types: list[str] | None = None,
                               focus_topics: dict[str, float] | None = None,
-                              auto_count: bool = False) -> list[Question]:
+                              auto_count: bool = False,
+                              detail_level: str = "normal") -> list[Question]:
         full_text = self._read_file_as_text(file_path)
         chunks = self._chunk_with_overlap(full_text)
         if not chunks:
@@ -662,8 +668,13 @@ class AIService:
                     f"{rolling_summary}\n\n---\n\n"
                 )
 
+            detail_hint = ""
+            if auto_count and detail_level == "thorough":
+                detail_hint = " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt und jeder Formel mindestens eine Frage. Lieber zu viele als zu wenige!"
+            elif auto_count and detail_level == "compact":
+                detail_hint = " Konzentriere dich auf die wichtigsten Kernkonzepte."
             count_instruction = (
-                f"Erstelle so viele Prüfungsfragen wie sinnvoll für diesen Abschnitt."
+                f"Erstelle so viele Prüfungsfragen wie sinnvoll für diesen Abschnitt.{detail_hint}"
                 if auto_count else
                 f"Erstelle {per_chunk} Prüfungsfragen zu diesem Inhalt."
             )

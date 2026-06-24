@@ -3,6 +3,8 @@ import { loadSettings } from "./store.js";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
+// Ultra-fast, free model for real-time game checks (explanation + free-text grading)
+const FAST_MODEL = "google/gemma-4-12b-it:free";
 
 export const MODELS = [
   // ── Gratis (nur Text) ──
@@ -20,6 +22,8 @@ export const MODELS = [
   { id: "deepseek/deepseek-chat", name: "DeepSeek Chat", tier: "günstig", context: 128000, vision: false, price: "$0.14/M" },
   { id: "deepseek/deepseek-r1", name: "DeepSeek R1", tier: "günstig", context: 164000, vision: false, price: "$0.70/M" },
   { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", tier: "günstig", context: 1000000, vision: true, price: "$0.15/M" },
+  { id: "google/gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite", tier: "günstig", context: 1000000, vision: true, price: "$0.075/M" },
+  { id: "thudm/glm-4-32b:free", name: "GLM-4 32B", tier: "gratis", context: 32768, vision: false, price: "$0" },
   // ── Mittel ──
   { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", tier: "mittel", context: 200000, vision: true, price: "$1/M" },
   { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", tier: "mittel", context: 1000000, vision: true, price: "$1.25/M" },
@@ -126,25 +130,41 @@ function parseJSON(text) {
 export async function generateQuiz(text, numQuestions = 5, language = "de", config = {}) {
   const { apiKey, model } = await getConfig(config);
 
+  const auto = !(numQuestions > 0);
+  const detail = config.detailLevel || "normal";
+  const detailHint = detail === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt und jeder Formel mindestens eine Frage. Lieber zu viele Fragen als zu wenige!"
+    : detail === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte und erstelle nur die wesentlichsten Fragen."
+    : "";
+  const countRule = auto
+    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele.${detailHint}`
+    : `Erstelle exakt ${numQuestions} Fragen.`;
+  const countAsk = auto
+    ? "So viele Prüfungsfragen wie sinnvoll"
+    : `${numQuestions} Prüfungsfragen`;
+
   const systemPrompt = `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
+WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
-- Erstelle exakt ${numQuestions} Fragen.
-- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "math_formula".
+- ${countRule}
+- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula".
 - Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
 - Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.
 - Bei multiple_choice: mindestens 2 Optionen sind korrekt, mindestens 4 Optionen.
 - Bei free_text: gib den korrekten Antworttext in "correct_text" an. Mehrere akzeptierte Antworten mit ';' trennen.
 - Bei fill_blank: markiere Lücken im Fragetext mit ___ und liste die Lösungswörter in "blanks" auf.
-- Bei drag_drop: nur wenn der Stoff Zuordnungen enthält (Begriff↔Definition, Ursache↔Wirkung). Liste Paare in "drag_drop_pairs" mit "source" (Begriff) und "target" (Ziel-Kategorie).
+- Bei drag_drop: nur wenn 1:1-Zuordnungen (Begriff↔Definition). Liste Paare in "drag_drop_pairs" mit "source" und "target".
+- Bei drag_category: wenn mehrere Begriffe in Kategorien eingeordnet werden sollen (z.B. 6 Begriffe auf 2 Kategorien). Nutze "drag_drop_pairs" wobei "source" der Begriff und "target" die Kategorie ist. Kategorien dürfen mehrfach vorkommen.
 - Bei math_formula: nur bei mathematischen/naturwissenschaftlichen Inhalten. Gib die Lösung in "correct_formula" an (z.B. "x = 2" oder "a^2 + b^2").
-- Bevorzuge Choice-/Text-Fragen; nutze drag_drop und math_formula nur, wo es inhaltlich passt.
+- Bevorzuge Choice-/Text-Fragen; nutze drag_drop, drag_category und math_formula nur, wo es inhaltlich passt.
 - Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher Text) in diesem Format:
 [
   {
-    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "math_formula",
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "drag_category" | "math_formula",
     "question_text": "Fragetext",
     "title": "Kurztitel der Frage",
     "topic": "Themengebiet",
@@ -160,13 +180,162 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
 
   const messages = [
     { role: "system", content: systemPrompt },
-    { role: "user", content: `Erstelle ${numQuestions} Prüfungsfragen auf Basis dieses Textes:\n\n${text}` },
+    { role: "user", content: `Erstelle ${countAsk} auf Basis dieses Textes:\n\n${text}` },
   ];
 
   const body = await chatCompletion(messages, { apiKey, model, stream: true });
   const raw = await readStream(body);
   const questions = parseJSON(raw);
 
+  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+
+  return questions.map((q) => ({
+    id: uid(),
+    question_type: q.question_type,
+    question_text: q.question_text,
+    title: q.title ?? "",
+    topic: q.topic ?? "",
+    points: q.points ?? 1,
+    options: q.options ?? [],
+    correct_text: q.correct_text ?? "",
+    blanks: q.blanks ?? [],
+    drag_drop_pairs: q.drag_drop_pairs ?? [],
+    correct_formula: q.correct_formula ?? "",
+    tolerance: q.tolerance ?? 0.001,
+    explanation: q.explanation ?? "",
+  }));
+}
+
+// Generiert Fragen direkt aus einem Bild (Screenshot, Foto, Diagramm) via Vision-Modell.
+// imageUrl: data:-URL oder http-URL. Nutzt immer ein Vision-Modell.
+export async function generateQuizFromImage(imageUrl, numQuestions = 3, language = "de", config = {}) {
+  const { apiKey } = await getConfig(config);
+  // Falls ein Vision-fähiges Modell gewählt wurde, dieses nutzen, sonst Default-Vision-Modell.
+  let model = config.model;
+  const chosen = MODELS.find((m) => m.id === model);
+  if (!chosen || !chosen.vision) model = VISION_MODEL;
+
+  const systemPrompt = `Du bist ein erfahrener Pädagoge. Analysiere das gezeigte Bild (Diagramm, Skizze, Screenshot, Tafelbild o.ä.) und erstelle daraus hochwertige Lernfragen.
+
+Regeln:
+- Erstelle bis zu ${numQuestions} Fragen, die sich auf den Bildinhalt beziehen.
+- Verwende sinnvolle Typen aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Wenn das Bild ein beschriftbares Diagramm ist, kannst du eine "diagram_label"-Frage erstellen: liste die zu beschriftenden Punkte in "diagram_labels" mit Name und relativer Position x/y (0-1) auf.
+- Jede Frage braucht eine klare Erklärung.
+- Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array (kein Markdown):
+[
+  {
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "diagram_label",
+    "question_text": "Fragetext",
+    "title": "Kurztitel",
+    "topic": "Themengebiet",
+    "points": 1,
+    "options": [{"text": "Antwort", "is_correct": true}],
+    "correct_text": "",
+    "blanks": [],
+    "diagram_labels": [{"label": "Bezeichnung", "x": 0.5, "y": 0.5}],
+    "explanation": "Erklärung"
+  }
+]`;
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    {
+      role: "user",
+      content: [
+        { type: "text", text: `Erstelle bis zu ${numQuestions} Prüfungsfragen auf Basis dieses Bildes.` },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ],
+    },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const raw = await readStream(body);
+  const questions = parseJSON(raw);
+  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+
+  return questions.map((q) => ({
+    id: uid(),
+    question_type: q.question_type,
+    question_text: q.question_text,
+    title: q.title ?? "",
+    topic: q.topic ?? "",
+    points: q.points ?? 1,
+    options: q.options ?? [],
+    correct_text: q.correct_text ?? "",
+    blanks: q.blanks ?? [],
+    drag_drop_pairs: q.drag_drop_pairs ?? [],
+    diagram_labels: (q.diagram_labels ?? []).map((l) => ({
+      label: l.label ?? "", x: Number(l.x ?? 0.5), y: Number(l.y ?? 0.5), _placed: false,
+    })),
+    diagram_image: q.question_type === "diagram_label" ? imageUrl : "",
+    image: (q.question_type === "single_choice" || q.question_type === "multiple_choice") ? imageUrl : "",
+    correct_formula: q.correct_formula ?? "",
+    tolerance: q.tolerance ?? 0.001,
+    explanation: q.explanation ?? "",
+  }));
+}
+
+export async function generateQuizFromImages(imageUrls, numQuestions = 5, language = "de", config = {}, additionalText = undefined) {
+  const { apiKey } = await getConfig(config);
+  let model = config.model;
+  const chosen = MODELS.find((m) => m.id === model);
+  if (!chosen || !chosen.vision) model = VISION_MODEL;
+
+  const autoImg = !(numQuestions > 0);
+  const detailImg = config.detailLevel || "normal";
+  const detailHintImg = detailImg === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt, jeder Formel und jedem Diagramm mindestens eine Frage. Lieber zu viele als zu wenige!"
+    : detailImg === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte."
+    : "";
+  const countRuleImg = autoImg
+    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken.${detailHintImg}`
+    : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
+  const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
+
+  const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
+WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf ALLEN Seiten – jedes Konzept, jede Definition, jeder Fakt, jede Formel soll abgedeckt werden. Überspringe NICHTS.
+
+Regeln:
+- ${countRuleImg}
+- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
+- Jede Frage muss eine klare Erklärung enthalten.
+- Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array (kein Markdown):
+[
+  {
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank",
+    "question_text": "Fragetext",
+    "title": "Kurztitel",
+    "topic": "Themengebiet",
+    "points": 1,
+    "options": [{"text": "Antwort", "is_correct": true}],
+    "correct_text": "",
+    "blanks": [],
+    "explanation": "Erklärung"
+  }
+]`;
+
+  const contentParts = [
+    { type: "text", text: `Erstelle ${countAskImg} auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
+    ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
+
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: contentParts },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const raw = await readStream(body);
+  const questions = parseJSON(raw);
   if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
 
   return questions.map((q) => ({
@@ -265,6 +434,67 @@ export async function simplifyExplanation(explanation, config = {}) {
   return readStream(body);
 }
 
+export async function analyzeClozeKeywords(text, minChars = 1200, maxChars = 2500, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const lengthHint = `Der Text soll zwischen ${minChars} und ${maxChars} Zeichen lang sein. `;
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein Experte für Lernmaterial. Erstelle eine EIGENE Zusammenfassung des gegebenen " +
+        "Textes als Fließtext. KOPIERE NICHT den Originaltext! " +
+        lengthHint +
+        "Identifiziere dann die wichtigsten Fachbegriffe, Zahlen und Schlüsselwörter im Text. " +
+        'Antworte mit exakt diesem JSON-Format:\n' +
+        '{"summary": "Dein zusammenfassender Fließtext hier...", ' +
+        '"keywords": [{"word": "Wort1", "index": 0}, {"word": "Wort2", "index": 50}]}\n' +
+        "WICHTIG: 'index' ist die Zeichenposition wo das Wort im summary-Text BEGINNT. " +
+        "Jedes keyword muss EXAKT so im summary vorkommen wie angegeben. " +
+        "Identifiziere 10-30 relevante Wörter.",
+    },
+    {
+      role: "user",
+      content: `Erstelle eine lernfreundliche Zusammenfassung und identifiziere Schlüsselwörter:\n\n${text}`,
+    },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  if (!raw) return { summary: text, keywords: [] };
+
+  try {
+    const obj = parseJSON(raw);
+    const summary = obj.summary || text;
+    const keywords = (obj.keywords || [])
+      .filter(kw => kw.word && summary.includes(kw.word))
+      .map(kw => ({ word: kw.word, index: summary.indexOf(kw.word) }));
+    return { summary, keywords };
+  } catch {
+    return { summary: text, keywords: [] };
+  }
+}
+
+export async function aiValidateAnswer(questionText, correctAnswer, userAnswer, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein Prüfungsbewerter. Prüfe ob die Antwort des Studenten inhaltlich korrekt ist. " +
+        "Ignoriere Tippfehler und kleine Formulierungsunterschiede. " +
+        "Antworte NUR mit 'JA' oder 'NEIN'.",
+    },
+    {
+      role: "user",
+      content:
+        `Frage: ${questionText}\nRichtige Antwort: ${correctAnswer}\nAntwort des Studenten: ${userAnswer}\n\nIst die Antwort inhaltlich korrekt? Antworte nur mit JA oder NEIN.`,
+    },
+  ];
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  if (!raw) return false;
+  return raw.trim().toUpperCase().startsWith("JA");
+}
+
 export async function editQuestionWithAI(question, instruction, targetType = null, config = {}) {
   const { apiKey, model } = await getConfig(config);
 
@@ -296,4 +526,64 @@ Fragetypen und ihre Pflichtfelder:
   if (!edited || typeof edited !== "object") throw new Error("KI-Antwort ist kein gültiges Fragen-Objekt.");
   edited.id = question.id;
   return edited;
+}
+
+// ── Fast helpers for mini-games (use ultra-fast free model, no streaming) ──
+
+async function chatFast(messages, apiKey) {
+  if (!apiKey) return null;
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": globalThis.location?.origin ?? "https://lerntrainer.app",
+        "X-Title": "Lerntrainer PWA",
+      },
+      body: JSON.stringify({ model: FAST_MODEL, messages, temperature: 0.3, max_tokens: 300 }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.choices?.[0]?.message?.content ?? "").trim();
+  } catch { return null; }
+}
+
+// Check a free-text answer using AI. Returns { correct: bool, feedback: string }.
+export async function checkFreeTextAI(question, userAnswer, acceptedAnswers) {
+  const { apiKey } = await getConfig();
+  if (!apiKey) return null;
+  const messages = [
+    {
+      role: "system",
+      content: `Du bist ein strenger aber fairer Lehrer. Prüfe ob die Antwort des Schülers inhaltlich korrekt ist.
+Akzeptierte Antworten als Referenz: ${acceptedAnswers.join(", ")}
+Antworte NUR mit einem JSON-Objekt: {"correct":true/false,"feedback":"kurze Begründung in 1 Satz"}
+Sei tolerant bei Tippfehlern und Synonymen, aber die Kernaussage muss stimmen.`,
+    },
+    { role: "user", content: `Frage: ${question}\nAntwort: ${userAnswer}` },
+  ];
+  const raw = await chatFast(messages, apiKey);
+  if (!raw) return null;
+  try {
+    const m = raw.match(/\{[\s\S]*\}/);
+    return m ? JSON.parse(m[0]) : null;
+  } catch { return null; }
+}
+
+// Generate a short explanation for a wrong answer on demand.
+export async function quickExplain(question, correctAnswer, userAnswer) {
+  const { apiKey } = await getConfig();
+  if (!apiKey) return null;
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Lerntutor. Erkläre in 2-3 kurzen Sätzen, warum die richtige Antwort korrekt ist. Einfache Sprache, auf Deutsch.",
+    },
+    {
+      role: "user",
+      content: `Frage: ${question}\nRichtige Antwort: ${correctAnswer}${userAnswer ? `\nAntwort des Schülers: ${userAnswer}` : ""}\n\nErkläre kurz.`,
+    },
+  ];
+  return chatFast(messages, apiKey);
 }

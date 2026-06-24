@@ -73,6 +73,9 @@ export async function render(root) {
     <div class="grid-card mini-card" data-nav="games"><div class="icon">🎮</div><div class="title">Mini-Games</div></div>
     <div class="grid-card mini-card" data-nav="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>
     <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner</div></div>
+    <div class="grid-card mini-card" data-nav="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div></div>
+    <div class="grid-card mini-card" data-nav="socratic"><div class="icon">🏛️</div><div class="title">Sokrates</div></div>
+    <div class="grid-card mini-card" data-nav="achievements"><div class="icon">🏅</div><div class="title">Erfolge</div></div>
     <div class="grid-card mini-card" data-nav="sync"><div class="icon">☁️</div><div class="title">Sync</div></div>
     <div class="grid-card mini-card" data-nav="settings"><div class="icon">⚙️</div><div class="title">Settings</div></div>
   </div>`;

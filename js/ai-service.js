@@ -22,6 +22,8 @@ export const MODELS = [
   { id: "deepseek/deepseek-chat", name: "DeepSeek Chat", tier: "günstig", context: 128000, vision: false, price: "$0.14/M" },
   { id: "deepseek/deepseek-r1", name: "DeepSeek R1", tier: "günstig", context: 164000, vision: false, price: "$0.70/M" },
   { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", tier: "günstig", context: 1000000, vision: true, price: "$0.15/M" },
+  { id: "google/gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite", tier: "günstig", context: 1000000, vision: true, price: "$0.075/M" },
+  { id: "thudm/glm-4-32b:free", name: "GLM-4 32B", tier: "gratis", context: 32768, vision: false, price: "$0" },
   // ── Mittel ──
   { id: "anthropic/claude-haiku-4-5-20251001", name: "Claude Haiku 4.5", tier: "mittel", context: 200000, vision: true, price: "$1/M" },
   { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro", tier: "mittel", context: 1000000, vision: true, price: "$1.25/M" },
@@ -129,32 +131,40 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
   const { apiKey, model } = await getConfig(config);
 
   const auto = !(numQuestions > 0);
+  const detail = config.detailLevel || "normal";
+  const detailHint = detail === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt und jeder Formel mindestens eine Frage. Lieber zu viele Fragen als zu wenige!"
+    : detail === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte und erstelle nur die wesentlichsten Fragen."
+    : "";
   const countRule = auto
-    ? "Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele."
+    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele.${detailHint}`
     : `Erstelle exakt ${numQuestions} Fragen.`;
   const countAsk = auto
     ? "So viele Prüfungsfragen wie sinnvoll"
     : `${numQuestions} Prüfungsfragen`;
 
   const systemPrompt = `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
+WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
 - ${countRule}
-- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "math_formula".
+- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula".
 - Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
 - Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.
 - Bei multiple_choice: mindestens 2 Optionen sind korrekt, mindestens 4 Optionen.
 - Bei free_text: gib den korrekten Antworttext in "correct_text" an. Mehrere akzeptierte Antworten mit ';' trennen.
 - Bei fill_blank: markiere Lücken im Fragetext mit ___ und liste die Lösungswörter in "blanks" auf.
-- Bei drag_drop: nur wenn der Stoff Zuordnungen enthält (Begriff↔Definition, Ursache↔Wirkung). Liste Paare in "drag_drop_pairs" mit "source" (Begriff) und "target" (Ziel-Kategorie).
+- Bei drag_drop: nur wenn 1:1-Zuordnungen (Begriff↔Definition). Liste Paare in "drag_drop_pairs" mit "source" und "target".
+- Bei drag_category: wenn mehrere Begriffe in Kategorien eingeordnet werden sollen (z.B. 6 Begriffe auf 2 Kategorien). Nutze "drag_drop_pairs" wobei "source" der Begriff und "target" die Kategorie ist. Kategorien dürfen mehrfach vorkommen.
 - Bei math_formula: nur bei mathematischen/naturwissenschaftlichen Inhalten. Gib die Lösung in "correct_formula" an (z.B. "x = 2" oder "a^2 + b^2").
-- Bevorzuge Choice-/Text-Fragen; nutze drag_drop und math_formula nur, wo es inhaltlich passt.
+- Bevorzuge Choice-/Text-Fragen; nutze drag_drop, drag_category und math_formula nur, wo es inhaltlich passt.
 - Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher Text) in diesem Format:
 [
   {
-    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "math_formula",
+    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "drag_category" | "math_formula",
     "question_text": "Fragetext",
     "title": "Kurztitel der Frage",
     "topic": "Themengebiet",
@@ -276,12 +286,19 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
   const autoImg = !(numQuestions > 0);
+  const detailImg = config.detailLevel || "normal";
+  const detailHintImg = detailImg === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt, jeder Formel und jedem Diagramm mindestens eine Frage. Lieber zu viele als zu wenige!"
+    : detailImg === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte."
+    : "";
   const countRuleImg = autoImg
-    ? "Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken."
+    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken.${detailHintImg}`
     : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
   const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
 
   const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
+WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf ALLEN Seiten – jedes Konzept, jede Definition, jeder Fakt, jede Formel soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
 - ${countRuleImg}

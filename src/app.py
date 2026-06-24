@@ -1,6 +1,7 @@
 """Main application UI using CustomTkinter."""
 
 import os
+import sys
 import random
 import threading
 import time
@@ -25,13 +26,29 @@ from .models import (
 from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
 from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
-from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL
+from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL, animate_color
 from .i18n import t, set_language, get_language
-from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
+from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex, autowrap_latex
+from .games import show_games, show_tower_defense, show_quiz_battle, _run_td, _run_qb, _game_card as _game_card_games
 from . import cloud_sync
 from . import auth
 
 ctk.set_default_color_theme("blue")
+
+
+def _resolve_data_dir() -> str:
+    """Return a stable, writable data directory.
+
+    When running as a PyInstaller bundle (sys.frozen), __file__ lives inside a
+    temporary _MEIxxxx folder that is wiped on every launch — saving data there
+    means everything (quizzes, progress, login) is lost on restart. So in that
+    case we store data in a persistent per-user location instead.
+    """
+    if getattr(sys, "frozen", False):
+        base = os.environ.get("APPDATA") or os.environ.get("XDG_DATA_HOME") \
+            or os.path.join(os.path.expanduser("~"), ".local", "share")
+        return str(Path(base) / "Lerntrainer" / "data")
+    return str(Path(__file__).parent.parent / "data")
 
 
 class App(ctk.CTk):
@@ -41,7 +58,7 @@ class App(ctk.CTk):
         self.geometry("1100x750")
         self.minsize(800, 600)
 
-        self.store = DataStore(str(Path(__file__).parent.parent / "data"))
+        self.store = DataStore(_resolve_data_dir())
         self.quizzes = self.store.load_quizzes()
         self.formula_sheets = self.store.load_formula_sheets()
         self.folders = self.store.load_folders()
@@ -66,11 +83,31 @@ class App(ctk.CTk):
         if not self.store.load_settings().get("walkthrough_done"):
             self.after(500, self._start_walkthrough)
 
+        # On startup, pull cloud data so a fresh device/restart keeps everything
+        def _after_download(merged):
+            if merged:
+                self.quizzes = self.store.load_quizzes()
+                self._fsrs_data = self.store.load_fsrs()
+                self.show_home()
+        self.after(800, lambda: self._auto_sync_download(_after_download))
+
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        self.header = ctk.CTkFrame(self, fg_color=COLORS["header_bg"], corner_radius=0, height=60)
+        ctk.ThemeManager.theme["CTkButton"]["corner_radius"] = RADIUS_SM
+        ctk.ThemeManager.theme["CTkEntry"]["corner_radius"] = RADIUS_SM
+        ctk.ThemeManager.theme["CTkOptionMenu"]["corner_radius"] = RADIUS_SM
+        # Default button text uses a [light, dark] pair so accent-colored buttons
+        # (bright cyan/green in dark mode) get dark, high-contrast text instead of
+        # near-invisible white. ctk auto-selects by appearance mode.
+        ctk.ThemeManager.theme["CTkButton"]["text_color"] = ["#ffffff", "#06121a"]
+
+        header_wrap = ctk.CTkFrame(self, fg_color=COLORS["border"], corner_radius=0, height=62)
+        header_wrap.grid(row=0, column=0, sticky="ew")
+        header_wrap.grid_columnconfigure(0, weight=1)
+        header_wrap.grid_rowconfigure(0, weight=1)
+        self.header = ctk.CTkFrame(header_wrap, fg_color=COLORS["header_bg"], corner_radius=0, height=60)
         self.header.grid(row=0, column=0, sticky="ew")
         self.header.grid_columnconfigure(1, weight=1)
 
@@ -82,7 +119,7 @@ class App(ctk.CTk):
 
         self.header_subtitle = ctk.CTkLabel(
             self.header, text=t("app.subtitle"),
-            font=("Segoe UI", 12), text_color="#a7f3d0"
+            font=("Segoe UI", 12), text_color=COLORS["header_sub"]
         )
         self.header_subtitle.grid(row=0, column=1, padx=10, pady=12, sticky="w")
 
@@ -210,17 +247,19 @@ class App(ctk.CTk):
                 self._wt_index -= 1
                 self._show_walkthrough_step()
             ctk.CTkButton(btn_frame, text="Zurück", width=80, fg_color=COLORS["text_light"],
+                         corner_radius=RADIUS_SM,
                          command=prev_step).grid(row=0, column=0, padx=5)
 
         if idx < total - 1:
             ctk.CTkButton(btn_frame, text="Weiter", width=100, fg_color=COLORS["primary"],
-                         font=("Segoe UI", 13, "bold"),
+                         font=("Segoe UI", 13, "bold"), corner_radius=RADIUS_SM,
                          command=next_step).grid(row=0, column=1, padx=5)
             ctk.CTkButton(btn_frame, text="Überspringen", width=100, fg_color=COLORS["text_light"],
+                         corner_radius=RADIUS_SM,
                          command=skip).grid(row=0, column=2, padx=5)
         else:
             ctk.CTkButton(btn_frame, text="Loslegen!", width=140, fg_color=COLORS["success"],
-                         font=("Segoe UI", 14, "bold"),
+                         font=("Segoe UI", 14, "bold"), corner_radius=RADIUS_SM,
                          command=next_step).grid(row=0, column=1, padx=5)
 
     def _clear_main(self):
@@ -242,6 +281,34 @@ class App(ctk.CTk):
         inner.configure(width=max_width)
         return inner
 
+    def _bind_card_hover(self, card, accent_color=None, border_width=1):
+        """Bind hover animation to a card: highlight border + subtle bg shift."""
+        base_border = card.cget("border_color") if card.cget("border_width") else COLORS["border"]
+        hover_border = accent_color or COLORS["primary"]
+        base_bg = card.cget("fg_color")
+        hover_bg = COLORS["card_hover"]
+
+        def on_enter(e):
+            animate_color(card, "border_color", base_border, hover_border, 150, 6)
+            animate_color(card, "fg_color", base_bg, hover_bg, 150, 6)
+
+        def on_leave(e):
+            animate_color(card, "border_color", hover_border, base_border, 150, 6)
+            animate_color(card, "fg_color", hover_bg, base_bg, 150, 6)
+
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
+
+    def _styled_button(self, parent, text, color=None, command=None,
+                       width=None, height=36, bold=False, **kw):
+        """Create a consistently styled button with rounded corners."""
+        fg = color or COLORS["primary"]
+        font = ("Segoe UI", 12, "bold") if bold else ("Segoe UI", 12)
+        btn = ctk.CTkButton(parent, text=text, fg_color=fg, font=font,
+                           corner_radius=RADIUS_SM, height=height,
+                           command=command, **({"width": width} if width else {}), **kw)
+        return btn
+
     # ── HOME SCREEN ──
 
     def show_home(self):
@@ -259,16 +326,16 @@ class App(ctk.CTk):
                      font=("Segoe UI", 20, "bold"), text_color="white"
                      ).grid(row=0, column=0, padx=25, pady=(20, 4), sticky="w")
         ctk.CTkLabel(welcome, text=t("home.welcome_sub"),
-                     font=("Segoe UI", 13), text_color="#a7f3d0"
+                     font=("Segoe UI", 13), text_color=COLORS["header_sub"]
                      ).grid(row=1, column=0, padx=25, pady=(0, 20), sticky="w")
         account = self.store.load_settings().get("account")
         if account and account.get("email"):
             acc_text = f"👤 {account['email']}"
         else:
             acc_text = t("account.login_cta")
-        ctk.CTkButton(welcome, text=acc_text, width=160, height=34, corner_radius=10,
-                     fg_color="white", text_color=COLORS["primary_dark"],
-                     hover_color="#ecfdf5", font=("Segoe UI", 12, "bold"),
+        ctk.CTkButton(welcome, text=acc_text, width=160, height=36, corner_radius=RADIUS_MD,
+                     fg_color=COLORS["accent"], text_color=COLORS["primary_dark"],
+                     hover_color="#ffe066", font=("Segoe UI", 12, "bold"),
                      command=self.show_account
                      ).grid(row=0, column=1, rowspan=2, padx=25, pady=15, sticky="e")
         row += 1
@@ -300,11 +367,11 @@ class App(ctk.CTk):
                      font=("Segoe UI", 17, "bold"), text_color="white"
                      ).grid(row=0, column=1, padx=5, pady=(15, 0), sticky="w")
         ctk.CTkLabel(daily_card, text=t("daily.card_desc"),
-                     font=("Segoe UI", 12), text_color="#a7f3d0"
+                     font=("Segoe UI", 12), text_color=COLORS["header_sub"]
                      ).grid(row=1, column=1, padx=5, pady=(0, 15), sticky="w")
         ctk.CTkButton(daily_card, text=t("daily.start"), width=130, height=38,
-                     corner_radius=10, fg_color="white", text_color=COLORS["primary_dark"],
-                     hover_color="#ecfdf5", font=("Segoe UI", 13, "bold"),
+                     corner_radius=RADIUS_MD, fg_color=COLORS["accent"], text_color=COLORS["primary_dark"],
+                     hover_color="#ffe066", font=("Segoe UI", 13, "bold"),
                      command=self.show_daily
                      ).grid(row=0, column=2, rowspan=2, padx=20, pady=15)
         row += 1
@@ -408,6 +475,11 @@ class App(ctk.CTk):
             ("📋", t("fosa.title"), COLORS["primary"], self.show_formula_sheets),
             ("📓", t("diary.card_title"), COLORS["danger"], self.show_error_diary),
             ("📅", t("plan.card_title"), COLORS["success"], self.show_study_plan),
+            ("🎮", "Mini-Games", COLORS["info"], self.show_games),
+            ("🖌️", "Bild-Editor", COLORS["primary_dark"], lambda: self.show_image_editor()),
+            ("🧠", "SR-Dashboard", COLORS["info"], self.show_sr_dashboard),
+            ("🏅", "Erfolge", COLORS["warning"], self.show_achievements),
+            ("🏛️", "Sokrates", COLORS["primary"], lambda: self.show_socratic()),
         ]
         for idx, (icon, title_, color, cmd) in enumerate(mini_tools):
             self._mini_card(tools_grid, idx % 4, idx // 4, icon, title_, color, cmd)
@@ -443,49 +515,77 @@ class App(ctk.CTk):
                         ).grid(row=1, column=0, pady=30)
 
     def _home_card(self, parent, col, row, icon, title, desc, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
-                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"),
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                           border_width=2, border_color=COLORS.get("border", "#e3ece6"),
                            cursor="hand2")
         card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=color))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+
+        # Color accent bar at top
+        accent_bar = ctk.CTkFrame(card, fg_color=color, corner_radius=4, height=4)
+        accent_bar.grid(row=0, column=0, sticky="ew", padx=16, pady=(14, 0))
+
+        def on_enter(_):
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), color, 150, 6)
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 150, 6)
+
+        def on_leave(_):
+            animate_color(card, "border_color", color, COLORS.get("border", "#e3ece6"), 150, 6)
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 150, 6)
+
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
         card.bind("<Button-1>", lambda e: command())
 
         ctk.CTkLabel(card, text=icon, font=("Segoe UI", 30)
-                    ).grid(row=0, column=0, padx=15, pady=(16, 4))
+                    ).grid(row=1, column=0, padx=15, pady=(12, 4))
         tl = ctk.CTkLabel(card, text=title, font=("Segoe UI", 15, "bold"),
                           text_color=COLORS["text"])
-        tl.grid(row=1, column=0, padx=15, pady=(2, 2))
+        tl.grid(row=2, column=0, padx=15, pady=(2, 2))
         tl.bind("<Button-1>", lambda e: command())
         dl = ctk.CTkLabel(card, text=desc, font=("Segoe UI", 11),
                           text_color=COLORS["text_light"], wraplength=170)
-        dl.grid(row=2, column=0, padx=15, pady=(0, 16))
+        dl.grid(row=3, column=0, padx=15, pady=(0, 16))
         dl.bind("<Button-1>", lambda e: command())
 
     def _mini_card(self, parent, col, row, icon, title, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=10,
-                           border_width=1, border_color=COLORS.get("border", "#e2e8f0"),
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                           border_width=1, border_color=COLORS.get("border", "#e3ece6"),
                            cursor="hand2")
         card.grid(row=row, column=col, padx=4, pady=4, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=color))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+
+        def on_enter(_):
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), color, 120, 5)
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 120, 5)
+
+        def on_leave(_):
+            animate_color(card, "border_color", color, COLORS.get("border", "#e3ece6"), 120, 5)
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 120, 5)
+
+        card.bind("<Enter>", on_enter)
+        card.bind("<Leave>", on_leave)
         card.bind("<Button-1>", lambda e: command())
-        ctk.CTkLabel(card, text=icon, font=("Segoe UI", 20)
-                    ).grid(row=0, column=0, pady=(10, 2))
+        ctk.CTkLabel(card, text=icon, font=("Segoe UI", 22)
+                    ).grid(row=0, column=0, pady=(12, 2))
         tl = ctk.CTkLabel(card, text=title, font=("Segoe UI", 11, "bold"),
                           text_color=COLORS["text"])
-        tl.grid(row=1, column=0, padx=6, pady=(0, 10))
+        tl.grid(row=1, column=0, padx=6, pady=(0, 12))
         tl.bind("<Button-1>", lambda e: command())
 
     def _action_card(self, parent, col, row, title, desc, color, command):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
-                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"))
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                           border_width=2, border_color=COLORS.get("border", "#e3ece6"))
         card.grid(row=row, column=col, padx=6, pady=6, sticky="nsew")
         card.grid_columnconfigure(0, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=color))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+        card.bind("<Enter>", lambda e: (
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), color, 150, 6),
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 150, 6),
+        ))
+        card.bind("<Leave>", lambda e: (
+            animate_color(card, "border_color", color, COLORS.get("border", "#e3ece6"), 150, 6),
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 150, 6),
+        ))
 
         color_bar = ctk.CTkFrame(card, fg_color=color, corner_radius=4, height=5)
         color_bar.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 0))
@@ -501,12 +601,18 @@ class App(ctk.CTk):
                      command=command).grid(row=3, column=0, padx=15, pady=(0, 14))
 
     def _quiz_card(self, parent, quiz: Quiz, row: int):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=14,
-                           border_width=2, border_color=COLORS.get("border", "#e2e8f0"))
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                           border_width=2, border_color=COLORS.get("border", "#e3ece6"))
         card.grid(row=row, column=0, sticky="ew", pady=5)
         card.grid_columnconfigure(1, weight=1)
-        card.bind("<Enter>", lambda e: card.configure(border_color=COLORS["primary"]))
-        card.bind("<Leave>", lambda e: card.configure(border_color=COLORS.get("border", "#e2e8f0")))
+        card.bind("<Enter>", lambda e: (
+            animate_color(card, "border_color", COLORS.get("border", "#e3ece6"), COLORS["primary"], 120, 5),
+            animate_color(card, "fg_color", COLORS["card"], COLORS.get("card_hover", "#eef7f2"), 120, 5),
+        ))
+        card.bind("<Leave>", lambda e: (
+            animate_color(card, "border_color", COLORS["primary"], COLORS.get("border", "#e3ece6"), 120, 5),
+            animate_color(card, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["card"], 120, 5),
+        ))
 
         accent = ctk.CTkFrame(card, fg_color=COLORS["primary"], width=5, corner_radius=3)
         accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
@@ -551,7 +657,7 @@ class App(ctk.CTk):
     def _delete_quiz(self, quiz: Quiz):
         if messagebox.askyesno("Quiz löschen", f"'{quiz.name}' wirklich löschen?"):
             self.quizzes = [q for q in self.quizzes if q.id != quiz.id]
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
             self.show_home()
 
     # ── DAILY LEARNING ──
@@ -591,9 +697,11 @@ class App(ctk.CTk):
         total = len(question_ids)
         done = len(completed)
         progress_val = done / total if total > 0 else 0
-        prog_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+        prog_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                   border_width=1, border_color=COLORS["border"])
         prog_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
         prog_frame.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(prog_frame, accent_color=COLORS["primary"])
         ctk.CTkLabel(prog_frame, text=f"{t('daily.progress')}: {done}/{total}",
                     font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
                     ).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
@@ -603,8 +711,10 @@ class App(ctk.CTk):
 
         # ── Learning Phase selector ──
         settings = self.store.load_settings()
-        phase_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+        phase_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                    border_width=1, border_color=COLORS["border"])
         phase_frame.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        self._bind_card_hover(phase_frame)
         ctk.CTkLabel(phase_frame, text=t("daily.phase"), font=("Segoe UI", 13, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 5))
         phase_var = StringVar(value=settings.get("learning_phase", "deepen"))
@@ -641,9 +751,11 @@ class App(ctk.CTk):
         all_topics = sorted(all_topics)
 
         if all_topics:
-            topic_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=10)
+            topic_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                        border_width=1, border_color=COLORS["border"])
             topic_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
             topic_frame.grid_columnconfigure(0, weight=1)
+            self._bind_card_hover(topic_frame)
             ctk.CTkLabel(topic_frame, text=t("daily.topics_title"), font=("Segoe UI", 13, "bold"),
                         text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=12, pady=(10, 2))
             ctk.CTkLabel(topic_frame, text=t("daily.topics_hint"), font=("Segoe UI", 11),
@@ -691,9 +803,10 @@ class App(ctk.CTk):
         row = quiz_plan_start_row
         for plan in quiz_plans:
             pf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
-                             border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+                             border_width=1, border_color=COLORS["border"])
             pf.grid(row=row, column=0, sticky="ew", pady=3)
             pf.grid_columnconfigure(1, weight=1)
+            self._bind_card_hover(pf)
             accent_color = COLORS["danger"] if plan.get("urgency", 0) > 0.7 else COLORS["primary"]
             ctk.CTkFrame(pf, fg_color=accent_color, width=4, corner_radius=2
                         ).grid(row=0, column=0, sticky="ns", padx=(0, 0), pady=6)
@@ -722,12 +835,15 @@ class App(ctk.CTk):
             row += 1
         elif done > 0:
             # Completed!
-            done_frame = ctk.CTkFrame(scroll, fg_color=COLORS["success"], corner_radius=10)
+            done_frame = ctk.CTkFrame(scroll, fg_color=COLORS["success"], corner_radius=RADIUS_MD)
             done_frame.grid(row=row, column=0, sticky="ew", pady=10)
             done_frame.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(done_frame, text="🎉", font=("Segoe UI", 28)
+                        ).grid(row=0, column=0, padx=20, pady=(15, 0))
             ctk.CTkLabel(done_frame, text=t("daily.completed"),
                         font=("Segoe UI", 16, "bold"), text_color="white"
-                        ).grid(row=0, column=0, padx=20, pady=15)
+                        ).grid(row=1, column=0, padx=20, pady=(0, 15))
+            animate_color(done_frame, "fg_color", COLORS["card"], COLORS["success"], 400, 12)
             row += 1
 
             # Wrong answers review
@@ -748,9 +864,10 @@ class App(ctk.CTk):
                     if not wq:
                         continue
                     wf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
-                                     border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
+                                     border_width=1, border_color=COLORS["border"])
                     wf.grid(row=row, column=0, sticky="ew", pady=3)
                     wf.grid_columnconfigure(0, weight=1)
+                    self._bind_card_hover(wf, accent_color=COLORS["danger"])
                     ctk.CTkLabel(wf, text=wq.text, font=("Segoe UI", 12),
                                 text_color=COLORS["text"], wraplength=600
                                 ).grid(row=0, column=0, padx=12, pady=(8, 3), sticky="w")
@@ -931,12 +1048,16 @@ class App(ctk.CTk):
                         text_color=COLORS["text_light"]).grid(row=1, column=0, pady=30)
         else:
             for i, q in enumerate(marked_questions):
-                rf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+                rf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                  border_width=1, border_color=COLORS["border"])
                 rf.grid(row=1 + i, column=0, sticky="ew", pady=3)
-                rf.grid_columnconfigure(0, weight=1)
+                rf.grid_columnconfigure(1, weight=1)
+                accent = ctk.CTkFrame(rf, fg_color=COLORS["warning"], width=4, corner_radius=2)
+                accent.grid(row=0, column=0, sticky="ns", padx=(0, 0), pady=6)
                 ctk.CTkLabel(rf, text=q.text, font=("Segoe UI", 12),
                             text_color=COLORS["text"], wraplength=600, justify="left"
-                            ).grid(row=0, column=0, padx=15, pady=10, sticky="w")
+                            ).grid(row=0, column=1, padx=15, pady=10, sticky="w")
+                self._bind_card_hover(rf, accent_color=COLORS["warning"])
 
                 def unmark(qid=q.id):
                     mids = self.store.load_marked()
@@ -947,7 +1068,8 @@ class App(ctk.CTk):
 
                 ctk.CTkButton(rf, text=t("marked.unmark"), fg_color=COLORS["danger"],
                              width=80, height=28, font=("Segoe UI", 11),
-                             command=unmark).grid(row=0, column=1, padx=10, pady=10)
+                             corner_radius=RADIUS_SM,
+                             command=unmark).grid(row=0, column=2, padx=10, pady=10)
 
         btn_row = 2 + len(marked_questions)
         btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -991,11 +1113,14 @@ class App(ctk.CTk):
         msg_row = {"idx": 0}
 
         def add_message(role, text):
-            bg = COLORS["primary"] if role == "user" else COLORS["card_hover"]
-            tc = "white" if role == "user" else COLORS["text"]
+            bg = COLORS["primary"] if role == "user" else COLORS["card"]
+            tc = COLORS["on_primary"] if role == "user" else COLORS["text"]
             anchor = "e" if role == "user" else "w"
-            mf = ctk.CTkFrame(chat_scroll, fg_color=bg, corner_radius=RADIUS_MD)
-            mf.grid(row=msg_row["idx"], column=0, sticky=anchor, pady=3, padx=10)
+            mf = ctk.CTkFrame(chat_scroll, fg_color=bg, corner_radius=RADIUS_LG,
+                              border_width=1, border_color=COLORS["border"] if role != "user" else "transparent")
+            mf.grid(row=msg_row["idx"], column=0, sticky=anchor, pady=4, padx=10)
+            if role == "assistant":
+                animate_color(mf, "fg_color", COLORS["bg"], COLORS["card"], 200, 8)
             self._render_rich_text(mf, text, font=("Segoe UI", 12), text_color=tc,
                                    wraplength=500, row=0, column=0, padx=12, pady=8)
             msg_row["idx"] += 1
@@ -1168,27 +1293,36 @@ class App(ctk.CTk):
             messagebox.showerror("Export", f"Export fehlgeschlagen: {e}")
 
     def import_quiz_file(self):
-        path = filedialog.askopenfilename(
+        paths = filedialog.askopenfilenames(
             filetypes=[("Quiz JSON", "*.json"), ("Alle", "*.*")],
         )
-        if not path:
+        if not paths:
             return
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            quiz = Quiz.from_dict(data)
-            # fresh ids to avoid clashing with existing quizzes/progress
-            quiz.id = str(__import__("uuid").uuid4())
-            for q in quiz.questions:
-                q.id = str(__import__("uuid").uuid4())
-            if not quiz.name:
-                quiz.name = Path(path).stem
-            self.quizzes.append(quiz)
-            self.store.save_quizzes(self.quizzes)
-            messagebox.showinfo("Import", f"Quiz '{quiz.name}' mit {len(quiz.questions)} Fragen importiert!")
-            self.show_home()
-        except Exception as e:
-            messagebox.showerror("Import", f"Import fehlgeschlagen: {e}")
+        imported = []
+        errors = []
+        for path in paths:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                quiz = Quiz.from_dict(data)
+                quiz.id = str(__import__("uuid").uuid4())
+                for q in quiz.questions:
+                    q.id = str(__import__("uuid").uuid4())
+                if not quiz.name:
+                    quiz.name = Path(path).stem
+                self.quizzes.append(quiz)
+                imported.append(quiz.name)
+            except Exception as e:
+                errors.append(f"{Path(path).name}: {e}")
+        if imported:
+            self._save_quizzes()
+        if imported and not errors:
+            messagebox.showinfo("Import", f"{len(imported)} Quiz(ze) importiert:\n" + "\n".join(f"• {n}" for n in imported))
+        elif imported and errors:
+            messagebox.showwarning("Import", f"{len(imported)} importiert, {len(errors)} fehlgeschlagen:\n" + "\n".join(errors))
+        elif errors:
+            messagebox.showerror("Import", f"Alle fehlgeschlagen:\n" + "\n".join(errors))
+        self.show_home()
 
     # ── SETTINGS ──
 
@@ -1233,13 +1367,30 @@ class App(ctk.CTk):
                 self.store.save_settings(s)
                 self.show_account()
 
+            def _download_now():
+                status.configure(text="Lade Daten aus der Cloud…", text_color=COLORS["text_light"])
+                self.update_idletasks()
+                def _done(merged):
+                    if merged:
+                        self.quizzes = self.store.load_quizzes()
+                        self._fsrs_data = self.store.load_fsrs()
+                        status.configure(text="✓ Daten aus Cloud geladen!", text_color=COLORS["success"])
+                    else:
+                        status.configure(text="Keine Cloud-Daten gefunden.", text_color=COLORS["text_light"])
+                self._auto_sync_download(_done)
+
             btns = ctk.CTkFrame(frame, fg_color="transparent")
             btns.grid(row=3, column=0, sticky="w", pady=(0, 10))
-            ctk.CTkButton(btns, text=t("account.sync_now"), fg_color=COLORS["primary"],
-                         width=180, command=lambda: self._account_sync(status)
+            ctk.CTkButton(btns, text="☁️ Hochladen", fg_color=COLORS["primary"],
+                         width=150, command=lambda: self._account_sync(status)
                          ).grid(row=0, column=0, padx=(0, 10))
+            ctk.CTkButton(btns, text="⬇️ Aus Cloud laden", fg_color=COLORS["success"],
+                         width=160, command=_download_now).grid(row=0, column=1, padx=(0, 10))
             ctk.CTkButton(btns, text=t("account.logout"), fg_color=COLORS["danger"],
-                         width=140, command=_logout).grid(row=0, column=1)
+                         width=120, command=_logout).grid(row=0, column=2)
+            ctk.CTkLabel(frame, text="💡 Quizze & Fortschritt werden automatisch nach jedem Quiz synchronisiert.",
+                        font=("Segoe UI", 11), text_color=COLORS["text_light"], wraplength=520,
+                        justify="left").grid(row=4, column=0, sticky="w", pady=(0, 5))
         else:
             # Login / register view
             mode = StringVar(value="login")
@@ -1280,13 +1431,19 @@ class App(ctk.CTk):
                         else:
                             acc = auth.sign_in(email, pw)
                     except auth.AuthError as e:
-                        self.after(0, lambda: status.configure(
-                            text=str(e), text_color=COLORS["danger"]))
+                        self.after(0, lambda msg=str(e): status.configure(
+                            text=msg, text_color=COLORS["danger"]))
                         return
                     s = self.store.load_settings()
                     s["account"] = acc
                     self.store.save_settings(s)
-                    self.after(0, self.show_account)
+                    def _after_login():
+                        self.show_account()
+                        # Pull existing cloud data for this account
+                        self._auto_sync_download(lambda merged: merged and (
+                            setattr(self, "quizzes", self.store.load_quizzes()),
+                            setattr(self, "_fsrs_data", self.store.load_fsrs())))
+                    self.after(0, _after_login)
 
                 threading.Thread(target=worker, daemon=True).start()
 
@@ -1327,8 +1484,8 @@ class App(ctk.CTk):
                     s["account"] = acc
                     self.store.save_settings(s)
             except auth.AuthError as e:
-                self.after(0, lambda: status_label.configure(
-                    text=str(e), text_color=COLORS["danger"]))
+                self.after(0, lambda msg=str(e): status_label.configure(
+                    text=msg, text_color=COLORS["danger"]))
                 return
             code = cloud_sync.sanitize_code("acc_" + acc.get("uid", ""))
             from dataclasses import asdict as _asdict
@@ -1342,6 +1499,98 @@ class App(ctk.CTk):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _save_quizzes(self):
+        """Persist quizzes locally and trigger a best-effort cloud sync."""
+        self.store.save_quizzes(self.quizzes)
+        self._auto_sync_background()
+
+    def _auto_sync_background(self):
+        """Silently upload quizzes + progress to the cloud if logged in.
+
+        Called automatically after creating or finishing a quiz so progress
+        and quizzes are preserved across devices without manual action.
+        """
+        settings = self.store.load_settings()
+        account = settings.get("account")
+        if not account:
+            return
+
+        def worker():
+            try:
+                acc = auth.ensure_valid(account)
+                if acc is not account:
+                    s = self.store.load_settings()
+                    s["account"] = acc
+                    self.store.save_settings(s)
+                code = cloud_sync.sanitize_code("acc_" + acc.get("uid", ""))
+                from dataclasses import asdict as _asdict
+                quizzes_data = [q.to_dict() for q in self.quizzes]
+                progress_data = {k: _asdict(v) for k, v in self.store.load_progress().items()}
+                cloud_sync.upload(code, "quizzes", quizzes_data)
+                cloud_sync.upload(code, "progress", progress_data)
+            except Exception:
+                pass  # auto-sync is best-effort; never disrupt the user
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _auto_sync_download(self, on_done=None):
+        """Silently download cloud quizzes + progress and merge into local data.
+
+        Called on startup/login so a fresh device pulls existing data.
+        """
+        settings = self.store.load_settings()
+        account = settings.get("account")
+        if not account:
+            if on_done:
+                on_done(False)
+            return
+
+        def worker():
+            merged = False
+            try:
+                acc = auth.ensure_valid(account)
+                if acc is not account:
+                    s = self.store.load_settings()
+                    s["account"] = acc
+                    self.store.save_settings(s)
+                code = cloud_sync.sanitize_code("acc_" + acc.get("uid", ""))
+                remote_quizzes = cloud_sync.download(code, "quizzes")
+                if remote_quizzes:
+                    local_by_id = {q.id: q for q in self.quizzes}
+                    for rq in remote_quizzes:
+                        try:
+                            quiz = Quiz.from_dict(rq)
+                            local_by_id[quiz.id] = quiz  # remote wins on conflict
+                        except Exception:
+                            continue
+                    self.quizzes = list(local_by_id.values())
+                    self._save_quizzes()
+                    merged = True
+                remote_progress = cloud_sync.download(code, "progress")
+                if remote_progress:
+                    self.store.merge_progress(remote_progress)
+                    merged = True
+            except Exception:
+                pass
+            if on_done:
+                self.after(0, lambda: on_done(merged))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _settings_card(self, parent, title, row):
+        """Create a settings section card with title."""
+        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                            border_width=1, border_color=COLORS["border"])
+        card.grid(row=row, column=0, sticky="ew", pady=(0, 12))
+        card.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(card)
+        ctk.CTkLabel(card, text=title, font=("Segoe UI", 14, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(12, 8), sticky="w")
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.grid(row=1, column=0, padx=15, pady=(0, 12), sticky="ew")
+        inner.grid_columnconfigure(0, weight=1)
+        return inner
+
     def show_settings(self):
         self._clear_main()
         frame = self._make_screen()
@@ -1351,150 +1600,150 @@ class App(ctk.CTk):
 
         settings = self.store.load_settings()
 
-        # API Key
-        ctk.CTkLabel(frame, text=t("settings.api_key"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=1, column=0, sticky="w")
-        api_entry = ctk.CTkEntry(frame, placeholder_text="sk-or-...", width=500, show="*")
-        api_entry.grid(row=2, column=0, sticky="w", pady=(5, 15))
+        # ── API Card ──
+        api_card = self._settings_card(frame, "KI-Konfiguration", row=1)
+        ctk.CTkLabel(api_card, text=t("settings.api_key"), font=("Segoe UI", 12, "bold"),
+                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
+        api_entry = ctk.CTkEntry(api_card, placeholder_text="sk-or-...", width=480, show="*",
+                                  corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"])
+        api_entry.grid(row=1, column=0, sticky="w", pady=(4, 10))
         if settings.get("api_key"):
             api_entry.insert(0, settings["api_key"])
 
-        # Model
-        ctk.CTkLabel(frame, text=t("settings.model"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=3, column=0, sticky="w")
-        model_entry = ctk.CTkEntry(frame, placeholder_text="nvidia/nemotron-3-super-120b-a12b:free", width=500)
-        model_entry.grid(row=4, column=0, sticky="w", pady=(5, 5))
+        ctk.CTkLabel(api_card, text=t("settings.model"), font=("Segoe UI", 12, "bold"),
+                    text_color=COLORS["text"]).grid(row=2, column=0, sticky="w")
+        model_entry = ctk.CTkEntry(api_card, placeholder_text="nvidia/nemotron-3-super-120b-a12b:free",
+                                    width=480, corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"])
+        model_entry.grid(row=3, column=0, sticky="w", pady=(4, 4))
         if settings.get("model"):
             model_entry.insert(0, settings["model"])
+        ctk.CTkLabel(api_card, text=t("settings.model_hint"),
+                    font=("Segoe UI", 10), text_color=COLORS["text_light"]
+                    ).grid(row=4, column=0, sticky="w")
 
-        ctk.CTkLabel(frame, text=t("settings.model_hint"),
-                    font=("Segoe UI", 11), text_color=COLORS["text_light"]
-                    ).grid(row=5, column=0, sticky="w", pady=(0, 10))
-
-        # Blocked models
-        ctk.CTkLabel(frame, text=t("settings.blocked_models"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=53, column=0, sticky="w", pady=(10, 0))
-        ctk.CTkLabel(frame, text=t("settings.blocked_hint"), font=("Segoe UI", 11),
-                    text_color=COLORS["text_light"], wraplength=500, justify="left"
-                    ).grid(row=54, column=0, sticky="w", pady=(2, 5))
-
-        blocked_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        blocked_frame.grid(row=55, column=0, sticky="w", pady=(0, 15))
+        # Model picker + blocked models inside API card
+        ctk.CTkLabel(api_card, text=t("settings.blocked_models"), font=("Segoe UI", 12, "bold"),
+                    text_color=COLORS["text"]).grid(row=5, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(api_card,
+                    text="Klicke auf ein Modell, um es oben als aktives Modell zu übernehmen. Mit dem 🔒-Schalter sperrst du teure Modelle.",
+                    font=("Segoe UI", 10),
+                    text_color=COLORS["text_light"], wraplength=470, justify="left"
+                    ).grid(row=6, column=0, sticky="w", pady=(2, 5))
+        blocked_frame = ctk.CTkFrame(api_card, fg_color="transparent")
+        blocked_frame.grid(row=7, column=0, sticky="w")
         from .ai_service import AIService as _AIS
         blocked_set = set(settings.get("disabled_models", []))
         blocked_vars = {}
+
+        def _use_model(mid):
+            model_entry.delete(0, "end")
+            model_entry.insert(0, mid)
+            model_entry.focus_set()
+
         for i, m in enumerate(_AIS.RECOMMENDED_MODELS):
             cost = m["cost_in"] + m["cost_out"]
-            cost_label = f"${cost:.1f}/1M"
+            cost_label = "gratis" if cost == 0 else f"${cost:.1f}/1M"
             icons = "👁" if m.get("vision") else "📝"
             var = BooleanVar(value=(m["id"] in blocked_set))
             blocked_vars[m["id"]] = var
             row_i = i // 2
             col_i = i % 2
-            ctk.CTkSwitch(blocked_frame, text=f"{m['name']} {icons} ({cost_label})",
-                         variable=var, font=("Segoe UI", 11)
-                         ).grid(row=row_i, column=col_i, padx=(0, 25), pady=2, sticky="w")
+            row_frame = ctk.CTkFrame(blocked_frame, fg_color="transparent")
+            row_frame.grid(row=row_i, column=col_i, padx=(0, 20), pady=2, sticky="w")
+            ctk.CTkButton(row_frame, text=f"{m['name']} {icons} ({cost_label})",
+                         font=("Segoe UI", 11), anchor="w", height=26,
+                         fg_color="transparent", text_color=COLORS["text"],
+                         hover_color=COLORS.get("card_hover", "#eef7f2"),
+                         command=lambda mid=m["id"]: _use_model(mid)
+                         ).pack(side="left")
+            ctk.CTkSwitch(row_frame, text="🔒", variable=var, width=44,
+                         font=("Segoe UI", 11)).pack(side="left", padx=(4, 0))
 
-        # Feature toggles
-        ctk.CTkLabel(frame, text="Features", font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=6, column=0, sticky="w")
-        feat_row = ctk.CTkFrame(frame, fg_color="transparent")
-        feat_row.grid(row=7, column=0, sticky="w", pady=(5, 15))
-        fsrs_switch = ctk.CTkSwitch(feat_row, text=t("settings.fsrs"))
-        fsrs_switch.grid(row=0, column=0, padx=(0, 20))
+        # ── Features Card ──
+        feat_inner = self._settings_card(frame, "Features", row=2)
+        fsrs_switch = ctk.CTkSwitch(feat_inner, text=t("settings.fsrs"))
+        fsrs_switch.grid(row=0, column=0, padx=(0, 20), sticky="w")
         if settings.get("use_fsrs", False):
             fsrs_switch.select()
-        img_switch = ctk.CTkSwitch(feat_row, text=t("settings.images"))
+        img_switch = ctk.CTkSwitch(feat_inner, text=t("settings.images"))
         img_switch.grid(row=0, column=1, padx=(0, 20))
         if settings.get("enable_images", False):
             img_switch.select()
-        aival_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_validation"))
+        aival_switch = ctk.CTkSwitch(feat_inner, text=t("settings.ai_validation"))
         aival_switch.grid(row=0, column=2, padx=(0, 20))
         if settings.get("ai_validation", False):
             aival_switch.select()
-        detailed_switch = ctk.CTkSwitch(feat_row, text=t("settings.detailed_answer"))
-        detailed_switch.grid(row=1, column=0, padx=(0, 20), pady=(8, 0))
+        detailed_switch = ctk.CTkSwitch(feat_inner, text=t("settings.detailed_answer"))
+        detailed_switch.grid(row=1, column=0, padx=(0, 20), pady=(8, 0), sticky="w")
         if settings.get("detailed_answer", False):
             detailed_switch.select()
-        math_switch = ctk.CTkSwitch(feat_row, text=t("settings.math_mode"))
+        math_switch = ctk.CTkSwitch(feat_inner, text=t("settings.math_mode"))
         math_switch.grid(row=1, column=1, padx=(0, 20), pady=(8, 0))
         if settings.get("math_mode", False):
             math_switch.select()
-        # ── EXPERIMENTAL: AI Question Creation ── START
-        ai_create_switch = ctk.CTkSwitch(feat_row, text=t("settings.ai_question_creation"))
-        ai_create_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0), columnspan=2)
+        ai_create_switch = ctk.CTkSwitch(feat_inner, text=t("settings.ai_question_creation"))
+        ai_create_switch.grid(row=2, column=0, padx=(0, 20), pady=(8, 0), columnspan=2, sticky="w")
         if settings.get("ai_question_creation", False):
             ai_create_switch.select()
-        # ── EXPERIMENTAL: AI Question Creation ── END
 
-        # Appearance & language
-        ctk.CTkLabel(frame, text=t("settings.appearance"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=8, column=0, sticky="w")
-        appear_row = ctk.CTkFrame(frame, fg_color="transparent")
-        appear_row.grid(row=9, column=0, sticky="w", pady=(5, 15))
-
-        dark_switch = ctk.CTkSwitch(appear_row, text=t("settings.dark_mode"))
-        dark_switch.grid(row=0, column=0, padx=(0, 30))
+        # ── Appearance Card ──
+        appear_inner = self._settings_card(frame, t("settings.appearance"), row=3)
+        dark_switch = ctk.CTkSwitch(appear_inner, text=t("settings.dark_mode"))
+        dark_switch.grid(row=0, column=0, padx=(0, 30), sticky="w")
         if is_dark():
             dark_switch.select()
-
-        ctk.CTkLabel(appear_row, text=t("settings.language"), font=("Segoe UI", 12),
+        ctk.CTkLabel(appear_inner, text=t("settings.language"), font=("Segoe UI", 12),
                     text_color=COLORS["text"]).grid(row=0, column=1, padx=(0, 8))
-        lang_menu = ctk.CTkOptionMenu(appear_row, values=["Deutsch", "English"], width=140)
+        lang_menu = ctk.CTkOptionMenu(appear_inner, values=["Deutsch", "English"], width=140)
         lang_menu.set("English" if get_language() == "en" else "Deutsch")
         lang_menu.grid(row=0, column=2)
 
-        # Learning profile / memory
-        ctk.CTkLabel(frame, text=t("memory.title"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=10, column=0, sticky="w", pady=(10, 0))
-        memory_switch = ctk.CTkSwitch(frame, text=t("memory.enable"), font=("Segoe UI", 12))
-        memory_switch.grid(row=11, column=0, sticky="w", pady=(5, 5))
+        # ── Memory Card ──
+        mem_inner = self._settings_card(frame, t("memory.title"), row=4)
+        memory_switch = ctk.CTkSwitch(mem_inner, text=t("memory.enable"), font=("Segoe UI", 12))
+        memory_switch.grid(row=0, column=0, sticky="w", pady=(0, 5))
         if settings.get("use_memory", False):
             memory_switch.select()
-
-        ctk.CTkLabel(frame, text=t("memory.template"), font=("Segoe UI", 11),
-                    text_color=COLORS["text_light"], wraplength=500, justify="left"
-                    ).grid(row=12, column=0, sticky="w", pady=(5, 5))
-        memory_text = ctk.CTkTextbox(frame, height=120, width=500, font=("Segoe UI", 12),
-                                     fg_color=COLORS["input_bg"])
-        memory_text.grid(row=13, column=0, sticky="w", pady=(0, 5))
+        ctk.CTkLabel(mem_inner, text=t("memory.template"), font=("Segoe UI", 10),
+                    text_color=COLORS["text_light"], wraplength=470, justify="left"
+                    ).grid(row=1, column=0, sticky="w", pady=(0, 4))
+        memory_text = ctk.CTkTextbox(mem_inner, height=100, width=480, font=("Segoe UI", 12),
+                                     fg_color=COLORS["input_bg"], corner_radius=RADIUS_SM)
+        memory_text.grid(row=2, column=0, sticky="w", pady=(0, 5))
         existing_memory = self.store.load_memory()
         if existing_memory:
             memory_text.insert("1.0", existing_memory)
-
         mem_entries = self.store.load_memory_entries()
-        mem_btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        mem_btn_frame.grid(row=131, column=0, sticky="w", pady=(0, 10))
+        mem_btn_frame = ctk.CTkFrame(mem_inner, fg_color="transparent")
+        mem_btn_frame.grid(row=3, column=0, sticky="w")
         ctk.CTkButton(mem_btn_frame, text=t("memory.manage"),
                      fg_color=COLORS["primary_light"], font=("Segoe UI", 12), width=200,
-                     command=self.show_memory_manager
+                     corner_radius=RADIUS_SM, command=self.show_memory_manager
                      ).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkLabel(mem_btn_frame, text=t("memory.count", n=len(mem_entries)),
                     font=("Segoe UI", 11), text_color=COLORS["text_light"]
                     ).grid(row=0, column=1)
 
-        # Quick actions editor link
-        ctk.CTkLabel(frame, text=t("qa.title"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=14, column=0, sticky="w", pady=(10, 0))
-        ctk.CTkButton(frame, text=t("qa.title"), fg_color=COLORS["primary_light"],
-                     font=("Segoe UI", 12), width=200,
+        # ── Quick Actions Card ──
+        qa_inner = self._settings_card(frame, t("qa.title"), row=5)
+        ctk.CTkButton(qa_inner, text=t("qa.title"), fg_color=COLORS["primary_light"],
+                     font=("Segoe UI", 12), width=200, corner_radius=RADIUS_SM,
                      command=self.show_quick_actions_editor
-                     ).grid(row=15, column=0, sticky="w", pady=(5, 15))
+                     ).grid(row=0, column=0, sticky="w")
 
-        # ── Cloud-Sync (geteilter Sync-Code mit der Mobile-App) ──
-        ctk.CTkLabel(frame, text=t("sync.title"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=16, column=0, sticky="w", pady=(10, 0))
-        ctk.CTkLabel(frame, text=t("sync.hint"), font=("Segoe UI", 11),
-                    text_color=COLORS["text_light"], wraplength=500, justify="left"
-                    ).grid(row=17, column=0, sticky="w", pady=(2, 5))
-        sync_entry = ctk.CTkEntry(frame, placeholder_text=t("sync.code_placeholder"), width=300)
-        sync_entry.grid(row=18, column=0, sticky="w", pady=(0, 8))
+        # ── Cloud-Sync Card ──
+        sync_inner = self._settings_card(frame, t("sync.title"), row=6)
+        ctk.CTkLabel(sync_inner, text=t("sync.hint"), font=("Segoe UI", 10),
+                    text_color=COLORS["text_light"], wraplength=470, justify="left"
+                    ).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        sync_entry = ctk.CTkEntry(sync_inner, placeholder_text=t("sync.code_placeholder"), width=300,
+                                   corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"])
+        sync_entry.grid(row=1, column=0, sticky="w", pady=(0, 8))
         if settings.get("sync_code"):
             sync_entry.insert(0, settings["sync_code"])
-
-        sync_status = ctk.CTkLabel(frame, text="", font=("Segoe UI", 11),
+        sync_status = ctk.CTkLabel(sync_inner, text="", font=("Segoe UI", 11),
                                    text_color=COLORS["text_light"])
-        sync_status.grid(row=20, column=0, sticky="w", pady=(2, 10))
+        sync_status.grid(row=3, column=0, sticky="w", pady=(2, 0))
 
         def _cloud_upload():
             code = cloud_sync.sanitize_code(sync_entry.get())
@@ -1549,7 +1798,7 @@ class App(ctk.CTk):
                         return
                     if quizzes_data is not None:
                         self.quizzes = [Quiz.from_dict(q) for q in quizzes_data]
-                        self.store.save_quizzes(self.quizzes)
+                        self._save_quizzes()
                     if progress_data is not None:
                         from .models import QuestionProgress as _QP
                         prog = {k: _QP(**v) for k, v in progress_data.items()}
@@ -1561,14 +1810,14 @@ class App(ctk.CTk):
 
             threading.Thread(target=work, daemon=True).start()
 
-        sync_btn_row = ctk.CTkFrame(frame, fg_color="transparent")
-        sync_btn_row.grid(row=19, column=0, sticky="w", pady=(0, 5))
+        sync_btn_row = ctk.CTkFrame(sync_inner, fg_color="transparent")
+        sync_btn_row.grid(row=2, column=0, sticky="w", pady=(0, 5))
         ctk.CTkButton(sync_btn_row, text=t("sync.upload"), fg_color=COLORS["primary"],
-                     font=("Segoe UI", 12), width=180, command=_cloud_upload
-                     ).grid(row=0, column=0, padx=(0, 10))
+                     font=("Segoe UI", 12), width=180, corner_radius=RADIUS_SM,
+                     command=_cloud_upload).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(sync_btn_row, text=t("sync.download"), fg_color=COLORS["primary_light"],
-                     font=("Segoe UI", 12), width=180, command=_cloud_download
-                     ).grid(row=0, column=1)
+                     font=("Segoe UI", 12), width=180, corner_radius=RADIUS_SM,
+                     command=_cloud_download).grid(row=0, column=1)
 
         def save():
             s = self.store.load_settings()
@@ -1597,17 +1846,19 @@ class App(ctk.CTk):
             self.header_title.configure(text=f"🎓 {t('app.header')}")
             self.header.configure(fg_color=COLORS["header_bg"])
             self.header_title.configure(text_color="white")
-            self.header_subtitle.configure(text_color="#a7f3d0")
+            self.header_subtitle.configure(text_color=COLORS["header_sub"])
             self.main_frame.configure(fg_color=COLORS["bg"])
             messagebox.showinfo("OK", t("settings.saved"))
             self.show_home()
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.grid(row=21, column=0, sticky="w", pady=(10, 0))
+        btn_frame.grid(row=7, column=0, sticky="w", pady=(10, 0))
         ctk.CTkButton(btn_frame, text=t("nav.save"), fg_color=COLORS["success"],
-                     command=save).grid(row=0, column=0, padx=(0, 10))
+                     corner_radius=RADIUS_SM, font=("Segoe UI", 13, "bold"),
+                     height=40, command=save).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_frame, text=t("nav.back"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=0, column=1)
+                     corner_radius=RADIUS_SM, command=self.show_home
+                     ).grid(row=0, column=1)
 
         def _reset_all():
             if not messagebox.askyesno("Zurücksetzen", "Wirklich ALLE Daten löschen?\nQuizze, Fortschritt, Statistiken — alles wird unwiderruflich gelöscht!"):
@@ -1626,7 +1877,8 @@ class App(ctk.CTk):
             self.show_home()
 
         ctk.CTkButton(btn_frame, text="Alle Daten zurücksetzen", fg_color=COLORS["danger"],
-                     font=("Segoe UI", 11), command=_reset_all).grid(row=0, column=2, padx=(20, 0))
+                     font=("Segoe UI", 11), corner_radius=RADIUS_SM,
+                     command=_reset_all).grid(row=0, column=2, padx=(20, 0))
 
     # ── MEMORY MANAGER ──
 
@@ -1788,9 +2040,11 @@ class App(ctk.CTk):
             for w in questions_frame.winfo_children():
                 w.destroy()
             for i, q in enumerate(quiz.questions):
-                qf = ctk.CTkFrame(questions_frame, fg_color=COLORS["card"], corner_radius=RADIUS_SM)
+                qf = ctk.CTkFrame(questions_frame, fg_color=COLORS["card"], corner_radius=RADIUS_SM,
+                                   border_width=1, border_color=COLORS["border"])
                 qf.grid(row=i, column=0, sticky="ew", pady=3)
                 qf.grid_columnconfigure(1, weight=1)
+                self._bind_card_hover(qf)
                 ctk.CTkLabel(qf, text=f"{i+1}.", width=30, font=("Segoe UI", 12, "bold")
                            ).grid(row=0, column=0, padx=8)
                 type_text = {
@@ -1799,6 +2053,7 @@ class App(ctk.CTk):
                     QuestionType.FREE_TEXT: "FT",
                     QuestionType.FILL_BLANK: "LT",
                     QuestionType.DRAG_DROP: "DD",
+                    QuestionType.DRAG_CATEGORY: "DK",
                     QuestionType.DIAGRAM_LABEL: "DL",
                 }.get(q.question_type, "?")
                 ctk.CTkLabel(qf, text=f"[{type_text}] {q.title or q.text[:50]}",
@@ -1841,7 +2096,7 @@ class App(ctk.CTk):
                 self.quizzes[idx] = quiz
             else:
                 self.quizzes.append(quiz)
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
             messagebox.showinfo("Gespeichert", f"Quiz '{quiz.name}' mit {len(quiz.questions)} Fragen gespeichert!")
             self.show_home()
 
@@ -1878,6 +2133,7 @@ class App(ctk.CTk):
             "Freitext": QuestionType.FREE_TEXT.value,
             "Lückentext": QuestionType.FILL_BLANK.value,
             "Drag & Drop (Zuordnung)": QuestionType.DRAG_DROP.value,
+            "Kategorien zuordnen": QuestionType.DRAG_CATEGORY.value,
             "Diagramm beschriften": QuestionType.DIAGRAM_LABEL.value,
             "Markieren (Bild)": QuestionType.MARK_IMAGE.value,
             "Mathe-Formel": QuestionType.MATH_FORMULA.value,
@@ -1936,6 +2192,7 @@ class App(ctk.CTk):
             for i, (lbl, val) in enumerate([
                 (t("ai_create.type_diagram"), "diagram_label"),
                 (t("ai_create.type_dnd"), "drag_drop"),
+                ("Kategorien", "drag_category"),
                 (t("ai_create.type_sc"), "single_choice"),
             ]):
                 ctk.CTkRadioButton(ai_type_frame, text=lbl, variable=ai_type_var, value=val,
@@ -2028,7 +2285,7 @@ class App(ctk.CTk):
                                 options_data.append({"text": o.get("text", ""),
                                                      "is_correct": o.get("is_correct", False)})
                             rebuild_options()
-                        elif rtype == "drag_drop" and result.get("drag_drop_pairs"):
+                        elif rtype in ("drag_drop", "drag_category") and result.get("drag_drop_pairs"):
                             question.drag_drop_pairs = []
                             for p in result["drag_drop_pairs"]:
                                 question.drag_drop_pairs.append(
@@ -2118,6 +2375,12 @@ class App(ctk.CTk):
                 q_img_entry.insert(0, question.image_path)
             ctk.CTkButton(img_frame, text=t("editor.image_add"), width=100,
                          command=lambda: self._browse_image(q_img_entry)).grid(row=0, column=2, padx=3)
+            ctk.CTkButton(img_frame, text="✏️ Bearbeiten", width=100,
+                         fg_color=COLORS["info"],
+                         command=lambda: self.show_image_editor(
+                             q_img_entry.get() if q_img_entry.get().strip() else None,
+                             on_save=lambda p: (q_img_entry.delete(0, "end"), q_img_entry.insert(0, p))
+                         )).grid(row=0, column=4, padx=3)
             def remove_img():
                 q_img_entry.delete(0, "end")
             ctk.CTkButton(img_frame, text=t("editor.image_remove"), width=100,
@@ -2186,8 +2449,9 @@ class App(ctk.CTk):
                     blanks_box.insert("1.0", "\n".join(question.blanks))
                 options_widgets.append(("blanks", blanks_box))
 
-            elif qt == QuestionType.DRAG_DROP.value:
-                ctk.CTkLabel(specific_frame, text="Zuordnungspaare (Begriff → Ziel)",
+            elif qt in (QuestionType.DRAG_DROP.value, QuestionType.DRAG_CATEGORY.value):
+                pair_label = "Zuordnungspaare (Element → Kategorie)" if qt == QuestionType.DRAG_CATEGORY.value else "Zuordnungspaare (Begriff → Ziel)"
+                ctk.CTkLabel(specific_frame, text=pair_label,
                            font=("Segoe UI", 13, "bold")).grid(row=0, column=0, sticky="w")
                 for i, pair in enumerate(question.drag_drop_pairs if question.drag_drop_pairs else [{"source": "", "target": ""}] * 3):
                     row_f = ctk.CTkFrame(specific_frame, fg_color="transparent")
@@ -2295,6 +2559,13 @@ class App(ctk.CTk):
                             command=browse_and_reload).grid(row=0, column=1, padx=(0, 6))
                 ctk.CTkButton(img_row, text="Bild laden", width=90, fg_color=COLORS["text_light"],
                             command=reload_diagram_canvas).grid(row=0, column=2)
+
+                def edit_diagram_img():
+                    p = img_entry.get().strip() if img_entry.get().strip() else None
+                    self.show_image_editor(p, on_save=lambda path: (
+                        img_entry.delete(0, "end"), img_entry.insert(0, path), reload_diagram_canvas()))
+                ctk.CTkButton(img_row, text="✏️ Bearbeiten", width=100, fg_color=COLORS["info"],
+                            command=edit_diagram_img).grid(row=0, column=3, padx=(6, 0))
 
                 # add new label
                 add_row = ctk.CTkFrame(specific_frame, fg_color="transparent")
@@ -2563,7 +2834,7 @@ class App(ctk.CTk):
                     if item[0] == "blanks":
                         text = item[1].get("1.0", "end-1c").strip()
                         question.blanks = [b.strip() for b in text.split("\n") if b.strip()]
-            elif qt == QuestionType.DRAG_DROP:
+            elif qt in (QuestionType.DRAG_DROP, QuestionType.DRAG_CATEGORY):
                 pairs = []
                 for item in options_widgets:
                     if item[0] == "dd_pair":
@@ -2617,6 +2888,161 @@ class App(ctk.CTk):
         if path:
             entry.delete(0, "end")
             entry.insert(0, path)
+
+    def show_image_editor(self, image_path=None, on_save=None):
+        if Image is None:
+            messagebox.showerror("Fehler", "Pillow (PIL) wird benötigt. Installiere mit: pip install Pillow")
+            return
+
+        win = ctk.CTkToplevel(self)
+        win.title("Bild-Editor — Beschriftungen übermalen")
+        win.geometry("900x700")
+        win.transient(self)
+        win.grab_set()
+
+        state = {"img": None, "tk_img": None, "path": image_path, "color": "#FFFFFF",
+                 "brush": 20, "drawing": False, "scale": 1.0}
+
+        toolbar = ctk.CTkFrame(win, fg_color=COLORS["card"], height=50)
+        toolbar.pack(fill="x", padx=5, pady=5)
+
+        def load_image(path=None):
+            if not path:
+                path = filedialog.askopenfilename(
+                    filetypes=[("Bilder", "*.png *.jpg *.jpeg *.bmp *.gif *.webp"), ("Alle", "*.*")])
+            if not path or not os.path.exists(path):
+                return
+            state["path"] = path
+            state["img"] = Image.open(path).convert("RGB")
+            win.title(f"Bild-Editor — {Path(path).name}")
+            fit_and_show()
+
+        def fit_and_show():
+            img = state["img"]
+            if not img:
+                return
+            cw, ch = canvas.winfo_width(), canvas.winfo_height()
+            if cw < 10:
+                cw, ch = 850, 580
+            scale = min(cw / img.width, ch / img.height, 1.0)
+            state["scale"] = scale
+            disp = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
+            state["tk_img"] = ImageTk.PhotoImage(disp)
+            canvas.delete("all")
+            canvas.create_image(cw // 2, ch // 2, image=state["tk_img"], anchor="center")
+
+        def canvas_to_img(cx, cy):
+            img = state["img"]
+            if not img:
+                return None, None
+            cw, ch = canvas.winfo_width(), canvas.winfo_height()
+            scale = state["scale"]
+            dw, dh = int(img.width * scale), int(img.height * scale)
+            ox, oy = (cw - dw) // 2, (ch - dh) // 2
+            ix = int((cx - ox) / scale)
+            iy = int((cy - oy) / scale)
+            if 0 <= ix < img.width and 0 <= iy < img.height:
+                return ix, iy
+            return None, None
+
+        def on_press(e):
+            state["drawing"] = True
+            paint(e)
+
+        def on_move(e):
+            if state["drawing"]:
+                paint(e)
+
+        def on_release(e):
+            state["drawing"] = False
+
+        def paint(e):
+            img = state["img"]
+            if not img:
+                return
+            ix, iy = canvas_to_img(e.x, e.y)
+            if ix is None:
+                return
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(img)
+            r = state["brush"] // 2
+            draw.ellipse([ix - r, iy - r, ix + r, iy + r], fill=state["color"])
+            scale = state["scale"]
+            sx, sy = e.x, e.y
+            sr = int(r * scale)
+            canvas.create_oval(sx - sr, sy - sr, sx + sr, sy + sr,
+                             fill=state["color"], outline="", tags="paint")
+
+        def set_color(c):
+            state["color"] = c
+            white_btn.configure(border_color=COLORS["primary"] if c == "#FFFFFF" else COLORS["border"])
+            black_btn.configure(border_color=COLORS["primary"] if c == "#000000" else COLORS["border"])
+
+        def save_image():
+            img = state["img"]
+            if not img:
+                return
+            path = filedialog.asksaveasfilename(
+                initialfile=Path(state["path"]).stem + "_edit.png" if state["path"] else "edited.png",
+                defaultextension=".png",
+                filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg")])
+            if path:
+                img.save(path)
+                state["path"] = path
+                if on_save:
+                    on_save(path)
+                messagebox.showinfo("Gespeichert", f"Bild gespeichert: {Path(path).name}")
+
+        def save_overwrite():
+            img = state["img"]
+            if not img or not state["path"]:
+                return
+            if not messagebox.askyesno("Überschreiben", f"'{Path(state['path']).name}' wirklich überschreiben?"):
+                return
+            img.save(state["path"])
+            messagebox.showinfo("Gespeichert", "Bild überschrieben!")
+
+        ctk.CTkButton(toolbar, text="📂 Öffnen", width=90, command=load_image,
+                      fg_color=COLORS["primary"]).pack(side="left", padx=4)
+
+        white_btn = ctk.CTkButton(toolbar, text="⬜ Weiß", width=80,
+                                  fg_color="#f0f0f0", text_color="#000",
+                                  border_width=2, border_color=COLORS["primary"],
+                                  hover_color="#e0e0e0",
+                                  command=lambda: set_color("#FFFFFF"))
+        white_btn.pack(side="left", padx=4)
+
+        black_btn = ctk.CTkButton(toolbar, text="⬛ Schwarz", width=90,
+                                  fg_color="#333333", text_color="#fff",
+                                  border_width=2, border_color=COLORS["border"],
+                                  hover_color="#555555",
+                                  command=lambda: set_color("#000000"))
+        black_btn.pack(side="left", padx=4)
+
+        ctk.CTkLabel(toolbar, text="Pinsel:", font=("Segoe UI", 12)).pack(side="left", padx=(12, 4))
+        brush_label = ctk.CTkLabel(toolbar, text="20px", font=("Segoe UI", 12, "bold"), width=40)
+        brush_label.pack(side="left")
+        brush_slider = ctk.CTkSlider(toolbar, from_=5, to=80, number_of_steps=15, width=140)
+        brush_slider.set(20)
+        def on_brush(v):
+            state["brush"] = int(v)
+            brush_label.configure(text=f"{int(v)}px")
+        brush_slider.configure(command=on_brush)
+        brush_slider.pack(side="left", padx=4)
+
+        ctk.CTkButton(toolbar, text="💾 Speichern als", width=110, command=save_image,
+                      fg_color=COLORS["success"]).pack(side="right", padx=4)
+        ctk.CTkButton(toolbar, text="💾 Überschreiben", width=110, command=save_overwrite,
+                      fg_color=COLORS["warning"]).pack(side="right", padx=4)
+
+        canvas = tk.Canvas(win, bg="#888888", highlightthickness=0, cursor="crosshair")
+        canvas.pack(fill="both", expand=True, padx=5, pady=(0, 5))
+        canvas.bind("<Button-1>", on_press)
+        canvas.bind("<B1-Motion>", on_move)
+        canvas.bind("<ButtonRelease-1>", on_release)
+
+        if image_path and os.path.exists(image_path):
+            win.after(100, lambda: load_image(image_path))
 
     def _load_diagram_image(self, image_path, max_w=520, max_h=360):
         """Load and scale a diagram image. Returns (PhotoImage|None, width, height)."""
@@ -2744,6 +3170,7 @@ class App(ctk.CTk):
         If LaTeX found and matplotlib available: uses tk.Text with embedded images.
         Otherwise: falls back to CTkLabel with plain-text formulas."""
         tc = text_color or COLORS["text"]
+        text = autowrap_latex(text)
         if not has_latex(text):
             lbl = ctk.CTkLabel(parent, text=text, font=font, text_color=tc,
                                wraplength=wraplength, justify="left")
@@ -2823,8 +3250,8 @@ class App(ctk.CTk):
 
     # ── AI GENERATE ──
 
-    def _file_dialog_with_pdf(self):
-        return filedialog.askopenfilename(filetypes=[
+    def _file_dialog_with_pdf(self, multiple=False):
+        ft = [
             ("Dokumente", "*.pdf *.pptx *.docx *.txt *.md *.csv *.png *.jpg"),
             ("PDF", "*.pdf"),
             ("PowerPoint", "*.pptx"),
@@ -2832,7 +3259,10 @@ class App(ctk.CTk):
             ("Bilder", "*.png *.jpg *.jpeg"),
             ("Text", "*.txt *.md"),
             ("Alle", "*.*"),
-        ])
+        ]
+        if multiple:
+            return filedialog.askopenfilenames(filetypes=ft)
+        return filedialog.askopenfilename(filetypes=ft)
 
     def _build_model_selector(self, parent, row_start: int, topic: str = "") -> tuple:
         """Build model dropdown with recommendations. Returns (model_var, model_id_map, menu_widget, rec_frame, next_row)."""
@@ -3074,378 +3504,6 @@ class App(ctk.CTk):
 
     # ── FORMULA SHEET (FoSa) ──
 
-    def show_formula_sheets(self):
-        self._clear_main()
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=t("fosa.title"), font=("Segoe UI", 18, "bold"),
-                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ctk.CTkLabel(scroll, text=t("fosa.intro"), font=("Segoe UI", 12),
-                     text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 15))
-
-        ctk.CTkButton(scroll, text=t("fosa.new"), fg_color=COLORS["success"],
-                      command=self.show_create_formula_sheet
-                      ).grid(row=2, column=0, sticky="w", pady=(0, 15))
-
-        if not self.formula_sheets:
-            ctk.CTkLabel(scroll, text=t("fosa.empty"), font=("Segoe UI", 13),
-                         text_color=COLORS["text_light"]).grid(row=3, column=0, pady=30)
-        else:
-            for i, sheet in enumerate(self.formula_sheets):
-                card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
-                                    border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
-                card.grid(row=3 + i, column=0, sticky="ew", pady=5)
-                card.grid_columnconfigure(1, weight=1)
-                ctk.CTkFrame(card, fg_color=COLORS["primary"], width=5, corner_radius=3
-                             ).grid(row=0, column=0, rowspan=2, sticky="ns", pady=8)
-                info = ctk.CTkFrame(card, fg_color="transparent")
-                info.grid(row=0, column=1, padx=15, pady=10, sticky="w")
-                ctk.CTkLabel(info, text=sheet.name, font=("Segoe UI", 15, "bold"),
-                             text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
-                sub = sheet.subject + "  ·  " if sheet.subject else ""
-                ctk.CTkLabel(info, text=f"{sub}{t('fosa.count', n=len(sheet.formulas))}",
-                             font=("Segoe UI", 11), text_color=COLORS["text_light"]
-                             ).grid(row=1, column=0, sticky="w")
-                btns = ctk.CTkFrame(card, fg_color="transparent")
-                btns.grid(row=0, column=2, padx=10, pady=10)
-                ctk.CTkButton(btns, text=t("home.open"), width=75, height=30, corner_radius=RADIUS_MD,
-                              fg_color=COLORS["primary"], font=("Segoe UI", 12, "bold"),
-                              command=lambda s=sheet: self.show_formula_sheet_view(s)
-                              ).grid(row=0, column=0, padx=3)
-                ctk.CTkButton(btns, text="✕", width=30, height=30, corner_radius=RADIUS_MD,
-                              fg_color=COLORS["danger"],
-                              command=lambda s=sheet: self._delete_formula_sheet(s)
-                              ).grid(row=0, column=1, padx=3)
-
-        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                      command=self.show_home).grid(row=3 + len(self.formula_sheets) + 1,
-                                                   column=0, sticky="w", pady=15)
-
-    def _delete_formula_sheet(self, sheet):
-        if messagebox.askyesno(t("fosa.title"), t("fosa.delete_confirm", name=sheet.name)):
-            self.formula_sheets = [s for s in self.formula_sheets if s.id != sheet.id]
-            self.store.save_formula_sheets(self.formula_sheets)
-            self.show_formula_sheets()
-
-    def show_create_formula_sheet(self):
-        self._clear_main()
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=t("fosa.new"), font=("Segoe UI", 18, "bold"),
-                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ctk.CTkLabel(scroll, text=t("fosa.new_sub"), font=("Segoe UI", 12),
-                     text_color=COLORS["text_light"]).grid(row=1, column=0, sticky="w", pady=(0, 20))
-
-        file_var = StringVar()
-        file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        file_frame.grid(row=2, column=0, sticky="ew")
-        ctk.CTkEntry(file_frame, textvariable=file_var, width=400,
-                     placeholder_text=t("fosa.pick_file")).grid(row=0, column=0, padx=(0, 10))
-
-        def pick():
-            path = self._file_dialog_with_pdf()
-            if path:
-                file_var.set(path)
-                if not name_entry.get().strip():
-                    name_entry.insert(0, Path(path).stem)
-        ctk.CTkButton(file_frame, text=t("fosa.browse"), width=100, command=pick
-                      ).grid(row=0, column=1)
-
-        ctk.CTkLabel(scroll, text=t("fosa.name"), font=("Segoe UI", 13, "bold")
-                     ).grid(row=3, column=0, sticky="w", pady=(15, 0))
-        name_entry = ctk.CTkEntry(scroll, width=400, placeholder_text=t("fosa.name_ph"))
-        name_entry.grid(row=4, column=0, sticky="w", pady=5)
-
-        progress_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12),
-                                      text_color=COLORS["primary"])
-        progress_label.grid(row=5, column=0, sticky="w", pady=10)
-        progress_bar = ctk.CTkProgressBar(scroll, width=400)
-        progress_bar.grid(row=6, column=0, sticky="w")
-        progress_bar.set(0)
-
-        def build():
-            if not file_var.get():
-                messagebox.showwarning("Hinweis", t("fosa.no_file"))
-                return
-            if not self.ai.api_key:
-                messagebox.showwarning("Hinweis", t("fosa.no_key"))
-                return
-
-            def run():
-                def progress_cb(current, total):
-                    self.after(0, lambda c=current, tt=total: (
-                        progress_label.configure(text=t("fosa.progress", c=c, t=tt)),
-                        progress_bar.set(c / tt),
-                    ))
-                try:
-                    sheet = self.ai.build_formula_sheet(
-                        file_var.get(), name=name_entry.get().strip(),
-                        progress_callback=progress_cb)
-                except Exception as exc:
-                    msg = str(exc)
-                    self.after(0, lambda m=msg: messagebox.showerror("Fehler", m))
-                    return
-
-                def done():
-                    if sheet.formulas:
-                        self.formula_sheets.append(sheet)
-                        self.store.save_formula_sheets(self.formula_sheets)
-                        messagebox.showinfo(t("fosa.title"),
-                                            t("fosa.done", n=len(sheet.formulas)))
-                        self.show_formula_sheet_view(sheet)
-                    else:
-                        progress_label.configure(text=t("fosa.none"))
-                self.after(0, done)
-
-            threading.Thread(target=run, daemon=True).start()
-
-        btn_f = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_f.grid(row=7, column=0, sticky="w", pady=15)
-        ctk.CTkButton(btn_f, text=t("fosa.generate"), fg_color=COLORS["success"],
-                      command=build).grid(row=0, column=0, padx=(0, 10))
-        ctk.CTkButton(btn_f, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                      command=self.show_formula_sheets).grid(row=0, column=1)
-
-    def show_formula_sheet_view(self, sheet):
-        self._clear_main()
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=sheet.name, font=("Segoe UI", 18, "bold"),
-                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 2))
-        sub = sheet.subject + "  ·  " if sheet.subject else ""
-        ctk.CTkLabel(scroll, text=f"{sub}{t('fosa.count', n=len(sheet.formulas))}",
-                     font=("Segoe UI", 12), text_color=COLORS["text_light"]
-                     ).grid(row=1, column=0, sticky="w", pady=(0, 15))
-
-        row = 2
-        for f in sheet.formulas:
-            card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=12,
-                                border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
-            card.grid(row=row, column=0, sticky="ew", pady=6)
-            card.grid_columnconfigure(0, weight=1)
-            head = f.name
-            if f.category:
-                head += f"   [{f.category}]"
-            ctk.CTkLabel(card, text=head, font=("Segoe UI", 14, "bold"),
-                         text_color=COLORS["text"]).grid(row=0, column=0, sticky="w",
-                                                         padx=15, pady=(12, 4))
-            # LaTeX (rendered if possible, else plain)
-            if f.latex:
-                img = render_formula(f.latex, fontsize=18) if can_render_latex() else None
-                if img is not None:
-                    ctk_img = ctk.CTkImage(light_image=img, dark_image=img,
-                                           size=(img.width, img.height))
-                    lbl = ctk.CTkLabel(card, image=ctk_img, text="")
-                    lbl.image = ctk_img
-                    lbl.grid(row=1, column=0, sticky="w", padx=15, pady=4)
-                else:
-                    ctk.CTkLabel(card, text=latex_to_plain(f"${f.latex}$"),
-                                 font=("Consolas", 13), text_color=COLORS["text"]
-                                 ).grid(row=1, column=0, sticky="w", padx=15, pady=4)
-            if f.variables:
-                vars_txt = "  ·  ".join(
-                    f"{v.symbol}: {v.name}" + (f" [{v.unit}]" if v.unit else "")
-                    for v in f.variables)
-                ctk.CTkLabel(card, text=vars_txt, font=("Segoe UI", 11),
-                             text_color=COLORS["text_light"], wraplength=700, justify="left"
-                             ).grid(row=2, column=0, sticky="w", padx=15, pady=(2, 4))
-            if f.description:
-                ctk.CTkLabel(card, text=f.description, font=("Segoe UI", 11),
-                             text_color=COLORS["text_light"], wraplength=700, justify="left"
-                             ).grid(row=3, column=0, sticky="w", padx=15, pady=(0, 4))
-
-            # Action buttons per formula
-            btn_row = ctk.CTkFrame(card, fg_color="transparent")
-            btn_row.grid(row=4, column=0, sticky="w", padx=15, pady=(2, 12))
-            if f.expression and f.variables:
-                ctk.CTkButton(btn_row, text="Interaktiv", width=90, height=28,
-                             corner_radius=RADIUS_SM, fg_color=COLORS["success"],
-                             command=lambda fm=f: self._show_formula_explorer(fm, sheet)
-                             ).grid(row=0, column=0, padx=(0, 5))
-            ctk.CTkButton(btn_row, text="KI erklären", width=90, height=28,
-                         corner_radius=RADIUS_SM, fg_color=COLORS["primary"],
-                         command=lambda fm=f: self._show_formula_explain(fm, sheet)
-                         ).grid(row=0, column=1)
-            row += 1
-
-        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                      command=self.show_formula_sheets).grid(row=row, column=0, sticky="w", pady=15)
-
-    def _show_formula_explorer(self, formula: Formula, sheet):
-        """Interactive slider view: adjust variables, see result change live."""
-        self._clear_main()
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=formula.name, font=("Segoe UI", 20, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-
-        # Show formula image
-        if formula.latex and can_render_latex():
-            img = render_formula(formula.latex, fontsize=22)
-            if img:
-                ctk_img = ctk.CTkImage(light_image=img, dark_image=img,
-                                       size=(img.width, img.height))
-                lbl = ctk.CTkLabel(scroll, image=ctk_img, text="")
-                lbl.image = ctk_img
-                lbl.grid(row=1, column=0, sticky="w", pady=(0, 15))
-
-        # Result display
-        result_var = StringVar(value="–")
-        result_frame = ctk.CTkFrame(scroll, fg_color=COLORS["success"], corner_radius=RADIUS_MD)
-        result_frame.grid(row=2, column=0, sticky="ew", pady=(0, 15))
-        result_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(result_frame, text=f"{formula.result_symbol} =",
-                    font=("Segoe UI", 20, "bold"), text_color="white"
-                    ).grid(row=0, column=0, padx=15, pady=10)
-        result_label = ctk.CTkLabel(result_frame, textvariable=result_var,
-                                   font=("Segoe UI", 24, "bold"), text_color="white")
-        result_label.grid(row=0, column=1, padx=10, pady=10, sticky="w")
-
-        # Sliders for each variable
-        slider_vars = {}
-        slider_entries = {}
-
-        def recalculate(*_):
-            try:
-                local_vars = {}
-                for v in formula.variables:
-                    if v.symbol == formula.result_symbol:
-                        continue
-                    val = slider_vars[v.symbol].get()
-                    local_vars[v.symbol] = val
-                    slider_entries[v.symbol].delete(0, "end")
-                    slider_entries[v.symbol].insert(0, f"{val:.3g}")
-                import math as _math
-                safe = {"__builtins__": {}, "abs": abs, "sqrt": _math.sqrt,
-                        "sin": _math.sin, "cos": _math.cos, "tan": _math.tan,
-                        "log": _math.log, "pi": _math.pi, "e": _math.e,
-                        "exp": _math.exp, "pow": pow}
-                safe.update(local_vars)
-                res = eval(formula.expression, safe)
-                result_var.set(f"{res:.4g}")
-            except Exception:
-                result_var.set("–")
-
-        def on_entry_change(symbol):
-            try:
-                val = float(slider_entries[symbol].get())
-                slider_vars[symbol].set(val)
-                recalculate()
-            except ValueError:
-                pass
-
-        row = 3
-        for v in formula.variables:
-            if v.symbol == formula.result_symbol:
-                continue
-            vf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
-            vf.grid(row=row, column=0, sticky="ew", pady=3)
-            vf.grid_columnconfigure(1, weight=1)
-
-            label_text = f"{v.symbol}"
-            if v.name:
-                label_text += f" ({v.name})"
-            if v.unit:
-                label_text += f" [{v.unit}]"
-            ctk.CTkLabel(vf, text=label_text, font=("Segoe UI", 12, "bold"),
-                        text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(8, 2), sticky="w")
-
-            sv = tk.DoubleVar(value=1.0)
-            slider_vars[v.symbol] = sv
-
-            slider = ctk.CTkSlider(vf, from_=0.01, to=100, variable=sv,
-                                  command=lambda val, s=v.symbol: recalculate())
-            slider.grid(row=1, column=0, columnspan=2, sticky="ew", padx=15, pady=(0, 2))
-
-            entry = ctk.CTkEntry(vf, width=80, font=("Segoe UI", 12))
-            entry.insert(0, "1.0")
-            entry.grid(row=0, column=1, padx=15, pady=(8, 2), sticky="e")
-            entry.bind("<Return>", lambda e, s=v.symbol: on_entry_change(s))
-            slider_entries[v.symbol] = entry
-
-            row += 1
-
-        recalculate()
-
-        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
-                     command=lambda: self.show_formula_sheet_view(sheet)
-                     ).grid(row=row, column=0, sticky="w", pady=15)
-
-    def _show_formula_explain(self, formula: Formula, sheet):
-        """AI explanation of a formula with style selection."""
-        self._clear_main()
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=formula.name, font=("Segoe UI", 20, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-
-        # Show formula
-        if formula.latex and can_render_latex():
-            img = render_formula(formula.latex, fontsize=20)
-            if img:
-                ctk_img = ctk.CTkImage(light_image=img, dark_image=img,
-                                       size=(img.width, img.height))
-                lbl = ctk.CTkLabel(scroll, image=ctk_img, text="")
-                lbl.image = ctk_img
-                lbl.grid(row=1, column=0, sticky="w", pady=(0, 15))
-
-        # Style selector
-        style_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
-        style_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-        ctk.CTkLabel(style_frame, text="Erklär-Stil wählen:", font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
-
-        styles = [
-            ("Brain Rot 🧠", "brain_rot"),
-            ("Wissenschaftlich 🔬", "wissenschaftlich"),
-            ("Klasse 1-4 🎒", "klasse_1_4"),
-            ("Klasse 5-7 📐", "klasse_5_7"),
-            ("Klasse 8-10 🧮", "klasse_8_10"),
-            ("Klasse 11-13 🎓", "klasse_11_13"),
-        ]
-
-        style_var = StringVar(value="wissenschaftlich")
-        btn_frame = ctk.CTkFrame(style_frame, fg_color="transparent")
-        btn_frame.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="w")
-        for i, (label, key) in enumerate(styles):
-            ctk.CTkRadioButton(btn_frame, text=label, variable=style_var, value=key,
-                              font=("Segoe UI", 12)).grid(row=i // 3, column=i % 3, padx=10, pady=3, sticky="w")
-
-        # Output area
-        output_box = ctk.CTkTextbox(scroll, width=700, height=350, font=("Segoe UI", 12),
-                                    state="disabled")
-        loading_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12),
-                                    text_color=COLORS["text_light"])
-
-        def generate():
-            loading_label.configure(text="KI generiert Erklärung...")
-            loading_label.grid(row=4, column=0, sticky="w", pady=5)
-            output_box.grid_forget()
-
-            def _run():
-                vars_data = [{"symbol": v.symbol, "name": v.name, "unit": v.unit}
-                            for v in formula.variables]
-                result = self.ai.explain_formula(
-                    formula.name, formula.latex, vars_data, style_var.get())
-                def _show():
-                    loading_label.grid_forget()
-                    output_box.grid(row=4, column=0, sticky="ew", pady=5)
-                    output_box.configure(state="normal")
-                    output_box.delete("1.0", "end")
-                    output_box.insert("1.0", result or "Keine Erklärung erhalten.")
-                    output_box.configure(state="disabled")
-                self.after(0, _show)
-
-            threading.Thread(target=_run, daemon=True).start()
-
-        ctk.CTkButton(scroll, text="Erklärung generieren", fg_color=COLORS["primary"],
-                     height=36, font=("Segoe UI", 13, "bold"),
-                     command=generate).grid(row=3, column=0, sticky="w", pady=5)
-
-        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
-                     command=lambda: self.show_formula_sheet_view(sheet)
-                     ).grid(row=5, column=0, sticky="w", pady=15)
-
     def show_ai_generate(self):
         self._clear_main()
         scroll = self._make_screen()
@@ -3459,14 +3517,17 @@ class App(ctk.CTk):
 
         # File selection
         file_var = StringVar()
-        file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        file_frame.grid(row=2, column=0, sticky="ew")
-        ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
-                    ).grid(row=0, column=0, padx=(0, 10))
-        ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
+        file_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                   border_width=1, border_color=COLORS["border"])
+        file_frame.grid(row=2, column=0, sticky="ew", pady=(0, 5))
+        self._bind_card_hover(file_frame, accent_color=COLORS["primary"])
+        ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen...",
+                    corner_radius=RADIUS_SM, fg_color=COLORS["input_bg"]
+                    ).grid(row=0, column=0, padx=(15, 10), pady=12)
+        ctk.CTkButton(file_frame, text="Durchsuchen", width=100, corner_radius=RADIUS_SM,
                      command=lambda: self._on_file_selected_gen(file_var, est_label, chunk_slider, analysis_frame,
                                                                 (model_var, model_id_map, model_menu, model_rec_frame))
-                     ).grid(row=0, column=1)
+                     ).grid(row=0, column=1, padx=(0, 15), pady=12)
 
         # Estimation display
         est_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12, "bold"),
@@ -3492,6 +3553,7 @@ class App(ctk.CTk):
             ("Freitext", "free_text"),
             ("Lückentext", "fill_blank"),
             ("Drag & Drop", "drag_drop"),
+            ("Kategorien zuordnen", "drag_category"),
             ("Mathe-Formel", "math_formula"),
         ]
         qt_vars = {}
@@ -3536,9 +3598,23 @@ class App(ctk.CTk):
                 num_entry.configure(state="normal")
                 num_entry.delete(0, "end")
                 num_entry.insert(0, "20")
+        detail_var = StringVar(value="normal")
+        detail_frame = ctk.CTkFrame(num_frame, fg_color="transparent")
+        detail_frame.grid(row=2, column=0, columnspan=6, sticky="w", pady=(5, 0))
+        detail_frame.grid_remove()
+        ctk.CTkLabel(detail_frame, text="Genauigkeit:", font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 8))
+        for val, label in [("compact", "🎯 Kompakt"), ("normal", "⚖️ Normal"), ("thorough", "🔬 Max. gründlich")]:
+            ctk.CTkRadioButton(detail_frame, text=label, variable=detail_var, value=val,
+                              font=("Segoe UI", 11)).pack(side="left", padx=(0, 10))
+        def _toggle_auto_with_detail():
+            _toggle_auto()
+            if auto_count_var.get():
+                detail_frame.grid()
+            else:
+                detail_frame.grid_remove()
         ctk.CTkCheckBox(num_frame, text="So viele wie sinnvoll (KI entscheidet)",
                         variable=auto_count_var, font=("Segoe UI", 11),
-                        command=_toggle_auto).grid(row=1, column=0, columnspan=6, sticky="w", pady=(5, 0))
+                        command=_toggle_auto_with_detail).grid(row=1, column=0, columnspan=6, sticky="w", pady=(5, 0))
 
         def _get_num():
             if auto_count_var.get():
@@ -3648,7 +3724,8 @@ class App(ctk.CTk):
                     questions = self.ai.generate_from_slides(
                         file_var.get(), _get_num() or 20, progress_cb,
                         question_types=selected_types or None,
-                        focus_topics=focus, auto_count=is_auto)
+                        focus_topics=focus, auto_count=is_auto,
+                        detail_level=detail_var.get())
                 except Exception as exc:
                     msg = str(exc)
                     self.after(0, lambda m=msg: (
@@ -3657,10 +3734,11 @@ class App(ctk.CTk):
                     ))
                     return
 
-                # Optional: image/diagram questions from PDF via vision
-                if img_q_var.get():
+                # Auto-enable image extraction when no text questions generated (e.g. image-only PDFs)
+                use_images = img_q_var.get() or (not questions and file_var.get().lower().endswith(".pdf"))
+                if use_images:
                     self.after(0, lambda: progress_label.configure(
-                        text=t("gen.extracting_images")))
+                        text=t("gen.extracting_images") if img_q_var.get() else "Kein Text erkannt – extrahiere Bilder aus PDF…"))
                     img_questions = self._generate_image_questions(
                         file_var.get(), progress_label)
                     questions = (questions or []) + img_questions
@@ -3678,6 +3756,9 @@ class App(ctk.CTk):
                         progress_label.configure(
                             text=f"{len(questions)} Fragen in {em}:{es:02d} min generiert.")
                         progress_bar.set(1.0)
+                        # Remember the source file so we can optionally link it as
+                        # study material after the quiz is saved.
+                        quiz._source_file = file_var.get()
                         # Review screen: approve / edit / delete before saving
                         self._show_quiz_review(quiz)
                     else:
@@ -3723,34 +3804,57 @@ class App(ctk.CTk):
             self._run_analysis(path, analysis_frame, model_selector_state)
 
     def _on_file_selected_imp(self, file_var, est_label, chunk_slider, analysis_frame,
-                              model_selector_state=None):
-        path = self._file_dialog_with_pdf()
-        if not path:
-            return
-        file_var.set(path)
+                              model_selector_state=None, multi_paths=None):
+        if multi_paths:
+            paths = list(multi_paths)
+        else:
+            path = self._file_dialog_with_pdf()
+            if not path:
+                return
+            paths = [path]
+            file_var.set(path)
         self.ai.chunk_size = int(chunk_slider.get())
         self.ai.overlap = max(500, self.ai.chunk_size // 6)
-        self._save_source_text_bg(path)
+        for p in paths:
+            self._save_source_text_bg(p)
         selected_model = ""
         if model_selector_state:
             mv, mid_map = model_selector_state[0], model_selector_state[1]
             selected_model = mid_map.get(mv.get(), self.ai.model)
-        try:
-            est = self.ai.estimate_processing(path, mode="import",
-                                              model_override=selected_model)
-            size_kb = est["file_size"] / 1024
-            mins = est["est_total_seconds"] // 60
-            secs = est["est_total_seconds"] % 60
-            par_text = "parallel" if est["parallel"] else "sequentiell"
+        total_size = 0
+        total_chars = 0
+        total_chunks = 0
+        total_seconds = 0
+        total_cost = 0.0
+        parallel = False
+        for p in paths:
+            try:
+                est = self.ai.estimate_processing(p, mode="import",
+                                                  model_override=selected_model)
+                total_size += est["file_size"]
+                total_chars += est["text_length"]
+                total_chunks += est["num_chunks"]
+                total_seconds += est["est_total_seconds"]
+                total_cost += est.get("est_cost_usd", 0)
+                if est["parallel"]:
+                    parallel = True
+            except Exception:
+                pass
+        if total_size:
+            size_kb = total_size / 1024
+            mins = total_seconds // 60
+            secs = total_seconds % 60
+            par_text = "parallel" if parallel else "sequentiell"
+            files_text = f"{len(paths)} Dateien · " if len(paths) > 1 else ""
             est_label.configure(
-                text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
-                     f"{est['num_chunks']} Chunks ({par_text}) · "
+                text=f"{files_text}{size_kb:.0f} KB · {total_chars:,} Zeichen · "
+                     f"{total_chunks} Chunks ({par_text}) · "
                      f"ca. {mins}:{secs:02d} min · "
-                     f"~${est.get('est_cost_usd', 0):.3f}".replace(",", "."))
-        except Exception:
+                     f"~${total_cost:.3f}".replace(",", "."))
+        else:
             est_label.configure(text="Schätzung nicht möglich")
-        if self.ai.api_key:
-            self._run_analysis(path, analysis_frame, model_selector_state)
+        if self.ai.api_key and len(paths) == 1:
+            self._run_analysis(paths[0], analysis_frame, model_selector_state)
 
     def _save_source_text_bg(self, file_path: str):
         """Save extracted text from uploaded file in background for cloze reuse."""
@@ -3814,7 +3918,7 @@ class App(ctk.CTk):
                          for o in result.get("options", []) if o.get("text")]
             if img_path:
                 q.image_path = img_path
-        elif qtype == QuestionType.DRAG_DROP:
+        elif qtype in (QuestionType.DRAG_DROP, QuestionType.DRAG_CATEGORY):
             q.drag_drop_pairs = [DragDropPair(source=p.get("source", ""), target=p.get("target", ""))
                                  for p in result.get("drag_drop_pairs", [])]
         elif qtype == QuestionType.DIAGRAM_LABEL:
@@ -3854,6 +3958,7 @@ class App(ctk.CTk):
             QuestionType.FREE_TEXT: "Freitext",
             QuestionType.FILL_BLANK: "Lückentext",
             QuestionType.DRAG_DROP: "Drag & Drop",
+            QuestionType.DRAG_CATEGORY: "Kategorien",
             QuestionType.DIAGRAM_LABEL: "Diagramm",
             QuestionType.MARK_IMAGE: "Bild markieren",
             QuestionType.MATH_FORMULA: "Mathe-Formel",
@@ -3931,7 +4036,30 @@ class App(ctk.CTk):
                 return
             quiz.description = f"{len(quiz.questions)} Fragen"
             self.quizzes.append(quiz)
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
+
+            # Offer to link the source document as study material so the
+            # KI-Lernmodus can use it later.
+            src = getattr(quiz, "_source_file", "")
+            if src and Path(src).exists():
+                link = messagebox.askyesno(
+                    "Material verknüpfen",
+                    "Möchtest du das Quellmaterial (Skript/PDF) mit dem Quiz "
+                    "verknüpfen?\n\nDamit kann dir die KI im Lernmodus gezielt "
+                    "helfen — auch zu Themen, die nicht im Quiz vorkommen.")
+                if link:
+                    try:
+                        text = self.ai._read_file_as_text(src)
+                        if text and len(text.strip()) > 50:
+                            self.store.save_material(quiz.id, {
+                                "text": text.strip(),
+                                "name": Path(src).name,
+                                "saved": datetime.now().isoformat(),
+                            })
+                    except Exception as e:
+                        messagebox.showwarning(
+                            "Hinweis", f"Material konnte nicht gespeichert werden:\n{e}")
+
             messagebox.showinfo("OK", t("review.saved", n=len(quiz.questions)))
             self.show_home()
 
@@ -4009,7 +4137,7 @@ class App(ctk.CTk):
         win.geometry("400x220")
         win.grab_set()
 
-        type_options = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop"]
+        type_options = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category"]
         current = qq.question_type.value if hasattr(qq.question_type, 'value') else str(qq.question_type)
 
         ctk.CTkLabel(win, text=f"Aktueller Typ: {current}",
@@ -4065,22 +4193,35 @@ class App(ctk.CTk):
         self._clear_main()
         scroll = self._make_screen()
 
-        ctk.CTkLabel(scroll, text="Fragen aus Dokument importieren",
+        ctk.CTkLabel(scroll, text="Fragen aus Dokumenten importieren",
                     font=("Segoe UI", 18, "bold"), text_color=COLORS["text"]
                     ).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ctk.CTkLabel(scroll, text="Lade ein PDF, PowerPoint, Word oder Übungsskript hoch. Die KI erkennt und importiert alle Fragen (parallel).",
+        ctk.CTkLabel(scroll, text="Lade mehrere PDFs, PowerPoints, Word- oder Textdateien gleichzeitig hoch. Die KI erkennt und importiert alle Fragen.",
                     font=("Segoe UI", 12), text_color=COLORS["text_light"]
                     ).grid(row=1, column=0, sticky="w", pady=(0, 20))
 
         file_var = StringVar()
+        selected_files = []
         file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         file_frame.grid(row=2, column=0, sticky="ew")
-        ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
-                    ).grid(row=0, column=0, padx=(0, 10))
+        file_entry = ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Dateien auswählen...")
+        file_entry.grid(row=0, column=0, padx=(0, 10))
+
+        def browse_multi():
+            paths = self._file_dialog_with_pdf(multiple=True)
+            if paths:
+                selected_files.clear()
+                selected_files.extend(paths)
+                if len(paths) == 1:
+                    file_var.set(paths[0])
+                else:
+                    file_var.set(f"{len(paths)} Dateien ausgewählt")
+                self._on_file_selected_imp(file_var, est_label, chunk_slider, analysis_frame,
+                                           (model_var, model_id_map, model_menu, model_rec_frame),
+                                           multi_paths=selected_files)
+
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: self._on_file_selected_imp(file_var, est_label, chunk_slider, analysis_frame,
-                                                                (model_var, model_id_map, model_menu, model_rec_frame))
-                     ).grid(row=0, column=1)
+                     command=browse_multi).grid(row=0, column=1)
 
         # Estimation
         est_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12, "bold"),
@@ -4159,6 +4300,8 @@ class App(ctk.CTk):
                 messagebox.showwarning("Hinweis", "Bitte zuerst API-Key in den Einstellungen speichern!")
                 return
 
+            paths = list(selected_files) if selected_files else [file_var.get()]
+
             selected_model = model_id_map.get(model_var.get(), self.ai.model)
             self.ai.model = selected_model
             self.ai.chunk_size = int(chunk_slider.get())
@@ -4167,40 +4310,51 @@ class App(ctk.CTk):
             start_time = time.time()
 
             def run():
-                def progress_cb(current, total):
-                    elapsed = time.time() - start_time
-                    per_chunk = elapsed / max(1, current)
-                    remaining = int(per_chunk * max(0, total - current))
-                    r_min, r_sec = divmod(remaining, 60)
-                    self.after(0, lambda c=current, t=total, rm=r_min, rs=r_sec: (
-                        progress_label.configure(
-                            text=f"Chunk {c}/{t} · ca. {rm}:{rs:02d} verbleibend"),
-                        progress_bar.set(c / t)
-                    ))
+                all_questions = []
+                errors = []
+                sum_chunks = 0
+                sum_chunks_list = []
+                total_chunks_all = max(1, len(paths) * 10)
+                for fi, fpath in enumerate(paths):
+                    file_label = Path(fpath).name
+                    if len(paths) > 1:
+                        self.after(0, lambda fl=file_label, idx=fi: progress_label.configure(
+                            text=f"Datei {idx+1}/{len(paths)}: {fl}..."))
 
-                try:
-                    questions = self.ai.import_questions(file_var.get(), progress_cb)
-                except Exception as exc:
-                    msg = str(exc)
-                    self.after(0, lambda m=msg: (
-                        progress_label.configure(text="Fehler: " + m),
-                        messagebox.showerror("Fehler beim Lesen der Datei", m)
-                    ))
-                    return
+                    def progress_cb(current, total, _fi=fi):
+                        elapsed = time.time() - start_time
+                        per_chunk = elapsed / max(1, current + sum_chunks)
+                        remaining = int(per_chunk * max(0, total_chunks_all - current - sum_chunks))
+                        r_min, r_sec = divmod(remaining, 60)
+                        file_info = f"Datei {_fi+1}/{len(paths)} · " if len(paths) > 1 else ""
+                        self.after(0, lambda c=current, t=total, rm=r_min, rs=r_sec, finfo=file_info: (
+                            progress_label.configure(
+                                text=f"{finfo}Chunk {c}/{t} · ca. {rm}:{rs:02d} verbleibend"),
+                            progress_bar.set((sum_chunks + c) / max(1, total_chunks_all))
+                        ))
+
+                    try:
+                        questions = self.ai.import_questions(fpath, progress_cb)
+                        all_questions.extend(questions)
+                    except Exception as exc:
+                        errors.append(f"{file_label}: {exc}")
+                    sum_chunks += 10
+
                 def done():
                     elapsed = int(time.time() - start_time)
                     em, es = divmod(elapsed, 60)
-                    if questions:
+                    if all_questions:
                         quiz = Quiz(
                             name=name_entry.get().strip() or "Importiertes Quiz",
-                            description=f"{len(questions)} importierte Fragen",
+                            description=f"{len(all_questions)} importierte Fragen aus {len(paths)} Datei(en)",
                             created=datetime.now().isoformat(),
-                            questions=questions,
+                            questions=all_questions,
                         )
                         self.quizzes.append(quiz)
-                        self.store.save_quizzes(self.quizzes)
+                        self._save_quizzes()
+                        err_text = f"\n{len(errors)} Fehler" if errors else ""
                         messagebox.showinfo("Fertig",
-                            f"{len(questions)} Fragen in {em}:{es:02d} min importiert!")
+                            f"{len(all_questions)} Fragen in {em}:{es:02d} min importiert!{err_text}")
                         self.show_home()
                     else:
                         progress_label.configure(text="Keine Fragen importiert. Prüfe API-Key und Datei.")
@@ -4236,6 +4390,7 @@ class App(ctk.CTk):
                                       border_width=2, border_color=COLORS["primary"])
         deadline_card.grid(row=2, column=0, sticky="ew", pady=(0, 15))
         deadline_card.grid_columnconfigure(1, weight=1)
+        self._bind_card_hover(deadline_card, accent_color=COLORS["primary"])
 
         ctk.CTkLabel(deadline_card, text="Klausurtermin", font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
@@ -4253,7 +4408,7 @@ class App(ctk.CTk):
             if existing:
                 idx = self.quizzes.index(existing[0])
                 self.quizzes[idx] = quiz
-            self.store.save_quizzes(self.quizzes)
+            self._save_quizzes()
             self.show_quiz_modes(quiz)
 
         ctk.CTkButton(date_frame, text="Speichern", width=80, fg_color=COLORS["primary"],
@@ -4324,8 +4479,10 @@ class App(ctk.CTk):
         topics = sorted({q.topic.strip() for q in quiz.questions if q.topic.strip()})
         topic_var = StringVar(value=t("modes.all_topics"))
         if topics:
-            topic_row = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+            topic_row = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                     border_width=1, border_color=COLORS["border"])
             topic_row.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+            self._bind_card_hover(topic_row)
             ctk.CTkLabel(topic_row, text=t("modes.topic_filter"), font=("Segoe UI", 13, "bold"),
                         text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=10)
             ctk.CTkOptionMenu(topic_row, values=[t("modes.all_topics")] + topics,
@@ -4352,25 +4509,34 @@ class App(ctk.CTk):
              lambda: self._start_quiz(quiz, "topic", count=20, topic=selected_topic())),
             (t("modes.flashcards"), t("modes.flashcards_sub"), COLORS["primary_dark"],
              lambda: self._start_flashcards(quiz, topic=selected_topic())),
+            ("📖 KI-Lernmodus",
+             "Mit Quellmaterial" if self.store.get_material(quiz.id) else "Schwächen gezielt lernen",
+             COLORS["info"], lambda: self.show_study(quiz)),
         ]
         for i, (title_, desc, color, cmd) in enumerate(cards):
             card = ctk.CTkFrame(modes, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
                                border_width=3, border_color=color)
             card.grid(row=i // 2, column=i % 2, padx=8, pady=8, sticky="nsew")
             card.grid_columnconfigure(0, weight=1)
+            accent = ctk.CTkFrame(card, fg_color=color, height=4, corner_radius=2)
+            accent.grid(row=0, column=0, sticky="ew", padx=15, pady=(12, 0))
             ctk.CTkLabel(card, text=title_, font=("Segoe UI", 16, "bold"),
-                        text_color=color).grid(row=0, column=0, padx=20, pady=(15, 5))
+                        text_color=color).grid(row=1, column=0, padx=20, pady=(8, 5))
             ctk.CTkLabel(card, text=desc, font=("Segoe UI", 12),
                         text_color=COLORS["text_light"], wraplength=250
-                        ).grid(row=1, column=0, padx=20, pady=(0, 10))
+                        ).grid(row=2, column=0, padx=20, pady=(0, 10))
             ctk.CTkButton(card, text=t("modes.start"), fg_color=color, width=120,
-                         command=cmd).grid(row=2, column=0, padx=20, pady=(0, 15))
+                         corner_radius=RADIUS_SM, command=cmd
+                         ).grid(row=3, column=0, padx=20, pady=(0, 15))
+            self._bind_card_hover(card, accent_color=color)
 
         # Leitner stats
         qids = [q.id for q in quiz.questions]
         counts = self.sr.get_box_counts(qids)
-        stats = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
+        stats = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                              border_width=1, border_color=COLORS["border"])
         stats.grid(row=5, column=0, sticky="ew", pady=(10, 0))
+        self._bind_card_hover(stats)
         ctk.CTkLabel(stats, text="Lernstand (Leitner-Boxen)", font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, columnspan=5, padx=15, pady=(10, 5), sticky="w")
         labels = ["Box 1\n(Neu)", "Box 2", "Box 3", "Box 4", "Box 5\n(Sicher)"]
@@ -4388,6 +4554,7 @@ class App(ctk.CTk):
                                    border_width=2, border_color=COLORS["warning"])
         grade_card.grid(row=6, column=0, sticky="ew", pady=(10, 0))
         grade_card.grid_columnconfigure(0, weight=1)
+        self._bind_card_hover(grade_card, accent_color=COLORS["warning"])
         ctk.CTkLabel(grade_card, text=t("grade.title"), font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
 
@@ -4415,6 +4582,7 @@ class App(ctk.CTk):
                                     border_width=2, border_color=COLORS["success"])
         export_card.grid(row=7, column=0, sticky="ew", pady=(10, 0))
         export_card.grid_columnconfigure(1, weight=1)
+        self._bind_card_hover(export_card, accent_color=COLORS["success"])
         ctk.CTkLabel(export_card, text=t("export.title"), font=("Segoe UI", 14, "bold"),
                     text_color=COLORS["text"]).grid(row=0, column=0, columnspan=3, padx=15, pady=(10, 5), sticky="w")
         ctk.CTkLabel(export_card, text=t("export.hint"), font=("Segoe UI", 11),
@@ -4879,10 +5047,20 @@ class App(ctk.CTk):
         self._render_rich_text(card, q.text, font=("Segoe UI", 14), text_color=COLORS["text"],
                               wraplength=700, row=1, column=0, padx=22, pady=(5, 18), sticky="w")
 
+        # Hinweis-Badge: Single- vs. Multiple-Choice
+        if q.question_type == QuestionType.MULTIPLE_CHOICE:
+            ctk.CTkLabel(card, text="☑  Mehrere Antworten richtig", font=("Segoe UI", 12, "bold"),
+                         fg_color=COLORS["warning"], text_color="#14241a", corner_radius=99,
+                         padx=12, pady=4).grid(row=2, column=0, padx=22, pady=(0, 16), sticky="w")
+        elif q.question_type == QuestionType.SINGLE_CHOICE:
+            ctk.CTkLabel(card, text="◉  Genau eine Antwort richtig", font=("Segoe UI", 12, "bold"),
+                         fg_color=COLORS["primary_subtle"], text_color=COLORS["text_accent"], corner_radius=99,
+                         padx=12, pady=4).grid(row=2, column=0, padx=22, pady=(0, 16), sticky="w")
+
         # Question image (with zoom button)
         if q.image_path and os.path.exists(q.image_path):
             img_frame = ctk.CTkFrame(card, fg_color="transparent")
-            img_frame.grid(row=2, column=0, padx=15, pady=(0, 10), sticky="ew")
+            img_frame.grid(row=3, column=0, padx=15, pady=(0, 10), sticky="ew")
             img_frame.grid_columnconfigure(0, weight=1)
             photo, iw, ih = self._load_diagram_image(q.image_path, max_w=680, max_h=420)
             if photo and Image:
@@ -4924,25 +5102,48 @@ class App(ctk.CTk):
                                         border_color=COLORS["input_bg"], cursor="hand2")
                 row_card.grid(row=idx, column=0, padx=16, pady=5, sticky="ew")
                 row_card.grid_columnconfigure(1, weight=1)
-                rb = ctk.CTkRadioButton(row_card, text="", variable=answer_var, value=idx,
-                                        width=24)
-                rb.grid(row=0, column=0, padx=(14, 8), pady=12)
-                lbl = ctk.CTkLabel(row_card, text=option.text, font=("Segoe UI", 14),
+
+                # Letter badge (A, B, C, D...)
+                badge = ctk.CTkLabel(row_card, text=chr(65 + idx), width=32, height=32,
+                                     corner_radius=8, font=("Segoe UI", 13, "bold"),
+                                     fg_color=COLORS.get("border", "#e3ece6"),
+                                     text_color=COLORS["primary"])
+                badge.grid(row=0, column=0, padx=(14, 8), pady=12)
+
+                opt_display = latex_to_plain(autowrap_latex(option.text)) if has_latex(option.text) else option.text
+                lbl = ctk.CTkLabel(row_card, text=opt_display, font=("Segoe UI", 14),
                                    text_color=COLORS["text"], wraplength=560, justify="left")
                 lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
+
+                def on_enter(_e, rc=row_card):
+                    if answer_var.get() != idx:
+                        animate_color(rc, "fg_color", COLORS["input_bg"], COLORS.get("card_hover", "#eef7f2"), 100, 5)
+
+                def on_leave(_e, rc=row_card):
+                    if answer_var.get() != idx:
+                        animate_color(rc, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["input_bg"], 100, 5)
+
+                row_card.bind("<Enter>", on_enter)
+                row_card.bind("<Leave>", on_leave)
 
                 def _select(_e=None):
                     answer_var.set(idx)
                 row_card.bind("<Button-1>", _select)
                 lbl.bind("<Button-1>", _select)
-                return row_card
+                badge.bind("<Button-1>", _select)
+                return row_card, badge
 
-            sc_rows = [_make_sc_row(i, opt) for i, opt in enumerate(q.options)]
+            sc_items = [_make_sc_row(i, opt) for i, opt in enumerate(q.options)]
 
             def _refresh_sc(*_):
                 sel = answer_var.get()
-                for i, rc in enumerate(sc_rows):
-                    rc.configure(border_color=COLORS["primary"] if i == sel else COLORS["input_bg"])
+                for i, (rc, bg) in enumerate(sc_items):
+                    is_sel = i == sel
+                    rc.configure(border_color=COLORS["primary"] if is_sel else COLORS["input_bg"])
+                    bg.configure(
+                        fg_color=COLORS["primary"] if is_sel else COLORS.get("border", "#e3ece6"),
+                        text_color=COLORS.get("on_primary", "#fff") if is_sel else COLORS["primary"],
+                    )
             answer_var.trace_add("write", _refresh_sc)
             answer_widgets.append(answer_var)
 
@@ -4956,23 +5157,44 @@ class App(ctk.CTk):
                 row_card.grid(row=i, column=0, padx=16, pady=5, sticky="ew")
                 row_card.grid_columnconfigure(1, weight=1)
 
-                def _mk_refresh(rc, v):
+                badge = ctk.CTkLabel(row_card, text=chr(65 + i), width=32, height=32,
+                                     corner_radius=8, font=("Segoe UI", 13, "bold"),
+                                     fg_color=COLORS.get("border", "#e3ece6"),
+                                     text_color=COLORS["primary"])
+                badge.grid(row=0, column=0, padx=(14, 8), pady=12)
+
+                def _mk_refresh(rc, v, bg):
                     def _r(*_):
-                        rc.configure(border_color=COLORS["primary"] if v.get() else COLORS["input_bg"])
+                        is_sel = v.get()
+                        rc.configure(border_color=COLORS["primary"] if is_sel else COLORS["input_bg"])
+                        bg.configure(
+                            fg_color=COLORS["primary"] if is_sel else COLORS.get("border", "#e3ece6"),
+                            text_color=COLORS.get("on_primary", "#fff") if is_sel else COLORS["primary"],
+                        )
                     return _r
-                refresh = _mk_refresh(row_card, var)
-                cb = ctk.CTkCheckBox(row_card, text="", variable=var, width=24, command=refresh)
-                cb.grid(row=0, column=0, padx=(14, 8), pady=12)
+                refresh = _mk_refresh(row_card, var, badge)
                 lbl = ctk.CTkLabel(row_card, text=opt.text, font=("Segoe UI", 14),
                                    text_color=COLORS["text"], wraplength=560, justify="left")
                 lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
+
+                def _on_enter(_e, rc=row_card, v=var):
+                    if not v.get():
+                        animate_color(rc, "fg_color", COLORS["input_bg"], COLORS.get("card_hover", "#eef7f2"), 100, 5)
+
+                def _on_leave(_e, rc=row_card, v=var):
+                    if not v.get():
+                        animate_color(rc, "fg_color", COLORS.get("card_hover", "#eef7f2"), COLORS["input_bg"], 100, 5)
+
+                row_card.bind("<Enter>", _on_enter)
+                row_card.bind("<Leave>", _on_leave)
 
                 def _toggle(v=var, r=refresh):
                     v.set(not v.get())
                     r()
                 row_card.bind("<Button-1>", lambda e, fn=_toggle: fn())
                 lbl.bind("<Button-1>", lambda e, fn=_toggle: fn())
-                answer_widgets.append((cb, var, i))
+                badge.bind("<Button-1>", lambda e, fn=_toggle: fn())
+                answer_widgets.append((None, var, i))
 
         elif q.question_type == QuestionType.FREE_TEXT:
             entry = ctk.CTkEntry(answer_frame, width=500, placeholder_text="Deine Antwort eingeben...",
@@ -5212,6 +5434,120 @@ class App(ctk.CTk):
                 dnd_canvas.config(height=max(canvas_height, bbox[3] + 15))
 
             answer_widgets.append(("dnd_canvas", dnd_assignments))
+
+        elif q.question_type == QuestionType.DRAG_CATEGORY:
+            ctk.CTkLabel(answer_frame, text="Ordne die Elemente den richtigen Kategorien zu:",
+                        font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
+                        ).grid(row=0, column=0, padx=20, pady=(10, 5), sticky="w")
+
+            # Build category structure: {category_name: [correct_sources]}
+            categories = {}
+            for p in q.drag_drop_pairs:
+                categories.setdefault(p.target, [])
+            cat_names = list(categories.keys())
+
+            items = [p.source for p in q.drag_drop_pairs]
+            random.shuffle(items)
+
+            # State: which items are assigned to which category
+            cat_assignments = {cat: [] for cat in cat_names}
+            unassigned_items = list(items)
+
+            cat_container = ctk.CTkFrame(answer_frame, fg_color="transparent")
+            cat_container.grid(row=1, column=0, padx=10, pady=(0, 12), sticky="ew")
+
+            # Pool frame for unassigned items
+            pool_label = ctk.CTkLabel(cat_container, text="Verfügbare Elemente:",
+                                       font=("Segoe UI", 11, "bold"), text_color=COLORS["text_light"])
+            pool_label.grid(row=0, column=0, columnspan=max(len(cat_names), 1), sticky="w", padx=5, pady=(0, 5))
+            pool_frame = ctk.CTkFrame(cat_container, fg_color=COLORS.get("input_bg", "#f8f9fa"),
+                                       corner_radius=8, height=60)
+            pool_frame.grid(row=1, column=0, columnspan=max(len(cat_names), 1), sticky="ew", padx=5, pady=(0, 10))
+
+            # Category bucket frames
+            cat_frames = {}
+            cat_item_frames = {}
+            n_cols = min(len(cat_names), 4)
+            for ci, cat in enumerate(cat_names):
+                col = ci % n_cols
+                row_offset = 2 + (ci // n_cols) * 2
+                cat_container.grid_columnconfigure(col, weight=1)
+                bucket = ctk.CTkFrame(cat_container, fg_color=COLORS.get("card", "#ffffff"),
+                                       corner_radius=8, border_width=2,
+                                       border_color=COLORS.get("primary", "#3366cc"))
+                bucket.grid(row=row_offset, column=col, sticky="nsew", padx=5, pady=5)
+                bucket.grid_columnconfigure(0, weight=1)
+                ctk.CTkLabel(bucket, text=cat, font=("Segoe UI", 12, "bold"),
+                            text_color=COLORS.get("primary", "#3366cc")
+                            ).grid(row=0, column=0, padx=10, pady=(8, 5), sticky="w")
+                items_inner = ctk.CTkFrame(bucket, fg_color="transparent")
+                items_inner.grid(row=1, column=0, sticky="ew", padx=5, pady=(0, 8))
+                items_inner.grid_columnconfigure(0, weight=1)
+                cat_frames[cat] = bucket
+                cat_item_frames[cat] = items_inner
+
+            def _dc_refresh():
+                # Refresh pool
+                for w in pool_frame.winfo_children():
+                    w.destroy()
+                for idx_i, item in enumerate(unassigned_items):
+                    btn = ctk.CTkButton(pool_frame, text=item, width=120, height=30,
+                                         fg_color=COLORS.get("primary", "#3366cc"),
+                                         font=("Segoe UI", 11, "bold"),
+                                         command=lambda it=item: _dc_pick_item(it))
+                    btn.grid(row=idx_i // 4, column=idx_i % 4, padx=4, pady=4)
+                if not unassigned_items:
+                    ctk.CTkLabel(pool_frame, text="(leer)", font=("Segoe UI", 10),
+                                text_color=COLORS["text_light"]).grid(row=0, column=0, padx=10, pady=5)
+
+                # Refresh category buckets
+                for cat in cat_names:
+                    inner = cat_item_frames[cat]
+                    for w in inner.winfo_children():
+                        w.destroy()
+                    for ji, it in enumerate(cat_assignments[cat]):
+                        btn = ctk.CTkButton(inner, text=it, width=110, height=26,
+                                             fg_color=COLORS.get("success", "#27ae60"),
+                                             font=("Segoe UI", 10),
+                                             command=lambda item=it, c=cat: _dc_unassign(item, c))
+                        btn.grid(row=ji // 3, column=ji % 3, padx=3, pady=2)
+                    if not cat_assignments[cat]:
+                        ctk.CTkLabel(inner, text="hierher zuordnen", font=("Segoe UI", 9),
+                                    text_color=COLORS["text_light"]).grid(row=0, column=0, padx=5, pady=3)
+
+            _dc_selected_item = {"item": None}
+
+            def _dc_pick_item(item):
+                _dc_selected_item["item"] = item
+                # Show category selection buttons
+                for cat in cat_names:
+                    cat_frames[cat].configure(border_color=COLORS.get("warning", "#ff9800"))
+                    # Bind click on the whole bucket
+                    def assign(e=None, c=cat, it=item):
+                        if _dc_selected_item["item"]:
+                            _dc_assign(_dc_selected_item["item"], c)
+                    cat_frames[cat].bind("<Button-1>", assign)
+                    cat_item_frames[cat].bind("<Button-1>", assign)
+
+            def _dc_assign(item, category):
+                if item in unassigned_items:
+                    unassigned_items.remove(item)
+                    cat_assignments[category].append(item)
+                _dc_selected_item["item"] = None
+                for cat in cat_names:
+                    cat_frames[cat].configure(border_color=COLORS.get("primary", "#3366cc"))
+                    cat_frames[cat].unbind("<Button-1>")
+                    cat_item_frames[cat].unbind("<Button-1>")
+                _dc_refresh()
+
+            def _dc_unassign(item, category):
+                if item in cat_assignments[category]:
+                    cat_assignments[category].remove(item)
+                    unassigned_items.append(item)
+                _dc_refresh()
+
+            _dc_refresh()
+            answer_widgets.append(("drag_category", cat_assignments))
 
         elif q.question_type == QuestionType.DIAGRAM_LABEL:
             ctk.CTkLabel(answer_frame, text=t("dnd.diagram_hint"),
@@ -5767,6 +6103,12 @@ class App(ctk.CTk):
                             if val != "-- Auswählen --":
                                 result[target] = val
                 return result
+            elif q.question_type == QuestionType.DRAG_CATEGORY:
+                for item in answer_widgets:
+                    if isinstance(item, tuple) and len(item) == 2 and item[0] == "drag_category":
+                        # Return as {category: [items]} dict
+                        return dict(item[1])
+                return {}
             elif q.question_type == QuestionType.DIAGRAM_LABEL:
                 return diagram_get_positions() if diagram_get_positions else {}
             elif q.question_type == QuestionType.MARK_IMAGE:
@@ -5821,24 +6163,31 @@ class App(ctk.CTk):
                 for w in feedback_frame.winfo_children():
                     w.destroy()
                 color = COLORS["success"] if result.is_correct else COLORS["danger"]
-                fb = ctk.CTkFrame(feedback_frame, fg_color=color, corner_radius=RADIUS_LG)
+                bg_start = COLORS["card"]
+                fb = ctk.CTkFrame(feedback_frame, fg_color=bg_start, corner_radius=RADIUS_LG)
                 fb.grid(row=0, column=0, sticky="ew", pady=10)
                 fb.grid_columnconfigure(0, weight=1)
+                animate_color(fb, "fg_color", bg_start, color, 300, 10)
                 icon = "✓" if result.is_correct else "✗"
                 text = t("quiz.correct") if result.is_correct else t("quiz.wrong")
-                ctk.CTkLabel(fb, text=f"{icon}  {text}", font=("Segoe UI", 17, "bold"),
-                            text_color="white").grid(row=0, column=0, padx=22, pady=(12, 5), sticky="w")
+                icon_lbl = ctk.CTkLabel(fb, text=icon, font=("Segoe UI", 28, "bold"), text_color="white")
+                icon_lbl.grid(row=0, column=0, padx=(22, 8), pady=(14, 5), sticky="w")
+                ctk.CTkLabel(fb, text=text, font=("Segoe UI", 17, "bold"),
+                            text_color="white").grid(row=0, column=1, padx=(0, 22), pady=(14, 5), sticky="w")
                 ctk.CTkLabel(fb, text=t("quiz.points", score=result.score, max=result.max_score),
                             font=("Segoe UI", 12), text_color="white"
                             ).grid(row=1, column=0, padx=22, pady=(0, 5), sticky="w")
                 if not result.is_correct:
-                    ctk.CTkLabel(fb, text=f"✓ {result.correct_answer}",
+                    _ca = latex_to_plain(autowrap_latex(result.correct_answer)) if has_latex(result.correct_answer) else result.correct_answer
+                    ctk.CTkLabel(fb, text=f"✓ {_ca}",
                                 font=("Segoe UI", 13, "bold"), text_color="white", wraplength=600
                                 ).grid(row=2, column=0, padx=22, pady=(0, 12), sticky="w")
 
                 # KI validation for free text: check if semantically correct
-                if (not result.is_correct and q.question_type == QuestionType.FREE_TEXT
-                        and self.ai.api_key and result.user_answer.strip()):
+                _ki_text_types = {QuestionType.FREE_TEXT, QuestionType.FILL_BLANK, QuestionType.MATH_FORMULA}
+                _ki_user_ans = "; ".join(result.user_answer) if isinstance(result.user_answer, list) else (result.user_answer or "")
+                if (not result.is_correct and q.question_type in _ki_text_types
+                        and self.ai.api_key and _ki_user_ans.strip()):
                     ki_val_frame = ctk.CTkFrame(feedback_frame, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
                     ki_val_frame.grid(row=3, column=0, sticky="ew", pady=(5, 0))
                     ki_val_frame.grid_columnconfigure(0, weight=1)
@@ -5861,7 +6210,7 @@ class App(ctk.CTk):
                             {"role": "user", "content": (
                                 f"Frage: {q.text}\n"
                                 f"Musterlösung: {q.correct_text}\n"
-                                f"Antwort des Studenten: {result.user_answer}"
+                                f"Antwort des Studenten: {_ki_user_ans}"
                             )},
                         ]
                         resp = self.ai._call_api(msgs, max_tokens=512)
@@ -6284,174 +6633,6 @@ class App(ctk.CTk):
 
     # ── FOLDERS ──
 
-    def show_folders(self):
-        self._clear_main()
-        self.header_subtitle.configure(text=t("folder.title"))
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=t("folder.title"), font=("Segoe UI", 20, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-
-        # New folder button
-        new_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        new_frame.grid(row=1, column=0, sticky="w", pady=(5, 15))
-        name_entry = ctk.CTkEntry(new_frame, width=250, placeholder_text=t("folder.name_ph"))
-        name_entry.grid(row=0, column=0, padx=(0, 10))
-
-        def create_folder():
-            name = name_entry.get().strip()
-            if not name:
-                return
-            from datetime import date as _date
-            folder = Folder(name=name, created=_date.today().isoformat())
-            self.folders.append(folder)
-            self.store.save_folders(self.folders)
-            self.show_folders()
-
-        ctk.CTkButton(new_frame, text=t("folder.new"), fg_color=COLORS["success"],
-                     command=create_folder).grid(row=0, column=1)
-
-        if not self.folders:
-            ctk.CTkLabel(scroll, text=t("folder.empty"), font=("Segoe UI", 13),
-                        text_color=COLORS["text_light"]).grid(row=2, column=0, pady=20)
-        else:
-            for i, folder in enumerate(self.folders):
-                self._folder_card(scroll, folder, row=2 + i)
-
-        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=2 + len(self.folders), column=0, pady=20)
-
-    def _folder_card(self, parent, folder: Folder, row: int):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=12,
-                           border_width=1, border_color=COLORS.get("border", "#e0e4f0"))
-        card.grid(row=row, column=0, sticky="ew", pady=5)
-        card.grid_columnconfigure(1, weight=1)
-
-        accent = ctk.CTkFrame(card, fg_color=COLORS["primary_dark"], width=5, corner_radius=3)
-        accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 0), pady=8)
-
-        info = ctk.CTkFrame(card, fg_color="transparent")
-        info.grid(row=0, column=1, padx=15, pady=(10, 2), sticky="w")
-        ctk.CTkLabel(info, text=folder.name, font=("Segoe UI", 15, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w")
-        n_quizzes = len(folder.quiz_ids)
-        all_questions = sum(len(q.questions) for q in self.quizzes if q.id in folder.quiz_ids)
-        ctk.CTkLabel(info, text=f"{t('folder.quizzes', n=n_quizzes)} · {all_questions} Fragen",
-                    font=("Segoe UI", 11), text_color=COLORS["text_light"]
-                    ).grid(row=1, column=0, sticky="w")
-
-        btns = ctk.CTkFrame(card, fg_color="transparent")
-        btns.grid(row=0, column=2, padx=10, pady=10)
-        ctk.CTkButton(btns, text=t("home.open"), width=75, height=30, corner_radius=RADIUS_MD,
-                     fg_color=COLORS["primary"],
-                     command=lambda f=folder: self.show_folder_detail(f)).grid(row=0, column=0, padx=3)
-        ctk.CTkButton(btns, text="✕", width=30, height=30, corner_radius=RADIUS_MD,
-                     fg_color=COLORS["danger"],
-                     command=lambda f=folder: self._delete_folder(f)).grid(row=0, column=1, padx=3)
-
-    def _delete_folder(self, folder: Folder):
-        if messagebox.askyesno("Ordner löschen", t("folder.delete_confirm", name=folder.name)):
-            self.folders = [f for f in self.folders if f.id != folder.id]
-            self.store.save_folders(self.folders)
-            self.show_folders()
-
-    def show_folder_detail(self, folder: Folder):
-        self._clear_main()
-        self.header_subtitle.configure(text=folder.name)
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=folder.name, font=("Segoe UI", 20, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 10))
-
-        # Quizzes in this folder
-        folder_quizzes = [q for q in self.quizzes if q.id in folder.quiz_ids]
-        row = 1
-        if folder_quizzes:
-            for i, quiz in enumerate(folder_quizzes):
-                qf = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
-                qf.grid(row=row + i, column=0, sticky="ew", pady=3)
-                qf.grid_columnconfigure(1, weight=1)
-                ctk.CTkLabel(qf, text=quiz.name, font=("Segoe UI", 13, "bold"),
-                            text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=8, sticky="w")
-                ctk.CTkLabel(qf, text=f"{len(quiz.questions)} Fragen", font=("Segoe UI", 11),
-                            text_color=COLORS["text_light"]).grid(row=0, column=1, padx=10, pady=8, sticky="w")
-                ctk.CTkButton(qf, text=t("card.learn"), width=65, height=28, corner_radius=RADIUS_SM,
-                             fg_color=COLORS["primary"],
-                             command=lambda q=quiz: self.show_quiz_modes(q)).grid(row=0, column=2, padx=5, pady=5)
-                ctk.CTkButton(qf, text=t("folder.remove_quiz"), width=75, height=28, corner_radius=RADIUS_SM,
-                             fg_color=COLORS["danger"],
-                             command=lambda q=quiz: self._remove_quiz_from_folder(folder, q)).grid(row=0, column=3, padx=5, pady=5)
-            row += len(folder_quizzes)
-        else:
-            ctk.CTkLabel(scroll, text=t("folder.no_quizzes"), font=("Segoe UI", 12),
-                        text_color=COLORS["text_light"]).grid(row=row, column=0, pady=10)
-            row += 1
-
-        # Learn all button
-        if folder_quizzes:
-            all_questions = []
-            for q in folder_quizzes:
-                all_questions.extend(q.questions)
-            if all_questions:
-                ctk.CTkButton(scroll, text=f"{t('folder.learn_all')} ({len(all_questions)} Fragen)",
-                             fg_color=COLORS["success"], height=40, corner_radius=RADIUS_MD,
-                             font=("Segoe UI", 14, "bold"),
-                             command=lambda: self._start_folder_quiz(folder_quizzes)
-                             ).grid(row=row, column=0, sticky="ew", pady=(10, 15))
-                row += 1
-
-        # Add quiz section
-        ctk.CTkLabel(scroll, text=t("folder.available"), font=("Segoe UI", 14, "bold"),
-                    text_color=COLORS["text"]).grid(row=row, column=0, sticky="w", pady=(15, 5))
-        row += 1
-
-        available = [q for q in self.quizzes if q.id not in folder.quiz_ids]
-        if available:
-            for i, quiz in enumerate(available):
-                af = ctk.CTkFrame(scroll, fg_color=COLORS["row_neutral"], corner_radius=RADIUS_SM)
-                af.grid(row=row + i, column=0, sticky="ew", pady=2)
-                af.grid_columnconfigure(0, weight=1)
-                ctk.CTkLabel(af, text=f"{quiz.name} ({len(quiz.questions)} Fragen)",
-                            font=("Segoe UI", 12), text_color=COLORS["text"]
-                            ).grid(row=0, column=0, padx=15, pady=6, sticky="w")
-                ctk.CTkButton(af, text=t("folder.add_quiz"), width=100, height=28,
-                             corner_radius=RADIUS_SM, fg_color=COLORS["primary"],
-                             command=lambda q=quiz: self._add_quiz_to_folder(folder, q)
-                             ).grid(row=0, column=1, padx=10, pady=4)
-            row += len(available)
-        else:
-            ctk.CTkLabel(scroll, text="Alle Quizze bereits im Ordner.",
-                        font=("Segoe UI", 12), text_color=COLORS["text_light"]
-                        ).grid(row=row, column=0, pady=5)
-            row += 1
-
-        ctk.CTkButton(scroll, text=t("nav.back"), fg_color=COLORS["text_light"],
-                     command=self.show_folders).grid(row=row, column=0, pady=20)
-
-    def _add_quiz_to_folder(self, folder: Folder, quiz: Quiz):
-        if quiz.id not in folder.quiz_ids:
-            folder.quiz_ids.append(quiz.id)
-            self.store.save_folders(self.folders)
-        self.show_folder_detail(folder)
-
-    def _remove_quiz_from_folder(self, folder: Folder, quiz: Quiz):
-        folder.quiz_ids = [qid for qid in folder.quiz_ids if qid != quiz.id]
-        self.store.save_folders(self.folders)
-        self.show_folder_detail(folder)
-
-    def _start_folder_quiz(self, quizzes: list[Quiz]):
-        all_questions = []
-        for q in quizzes:
-            all_questions.extend(q.questions)
-        if not all_questions:
-            return
-        combined = Quiz(name="Alle Fragen", questions=all_questions)
-        self.current_quiz = combined
-        self.session = QuizSession(all_questions, mode="exam")
-        self._show_question()
-
-    # ── RESULTS ──
-
     def _show_results(self):
         was_daily = getattr(self, '_daily_mode', False)
         self._daily_mode = False
@@ -6466,19 +6647,29 @@ class App(ctk.CTk):
         self._results_session = self.session
         self._results_was_daily = was_daily
         if self.session.mode == "exam":
-            self._save_exam_result()
+            try:
+                self._save_exam_result()
+            except Exception:
+                pass
         scroll = self._make_screen()
+
+        # Always-present home button so the user is never stranded if a row
+        # below fails to render.
+        ctk.CTkButton(scroll, text="🏠 " + t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     width=160, command=(self.show_daily if was_daily else self.show_home)
+                     ).grid(row=500, column=0, sticky="w", pady=(10, 0))
 
         total = self.session.total_score
         maximum = self.session.max_possible_score
         pct = (total / maximum * 100) if maximum > 0 else 0
 
-        # Score card – celebratory hero
+        # Score card – celebratory hero with fade-in
         color = COLORS["success"] if pct >= 60 else COLORS["warning"] if pct >= 40 else COLORS["danger"]
         emoji = "🎉" if pct >= 80 else "👍" if pct >= 60 else "💪" if pct >= 40 else "📚"
-        score_card = ctk.CTkFrame(scroll, fg_color=color, corner_radius=RADIUS_XL)
+        score_card = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_XL)
         score_card.grid(row=0, column=0, sticky="ew", pady=(0, 18))
         score_card.grid_columnconfigure(0, weight=1)
+        animate_color(score_card, "fg_color", COLORS["card"], color, 400, 12)
 
         ctk.CTkLabel(score_card, text=f"{emoji}  {t('results.title')}",
                     font=("Segoe UI", 18, "bold"), text_color="white"
@@ -6503,6 +6694,9 @@ class App(ctk.CTk):
         # Auto-memory: record weak topics
         if self.store.load_settings().get("use_memory", False):
             self._auto_record_memory(self.session)
+
+        # Auto-sync progress to cloud (best-effort, silent)
+        self._auto_sync_background()
 
         # Details — clickable rows
         ctk.CTkLabel(scroll, text=t("results.details"), font=("Segoe UI", 16, "bold"),
@@ -6670,6 +6864,20 @@ class App(ctk.CTk):
         self._clear_main()
         scroll = self._make_screen()
 
+        # Always-present back button at the very top, so the user can never get
+        # stuck even if something below fails to render.
+        ctk.CTkButton(scroll, text="← " + t("results.back_to_results"),
+                     fg_color=COLORS["text_light"], width=200,
+                     command=self._show_results).grid(row=99, column=0, sticky="w", pady=(0, 10))
+        try:
+            self._build_result_detail(scroll, question, result)
+        except Exception as e:
+            ctk.CTkLabel(scroll, text=f"Fehler beim Anzeigen der Details:\n{e}",
+                        font=("Segoe UI", 12), text_color=COLORS["danger"],
+                        wraplength=600, justify="left").grid(row=0, column=0, sticky="w", pady=10)
+
+    def _build_result_detail(self, scroll, question: Question, result: AnswerResult | None):
+
         is_ok = result and result.is_correct
         status_color = COLORS["success"] if is_ok else COLORS["danger"]
         status_text = "✓ Richtig" if is_ok else "✗ Falsch"
@@ -6724,6 +6932,8 @@ class App(ctk.CTk):
             elif question.question_type == QuestionType.MULTIPLE_CHOICE:
                 correct_text = ", ".join(o.text for o in question.options if o.is_correct)
 
+            if correct_text and has_latex(correct_text):
+                correct_text = latex_to_plain(autowrap_latex(correct_text))
             ctk.CTkLabel(ca_frame, text=correct_text or "–", font=("Segoe UI", 12),
                         text_color=COLORS["text"], wraplength=500, justify="left"
                         ).grid(row=0, column=1, padx=10, pady=8, sticky="w")
@@ -6915,461 +7125,11 @@ class App(ctk.CTk):
             return q.correct_text or "—"
         if qt == QuestionType.FILL_BLANK:
             return " | ".join(q.blanks) or "—"
-        if qt == QuestionType.DRAG_DROP:
+        if qt in (QuestionType.DRAG_DROP, QuestionType.DRAG_CATEGORY):
             return "\n".join(f"{p.source} → {p.target}" for p in q.drag_drop_pairs) or "—"
         if qt == QuestionType.DIAGRAM_LABEL:
             return ", ".join(l.label for l in q.diagram_labels) or "—"
         return q.explanation or "—"
-
-    def show_stats(self):
-        self._clear_main()
-        self.header_subtitle.configure(text=t("stats.title"))
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=t("stats.title"), font=("Segoe UI", 20, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 15))
-
-        stats = self.store.load_stats()
-        if not stats:
-            ctk.CTkLabel(scroll, text=t("stats.no_data"), font=("Segoe UI", 13),
-                        text_color=COLORS["text_light"]).grid(row=1, column=0, pady=30)
-            ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                         command=self.show_home).grid(row=2, column=0, sticky="w", pady=15)
-            return
-
-        days = sorted(stats.keys())[-14:]  # last 14 days with activity
-        answered = [stats[d]["answered"] for d in days]
-        correct = [stats[d]["correct"] for d in days]
-        accuracy = [(c / a * 100 if a else 0) for a, c in zip(answered, correct)]
-
-        total_answered = sum(v["answered"] for v in stats.values())
-        total_correct = sum(v["correct"] for v in stats.values())
-        total_pct = (total_correct / total_answered * 100) if total_answered else 0
-
-        ctk.CTkLabel(scroll, text=t("stats.totals", answered=total_answered,
-                                    correct=total_correct, pct=total_pct),
-                    font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
-                    ).grid(row=1, column=0, sticky="w", pady=(0, 15))
-
-        labels = [d[5:] for d in days]  # MM-DD
-
-        self._bar_chart(scroll, 2, t("stats.per_day"), labels, answered, COLORS["primary"])
-        self._bar_chart(scroll, 3, t("stats.accuracy"), labels, accuracy,
-                        COLORS["success"], max_value=100, suffix="%")
-
-        # Box distribution across all quizzes
-        all_qids = [q.id for quiz in self.quizzes for q in quiz.questions]
-        box_counts = self.sr.get_box_counts(all_qids)
-        box_vals = [box_counts.get(b, 0) for b in range(1, 6)]
-        self._bar_chart(scroll, 4, t("stats.box_dist"),
-                        ["1", "2", "3", "4", "5"], box_vals,
-                        COLORS["warning"], colors=[COLORS[f"box{b}"] for b in range(1, 6)])
-
-        # Heatmap
-        self._draw_heatmap(scroll, 5)
-
-        # Streak info
-        current_streak, max_streak = self.store.get_streak()
-        streak_text = t("streak.current", n=current_streak) + "  ·  " + t("streak.best", n=max_streak)
-        ctk.CTkLabel(scroll, text=streak_text, font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["warning"]).grid(row=6, column=0, sticky="w", pady=(0, 10))
-
-        # Error diary link
-        diary = self.store.load_error_diary()
-        if diary:
-            ctk.CTkButton(scroll, text=t("diary.open_full", n=len(diary)),
-                         fg_color=COLORS["danger"], font=("Segoe UI", 12),
-                         command=self.show_error_diary).grid(row=7, column=0, sticky="w", pady=(0, 10))
-
-        ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=8, column=0, sticky="w", pady=15)
-
-    def _bar_chart(self, parent, row, title, labels, values, color,
-                   max_value=None, suffix="", colors=None):
-        """Render a simple bar chart on a tkinter Canvas."""
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
-        card.grid(row=row, column=0, sticky="ew", pady=(0, 12))
-        card.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(card, text=title, font=("Segoe UI", 14, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
-
-        n = max(1, len(values))
-        bar_w = 46
-        gap = 18
-        width = max(400, n * (bar_w + gap) + gap)
-        height = 200
-        top_pad, bottom_pad = 15, 30
-        canvas = tk.Canvas(card, width=width, height=height, bg=COLORS["canvas_bg"],
-                           highlightthickness=0)
-        canvas.grid(row=1, column=0, padx=15, pady=(0, 12), sticky="w")
-
-        mv = max_value if max_value is not None else (max(values) if values and max(values) > 0 else 1)
-        usable = height - top_pad - bottom_pad
-        for i, v in enumerate(values):
-            x0 = gap + i * (bar_w + gap)
-            bar_h = (v / mv) * usable if mv else 0
-            y1 = height - bottom_pad
-            y0 = y1 - bar_h
-            bcolor = colors[i] if colors else color
-            canvas.create_rectangle(x0, y0, x0 + bar_w, y1, fill=bcolor, outline="")
-            val_txt = f"{v:.0f}{suffix}" if suffix else f"{v:.0f}"
-            canvas.create_text(x0 + bar_w / 2, y0 - 8, text=val_txt,
-                               font=("Segoe UI", 9, "bold"), fill=COLORS["text"])
-            canvas.create_text(x0 + bar_w / 2, height - bottom_pad / 2, text=str(labels[i]),
-                               font=("Segoe UI", 8), fill=COLORS["text_light"])
-
-    # ── HEATMAP (GitHub-style) ──
-
-    def _draw_heatmap(self, parent, row_idx):
-        card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_MD)
-        card.grid(row=row_idx, column=0, sticky="ew", pady=(0, 12))
-        card.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(card, text=t("stats.heatmap"), font=("Segoe UI", 14, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, padx=15, pady=(10, 5), sticky="w")
-
-        stats = self.store.load_stats()
-        today = date.today()
-        weeks = 13
-        cell = 14
-        gap = 2
-        cols = weeks
-        rows = 7
-        width = cols * (cell + gap) + 50
-        height = rows * (cell + gap) + 25
-        canvas = tk.Canvas(card, width=width, height=height, bg=COLORS["canvas_bg"],
-                           highlightthickness=0)
-        canvas.grid(row=1, column=0, padx=15, pady=(0, 12), sticky="w")
-
-        day_labels = ["Mo", "", "Mi", "", "Fr", "", "So"]
-        for i, lbl in enumerate(day_labels):
-            if lbl:
-                canvas.create_text(18, i * (cell + gap) + cell // 2,
-                                   text=lbl, font=("Segoe UI", 8), fill=COLORS["text_light"])
-
-        start = today - __import__("datetime").timedelta(days=weeks * 7 - 1)
-        start = start - __import__("datetime").timedelta(days=start.weekday())
-
-        max_val = max((s.get("answered", 0) for s in stats.values()), default=1) or 1
-        greens = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"]
-        dark_greens = ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"]
-        palette = dark_greens if COLORS.get("canvas_bg", "#fff") == "#1a1a2e" else greens
-
-        d = start
-        for week in range(weeks):
-            for dow in range(7):
-                if d > today:
-                    d += __import__("datetime").timedelta(days=1)
-                    continue
-                key = d.isoformat()
-                val = stats.get(key, {}).get("answered", 0)
-                if val == 0:
-                    ci = 0
-                else:
-                    ci = min(4, max(1, int(val / max_val * 4)))
-                x = 35 + week * (cell + gap)
-                y = dow * (cell + gap)
-                canvas.create_rectangle(x, y, x + cell, y + cell,
-                                        fill=palette[ci], outline="")
-                d += __import__("datetime").timedelta(days=1)
-
-    # ── ERROR DIARY ──
-
-    def show_error_diary(self):
-        self._clear_main()
-        scroll = self._make_screen()
-
-        ctk.CTkLabel(scroll, text=t("diary.title"), font=("Segoe UI", 18, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-
-        diary = self.store.load_error_diary()
-        if not diary:
-            ctk.CTkLabel(scroll, text=t("diary.empty"), font=("Segoe UI", 13),
-                        text_color=COLORS["text_light"]).grid(row=1, column=0, pady=30)
-            ctk.CTkButton(scroll, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                         command=self.show_home).grid(row=2, column=0, sticky="w", pady=15)
-            return
-
-        # Filter
-        filter_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        filter_frame.grid(row=1, column=0, sticky="w", pady=(0, 10))
-        all_topics = sorted({e.get("topic", "") for e in diary if e.get("topic")})
-        filter_var = StringVar(value="all")
-        ctk.CTkLabel(filter_frame, text=t("diary.filter"), font=("Segoe UI", 12)
-                    ).grid(row=0, column=0, padx=(0, 8))
-        topic_options = [t("diary.all_topics")] + all_topics
-        filter_menu = ctk.CTkOptionMenu(filter_frame, values=topic_options, width=200,
-                                         command=lambda _: _refresh())
-        filter_menu.grid(row=0, column=1)
-
-        entries_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        entries_frame.grid(row=2, column=0, sticky="ew")
-        entries_frame.grid_columnconfigure(0, weight=1)
-
-        def _refresh():
-            for w in entries_frame.winfo_children():
-                w.destroy()
-            sel = filter_menu.get()
-            filtered = diary if sel == t("diary.all_topics") else [e for e in diary if e.get("topic") == sel]
-            by_date: dict[str, list] = {}
-            for e in reversed(filtered):
-                by_date.setdefault(e.get("date", "?"), []).append(e)
-
-            r = 0
-            for d, entries in list(by_date.items())[:30]:
-                ctk.CTkLabel(entries_frame, text=d, font=("Segoe UI", 12, "bold"),
-                            text_color=COLORS["primary"]).grid(row=r, column=0, sticky="w", pady=(10, 3))
-                r += 1
-                for e in entries:
-                    ef = ctk.CTkFrame(entries_frame, fg_color=COLORS["card"], corner_radius=RADIUS_SM)
-                    ef.grid(row=r, column=0, sticky="ew", pady=2)
-                    ef.grid_columnconfigure(0, weight=1)
-                    q_text = e.get("question", "?")
-                    if len(q_text) > 80:
-                        q_text = q_text[:80] + "..."
-                    ctk.CTkLabel(ef, text=q_text, font=("Segoe UI", 11),
-                                text_color=COLORS["text"], wraplength=500
-                                ).grid(row=0, column=0, padx=10, pady=(6, 0), sticky="w")
-                    detail = ""
-                    if e.get("topic"):
-                        detail += f"[{e['topic']}] "
-                    detail += f"Deine Antwort: {e.get('user_answer', '?')} → Richtig: {e.get('correct', '?')}"
-                    ctk.CTkLabel(ef, text=detail, font=("Segoe UI", 10),
-                                text_color=COLORS["danger"], wraplength=500
-                                ).grid(row=1, column=0, padx=10, pady=(0, 6), sticky="w")
-                    r += 1
-
-        _refresh()
-
-        btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        btn_frame.grid(row=3, column=0, sticky="w", pady=15)
-        def _clear_diary():
-            if messagebox.askyesno(t("diary.title"), t("diary.clear_confirm")):
-                self.store.save_error_diary([])
-                self.show_error_diary()
-        ctk.CTkButton(btn_frame, text=t("diary.clear"), fg_color=COLORS["danger"],
-                     font=("Segoe UI", 12), command=_clear_diary).grid(row=0, column=0, padx=(0, 10))
-        ctk.CTkButton(btn_frame, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=0, column=1)
-
-    # ── POMODORO TIMER ──
-
-    def show_pomodoro(self):
-        self._clear_main()
-        self.header_subtitle.configure(text=t("pomodoro.title"))
-        frame = self._make_screen()
-
-        ctk.CTkLabel(frame, text=t("pomodoro.title"), font=("Segoe UI", 22, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, pady=(0, 5))
-        ctk.CTkLabel(frame, text=t("pomodoro.hint"), font=("Segoe UI", 12),
-                    text_color=COLORS["text_light"]).grid(row=1, column=0, pady=(0, 20))
-
-        FOCUS, BREAK = 25 * 60, 5 * 60
-        state = {"remaining": FOCUS, "running": False, "phase": "focus", "round": 1, "job": None}
-
-        phase_label = ctk.CTkLabel(frame, text=t("pomodoro.focus"), font=("Segoe UI", 18, "bold"),
-                                   text_color=COLORS["danger"])
-        phase_label.grid(row=2, column=0, pady=(0, 5))
-        round_label = ctk.CTkLabel(frame, text=t("pomodoro.round", n=1), font=("Segoe UI", 12),
-                                   text_color=COLORS["text_light"])
-        round_label.grid(row=3, column=0, pady=(0, 10))
-        time_label = ctk.CTkLabel(frame, text="25:00", font=("Segoe UI", 64, "bold"),
-                                  text_color=COLORS["text"])
-        time_label.grid(row=4, column=0, pady=(0, 20))
-
-        def render():
-            m, s = divmod(state["remaining"], 60)
-            time_label.configure(text=f"{m:02d}:{s:02d}")
-            if state["phase"] == "focus":
-                phase_label.configure(text=t("pomodoro.focus"), text_color=COLORS["danger"])
-            else:
-                phase_label.configure(text=t("pomodoro.break"), text_color=COLORS["success"])
-            round_label.configure(text=t("pomodoro.round", n=state["round"]))
-
-        def tick():
-            if not state["running"]:
-                return
-            if state["remaining"] <= 0:
-                # switch phase
-                if state["phase"] == "focus":
-                    state["phase"] = "break"
-                    state["remaining"] = BREAK
-                else:
-                    state["phase"] = "focus"
-                    state["round"] += 1
-                    state["remaining"] = FOCUS
-                try:
-                    self.bell()
-                except Exception:
-                    pass
-                render()
-            else:
-                state["remaining"] -= 1
-                render()
-            state["job"] = self.after(1000, tick)
-
-        def start_pause():
-            state["running"] = not state["running"]
-            start_btn.configure(text=t("pomodoro.pause") if state["running"] else t("pomodoro.start"))
-            if state["running"]:
-                tick()
-
-        def reset():
-            state["running"] = False
-            state["phase"] = "focus"
-            state["round"] = 1
-            state["remaining"] = FOCUS
-            start_btn.configure(text=t("pomodoro.start"))
-            render()
-
-        btns = ctk.CTkFrame(frame, fg_color="transparent")
-        btns.grid(row=5, column=0, pady=10)
-        start_btn = ctk.CTkButton(btns, text=t("pomodoro.start"), fg_color=COLORS["success"],
-                                  width=120, command=start_pause)
-        start_btn.grid(row=0, column=0, padx=8)
-        ctk.CTkButton(btns, text=t("pomodoro.reset"), fg_color=COLORS["warning"],
-                     width=120, command=reset).grid(row=0, column=1, padx=8)
-        ctk.CTkButton(btns, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     width=120, command=self.show_home).grid(row=0, column=2, padx=8)
-        render()
-
-    # ── FLASHCARD MODE ──
-
-    def _start_flashcards(self, quiz: Quiz, topic: str | None = None):
-        cards = list(quiz.questions)
-        if topic:
-            cards = [q for q in cards if q.topic.strip() == topic]
-        if not cards:
-            messagebox.showinfo("Hinweis", "Keine Fragen für diese Auswahl.")
-            return
-        random.shuffle(cards)
-        self._flash_cards = cards
-        self._flash_index = 0
-        self._show_flashcard()
-
-    def _show_flashcard(self):
-        self._clear_main()
-        cards = getattr(self, "_flash_cards", [])
-        idx = getattr(self, "_flash_index", 0)
-        if idx >= len(cards):
-            self._flash_done()
-            return
-        q = cards[idx]
-        self.header_subtitle.configure(text=f"{t('modes.flashcards')} {idx + 1}/{len(cards)}")
-
-        frame = self._make_screen()
-        frame.grid_rowconfigure(1, weight=1)
-
-        ctk.CTkLabel(frame, text=t("flash.front"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["primary"]).grid(row=0, column=0, pady=(0, 5))
-
-        card = ctk.CTkFrame(frame, fg_color=COLORS["card"], corner_radius=12,
-                           border_width=2, border_color=COLORS["primary"])
-        card.grid(row=1, column=0, sticky="nsew", pady=(0, 15))
-        card.grid_columnconfigure(0, weight=1)
-        card.grid_rowconfigure(0, weight=1)
-
-        front_text = (q.title + "\n\n" if q.title else "") + q.text
-        content = ctk.CTkLabel(card, text=front_text, font=("Segoe UI", 16),
-                              text_color=COLORS["text"], wraplength=600, justify="center")
-        content.grid(row=0, column=0, padx=30, pady=30)
-
-        side = {"flipped": False}
-
-        def flip():
-            side["flipped"] = not side["flipped"]
-            if side["flipped"]:
-                content.configure(text=self._answer_back_text(q),
-                                  text_color=COLORS["success"])
-                flip_btn.configure(text=t("flash.front"))
-                grade.grid()
-            else:
-                content.configure(text=front_text, text_color=COLORS["text"])
-                flip_btn.configure(text=t("flash.show_answer"))
-                grade.grid_remove()
-
-        def advance(known: bool):
-            self.sr.update(q.id, known)
-            self.store.log_answer(known)
-            self._flash_index += 1
-            self._show_flashcard()
-
-        controls = ctk.CTkFrame(frame, fg_color="transparent")
-        controls.grid(row=2, column=0, pady=10)
-        flip_btn = ctk.CTkButton(controls, text=t("flash.show_answer"), fg_color=COLORS["primary"],
-                                 width=160, command=flip)
-        flip_btn.grid(row=0, column=0, padx=8)
-
-        grade = ctk.CTkFrame(controls, fg_color="transparent")
-        grade.grid(row=0, column=1)
-        ctk.CTkButton(grade, text=t("flash.dont_know"), fg_color=COLORS["danger"],
-                     width=130, command=lambda: advance(False)).grid(row=0, column=0, padx=6)
-        ctk.CTkButton(grade, text=t("flash.know"), fg_color=COLORS["success"],
-                     width=130, command=lambda: advance(True)).grid(row=0, column=1, padx=6)
-        grade.grid_remove()
-
-        ctk.CTkButton(frame, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     command=self.show_home).grid(row=3, column=0, pady=10)
-
-    def _flash_done(self):
-        self._clear_main()
-        frame = self._make_screen()
-        ctk.CTkLabel(frame, text=t("flash.done"), font=("Segoe UI", 22, "bold"),
-                    text_color=COLORS["success"]).grid(row=0, column=0, pady=40)
-        ctk.CTkButton(frame, text=t("nav.back_menu"), fg_color=COLORS["primary"],
-                     command=self.show_home).grid(row=1, column=0)
-
-    # ── RANDOM CROSS-QUIZ MODE ──
-
-    def show_random_mode(self):
-        self._clear_main()
-        self.header_subtitle.configure(text=t("random.title"))
-        frame = self._make_screen()
-
-        ctk.CTkLabel(frame, text=t("random.title"), font=("Segoe UI", 22, "bold"),
-                    text_color=COLORS["text"]).grid(row=0, column=0, pady=(0, 5))
-        ctk.CTkLabel(frame, text=t("random.sub"), font=("Segoe UI", 13),
-                    text_color=COLORS["text_light"]).grid(row=1, column=0, pady=(0, 20))
-
-        all_questions = [q for quiz in self.quizzes for q in quiz.questions]
-        ctk.CTkLabel(frame, text=f"{len(all_questions)} Fragen verfügbar", font=("Segoe UI", 12),
-                    text_color=COLORS["text"]).grid(row=2, column=0, pady=(0, 15))
-
-        ctk.CTkLabel(frame, text=t("random.count"), font=("Segoe UI", 13, "bold"),
-                    text_color=COLORS["text"]).grid(row=3, column=0)
-        max_q = max(6, len(all_questions))
-        count_var = IntVar(value=min(20, max_q))
-        slider_to = min(100, max_q)
-        count_slider = ctk.CTkSlider(frame, from_=5, to=slider_to,
-                                      number_of_steps=max(1, slider_to - 5),
-                                      width=300)
-        count_slider.set(float(count_var.get()))
-        count_label = ctk.CTkLabel(frame, text=str(count_var.get()), font=("Segoe UI", 14, "bold"),
-                                   text_color=COLORS["primary"])
-        count_label.grid(row=4, column=0, pady=(0, 5))
-        def on_count(v):
-            count_var.set(int(v))
-            count_label.configure(text=str(int(v)))
-        count_slider.configure(command=on_count)
-        count_slider.grid(row=5, column=0, pady=(0, 20))
-
-        def start():
-            if not all_questions:
-                messagebox.showinfo("Hinweis", "Keine Fragen vorhanden.")
-                return
-            n = count_var.get()
-            selected = list(all_questions)
-            random.shuffle(selected)
-            selected = selected[:n]
-            self.current_quiz = Quiz(name=t("random.title"), questions=selected)
-            self.session = QuizSession(selected, mode="single")
-            self._show_question()
-
-        ctk.CTkButton(frame, text=t("random.start"), fg_color=COLORS["success"],
-                     width=160, command=start).grid(row=6, column=0, pady=10)
-        ctk.CTkButton(frame, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
-                     width=160, command=self.show_home).grid(row=7, column=0, pady=5)
-
-    # ── CLOZE TEXT GENERATOR ──
 
     def show_cloze_generator(self):
         self._clear_main()
@@ -7904,3 +7664,59 @@ class App(ctk.CTk):
                      command=analyze).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_row, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
                      command=self.show_home).grid(row=0, column=1)
+
+
+# --- Bind game screens from games.py ---
+App.show_games = show_games
+App.show_tower_defense = show_tower_defense
+App.show_quiz_battle = show_quiz_battle
+App._run_td = _run_td
+App._run_qb = _run_qb
+
+# --- Bind extra games (speed-quiz, millionaire, hangman, boss-fight) ---
+from .games_extra import (show_speed_quiz, show_millionaire, show_hangman, show_boss_fight)
+App.show_speed_quiz = show_speed_quiz
+App.show_millionaire = show_millionaire
+App.show_hangman = show_hangman
+App.show_boss_fight = show_boss_fight
+
+# --- Bind extracted screen modules ---
+from .screens_formula import show_formula_sheets, _delete_formula_sheet, show_create_formula_sheet, show_formula_sheet_view, _show_formula_explorer, _show_formula_explain
+App.show_formula_sheets = show_formula_sheets
+App._delete_formula_sheet = _delete_formula_sheet
+App.show_create_formula_sheet = show_create_formula_sheet
+App.show_formula_sheet_view = show_formula_sheet_view
+App._show_formula_explorer = _show_formula_explorer
+App._show_formula_explain = _show_formula_explain
+
+from .screens_folders import show_folders, _folder_card, _delete_folder, show_folder_detail, _add_quiz_to_folder, _remove_quiz_from_folder, _start_folder_quiz
+App.show_folders = show_folders
+App._folder_card = _folder_card
+App._delete_folder = _delete_folder
+App.show_folder_detail = show_folder_detail
+App._add_quiz_to_folder = _add_quiz_to_folder
+App._remove_quiz_from_folder = _remove_quiz_from_folder
+App._start_folder_quiz = _start_folder_quiz
+
+from .screens_stats import show_stats, _bar_chart, _draw_heatmap
+App.show_stats = show_stats
+App._bar_chart = _bar_chart
+App._draw_heatmap = _draw_heatmap
+
+from .screens_extras import show_error_diary, show_pomodoro, _start_flashcards, _show_flashcard, _flash_done, show_random_mode
+App.show_error_diary = show_error_diary
+App.show_pomodoro = show_pomodoro
+App._start_flashcards = _start_flashcards
+App._show_flashcard = _show_flashcard
+App._flash_done = _flash_done
+App.show_random_mode = show_random_mode
+
+from .screens_study import show_study, show_socratic, _link_material
+App.show_study = show_study
+App.show_socratic = show_socratic
+App._link_material = _link_material
+
+from .screens_progress import show_sr_dashboard, show_achievements
+App.show_sr_dashboard = show_sr_dashboard
+App.show_achievements = show_achievements
+

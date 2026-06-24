@@ -15,7 +15,7 @@ export async function render(root) {
   // Darstellung / Theme
   html += `<div class="section-title">Darstellung</div>
     <div class="card">
-      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:10px">Farbschema der App.</div>
+      <div class="card-desc">Farbschema der App.</div>
       <div class="theme-picker">
         <button class="theme-opt ${theme === "auto" ? "active" : ""}" data-theme-val="auto">🖥️ Automatisch</button>
         <button class="theme-opt ${theme === "light" ? "active" : ""}" data-theme-val="light">☀️ Hell</button>
@@ -27,20 +27,18 @@ export async function render(root) {
 
   if (account) {
     html += `<div class="card">
-      <div style="font-size:0.85rem;color:var(--text-light)">Angemeldet als</div>
-      <div style="font-size:1rem;font-weight:600;margin:4px 0">${esc(account.email)}</div>
+      <div class="account-label">Angemeldet als</div>
+      <div class="account-email">${esc(account.email)}</div>
       <div class="btn-row">
         <button class="btn btn-primary btn-sm" id="sync-push">☁️ Hochladen</button>
         <button class="btn btn-success btn-sm" id="sync-pull">⬇️ Herunterladen</button>
         <button class="btn btn-ghost btn-sm" id="logout-btn">Abmelden</button>
       </div>
-      <div id="sync-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
+      <div id="sync-status" class="status-line"></div>
     </div>`;
   } else {
     html += `<div class="card">
-      <div style="margin-bottom:12px;font-size:0.85rem;color:var(--text-light)">
-        Melde dich an, um deine Quizze geräteübergreifend zu synchronisieren.
-      </div>
+      <div class="card-desc">Melde dich an, um deine Quizze geräteübergreifend zu synchronisieren.</div>
       <div class="input-group">
         <label>E-Mail</label>
         <input type="email" id="auth-email" placeholder="email@example.com">
@@ -49,7 +47,7 @@ export async function render(root) {
         <label>Passwort</label>
         <input type="password" id="auth-pass" placeholder="Min. 6 Zeichen">
       </div>
-      <div id="auth-error" style="color:var(--danger);font-size:0.8rem;margin-bottom:8px"></div>
+      <div id="auth-error" class="error-line"></div>
       <div class="btn-row">
         <button class="btn btn-primary btn-sm" id="login-btn">Anmelden</button>
         <button class="btn btn-ghost btn-sm" id="register-btn">Registrieren</button>
@@ -60,23 +58,19 @@ export async function render(root) {
   // Sync code import
   html += `<div class="section-title">Sync-Code Import</div>
     <div class="card">
-      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px">
-        Hast du einen Sync-Code vom Desktop? Gib ihn hier ein, um Quizze zu laden.
-      </div>
+      <div class="card-desc">Hast du einen Sync-Code vom Desktop? Gib ihn hier ein, um Quizze zu laden.</div>
       <div class="input-group">
         <label>Sync-Code</label>
         <input type="text" id="sync-code" placeholder="z.B. mein-code-123" value="${esc(settings.syncCode || "")}">
       </div>
       <button class="btn btn-primary btn-sm" id="code-import-btn">Quizze laden</button>
-      <div id="code-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
+      <div id="code-status" class="status-line"></div>
     </div>`;
 
   // AI Settings
   html += `<div class="section-title">KI-Einstellungen</div>
     <div class="card">
-      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px">
-        Für KI-Funktionen (Quiz-Generator, Tutor) wird ein OpenRouter API-Key benötigt.
-      </div>
+      <div class="card-desc">Für KI-Funktionen (Quiz-Generator, Tutor) wird ein OpenRouter API-Key benötigt.</div>
       <div class="input-group">
         <label>OpenRouter API-Key</label>
         <input type="password" id="api-key" placeholder="sk-or-..." value="${esc(settings.apiKey || "")}">
@@ -95,30 +89,26 @@ export async function render(root) {
           }).join("")}
         </div>
         <input type="hidden" id="ai-model" value="${esc(settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free")}">
-        <div style="font-size:0.7rem;color:var(--text-light);margin-top:4px">👁 = kann Bilder sehen · 📝 = nur Text. Bei Bild-Aufgaben wird automatisch ein Bild-Modell genutzt.</div>
+        <div class="gen-model-hint">👁 = kann Bilder sehen · 📝 = nur Text. Bei Bild-Aufgaben wird automatisch ein Bild-Modell genutzt.</div>
       </div>
       <button class="btn btn-primary btn-sm" id="save-ai">Speichern</button>
-      <div id="ai-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
+      <div id="ai-status" class="status-line"></div>
     </div>`;
 
   // JSON Import
   html += `<div class="section-title">JSON Import</div>
     <div class="card">
-      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px">
-        Importiere eine Quiz-Datei (.json) vom Desktop.
-      </div>
-      <input type="file" id="file-import" accept=".json" style="font-size:0.85rem">
-      <div id="file-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
+      <div class="card-desc">Importiere eine Quiz-Datei (.json) vom Desktop.</div>
+      <input type="file" id="file-import" accept=".json" multiple class="editor-file-input">
+      <div id="file-status" class="status-line"></div>
     </div>`;
 
   // Reset
   html += `<div class="section-title">Zurücksetzen</div>
     <div class="card">
-      <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px">
-        Alle lokalen Daten löschen: Quizze, Fortschritt, Statistiken und Einstellungen.
-      </div>
-      <button class="btn btn-sm" id="reset-btn" style="background:var(--danger);color:white">Alle Daten zurücksetzen</button>
-      <div id="reset-status" style="font-size:0.8rem;color:var(--text-light);margin-top:8px"></div>
+      <div class="card-desc">Alle lokalen Daten löschen: Quizze, Fortschritt, Statistiken und Einstellungen.</div>
+      <button class="btn btn-danger btn-sm" id="reset-btn">Alle Daten zurücksetzen</button>
+      <div id="reset-status" class="status-line"></div>
     </div>`;
 
   root.innerHTML = html;
@@ -217,30 +207,37 @@ export async function render(root) {
 
   // File import
   root.querySelector("#file-import")?.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
+    const files = Array.from(e.target.files);
     const st = root.querySelector("#file-status");
-    if (!file) return;
+    if (!files.length) return;
     try {
-      const text = await file.text();
-      const data = JSON.parse(text);
       const { loadQuizzes, saveQuizzes } = await import("../store.js");
       const existing = await loadQuizzes();
-      const imported = Array.isArray(data) ? data : data.questions ? [data] : [];
-      let needsPlacement = 0;
-      for (const q of imported) {
-        for (const question of (q.questions || [])) {
-          if (question.question_type === "diagram_label" && question.diagram_labels) {
-            for (const l of question.diagram_labels) { if (!l._placed) l._placed = false; }
-            needsPlacement++;
+      let totalImported = 0, needsPlacement = 0, errors = 0;
+      const allImported = [];
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          const imported = Array.isArray(data) ? data : data.questions ? [data] : [];
+          for (const q of imported) {
+            for (const question of (q.questions || [])) {
+              if (question.question_type === "diagram_label" && question.diagram_labels) {
+                for (const l of question.diagram_labels) { if (!l._placed) l._placed = false; }
+                needsPlacement++;
+              }
+            }
           }
-        }
+          allImported.push(...imported);
+          totalImported += imported.length;
+        } catch { errors++; }
       }
-      const merged = [...existing, ...imported];
-      await saveQuizzes(merged);
-      let msg = `✓ ${imported.length} Quiz(ze) importiert!`;
+      await saveQuizzes([...existing, ...allImported]);
+      let msg = `✓ ${totalImported} Quiz(ze) aus ${files.length} Datei(en) importiert!`;
+      if (errors) msg += ` ${errors} Datei(en) fehlerhaft.`;
       if (needsPlacement) msg += ` ${needsPlacement} Diagramm-Frage(n) – bitte Labels im Editor platzieren.`;
       st.textContent = msg;
-    } catch { st.textContent = "Fehler: Ungültiges Dateiformat."; }
+    } catch { st.textContent = "Fehler: Import fehlgeschlagen."; }
   });
 
   // Reset
@@ -249,10 +246,10 @@ export async function render(root) {
     if (!confirm("Wirklich ALLE Daten löschen? Quizze, Fortschritt, Statistiken — alles wird unwiderruflich gelöscht!")) return;
     if (!confirm("Bist du sicher? Dies kann NICHT rückgängig gemacht werden.")) return;
     try {
-      const { saveQuizzes, saveProgress, saveSettings: saveSett, saveMarked: saveMark, saveStats: saveStat, saveErrorDiary, saveFolders, saveDailyState } = await import("../store.js");
+      const { saveQuizzes, saveProgress, saveSettings: saveSett, saveMarked: saveMark, saveStats: saveStat, saveErrorDiary, saveFolders, saveDailyState, saveFsrs } = await import("../store.js");
       await Promise.all([
         saveQuizzes([]), saveProgress({}), saveSett({}), saveMark([]),
-        saveStat({}), saveErrorDiary([]), saveFolders([]), saveDailyState(null),
+        saveStat({}), saveErrorDiary([]), saveFolders([]), saveDailyState(null), saveFsrs({}),
       ]);
       setAccount(null);
       st.textContent = "✓ Alle Daten gelöscht.";

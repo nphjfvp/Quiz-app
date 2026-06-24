@@ -21,6 +21,8 @@ function emptyQuestion(type = "single_choice") {
     q.blanks = ["Himmel"];
   } else if (type === "drag_drop") {
     q.drag_drop_pairs = [{ source: "", target: "" }];
+  } else if (type === "drag_category") {
+    q.drag_drop_pairs = [{ source: "", target: "" }];
   } else if (type === "diagram_label") {
     q.diagram_image = "";
     q.diagram_labels = [{ label: "", x: 0.5, y: 0.5 }];
@@ -72,7 +74,7 @@ function renderMain(root, quizzes) {
   } else {
     for (let i = 0; i < quiz.questions.length; i++) {
       const q = quiz.questions[i];
-      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke", drag_drop: "D&D", diagram_label: "Diagramm", mark_image: "Markieren", math_formula: "Mathe" }[q.question_type] || q.question_type;
+      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke", drag_drop: "D&D", drag_category: "Zuordnung", diagram_label: "Diagramm", mark_image: "Markieren", math_formula: "Mathe" }[q.question_type] || q.question_type;
       html += `<div class="question-row" data-qi="${i}">
         <div class="q-num">${i + 1}</div>
         <div class="q-info">
@@ -130,6 +132,7 @@ function showTypeChooser(root, quizzes) {
     { type: "free_text", label: "Freitext", icon: "✍️", desc: "Antwort eintippen" },
     { type: "fill_blank", label: "Lückentext", icon: "📝", desc: "Lücken ausfüllen (___)" },
     { type: "drag_drop", label: "Drag & Drop", icon: "🔀", desc: "Begriffe zuordnen" },
+    { type: "drag_category", label: "Kategorie-Zuordnung", icon: "🗂️", desc: "Begriffe in Kategorien einordnen" },
     { type: "diagram_label", label: "Diagramm", icon: "🏷️", desc: "Bild beschriften" },
     { type: "mark_image", label: "Bild markieren", icon: "📍", desc: "Stelle im Bild markieren" },
     { type: "math_formula", label: "Mathe-Formel", icon: "🔢", desc: "Formel / Berechnung" },
@@ -169,7 +172,7 @@ function renderQuestionEditor(root, quizzes) {
   const q = quiz.questions[editingIndex];
   if (!q) { renderMain(root, quizzes); return; }
 
-  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext", drag_drop: "Drag & Drop", diagram_label: "Diagramm", mark_image: "Bild markieren", math_formula: "Mathe-Formel" }[q.question_type] || q.question_type;
+  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext", drag_drop: "Drag & Drop", drag_category: "Kategorie-Zuordnung", diagram_label: "Diagramm", mark_image: "Bild markieren", math_formula: "Mathe-Formel" }[q.question_type] || q.question_type;
 
   let html = `<div class="editor-header">
     <button class="btn-icon" id="qe-back">←</button>
@@ -234,6 +237,21 @@ function renderQuestionEditor(root, quizzes) {
     }
     html += `</div>`;
     html += `<button class="btn-secondary btn-sm" id="add-pair" class="mt-sm">+ Paar</button>`;
+  } else if (q.question_type === "drag_category") {
+    html += `<div class="section-title" class="mt-section">Begriffe &amp; Kategorien</div>`;
+    html += `<div class="editor-canvas-hint">Jeder Begriff gehört zu einer Kategorie. Kategorien können mehrfach vorkommen.</div>`;
+    html += `<div id="pairs-list">`;
+    for (let i = 0; i < q.drag_drop_pairs.length; i++) {
+      const p = q.drag_drop_pairs[i];
+      html += `<div class="option-edit-row">
+        <input type="text" class="input pair-src" data-pi="${i}" value="${esc(p.source)}" placeholder="Begriff ${i + 1}">
+        <span class="pair-arrow">→</span>
+        <input type="text" class="input pair-tgt" data-pi="${i}" value="${esc(p.target)}" placeholder="Kategorie">
+        <button class="btn-icon pair-del" data-pi="${i}" ${q.drag_drop_pairs.length <= 1 ? "disabled" : ""}>✕</button>
+      </div>`;
+    }
+    html += `</div>`;
+    html += `<button class="btn-secondary btn-sm" id="add-pair" class="mt-sm">+ Eintrag</button>`;
   } else if (q.question_type === "diagram_label") {
     html += `<div class="editor-form">
       <label>Bild</label>
@@ -335,7 +353,7 @@ function renderQuestionEditor(root, quizzes) {
       q.blanks.push("");
       renderQuestionEditor(root, quizzes);
     });
-  } else if (q.question_type === "drag_drop") {
+  } else if (q.question_type === "drag_drop" || q.question_type === "drag_category") {
     root.querySelectorAll(".pair-src").forEach(input => {
       input.addEventListener("input", e => { q.drag_drop_pairs[parseInt(e.target.dataset.pi)].source = e.target.value; });
     });

@@ -99,7 +99,7 @@ export async function render(root) {
   html += `<div class="section-title">JSON Import</div>
     <div class="card">
       <div class="card-desc">Importiere eine Quiz-Datei (.json) vom Desktop.</div>
-      <input type="file" id="file-import" accept=".json" class="editor-file-input">
+      <input type="file" id="file-import" accept=".json" multiple class="editor-file-input">
       <div id="file-status" class="status-line"></div>
     </div>`;
 
@@ -207,30 +207,37 @@ export async function render(root) {
 
   // File import
   root.querySelector("#file-import")?.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
+    const files = Array.from(e.target.files);
     const st = root.querySelector("#file-status");
-    if (!file) return;
+    if (!files.length) return;
     try {
-      const text = await file.text();
-      const data = JSON.parse(text);
       const { loadQuizzes, saveQuizzes } = await import("../store.js");
       const existing = await loadQuizzes();
-      const imported = Array.isArray(data) ? data : data.questions ? [data] : [];
-      let needsPlacement = 0;
-      for (const q of imported) {
-        for (const question of (q.questions || [])) {
-          if (question.question_type === "diagram_label" && question.diagram_labels) {
-            for (const l of question.diagram_labels) { if (!l._placed) l._placed = false; }
-            needsPlacement++;
+      let totalImported = 0, needsPlacement = 0, errors = 0;
+      const allImported = [];
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          const imported = Array.isArray(data) ? data : data.questions ? [data] : [];
+          for (const q of imported) {
+            for (const question of (q.questions || [])) {
+              if (question.question_type === "diagram_label" && question.diagram_labels) {
+                for (const l of question.diagram_labels) { if (!l._placed) l._placed = false; }
+                needsPlacement++;
+              }
+            }
           }
-        }
+          allImported.push(...imported);
+          totalImported += imported.length;
+        } catch { errors++; }
       }
-      const merged = [...existing, ...imported];
-      await saveQuizzes(merged);
-      let msg = `✓ ${imported.length} Quiz(ze) importiert!`;
+      await saveQuizzes([...existing, ...allImported]);
+      let msg = `✓ ${totalImported} Quiz(ze) aus ${files.length} Datei(en) importiert!`;
+      if (errors) msg += ` ${errors} Datei(en) fehlerhaft.`;
       if (needsPlacement) msg += ` ${needsPlacement} Diagramm-Frage(n) – bitte Labels im Editor platzieren.`;
       st.textContent = msg;
-    } catch { st.textContent = "Fehler: Ungültiges Dateiformat."; }
+    } catch { st.textContent = "Fehler: Import fehlgeschlagen."; }
   });
 
   // Reset

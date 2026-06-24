@@ -48,28 +48,26 @@ export async function render(root) {
     root.innerHTML = `<button class="back-btn" id="back-btn">‹ Zurück</button>
       <div class="section-title">🍅 Pomodoro-Timer</div>
 
-      <div class="card" style="text-align:center;padding:24px 16px">
-        <div style="font-size:1.1rem;margin-bottom:16px;font-weight:600">${phaseLabel}</div>
+      <div class="card pomo-card">
+        <div class="pomo-phase">${phaseLabel}</div>
 
-        <div style="position:relative;width:180px;height:180px;margin:0 auto 20px">
-          <svg viewBox="0 0 100 100" style="transform:rotate(-90deg);width:100%;height:100%">
+        <div class="pomo-ring">
+          <svg viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="44" fill="none" stroke="var(--border)" stroke-width="6"/>
             <circle cx="50" cy="50" r="44" fill="none" stroke="${phaseColor}" stroke-width="6"
               stroke-dasharray="${2 * Math.PI * 44}"
               stroke-dashoffset="${2 * Math.PI * 44 * (1 - progressPct() / 100)}"
               stroke-linecap="round"/>
           </svg>
-          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.4rem;font-weight:800;font-variant-numeric:tabular-nums">
-            ${formatTime(remaining)}
-          </div>
+          <div class="pomo-time">${formatTime(remaining)}</div>
         </div>
 
-        <div class="btn-row" style="justify-content:center;margin-bottom:16px">
+        <div class="btn-row mb-row" style="justify-content:center">
           <button class="btn btn-primary btn-sm" id="start-pause">${running ? "Pause" : "Start"}</button>
           <button class="btn btn-ghost btn-sm" id="reset">Reset</button>
         </div>
 
-        <div style="font-size:0.8rem;color:var(--text-light)">Abgeschlossene Runden: <strong>${rounds}</strong></div>
+        <div class="pomo-rounds">Abgeschlossene Runden: <strong>${rounds}</strong></div>
       </div>`;
 
     root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));

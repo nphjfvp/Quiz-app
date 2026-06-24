@@ -29,17 +29,17 @@ export async function render(root) {
     if (questions.length === 0) {
       html += `<div class="empty">Keine markierten Fragen.</div>`;
     } else {
-      html += `<div class="btn-row" style="margin-bottom:12px">
+      html += `<div class="btn-row mb-row">
         <button class="btn btn-primary btn-sm" id="start-marked">Markierte lernen (${questions.length})</button>
       </div>`;
 
       for (const q of questions) {
-        html += `<div class="card" style="margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <span style="font-size:0.7rem;background:var(--row-neutral);padding:2px 8px;border-radius:10px">${q.topic || "–"}</span>
-            <span style="font-size:0.7rem;color:var(--text-light)">${q.quizName}</span>
+        html += `<div class="card q-card">
+          <div class="q-card-head">
+            <span class="tag">${esc(q.topic || "–")}</span>
+            <span class="q-card-quiz">${esc(q.quizName || "")}</span>
           </div>
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem">${esc(q.question_text || q.text || "")}</div>
+          <div class="q-card-text">${esc(q.question_text || q.text || "")}</div>
           <div class="btn-row">
             <button class="btn btn-ghost btn-sm unmark-btn" data-id="${q.id}">Entfernen</button>
             <button class="btn btn-primary btn-sm ai-btn" data-id="${q.id}">KI fragen</button>

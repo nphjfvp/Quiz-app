@@ -16,6 +16,7 @@ class QuestionType(str, Enum):
     FREE_TEXT = "free_text"
     FILL_BLANK = "fill_blank"
     DRAG_DROP = "drag_drop"
+    DRAG_CATEGORY = "drag_category"
     DIAGRAM_LABEL = "diagram_label"
     MARK_IMAGE = "mark_image"
     MATH_FORMULA = "math_formula"
@@ -238,7 +239,7 @@ class Quiz:
 class DataStore:
     def __init__(self, data_dir: str = "data"):
         self.data_dir = Path(data_dir)
-        self.data_dir.mkdir(exist_ok=True)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         self.quizzes_file = self.data_dir / "quizzes.json"
         self.progress_file = self.data_dir / "progress.json"
         self.settings_file = self.data_dir / "settings.json"
@@ -289,6 +290,28 @@ class DataStore:
     def save_progress(self, progress: dict[str, QuestionProgress]):
         self._atomic_write(self.progress_file, {k: asdict(v) for k, v in progress.items()})
 
+    def merge_progress(self, remote: dict):
+        """Merge a remote progress dict into local progress.
+
+        For each question, keep the entry with more total attempts (a rough
+        proxy for "more up to date"); newly seen remote entries are added.
+        """
+        local = self.load_progress()
+        for qid, rdata in (remote or {}).items():
+            try:
+                rp = QuestionProgress(**rdata)
+            except Exception:
+                continue
+            lp = local.get(qid)
+            if lp is None:
+                local[qid] = rp
+            else:
+                r_total = rp.times_correct + rp.times_wrong
+                l_total = lp.times_correct + lp.times_wrong
+                if r_total > l_total:
+                    local[qid] = rp
+        self.save_progress(local)
+
     def load_settings(self) -> dict:
         return self._read_json(self.settings_file, {})
 
@@ -317,6 +340,37 @@ class DataStore:
         texts = self.load_source_texts()
         texts[filename] = text
         self._atomic_write(self.data_dir / "source_texts.json", texts)
+
+    # ── Study materials (Skript/Vorlesung linked to a quiz) ──
+
+    def load_materials(self) -> dict:
+        """Returns {quiz_id: {"text": str, "name": str, "saved": iso}}."""
+        return self._read_json(self.data_dir / "materials.json", {})
+
+    def save_materials(self, materials: dict):
+        self._atomic_write(self.data_dir / "materials.json", materials)
+
+    def save_material(self, quiz_id: str, material: dict):
+        m = self.load_materials()
+        m[quiz_id] = material
+        self.save_materials(m)
+
+    def get_material(self, quiz_id: str):
+        return self.load_materials().get(quiz_id)
+
+    def delete_material(self, quiz_id: str):
+        m = self.load_materials()
+        if quiz_id in m:
+            del m[quiz_id]
+            self.save_materials(m)
+
+    # ── Achievements ──
+
+    def load_achievements(self) -> dict:
+        return self._read_json(self.data_dir / "achievements.json", {})
+
+    def save_achievements(self, data: dict):
+        self._atomic_write(self.data_dir / "achievements.json", data)
 
     # ── Folders ──
 

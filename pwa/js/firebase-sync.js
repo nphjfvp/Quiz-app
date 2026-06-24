@@ -1,4 +1,4 @@
-import { loadQuizzes, saveQuizzes, loadProgress, saveProgress, loadDailyState, saveDailyState, loadStats, saveStats } from "./store.js";
+import { loadQuizzes, saveQuizzes, loadProgress, saveProgress, loadDailyState, saveDailyState, loadStats, saveStats, loadFsrs, saveFsrs } from "./store.js";
 
 const CONFIG = {
   apiKey: "AIzaSyBzslbApoDz0UWusBpS10DEGWY7cvIUK5s",
@@ -81,27 +81,29 @@ function syncPath(name) {
 
 export async function pushAll() {
   if (!_account) return;
-  const [quizzes, progress, daily, stats] = await Promise.all([
-    loadQuizzes(), loadProgress(), loadDailyState(), loadStats(),
+  const [quizzes, progress, daily, stats, fsrs] = await Promise.all([
+    loadQuizzes(), loadProgress(), loadDailyState(), loadStats(), loadFsrs(),
   ]);
   await Promise.all([
     fsPut(syncPath("quizzes"), quizzes),
     fsPut(syncPath("progress"), progress),
     daily ? fsPut(syncPath("daily"), daily) : Promise.resolve(),
     fsPut(syncPath("stats"), stats),
+    fsPut(syncPath("fsrs"), fsrs),
   ]);
 }
 
 export async function pullAll() {
   if (!_account) return false;
-  const [quizzes, progress, daily, stats] = await Promise.all([
+  const [quizzes, progress, daily, stats, fsrs] = await Promise.all([
     fsGet(syncPath("quizzes")), fsGet(syncPath("progress")),
-    fsGet(syncPath("daily")), fsGet(syncPath("stats")),
+    fsGet(syncPath("daily")), fsGet(syncPath("stats")), fsGet(syncPath("fsrs")),
   ]);
   if (quizzes) await saveQuizzes(quizzes);
   if (progress) await saveProgress(progress);
   if (daily) await saveDailyState(daily);
   if (stats) await saveStats(stats);
+  if (fsrs) await saveFsrs(fsrs);
   return !!(quizzes || progress);
 }
 
