@@ -113,6 +113,8 @@ class QuizSession:
             return self._check_fill_blank(question, user_input)
         elif qt == QuestionType.DRAG_DROP:
             return self._check_drag_drop(question, user_input)
+        elif qt == QuestionType.DRAG_CATEGORY:
+            return self._check_drag_category(question, user_input)
         elif qt == QuestionType.DIAGRAM_LABEL:
             return self._check_diagram_label(question, user_input)
         elif qt == QuestionType.MARK_IMAGE:
@@ -164,6 +166,25 @@ class QuizSession:
         is_correct = correct == total
         return AnswerResult(q.id, is_correct, round(score, 1), q.points,
                           str(assignments), str({p.target: p.source for p in q.drag_drop_pairs}))
+
+    def _check_drag_category(self, q: Question, assignments: dict[str, list[str]]) -> AnswerResult:
+        """assignments: {category: [item1, item2, ...]}. Check each item is in its correct category."""
+        # Build correct mapping: {category: set(items)}
+        correct_map = {}
+        for pair in q.drag_drop_pairs:
+            correct_map.setdefault(pair.target, set()).add(pair.source)
+        total = max(len(q.drag_drop_pairs), 1)
+        correct = 0
+        for cat, items in assignments.items():
+            expected = correct_map.get(cat, set())
+            for item in items:
+                if item in expected:
+                    correct += 1
+        score = (correct / total) * q.points
+        is_correct = correct == total
+        user_text = "; ".join(f"{cat}: {', '.join(items)}" for cat, items in assignments.items() if items)
+        correct_text = "; ".join(f"{cat}: {', '.join(sorted(items))}" for cat, items in correct_map.items())
+        return AnswerResult(q.id, is_correct, round(score, 1), q.points, user_text, correct_text)
 
     def _check_diagram_label(self, q: Question, placements: dict, tolerance: float = 0.13) -> AnswerResult:
         """placements: {label: [x_frac, y_frac]}. A label is correct if it was
