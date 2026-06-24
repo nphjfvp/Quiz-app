@@ -1261,27 +1261,36 @@ class App(ctk.CTk):
             messagebox.showerror("Export", f"Export fehlgeschlagen: {e}")
 
     def import_quiz_file(self):
-        path = filedialog.askopenfilename(
+        paths = filedialog.askopenfilenames(
             filetypes=[("Quiz JSON", "*.json"), ("Alle", "*.*")],
         )
-        if not path:
+        if not paths:
             return
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            quiz = Quiz.from_dict(data)
-            # fresh ids to avoid clashing with existing quizzes/progress
-            quiz.id = str(__import__("uuid").uuid4())
-            for q in quiz.questions:
-                q.id = str(__import__("uuid").uuid4())
-            if not quiz.name:
-                quiz.name = Path(path).stem
-            self.quizzes.append(quiz)
+        imported = []
+        errors = []
+        for path in paths:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                quiz = Quiz.from_dict(data)
+                quiz.id = str(__import__("uuid").uuid4())
+                for q in quiz.questions:
+                    q.id = str(__import__("uuid").uuid4())
+                if not quiz.name:
+                    quiz.name = Path(path).stem
+                self.quizzes.append(quiz)
+                imported.append(quiz.name)
+            except Exception as e:
+                errors.append(f"{Path(path).name}: {e}")
+        if imported:
             self.store.save_quizzes(self.quizzes)
-            messagebox.showinfo("Import", f"Quiz '{quiz.name}' mit {len(quiz.questions)} Fragen importiert!")
-            self.show_home()
-        except Exception as e:
-            messagebox.showerror("Import", f"Import fehlgeschlagen: {e}")
+        if imported and not errors:
+            messagebox.showinfo("Import", f"{len(imported)} Quiz(ze) importiert:\n" + "\n".join(f"• {n}" for n in imported))
+        elif imported and errors:
+            messagebox.showwarning("Import", f"{len(imported)} importiert, {len(errors)} fehlgeschlagen:\n" + "\n".join(errors))
+        elif errors:
+            messagebox.showerror("Import", f"Alle fehlgeschlagen:\n" + "\n".join(errors))
+        self.show_home()
 
     # ── SETTINGS ──
 
@@ -2920,8 +2929,8 @@ class App(ctk.CTk):
 
     # ── AI GENERATE ──
 
-    def _file_dialog_with_pdf(self):
-        return filedialog.askopenfilename(filetypes=[
+    def _file_dialog_with_pdf(self, multiple=False):
+        ft = [
             ("Dokumente", "*.pdf *.pptx *.docx *.txt *.md *.csv *.png *.jpg"),
             ("PDF", "*.pdf"),
             ("PowerPoint", "*.pptx"),
@@ -2929,7 +2938,10 @@ class App(ctk.CTk):
             ("Bilder", "*.png *.jpg *.jpeg"),
             ("Text", "*.txt *.md"),
             ("Alle", "*.*"),
-        ])
+        ]
+        if multiple:
+            return filedialog.askopenfilenames(filetypes=ft)
+        return filedialog.askopenfilename(filetypes=ft)
 
     def _build_model_selector(self, parent, row_start: int, topic: str = "") -> tuple:
         """Build model dropdown with recommendations. Returns (model_var, model_id_map, menu_widget, rec_frame, next_row)."""
@@ -3823,34 +3835,57 @@ class App(ctk.CTk):
             self._run_analysis(path, analysis_frame, model_selector_state)
 
     def _on_file_selected_imp(self, file_var, est_label, chunk_slider, analysis_frame,
-                              model_selector_state=None):
-        path = self._file_dialog_with_pdf()
-        if not path:
-            return
-        file_var.set(path)
+                              model_selector_state=None, multi_paths=None):
+        if multi_paths:
+            paths = list(multi_paths)
+        else:
+            path = self._file_dialog_with_pdf()
+            if not path:
+                return
+            paths = [path]
+            file_var.set(path)
         self.ai.chunk_size = int(chunk_slider.get())
         self.ai.overlap = max(500, self.ai.chunk_size // 6)
-        self._save_source_text_bg(path)
+        for p in paths:
+            self._save_source_text_bg(p)
         selected_model = ""
         if model_selector_state:
             mv, mid_map = model_selector_state[0], model_selector_state[1]
             selected_model = mid_map.get(mv.get(), self.ai.model)
-        try:
-            est = self.ai.estimate_processing(path, mode="import",
-                                              model_override=selected_model)
-            size_kb = est["file_size"] / 1024
-            mins = est["est_total_seconds"] // 60
-            secs = est["est_total_seconds"] % 60
-            par_text = "parallel" if est["parallel"] else "sequentiell"
+        total_size = 0
+        total_chars = 0
+        total_chunks = 0
+        total_seconds = 0
+        total_cost = 0.0
+        parallel = False
+        for p in paths:
+            try:
+                est = self.ai.estimate_processing(p, mode="import",
+                                                  model_override=selected_model)
+                total_size += est["file_size"]
+                total_chars += est["text_length"]
+                total_chunks += est["num_chunks"]
+                total_seconds += est["est_total_seconds"]
+                total_cost += est.get("est_cost_usd", 0)
+                if est["parallel"]:
+                    parallel = True
+            except Exception:
+                pass
+        if total_size:
+            size_kb = total_size / 1024
+            mins = total_seconds // 60
+            secs = total_seconds % 60
+            par_text = "parallel" if parallel else "sequentiell"
+            files_text = f"{len(paths)} Dateien · " if len(paths) > 1 else ""
             est_label.configure(
-                text=f"Datei: {size_kb:.0f} KB · {est['text_length']:,} Zeichen · "
-                     f"{est['num_chunks']} Chunks ({par_text}) · "
+                text=f"{files_text}{size_kb:.0f} KB · {total_chars:,} Zeichen · "
+                     f"{total_chunks} Chunks ({par_text}) · "
                      f"ca. {mins}:{secs:02d} min · "
-                     f"~${est.get('est_cost_usd', 0):.3f}".replace(",", "."))
-        except Exception:
+                     f"~${total_cost:.3f}".replace(",", "."))
+        else:
             est_label.configure(text="Schätzung nicht möglich")
-        if self.ai.api_key:
-            self._run_analysis(path, analysis_frame, model_selector_state)
+        if self.ai.api_key and len(paths) == 1:
+            self._run_analysis(paths[0], analysis_frame, model_selector_state)
 
     def _save_source_text_bg(self, file_path: str):
         """Save extracted text from uploaded file in background for cloze reuse."""
@@ -4165,22 +4200,35 @@ class App(ctk.CTk):
         self._clear_main()
         scroll = self._make_screen()
 
-        ctk.CTkLabel(scroll, text="Fragen aus Dokument importieren",
+        ctk.CTkLabel(scroll, text="Fragen aus Dokumenten importieren",
                     font=("Segoe UI", 18, "bold"), text_color=COLORS["text"]
                     ).grid(row=0, column=0, sticky="w", pady=(0, 5))
-        ctk.CTkLabel(scroll, text="Lade ein PDF, PowerPoint, Word oder Übungsskript hoch. Die KI erkennt und importiert alle Fragen (parallel).",
+        ctk.CTkLabel(scroll, text="Lade mehrere PDFs, PowerPoints, Word- oder Textdateien gleichzeitig hoch. Die KI erkennt und importiert alle Fragen.",
                     font=("Segoe UI", 12), text_color=COLORS["text_light"]
                     ).grid(row=1, column=0, sticky="w", pady=(0, 20))
 
         file_var = StringVar()
+        selected_files = []
         file_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         file_frame.grid(row=2, column=0, sticky="ew")
-        ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Datei auswählen..."
-                    ).grid(row=0, column=0, padx=(0, 10))
+        file_entry = ctk.CTkEntry(file_frame, textvariable=file_var, width=400, placeholder_text="Dateien auswählen...")
+        file_entry.grid(row=0, column=0, padx=(0, 10))
+
+        def browse_multi():
+            paths = self._file_dialog_with_pdf(multiple=True)
+            if paths:
+                selected_files.clear()
+                selected_files.extend(paths)
+                if len(paths) == 1:
+                    file_var.set(paths[0])
+                else:
+                    file_var.set(f"{len(paths)} Dateien ausgewählt")
+                self._on_file_selected_imp(file_var, est_label, chunk_slider, analysis_frame,
+                                           (model_var, model_id_map, model_menu, model_rec_frame),
+                                           multi_paths=selected_files)
+
         ctk.CTkButton(file_frame, text="Durchsuchen", width=100,
-                     command=lambda: self._on_file_selected_imp(file_var, est_label, chunk_slider, analysis_frame,
-                                                                (model_var, model_id_map, model_menu, model_rec_frame))
-                     ).grid(row=0, column=1)
+                     command=browse_multi).grid(row=0, column=1)
 
         # Estimation
         est_label = ctk.CTkLabel(scroll, text="", font=("Segoe UI", 12, "bold"),
@@ -4259,6 +4307,8 @@ class App(ctk.CTk):
                 messagebox.showwarning("Hinweis", "Bitte zuerst API-Key in den Einstellungen speichern!")
                 return
 
+            paths = list(selected_files) if selected_files else [file_var.get()]
+
             selected_model = model_id_map.get(model_var.get(), self.ai.model)
             self.ai.model = selected_model
             self.ai.chunk_size = int(chunk_slider.get())
@@ -4267,40 +4317,51 @@ class App(ctk.CTk):
             start_time = time.time()
 
             def run():
-                def progress_cb(current, total):
-                    elapsed = time.time() - start_time
-                    per_chunk = elapsed / max(1, current)
-                    remaining = int(per_chunk * max(0, total - current))
-                    r_min, r_sec = divmod(remaining, 60)
-                    self.after(0, lambda c=current, t=total, rm=r_min, rs=r_sec: (
-                        progress_label.configure(
-                            text=f"Chunk {c}/{t} · ca. {rm}:{rs:02d} verbleibend"),
-                        progress_bar.set(c / t)
-                    ))
+                all_questions = []
+                errors = []
+                sum_chunks = 0
+                sum_chunks_list = []
+                total_chunks_all = max(1, len(paths) * 10)
+                for fi, fpath in enumerate(paths):
+                    file_label = Path(fpath).name
+                    if len(paths) > 1:
+                        self.after(0, lambda fl=file_label, idx=fi: progress_label.configure(
+                            text=f"Datei {idx+1}/{len(paths)}: {fl}..."))
 
-                try:
-                    questions = self.ai.import_questions(file_var.get(), progress_cb)
-                except Exception as exc:
-                    msg = str(exc)
-                    self.after(0, lambda m=msg: (
-                        progress_label.configure(text="Fehler: " + m),
-                        messagebox.showerror("Fehler beim Lesen der Datei", m)
-                    ))
-                    return
+                    def progress_cb(current, total, _fi=fi):
+                        elapsed = time.time() - start_time
+                        per_chunk = elapsed / max(1, current + sum_chunks)
+                        remaining = int(per_chunk * max(0, total_chunks_all - current - sum_chunks))
+                        r_min, r_sec = divmod(remaining, 60)
+                        file_info = f"Datei {_fi+1}/{len(paths)} · " if len(paths) > 1 else ""
+                        self.after(0, lambda c=current, t=total, rm=r_min, rs=r_sec, finfo=file_info: (
+                            progress_label.configure(
+                                text=f"{finfo}Chunk {c}/{t} · ca. {rm}:{rs:02d} verbleibend"),
+                            progress_bar.set((sum_chunks + c) / max(1, total_chunks_all))
+                        ))
+
+                    try:
+                        questions = self.ai.import_questions(fpath, progress_cb)
+                        all_questions.extend(questions)
+                    except Exception as exc:
+                        errors.append(f"{file_label}: {exc}")
+                    sum_chunks += 10
+
                 def done():
                     elapsed = int(time.time() - start_time)
                     em, es = divmod(elapsed, 60)
-                    if questions:
+                    if all_questions:
                         quiz = Quiz(
                             name=name_entry.get().strip() or "Importiertes Quiz",
-                            description=f"{len(questions)} importierte Fragen",
+                            description=f"{len(all_questions)} importierte Fragen aus {len(paths)} Datei(en)",
                             created=datetime.now().isoformat(),
-                            questions=questions,
+                            questions=all_questions,
                         )
                         self.quizzes.append(quiz)
                         self.store.save_quizzes(self.quizzes)
+                        err_text = f"\n{len(errors)} Fehler" if errors else ""
                         messagebox.showinfo("Fertig",
-                            f"{len(questions)} Fragen in {em}:{es:02d} min importiert!")
+                            f"{len(all_questions)} Fragen in {em}:{es:02d} min importiert!{err_text}")
                         self.show_home()
                     else:
                         progress_label.configure(text="Keine Fragen importiert. Prüfe API-Key und Datei.")
