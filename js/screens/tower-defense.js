@@ -33,13 +33,19 @@ const DIFF_COLOR = { 1: "#22c55e", 2: "#f59e0b", 3: "#ef4444" };
 // Bloons-style balloon colors by remaining HP fraction tier
 const BLOON_TIERS = ["#e11d48", "#3b82f6", "#22c55e", "#eab308", "#ec4899", "#1e293b"];
 
+// Shared abort state so the router can kill the game loop on navigation
+let _activeState = null;
+
 export async function render(root) {
+  // Kill any leftover game from a previous mount
+  if (_activeState) { _activeState.gameOver = true; _activeState = null; }
+
   const quizzes = await loadQuizzes();
   if (!quizzes.length) {
     root.innerHTML = `<div class="screen-empty"><p>Erstelle zuerst ein Quiz!</p>
       <button class="btn-cta" id="td-empty-back">Zurück</button></div>`;
     root.querySelector("#td-empty-back").addEventListener("click", () => navigate("home"));
-    return;
+    return () => {};
   }
 
   root.innerHTML = `
@@ -72,11 +78,13 @@ export async function render(root) {
       difficulty = b.dataset.diff;
     });
   });
-  root.querySelector("#td-back").addEventListener("click", () => navigate("home"));
+  root.querySelector("#td-back").addEventListener("click", () => navigate("games"));
   root.querySelector("#td-start").addEventListener("click", () => {
     const qi = parseInt(root.querySelector("#td-quiz").value);
     startGame(root, quizzes[qi], difficulty);
   });
+
+  return () => { if (_activeState) { _activeState.gameOver = true; _activeState = null; } };
 }
 
 function startGame(root, quiz, difficulty) {
@@ -105,6 +113,7 @@ function startGame(root, quiz, difficulty) {
     lastSpawn: 0, spawnRate: cfg.spawnRate, cfg, questions, comboCount: 0,
     goalWaves: cfg.goalWaves, log: [],
   };
+  _activeState = state;
 
   root.innerHTML = `
     <div class="td-game">
@@ -148,7 +157,7 @@ function startGame(root, quiz, difficulty) {
   let animId, lastTime = 0;
 
   function gameLoop(ts) {
-    if (state.gameOver) return;
+    if (state.gameOver || !root.isConnected) return;
     const dt = Math.min(ts - lastTime, 50);
     lastTime = ts;
     if (!state.paused) {
@@ -206,6 +215,9 @@ function startGame(root, quiz, difficulty) {
       addFloater(state, col * TILE + TILE / 2, row * TILE + TILE / 2, "15 🪙 nötig", "#ef4444");
     }
   });
+
+  // Return cleanup so the router can stop the game loop on navigation
+  return () => { state.gameOver = true; cancelAnimationFrame(animId); };
 }
 
 function showQuestion(state, root) {
@@ -372,7 +384,7 @@ async function endGame(state, root, won) {
     </div>`;
   wrap.appendChild(over);
   over.querySelector("#td-retry").addEventListener("click", () => navigate("tower-defense"));
-  over.querySelector("#td-home").addEventListener("click", () => navigate("home"));
+  over.querySelector("#td-home").addEventListener("click", () => navigate("games"));
   attachFeedbackListeners(over, state.log);
 }
 

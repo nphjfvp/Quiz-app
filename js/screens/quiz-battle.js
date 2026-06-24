@@ -7,13 +7,17 @@ const CANVAS_W = 360, CANVAS_H = 420;
 const TOWER_Y = CANVAS_H - 36;
 const ENEMY_START_Y = 50;
 
+let _activeState = null;
+
 export async function render(root) {
+  if (_activeState) { _activeState.gameOver = true; _activeState = null; }
+
   const quizzes = await loadQuizzes();
   if (!quizzes.length) {
     root.innerHTML = `<div class="screen-empty"><p>Erstelle zuerst ein Quiz!</p>
       <button class="btn-cta" id="qb-empty-back">Zurück</button></div>`;
     root.querySelector("#qb-empty-back").addEventListener("click", () => navigate("home"));
-    return;
+    return () => {};
   }
 
   root.innerHTML = `
@@ -30,11 +34,13 @@ export async function render(root) {
       <button class="btn-secondary" id="qb-back">← Zurück</button>
     </div>`;
 
-  root.querySelector("#qb-back").addEventListener("click", () => navigate("home"));
+  root.querySelector("#qb-back").addEventListener("click", () => navigate("games"));
   root.querySelector("#qb-start").addEventListener("click", () => {
     const qi = parseInt(root.querySelector("#qb-quiz").value);
     startBattle(root, quizzes[qi]);
   });
+
+  return () => { if (_activeState) { _activeState.gameOver = true; _activeState = null; } };
 }
 
 function startBattle(root, quiz) {
@@ -56,6 +62,7 @@ function startBattle(root, quiz) {
     gameOver: false, won: false, currentQ: null, currentDiff: 1, locked: false,
     goalKills: 5, log: [], questions,
   };
+  _activeState = state;
 
   root.innerHTML = `
     <div class="qb-game">
@@ -92,7 +99,7 @@ function startBattle(root, quiz) {
 
   let lastTime = performance.now();
   function loop(ts) {
-    if (state.gameOver) return;
+    if (state.gameOver || !root.isConnected) return;
     const dt = Math.min(ts - lastTime, 50);
     lastTime = ts;
     update(state, dt);
@@ -474,7 +481,7 @@ async function endGame(state, root, won) {
     </div>`;
   wrap.appendChild(over);
   over.querySelector("#qb-retry").addEventListener("click", () => navigate("quiz-battle"));
-  over.querySelector("#qb-home").addEventListener("click", () => navigate("home"));
+  over.querySelector("#qb-home").addEventListener("click", () => navigate("games"));
   attachFeedbackListeners(over, state.log);
 }
 
