@@ -7,6 +7,16 @@ function norm(s) {
   return (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function stripLatex(s) {
+  return norm(s)
+    .replace(/\$\$[\s\S]*?\$\$/g, m => m.slice(2, -2))
+    .replace(/\$([^$]+)\$/g, (_, t) => t)
+    .replace(/\\(?:frac|sqrt|text|mathrm|mathbf)\{([^}]*)\}/g, "$1")
+    .replace(/[\\{}^_]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Returns { prompt, image, kind: "choice"|"text", options:[{text,correct}], accept:[..] }
 // or null if the question can't be played as a quick challenge.
 export function normalizeQuestion(q) {
@@ -36,12 +46,16 @@ export function normalizeQuestion(q) {
   }
 
   if (type === "fill_blank") {
-    const accept = (q.blanks || []).map(norm).filter(Boolean);
-    if (!accept.length) return null;
-    // Make sure a blank marker is visible in the prompt
+    const blanks = (q.blanks || []).filter(b => norm(b));
+    if (!blanks.length) return null;
+    if (blanks.length === 1) {
+      let p = prompt;
+      if (!/_{2,}|\[\.\.\.\]|…/.test(p)) p = p + "  ( ___ )";
+      return { prompt: p, image, kind: "text", options: [], accept: [norm(blanks[0])], explanation, answerText: blanks[0] };
+    }
     let p = prompt;
-    if (!/_{2,}|\[\.\.\.\]|…/.test(p)) p = p + "  ( ___ )";
-    return { prompt: p, image, kind: "text", options: [], accept, explanation, answerText: (q.blanks || []).join(", ") };
+    if (!/_{2,}|\[\.\.\.\]|…/.test(p)) p = p + "  (" + blanks.map((_, i) => `Lücke ${i + 1}`).join(", ") + ")";
+    return { prompt: p, image, kind: "multi_text", blanks, options: [], accept: blanks.map(norm), explanation, answerText: blanks.join(", ") };
   }
 
   if (type === "math_formula") {
@@ -77,7 +91,7 @@ export function difficultyOf(q) {
 
 // For a normalized item we keep difficulty by computing from its shape.
 export function difficultyOfNormalized(n) {
-  if (n.kind === "text") return 3;
+  if (n.kind === "text" || n.kind === "multi_text") return 3;
   if (n.options.length >= 4) return 2;
   return 1;
 }
@@ -89,10 +103,23 @@ export function checkMulti(options, selectedIdx) {
   return sel.length === correct.length && sel.every((v, k) => v === correct[k]);
 }
 
+export function checkMultiText(blanks, values) {
+  if (blanks.length !== values.length) return false;
+  return blanks.every((b, i) => checkText([norm(b)], values[i]));
+}
+
 export function checkText(accept, value) {
   const v = norm(value);
   if (!v) return false;
-  return accept.some(a => a === v || (a.length > 3 && a.includes(v)) || (v.length > 3 && v.includes(a)));
+  const vStripped = stripLatex(value);
+  return accept.some(a => {
+    if (a === v || (a.length > 3 && a.includes(v)) || (v.length > 3 && v.includes(a))) return true;
+    const aStripped = stripLatex(a);
+    if (aStripped === vStripped) return true;
+    if (aStripped.length > 3 && aStripped.includes(vStripped)) return true;
+    if (vStripped.length > 3 && vStripped.includes(aStripped)) return true;
+    return false;
+  });
 }
 
 // AI-enhanced text check: first tries local match, then falls back to AI.
@@ -123,6 +150,18 @@ function escHtml(s) {
   return (s ?? "").toString()
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function mathEscLocal(s) {
+  const escaped = escHtml(s);
+  if (!escaped.includes("$") || typeof window.katex === "undefined") return escaped;
+  const LATEX_RE = /(\$\$[\s\S]+?\$\$|\$(?!\s)[^$\n]+?\$)/g;
+  return escaped.replace(LATEX_RE, (m) => {
+    const display = m.startsWith("$$");
+    const tex = display ? m.slice(2, -2) : m.slice(1, -1);
+    try { return window.katex.renderToString(tex, { displayMode: display, throwOnError: false }); }
+    catch { return m; }
+  });
 }
 
 const DIFF_NAMES = { 1: "Leicht", 2: "Mittel", 3: "Schwer" };
@@ -169,9 +208,9 @@ export function buildFeedbackHtml(log) {
         const hasExplanation = !!(q.explanation || e.aiFeedback);
         const explText = q.explanation || e.aiFeedback || "";
         return `<div class="fb-item fb-item-d${q.diff || 1}">
-          <div class="fb-q">${escHtml(q.prompt)}</div>
-          ${ua ? `<div class="fb-ua">Deine Antwort: <span>${escHtml(ua)}</span></div>` : ""}
-          <div class="fb-ca">✅ Richtig: <span>${escHtml(q.answerText || "—")}</span></div>
+          <div class="fb-q">${mathEscLocal(q.prompt)}</div>
+          ${ua ? `<div class="fb-ua">Deine Antwort: <span>${mathEscLocal(ua)}</span></div>` : ""}
+          <div class="fb-ca">✅ Richtig: <span>${mathEscLocal(q.answerText || "—")}</span></div>
           ${hasExplanation ? `<div class="fb-ex">💡 ${escHtml(explText)}</div>` : ""}
           ${!hasExplanation ? `<button class="fb-explain-btn" data-idx="${i}">💡 Erklärung laden</button>
             <div class="fb-ex fb-ex-ai" id="fb-ex-${i}" style="display:none"></div>` : ""}

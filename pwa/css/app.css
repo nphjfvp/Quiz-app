@@ -1250,6 +1250,11 @@ a:focus-visible, [tabindex]:focus-visible {
 .qb-text-row { display: flex; gap: 8px; width: 100%; }
 .qb-text-row .td-input { flex: 1; }
 
+/* ── Multi-blank input rows ── */
+.td-blank-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.td-blank-label { font-size:0.8rem; color:var(--text-light); min-width:60px; }
+.td-blank-row .td-input { flex:1; }
+
 /* ── Achievements ── */
 .achievement-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:12px; margin-bottom:6px; background:var(--card-bg); border:1px solid var(--border); }
 .achievement-row.locked { opacity:0.5; }

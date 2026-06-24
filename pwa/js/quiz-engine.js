@@ -42,6 +42,16 @@ function normText(s) {
   return (s ?? "").trim().toLowerCase().replace(/\s+/g, " ").replace(/^[.,;:!?]+|[.,;:!?]+$/g, "");
 }
 
+function stripLatexText(s) {
+  return normText(s)
+    .replace(/\$\$[\s\S]*?\$\$/g, m => m.slice(2, -2))
+    .replace(/\$([^$]+)\$/g, (_, t) => t)
+    .replace(/\\(?:frac|sqrt|text|mathrm|mathbf)\{([^}]*)\}/g, "$1")
+    .replace(/[\\{}^_]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Levenshtein-Distanz (für kleine Tippfehler-Toleranz)
 function levenshtein(a, b) {
   const m = a.length, n = b.length;
@@ -64,11 +74,15 @@ function levenshtein(a, b) {
 function answerMatches(answer, correct) {
   const a = normText(answer);
   if (a === "") return false;
+  const aStripped = stripLatexText(answer);
   const candidates = String(correct ?? "").split(";").map(normText).filter(Boolean);
   for (const c of candidates) {
     if (a === c) return true;
     const allowed = c.length >= 9 ? 2 : c.length >= 5 ? 1 : 0;
     if (allowed > 0 && levenshtein(a, c) <= allowed) return true;
+    const cStripped = stripLatexText(c);
+    if (aStripped && cStripped && aStripped === cStripped) return true;
+    if (allowed > 0 && aStripped && cStripped && levenshtein(aStripped, cStripped) <= allowed) return true;
   }
   return false;
 }

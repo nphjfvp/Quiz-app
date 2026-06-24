@@ -1,7 +1,7 @@
 import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
-import { buildPlayable, checkText, checkTextSmart, checkMulti, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
+import { esc, mathEsc } from "../utils.js";
+import { buildPlayable, checkText, checkTextSmart, checkMulti, checkMultiText, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -242,7 +242,7 @@ function showQuestion(state, root) {
     qtext.appendChild(img);
   }
   const txt = document.createElement("div");
-  txt.textContent = q.prompt;
+  txt.innerHTML = mathEsc(q.prompt);
   qtext.appendChild(txt);
   opts.innerHTML = "";
 
@@ -252,7 +252,7 @@ function showQuestion(state, root) {
     shuffle([...q.options]).forEach((o) => {
       const btn = document.createElement("button");
       btn.className = "td-opt";
-      btn.textContent = o.text;
+      btn.innerHTML = mathEsc(o.text);
       btn.addEventListener("click", () => answer(!!o.correct, o.text));
       opts.appendChild(btn);
     });
@@ -266,7 +266,7 @@ function showQuestion(state, root) {
     shuffled.forEach((o, i) => {
       const btn = document.createElement("button");
       btn.className = "td-opt td-opt-multi";
-      btn.textContent = o.text;
+      btn.innerHTML = mathEsc(o.text);
       btn.addEventListener("click", () => {
         if (selected.has(i)) { selected.delete(i); btn.classList.remove("selected"); }
         else { selected.add(i); btn.classList.add("selected"); }
@@ -281,11 +281,15 @@ function showQuestion(state, root) {
       answer(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))), chosen.map(o => o.text).join(", "));
     });
     opts.appendChild(confirm);
+  } else if (q.kind === "multi_text") {
+    addMultiTextInput(opts, q.blanks, (values) => {
+      const ok = checkMultiText(q.blanks, values);
+      answer(ok, values.join(", "));
+    });
   } else {
     addTextInput(opts, async (val) => {
       const localOk = checkText(q.accept, val);
       if (localOk) { answer(true, val); return; }
-      // Show a brief "checking..." state, then ask AI
       const result = await checkTextSmart(q.prompt, q.accept, val);
       answer(result.correct, val, result.feedback);
     });
@@ -306,6 +310,32 @@ function addTextInput(opts, onSubmit) {
   opts.appendChild(inp);
   opts.appendChild(btn);
   setTimeout(() => inp.focus(), 50);
+}
+
+function addMultiTextInput(opts, blanks, onSubmit) {
+  const inputs = [];
+  blanks.forEach((_, i) => {
+    const row = document.createElement("div");
+    row.className = "td-blank-row";
+    const label = document.createElement("span");
+    label.className = "td-blank-label";
+    label.textContent = `Lücke ${i + 1}:`;
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "td-input";
+    inp.placeholder = `Lücke ${i + 1}…`;
+    inputs.push(inp);
+    row.appendChild(label);
+    row.appendChild(inp);
+    opts.appendChild(row);
+  });
+  const btn = document.createElement("button");
+  btn.className = "td-opt td-submit";
+  btn.textContent = "✓ Bestätigen";
+  btn.addEventListener("click", () => onSubmit(inputs.map(i => i.value)));
+  inputs[inputs.length - 1]?.addEventListener("keydown", (e) => { if (e.key === "Enter") onSubmit(inputs.map(i => i.value)); });
+  opts.appendChild(btn);
+  setTimeout(() => inputs[0]?.focus(), 50);
 }
 
 function handleAnswer(state, correct, diff, root, userAnswer = "", aiFeedback = null) {
