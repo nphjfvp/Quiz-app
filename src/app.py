@@ -28,6 +28,7 @@ from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as
 from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL, animate_color
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
+from .games import show_games, show_tower_defense, show_quiz_battle, _run_td, _run_qb, _game_card as _game_card_games
 from . import cloud_sync
 from . import auth
 
@@ -446,6 +447,7 @@ class App(ctk.CTk):
             ("📋", t("fosa.title"), COLORS["primary"], self.show_formula_sheets),
             ("📓", t("diary.card_title"), COLORS["danger"], self.show_error_diary),
             ("📅", t("plan.card_title"), COLORS["success"], self.show_study_plan),
+            ("🎮", "Mini-Games", COLORS["info"], self.show_games),
         ]
         for idx, (icon, title_, color, cmd) in enumerate(mini_tools):
             self._mini_card(tools_grid, idx % 4, idx // 4, icon, title_, color, cmd)
@@ -8090,3 +8092,11 @@ class App(ctk.CTk):
                      command=analyze).grid(row=0, column=0, padx=(0, 10))
         ctk.CTkButton(btn_row, text=t("nav.back_menu"), fg_color=COLORS["text_light"],
                      command=self.show_home).grid(row=0, column=1)
+
+
+# --- Bind game screens from games.py ---
+App.show_games = show_games
+App.show_tower_defense = show_tower_defense
+App.show_quiz_battle = show_quiz_battle
+App._run_td = _run_td
+App._run_qb = _run_qb
