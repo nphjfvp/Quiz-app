@@ -612,7 +612,8 @@ def _run_td(self, questions, difficulty):
                 tgt = max(targets, key=lambda e: e["progress"])
                 t["cd"] = t["rate"]
                 t["aim"] = math.atan2(tgt["y"] - t["y"], tgt["x"] - t["x"])
-                st["projectiles"].append({"x": t["x"], "y": t["y"], "target": tgt, "dmg": t["dmg"]})
+                ang = math.atan2(tgt["y"] - t["y"], tgt["x"] - t["x"])
+                st["projectiles"].append({"x": t["x"], "y": t["y"], "target": tgt, "dmg": t["dmg"], "angle": ang})
 
         # Move projectiles
         new_proj = []
@@ -620,11 +621,13 @@ def _run_td(self, questions, difficulty):
             tgt = p["target"]
             if not tgt or tgt["hp"] <= 0:
                 continue
+            p["angle"] = math.atan2(tgt["y"] - p["y"], tgt["x"] - p["x"])
             p["x"] += (tgt["x"] - p["x"]) * 0.25
             p["y"] += (tgt["y"] - p["y"]) * 0.25
             if math.hypot(p["x"] - tgt["x"], p["y"] - tgt["y"]) < 8:
                 tgt["hp"] -= p["dmg"]
                 tgt["hit"] = 6
+                _burst(st, p["x"], p["y"], "#fde047", 4)
             else:
                 new_proj.append(p)
         st["projectiles"] = new_proj
@@ -733,10 +736,27 @@ def _run_td(self, questions, difficulty):
             canvas.create_rectangle(ex - bw // 2, ey - r - 8, ex - bw // 2 + bw * frac, ey - r - 4,
                                     fill=hpc, outline="")
 
-        # Projectiles
+        # Projectiles (arrows)
         for p in st["projectiles"]:
-            canvas.create_oval(p["x"] - 4, p["y"] - 4, p["x"] + 4, p["y"] + 4,
-                               fill="#fde047", outline="#a16207")
+            a = p.get("angle", 0)
+            cx, cy = p["x"], p["y"]
+            ca, sa = math.cos(a), math.sin(a)
+            # shaft
+            x1, y1 = cx - 10 * ca, cy - 10 * sa
+            x2, y2 = cx + 6 * ca, cy + 6 * sa
+            canvas.create_line(x1, y1, x2, y2, fill="#92400e", width=2)
+            # arrowhead
+            tx, ty = cx + 10 * ca, cy + 10 * sa
+            lx, ly = cx + 4 * ca - 4 * sa, cy + 4 * sa + 4 * ca
+            rx, ry = cx + 4 * ca + 4 * sa, cy + 4 * sa - 4 * ca
+            canvas.create_polygon(tx, ty, lx, ly, rx, ry, fill="#fde047", outline="#a16207")
+            # fletching
+            fx, fy = cx - 10 * ca, cy - 10 * sa
+            fl1x, fl1y = cx - 7 * ca - 3 * sa, cy - 7 * sa + 3 * ca
+            fl2x, fl2y = cx - 6 * ca, cy - 6 * sa
+            canvas.create_polygon(fx, fy, fl1x, fl1y, fl2x, fl2y, fill="#ef4444", outline="")
+            fr1x, fr1y = cx - 7 * ca + 3 * sa, cy - 7 * sa - 3 * ca
+            canvas.create_polygon(fx, fy, fr1x, fr1y, fl2x, fl2y, fill="#ef4444", outline="")
 
         # Particles
         for p in st["particles"]:

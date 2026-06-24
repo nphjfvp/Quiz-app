@@ -462,17 +462,20 @@ function update(state, dt, ts, cfg) {
       .sort((a, b) => b.progress - a.progress)[0];
     if (target) {
       t.cooldown = t.fireRate;
-      state.projectiles.push({ x: t.x, y: t.y, target, dmg: t.dmg });
+      const ang = Math.atan2(target.y - t.y, target.x - t.x);
+      state.projectiles.push({ x: t.x, y: t.y, target, dmg: t.dmg, angle: ang });
     }
   }
 
   state.projectiles = state.projectiles.filter(p => {
     if (!p.target || p.target.hp <= 0) return false;
+    p.angle = Math.atan2(p.target.y - p.y, p.target.x - p.x);
     p.x = lerp(p.x, p.target.x, 0.25);
     p.y = lerp(p.y, p.target.y, 0.25);
     if (Math.hypot(p.x - p.target.x, p.y - p.target.y) < 8) {
       p.target.hp -= p.dmg;
       p.target.hit = 6;
+      burst(state, p.x, p.y, "#fde047", 4);
       return false;
     }
     return true;
@@ -581,12 +584,41 @@ function draw(ctx, state) {
     ctx.fillRect(e.x - barW / 2, e.y - r - 8, barW * frac, 4);
   }
 
-  // Projectiles (darts)
+  // Projectiles (arrows)
   for (const p of state.projectiles) {
+    const a = p.angle || 0;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(a);
+    // shaft
+    ctx.strokeStyle = "#92400e";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(6, 0); ctx.stroke();
+    // arrowhead
     ctx.fillStyle = "#fde047";
-    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#a16207"; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(10, 0);
+    ctx.lineTo(4, -4);
+    ctx.lineTo(4, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#a16207"; ctx.lineWidth = 1;
+    ctx.stroke();
+    // fletching
+    ctx.fillStyle = "#ef4444";
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(-7, -3);
+    ctx.lineTo(-6, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(-7, 3);
+    ctx.lineTo(-6, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   // Particles
