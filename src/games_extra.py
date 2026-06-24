@@ -362,9 +362,11 @@ def _run_millionaire(self, questions):
 
     def game_over():
         pts = st["safe"]
+        safe_levels = [s for s in _SAFE if s < st["level"]]
+        secured = _PRIZES[max(safe_levels)] if safe_levels else "0 €"
         _game_end_screen(self, self.show_games, "❌ Leider falsch!", [
             ("Erreicht", f"Frage {st['level']}/15"),
-            ("Gesichert", _PRIZES[max((s for s in _SAFE if s < st['level']), default=-1)] if st['level'] else "0 €"),
+            ("Gesichert", secured),
             ("Punkte", f"⭐ {pts}"),
             ("Münzen", f"🪙 +{pts // 2}"),
         ], lambda: _run_millionaire(self, questions))

@@ -477,6 +477,9 @@ class App(ctk.CTk):
             ("📅", t("plan.card_title"), COLORS["success"], self.show_study_plan),
             ("🎮", "Mini-Games", COLORS["info"], self.show_games),
             ("🖌️", "Bild-Editor", COLORS["primary_dark"], lambda: self.show_image_editor()),
+            ("🧠", "SR-Dashboard", COLORS["info"], self.show_sr_dashboard),
+            ("🏅", "Erfolge", COLORS["warning"], self.show_achievements),
+            ("🏛️", "Sokrates", COLORS["primary"], lambda: self.show_socratic()),
         ]
         for idx, (icon, title_, color, cmd) in enumerate(mini_tools):
             self._mini_card(tools_grid, idx % 4, idx // 4, icon, title_, color, cmd)
@@ -7712,4 +7715,8 @@ from .screens_study import show_study, show_socratic, _link_material
 App.show_study = show_study
 App.show_socratic = show_socratic
 App._link_material = _link_material
+
+from .screens_progress import show_sr_dashboard, show_achievements
+App.show_sr_dashboard = show_sr_dashboard
+App.show_achievements = show_achievements
 
