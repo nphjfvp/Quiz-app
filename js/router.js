@@ -13,7 +13,16 @@ export async function navigate(name, params = {}) {
   root.innerHTML = "";
   const handler = _routes[name];
   if (!handler) { root.textContent = `Screen "${name}" not found`; return; }
-  const cleanup = await handler(root, params);
+  let cleanup;
+  try {
+    cleanup = await handler(root, params);
+  } catch (err) {
+    console.error(`[Router] Screen "${name}" crashed:`, err);
+    root.innerHTML = `<div style="padding:30px 20px"><h3>⚠️ Fehler beim Laden</h3>
+      <p style="color:#f87171;font-family:monospace;font-size:0.85rem;word-break:break-all">${err?.message || err}</p>
+      <button onclick="location.hash='home';location.reload()" style="margin-top:16px;padding:10px 20px;border-radius:8px;background:var(--primary,#0d9488);color:#fff;border:none;cursor:pointer">🏠 Startseite</button></div>`;
+    return;
+  }
   if (typeof cleanup === "function") _currentCleanup = cleanup;
   history.pushState({ screen: name, params }, "", `#${name}`);
   // Sanfte Einblende-Animation (respektiert prefers-reduced-motion via CSS)
