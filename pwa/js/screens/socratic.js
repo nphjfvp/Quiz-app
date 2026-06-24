@@ -3,7 +3,49 @@ import { navigate } from "../router.js";
 import { esc, mathEsc } from "../utils.js";
 
 export async function render(root, params = {}) {
-  const quizId = params.quizId || null;
+  let quizId = params.quizId || null;
+
+  // If no quiz was specified (e.g. from Home), show a picker first.
+  if (!quizId) {
+    const allQ = await loadQuizzes();
+    if (allQ.length) {
+      const BACK = Symbol("back");
+      const FREE = Symbol("free");
+      const choice = await new Promise((resolve) => {
+        let html = `<div class="game-setup">
+          <h2 class="game-setup-title">🏛️ Sokratischer Modus</h2>
+          <p class="game-setup-sub">Welches Quiz möchtest du sokratisch üben?</p>
+          <div class="game-setup-list">
+            <button class="game-src-btn" data-idx="free">
+              <span class="game-src-name">💬 Freies Thema</span>
+              <span class="game-src-meta">ohne Quiz</span>
+            </button>`;
+        allQ.forEach((q, i) => {
+          const n = (q.questions || []).length;
+          html += `<button class="game-src-btn" data-idx="${i}">
+            <span class="game-src-name">${esc(q.name || "Quiz")}</span>
+            <span class="game-src-meta">${n} Fragen</span>
+          </button>`;
+        });
+        html += `</div>
+          <button class="btn-secondary" id="gs-back" style="margin-top:16px;width:100%">← Zurück</button>
+        </div>`;
+        root.innerHTML = html;
+        root.querySelectorAll(".game-src-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const idx = btn.dataset.idx;
+            resolve(idx === "free" ? FREE : allQ[+idx]?.id || FREE);
+          });
+        });
+        root.querySelector("#gs-back").addEventListener("click", () => {
+          navigate("home"); resolve(BACK);
+        });
+      });
+      if (choice === BACK) return;
+      if (choice !== FREE) quizId = choice;
+    }
+  }
+
   const [quizzes, progress, diary] = await Promise.all([
     loadQuizzes(), loadProgress(), loadErrorDiary(),
   ]);
