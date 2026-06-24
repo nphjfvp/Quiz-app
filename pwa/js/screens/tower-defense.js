@@ -458,53 +458,65 @@ function update(state, dt, ts, cfg) {
 function draw(ctx, state) {
   const isDark = document.documentElement.dataset.theme === "dark" ||
     (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const now = performance.now();
 
-  // Grass background
-  const grass = isDark ? "#0f2a1e" : "#8fd19e";
-  const grass2 = isDark ? "#123524" : "#7ec48d";
-  ctx.fillStyle = grass;
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  // subtle checker
-  ctx.fillStyle = grass2;
-  for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++)
-      if ((r + c) % 2 === 0) ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+  drawArena(ctx, isDark, now);
 
-  // Path as a thick rounded track
+  // Path as a worn battle road across the arena floor
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   const pts = PATH.map(p => ({ x: p.col * TILE + TILE / 2, y: p.row * TILE + TILE / 2 }));
-  ctx.strokeStyle = isDark ? "#3b2f23" : "#caa472";
-  ctx.lineWidth = TILE * 0.8;
+  // dark outline / trench
+  ctx.strokeStyle = isDark ? "#1a120b" : "#7a5a34";
+  ctx.lineWidth = TILE * 0.82;
   strokePath(ctx, pts);
-  ctx.strokeStyle = isDark ? "#5a4632" : "#e0c89a";
-  ctx.lineWidth = TILE * 0.6;
+  // sandy road
+  ctx.strokeStyle = isDark ? "#4a3a26" : "#d9b888";
+  ctx.lineWidth = TILE * 0.62;
   strokePath(ctx, pts);
+  // lighter center scuff
+  ctx.strokeStyle = isDark ? "#5c4830" : "#e8cfa3";
+  ctx.lineWidth = TILE * 0.3;
+  ctx.globalAlpha = 0.6;
+  strokePath(ctx, pts);
+  ctx.globalAlpha = 1;
 
-  // Base (home)
+  // Base (fortress) at the end of the road
   const lastP = pts[pts.length - 1];
-  drawRoundRect(ctx, lastP.x - 16, lastP.y - 16, 32, 32, 8, "#ef4444");
-  ctx.font = "18px sans-serif";
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText("🏰", lastP.x, lastP.y);
+  drawBase(ctx, lastP.x, lastP.y, state, now);
 
-  // Towers (monkey-style)
+  // Towers (cannon turrets)
   for (const t of state.towers) {
     ctx.beginPath();
     ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2);
-    ctx.fillStyle = isDark ? "rgba(34,211,238,0.04)" : "rgba(28,180,135,0.05)";
+    ctx.fillStyle = isDark ? "rgba(34,211,238,0.05)" : "rgba(28,180,135,0.06)";
     ctx.fill();
-    // base shadow
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.beginPath(); ctx.ellipse(t.x, t.y + 13, 13, 5, 0, 0, Math.PI * 2); ctx.fill();
-    // body
-    ctx.fillStyle = t.color;
+    // ground shadow
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath(); ctx.ellipse(t.x, t.y + 13, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // stone platform
+    ctx.fillStyle = isDark ? "#3a4452" : "#9aa6b4";
     ctx.beginPath(); ctx.arc(t.x, t.y, 14, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.beginPath(); ctx.arc(t.x, t.y, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.font = "12px sans-serif";
-    ctx.fillStyle = "#000";
-    ctx.fillText("🎯", t.x, t.y + 1);
+    ctx.fillStyle = isDark ? "#2a323d" : "#7e8b9a";
+    ctx.beginPath(); ctx.arc(t.x, t.y, 14, 0.2 * Math.PI, 0.8 * Math.PI); ctx.lineTo(t.x, t.y); ctx.fill();
+    // turret body
+    ctx.fillStyle = t.color;
+    ctx.beginPath(); ctx.arc(t.x, t.y, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.beginPath(); ctx.arc(t.x - 2.5, t.y - 2.5, 3, 0, Math.PI * 2); ctx.fill();
+    // barrel aimed at nearest enemy in range
+    const tgt = state.enemies
+      .filter(e => e.hp > 0 && Math.hypot(e.x - t.x, e.y - t.y) <= t.range)
+      .sort((a, b) => b.progress - a.progress)[0];
+    const ang = tgt ? Math.atan2(tgt.y - t.y, tgt.x - t.x) : (t.aim || -Math.PI / 2);
+    t.aim = ang;
+    ctx.strokeStyle = isDark ? "#1f2730" : "#4b5563";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(t.x, t.y);
+    ctx.lineTo(t.x + Math.cos(ang) * 16, t.y + Math.sin(ang) * 16);
+    ctx.stroke();
   }
 
   // Enemies as bloons
@@ -571,6 +583,109 @@ function draw(ctx, state) {
   ctx.fillRect(0, CANVAS_H - 6, CANVAS_W, 6);
   ctx.fillStyle = hpPct > 0.5 ? "#22c55e" : hpPct > 0.25 ? "#f59e0b" : "#ef4444";
   ctx.fillRect(0, CANVAS_H - 6, CANVAS_W * hpPct, 6);
+}
+
+// --- Arena: stone floor inside a walled coliseum with corner torches ---
+function drawArena(ctx, isDark, now) {
+  // Outer arena wall (stone ring)
+  const wall = isDark ? "#2b2620" : "#6b5d4f";
+  ctx.fillStyle = wall;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // brick courses on the wall border
+  ctx.strokeStyle = isDark ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.18)";
+  ctx.lineWidth = 1;
+  for (let y = 0; y < CANVAS_H; y += 14) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
+    const off = (Math.floor(y / 14) % 2) * 14;
+    for (let x = off; x < CANVAS_W; x += 28) {
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 14); ctx.stroke();
+    }
+  }
+
+  // Inner arena floor (inset sand pit)
+  const pad = 10;
+  const floor1 = isDark ? "#3a3024" : "#cdb288";
+  const floor2 = isDark ? "#332b20" : "#c2a679";
+  drawRoundRect(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14, floor1);
+  // sand grid texture
+  ctx.save();
+  drawRoundRect(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14, floor1);
+  ctx.clip();
+  ctx.fillStyle = floor2;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if ((r + c) % 2 === 0) ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+  // faint concentric arena rings
+  ctx.strokeStyle = isDark ? "rgba(0,0,0,0.12)" : "rgba(120,90,50,0.14)";
+  ctx.lineWidth = 2;
+  for (let i = 1; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.ellipse(CANVAS_W / 2, CANVAS_H / 2, 50 * i, 70 * i, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Inner wall shadow (depth)
+  ctx.strokeStyle = "rgba(0,0,0,0.3)";
+  ctx.lineWidth = 3;
+  roundRectPath(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14);
+  ctx.stroke();
+
+  // Corner torches with flickering flames
+  const flick = 0.7 + Math.sin(now / 90) * 0.15 + Math.random() * 0.1;
+  const corners = [[pad + 4, pad + 4], [CANVAS_W - pad - 4, pad + 4],
+                   [pad + 4, CANVAS_H - pad - 4], [CANVAS_W - pad - 4, CANVAS_H - pad - 4]];
+  for (const [cx, cy] of corners) {
+    // glow
+    const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, 26 * flick);
+    g.addColorStop(0, "rgba(255,170,60,0.55)");
+    g.addColorStop(1, "rgba(255,170,60,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, 26 * flick, 0, Math.PI * 2); ctx.fill();
+    // sconce
+    ctx.fillStyle = isDark ? "#1c1813" : "#3a3026";
+    ctx.beginPath(); ctx.arc(cx, cy + 2, 4, 0, Math.PI * 2); ctx.fill();
+    // flame
+    ctx.fillStyle = "#fb923c";
+    ctx.beginPath(); ctx.ellipse(cx, cy - 3, 3.2, 6 * flick, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fde047";
+    ctx.beginPath(); ctx.ellipse(cx, cy - 2, 1.6, 3.5 * flick, 0, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawBase(ctx, x, y, state, now) {
+  const hpPct = Math.max(0, state.baseHP / state.maxHP);
+  // ground shadow
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.beginPath(); ctx.ellipse(x, y + 15, 20, 6, 0, 0, Math.PI * 2); ctx.fill();
+  // keep walls
+  const wallC = hpPct > 0.5 ? "#94a3b8" : hpPct > 0.25 ? "#cbb38a" : "#d98a8a";
+  drawRoundRect(ctx, x - 17, y - 13, 34, 28, 4, wallC);
+  // battlements
+  ctx.fillStyle = "#64748b";
+  for (let i = 0; i < 4; i++) ctx.fillRect(x - 17 + i * 9, y - 18, 5, 6);
+  // gate
+  ctx.fillStyle = "#475569";
+  drawRoundRect(ctx, x - 6, y - 2, 12, 17, 4, "#475569");
+  // banner (waves with hp)
+  const sway = Math.sin(now / 300) * 2;
+  ctx.fillStyle = hpPct > 0.25 ? "#0d9488" : "#ef4444";
+  ctx.beginPath();
+  ctx.moveTo(x, y - 18); ctx.lineTo(x + 10 + sway, y - 22); ctx.lineTo(x + 10 + sway, y - 14);
+  ctx.lineTo(x, y - 12); ctx.fill();
+  ctx.strokeStyle = "#334155"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x, y - 24); ctx.lineTo(x, y - 8); ctx.stroke();
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 function strokePath(ctx, pts) {
