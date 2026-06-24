@@ -28,7 +28,7 @@ from .ai_service import AIService
 from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
 from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL, animate_color
 from .i18n import t, set_language, get_language
-from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex
+from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex, autowrap_latex
 from .games import show_games, show_tower_defense, show_quiz_battle, _run_td, _run_qb, _game_card as _game_card_games
 from . import cloud_sync
 from . import auth
@@ -98,6 +98,10 @@ class App(ctk.CTk):
         ctk.ThemeManager.theme["CTkButton"]["corner_radius"] = RADIUS_SM
         ctk.ThemeManager.theme["CTkEntry"]["corner_radius"] = RADIUS_SM
         ctk.ThemeManager.theme["CTkOptionMenu"]["corner_radius"] = RADIUS_SM
+        # Default button text uses a [light, dark] pair so accent-colored buttons
+        # (bright cyan/green in dark mode) get dark, high-contrast text instead of
+        # near-invisible white. ctk auto-selects by appearance mode.
+        ctk.ThemeManager.theme["CTkButton"]["text_color"] = ["#ffffff", "#06121a"]
 
         header_wrap = ctk.CTkFrame(self, fg_color=COLORS["border"], corner_radius=0, height=62)
         header_wrap.grid(row=0, column=0, sticky="ew")
@@ -3163,6 +3167,7 @@ class App(ctk.CTk):
         If LaTeX found and matplotlib available: uses tk.Text with embedded images.
         Otherwise: falls back to CTkLabel with plain-text formulas."""
         tc = text_color or COLORS["text"]
+        text = autowrap_latex(text)
         if not has_latex(text):
             lbl = ctk.CTkLabel(parent, text=text, font=font, text_color=tc,
                                wraplength=wraplength, justify="left")
@@ -5073,7 +5078,7 @@ class App(ctk.CTk):
                                      text_color=COLORS["primary"])
                 badge.grid(row=0, column=0, padx=(14, 8), pady=12)
 
-                opt_display = latex_to_plain(option.text) if has_latex(option.text) else option.text
+                opt_display = latex_to_plain(autowrap_latex(option.text)) if has_latex(option.text) else option.text
                 lbl = ctk.CTkLabel(row_card, text=opt_display, font=("Segoe UI", 14),
                                    text_color=COLORS["text"], wraplength=560, justify="left")
                 lbl.grid(row=0, column=1, padx=(0, 14), pady=12, sticky="w")
@@ -6141,7 +6146,8 @@ class App(ctk.CTk):
                             font=("Segoe UI", 12), text_color="white"
                             ).grid(row=1, column=0, padx=22, pady=(0, 5), sticky="w")
                 if not result.is_correct:
-                    ctk.CTkLabel(fb, text=f"✓ {result.correct_answer}",
+                    _ca = latex_to_plain(autowrap_latex(result.correct_answer)) if has_latex(result.correct_answer) else result.correct_answer
+                    ctk.CTkLabel(fb, text=f"✓ {_ca}",
                                 font=("Segoe UI", 13, "bold"), text_color="white", wraplength=600
                                 ).grid(row=2, column=0, padx=22, pady=(0, 12), sticky="w")
 
@@ -6892,6 +6898,8 @@ class App(ctk.CTk):
             elif question.question_type == QuestionType.MULTIPLE_CHOICE:
                 correct_text = ", ".join(o.text for o in question.options if o.is_correct)
 
+            if correct_text and has_latex(correct_text):
+                correct_text = latex_to_plain(autowrap_latex(correct_text))
             ctk.CTkLabel(ca_frame, text=correct_text or "–", font=("Segoe UI", 12),
                         text_color=COLORS["text"], wraplength=500, justify="left"
                         ).grid(row=0, column=1, padx=10, pady=8, sticky="w")

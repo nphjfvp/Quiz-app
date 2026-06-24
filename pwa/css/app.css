@@ -1250,6 +1250,13 @@ a:focus-visible, [tabindex]:focus-visible {
 .qb-text-row { display: flex; gap: 8px; width: 100%; }
 .qb-text-row .td-input { flex: 1; }
 
+/* ── KI free-text validation ── */
+.ki-validate { margin-top:12px; padding:12px 14px; border-radius:10px; background:var(--card-bg); border:1px solid var(--border); }
+.ki-validate-status { font-size:0.85rem; color:var(--text-light); }
+.ki-validate-ok { font-size:0.9rem; font-weight:700; color:var(--success); margin-bottom:6px; }
+.ki-validate-no { font-size:0.9rem; font-weight:700; color:var(--danger); margin-bottom:6px; }
+.ki-validate-fb { font-size:0.85rem; color:var(--text); margin-bottom:8px; line-height:1.4; }
+
 /* ── Multi-blank input rows ── */
 .td-blank-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
 .td-blank-label { font-size:0.8rem; color:var(--text-light); min-width:60px; }

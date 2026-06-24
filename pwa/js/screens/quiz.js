@@ -299,6 +299,37 @@ function showQuestion(root, quiz, session) {
         await saveErrorDiary(diary);
       }
 
+      // KI-Bewertung für Freitext: vergleicht Musterlösung + Antwort semantisch.
+      // Wenn inhaltlich richtig (nur anders formuliert) → als richtig werten lassen.
+      if (!result.is_correct && q.question_type === "free_text" && (result.user_answer || "").trim()) {
+        const kiBox = document.createElement("div");
+        kiBox.className = "ki-validate";
+        kiBox.innerHTML = `<div class="ki-validate-status">🤖 KI prüft, ob deine Antwort inhaltlich richtig ist…</div>`;
+        fb.appendChild(kiBox);
+        (async () => {
+          try {
+            const { checkFreeTextAI } = await import("../ai-service.js");
+            const accepted = String(q.correct_text || result.correct_answer || "").split(/[;|]/).map(s => s.trim()).filter(Boolean);
+            const r = await checkFreeTextAI(q.question_text || q.text || "", result.user_answer, accepted);
+            if (!r) { kiBox.remove(); return; }
+            if (r.correct) {
+              kiBox.innerHTML = `<div class="ki-validate-ok">🤖 KI: Inhaltlich richtig!</div>
+                ${r.feedback ? `<div class="ki-validate-fb">${mathEsc(r.feedback)}</div>` : ""}
+                <button class="btn btn-success btn-sm" id="ki-accept">Als richtig werten</button>`;
+              kiBox.querySelector("#ki-accept")?.addEventListener("click", async () => {
+                let pr = await loadProgress();
+                pr = updateProgress(pr, q.id, true);
+                await saveProgress(pr);
+                kiBox.innerHTML = `<div class="ki-validate-ok">✓ Als richtig gewertet!</div>`;
+              });
+            } else {
+              kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI: Inhaltlich nicht korrekt.</div>
+                ${r.feedback ? `<div class="ki-validate-fb">${mathEsc(r.feedback)}</div>` : ""}`;
+            }
+          } catch { kiBox.remove(); }
+        })();
+      }
+
       // Highlight correct/wrong options
       if (q.question_type === "single_choice") {
         const correctIdx = q.options.findIndex(o => o.is_correct);

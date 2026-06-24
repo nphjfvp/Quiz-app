@@ -14,6 +14,13 @@ import customtkinter as ctk
 from .models import QuestionType
 from .theme import COLORS, RADIUS_SM, RADIUS_MD, RADIUS_LG, animate_color
 from .i18n import t
+from .latex_render import has_latex, latex_to_plain, autowrap_latex
+
+
+def _display_text(s):
+    """Make text with LaTeX readable in the game labels (plain-text math)."""
+    s = s or ""
+    return latex_to_plain(autowrap_latex(s)) if has_latex(s) else s
 
 
 def _build_playable(questions):
@@ -40,12 +47,27 @@ def _build_playable(questions):
                 "answer": ", ".join(correct),
                 "explanation": q.explanation, "diff": _get_diff(q),
             })
-        elif q.question_type in (QuestionType.FREE_TEXT, QuestionType.FILL_BLANK, QuestionType.MATH_FORMULA):
+        elif q.question_type == QuestionType.FILL_BLANK:
+            blanks = [b.strip() for b in (q.blanks or []) if b.strip()]
+            if not blanks:
+                continue
+            if len(blanks) > 1:
+                # One input field per blank — checked positionally.
+                out.append({
+                    "prompt": q.text or q.title, "kind": "multi_text", "options": [],
+                    "blanks": blanks, "accept": blanks, "answer": ", ".join(blanks),
+                    "explanation": q.explanation, "diff": _get_diff(q),
+                })
+            else:
+                out.append({
+                    "prompt": q.text or q.title, "kind": "text", "options": [],
+                    "accept": blanks, "answer": blanks[0],
+                    "explanation": q.explanation, "diff": _get_diff(q),
+                })
+        elif q.question_type in (QuestionType.FREE_TEXT, QuestionType.MATH_FORMULA):
             accept = []
             if q.question_type == QuestionType.FREE_TEXT:
-                accept = [a.strip() for a in (q.correct_text or "").split("|") if a.strip()]
-            elif q.question_type == QuestionType.FILL_BLANK:
-                accept = [b.strip() for b in (q.blanks or []) if b.strip()]
+                accept = [a.strip() for a in (q.correct_text or "").replace(";", "|").split("|") if a.strip()]
             elif q.question_type == QuestionType.MATH_FORMULA:
                 accept = [q.correct_formula.strip()] if q.correct_formula else []
             if not accept:
@@ -54,6 +76,7 @@ def _build_playable(questions):
                 "prompt": q.text or q.title, "kind": "text", "options": [],
                 "accept": accept, "answer": accept[0],
                 "explanation": q.explanation, "diff": _get_diff(q),
+                "is_free_text": q.question_type == QuestionType.FREE_TEXT,
             })
     return out
 
@@ -89,12 +112,37 @@ def _get_diff(q):
     return 3
 
 
+def _strip_latex(s):
+    import re
+    s = (s or "").strip().lower()
+    s = re.sub(r"\$\$(.+?)\$\$", r"\1", s)
+    s = re.sub(r"\$(.+?)\$", r"\1", s)
+    s = re.sub(r"\\frac\{([^}]*)\}\{([^}]*)\}", r"(\1)/(\2)", s)
+    s = re.sub(r"\\(?:text|mathrm|mathbf)\{([^}]*)\}", r"\1", s)
+    s = re.sub(r"[\\{}^_]", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
 def _check_text(accept, value):
     v = value.strip().lower()
+    if not v:
+        return False
+    vs = _strip_latex(value)
     for a in accept:
-        if v == a.lower():
+        al = a.strip().lower()
+        if v == al:
+            return True
+        if vs and _strip_latex(a) == vs:
             return True
     return False
+
+
+def _check_multi_text(blanks, values):
+    """All blanks must be answered correctly, positionally."""
+    if len(values) != len(blanks):
+        return False
+    return all(_check_text([b], v) for b, v in zip(blanks, values))
 
 
 # ─── Colors for arena drawing ────────────────────────────────────────────
@@ -368,9 +416,9 @@ def _run_td(self, questions, difficulty):
         state["currentQ"] = q
 
         diff = q.get("diff", 1)
-        q_diff_lbl.configure(text=DIFF_LABEL[diff], fg_color=DIFF_COLOR[diff], text_color="white")
+        q_diff_lbl.configure(text=DIFF_LABEL[diff], fg_color=DIFF_COLOR[diff], text_color="#0d1117")
         q_reward_lbl.configure(text=f"💥 {3 * diff} Schaden · 🪙 {2 * diff}")
-        q_text_lbl.configure(text=q["prompt"])
+        q_text_lbl.configure(text=_display_text(q["prompt"]))
 
         for w in opts_frame.winfo_children():
             w.destroy()
@@ -388,7 +436,7 @@ def _run_td(self, questions, difficulty):
             shuffled = q["options"][:]
             random.shuffle(shuffled)
             for i, o in enumerate(shuffled):
-                btn = ctk.CTkButton(opts_frame, text=o["text"], height=38,
+                btn = ctk.CTkButton(opts_frame, text=_display_text(o["text"]), height=38,
                                     corner_radius=RADIUS_SM, fg_color=COLORS["card"],
                                     text_color=COLORS["text"], border_width=1,
                                     border_color=COLORS["border"],
@@ -402,7 +450,7 @@ def _run_td(self, questions, difficulty):
             selected = set()
             btns = []
             for i, o in enumerate(shuffled):
-                b = ctk.CTkButton(opts_frame, text=o["text"], height=34,
+                b = ctk.CTkButton(opts_frame, text=_display_text(o["text"]), height=34,
                                   corner_radius=RADIUS_SM, fg_color=COLORS["card"],
                                   text_color=COLORS["text"], border_width=1,
                                   border_color=COLORS["border"], font=("Segoe UI", 11))
@@ -411,10 +459,10 @@ def _run_td(self, questions, difficulty):
                 def toggle(idx=i, btn=b):
                     if idx in selected:
                         selected.discard(idx)
-                        btn.configure(fg_color=COLORS["card"])
+                        btn.configure(fg_color=COLORS["card"], text_color=COLORS["text"])
                     else:
                         selected.add(idx)
-                        btn.configure(fg_color=COLORS["primary"], text_color="white")
+                        btn.configure(fg_color=COLORS["primary"], text_color=COLORS.get("on_primary", "#ffffff"))
                 b.configure(command=toggle)
             confirm = ctk.CTkButton(opts_frame, text="✓ Bestätigen", height=36,
                                     corner_radius=RADIUS_SM, fg_color=COLORS["success"],
@@ -425,6 +473,29 @@ def _run_td(self, questions, difficulty):
                 ok = set(i for i, o in enumerate(shuffled) if o["correct"]) == selected
                 answer(ok, ", ".join(o["text"] for o in chosen))
             confirm.configure(command=check_multi)
+        elif q["kind"] == "multi_text":
+            blanks = q["blanks"]
+            entries = []
+            for i, _b in enumerate(blanks):
+                row = ctk.CTkFrame(opts_frame, fg_color="transparent")
+                row.grid(row=i, column=0, columnspan=2, padx=4, pady=3, sticky="ew")
+                row.grid_columnconfigure(1, weight=1)
+                ctk.CTkLabel(row, text=f"Lücke {i+1}:", font=("Segoe UI", 11),
+                             text_color=COLORS["text_light"], width=60
+                             ).grid(row=0, column=0, padx=(0, 6))
+                e = ctk.CTkEntry(row, placeholder_text=f"Lücke {i+1}…",
+                                 font=("Segoe UI", 13), height=34)
+                e.grid(row=0, column=1, sticky="ew")
+                entries.append(e)
+            def submit_blanks(_=None):
+                vals = [e.get() for e in entries]
+                answer(_check_multi_text(blanks, vals), ", ".join(vals))
+            btn = ctk.CTkButton(opts_frame, text="✓ Bestätigen", height=36,
+                                corner_radius=RADIUS_SM, fg_color=COLORS["primary"],
+                                font=("Segoe UI", 12, "bold"), command=submit_blanks)
+            btn.grid(row=len(blanks), column=0, columnspan=2, padx=4, pady=6, sticky="ew")
+            entries[-1].bind("<Return>", submit_blanks)
+            entries[0].focus_set()
         else:
             inp = ctk.CTkEntry(opts_frame, placeholder_text="Antwort eingeben…",
                                font=("Segoe UI", 13), height=38)
@@ -736,13 +807,13 @@ def _run_td(self, questions, difficulty):
                 f = ctk.CTkFrame(scroll, fg_color=COLORS.get("row_bad", "#fee2e2"), corner_radius=8)
                 f.grid(row=4 + j, column=0, sticky="ew", pady=3)
                 f.grid_columnconfigure(0, weight=1)
-                ctk.CTkLabel(f, text=q["prompt"], font=("Segoe UI", 12, "bold"),
+                ctk.CTkLabel(f, text=_display_text(q["prompt"]), font=("Segoe UI", 12, "bold"),
                              text_color=COLORS["text"], wraplength=500, justify="left"
                              ).grid(row=0, column=0, padx=10, pady=(6, 2), sticky="w")
-                ctk.CTkLabel(f, text=f"Deine Antwort: {entry.get('userAnswer', '—')}",
+                ctk.CTkLabel(f, text=f"Deine Antwort: {_display_text(entry.get('userAnswer', '—'))}",
                              font=("Segoe UI", 11), text_color=COLORS["danger"]
                              ).grid(row=1, column=0, padx=10, pady=1, sticky="w")
-                ctk.CTkLabel(f, text=f"Richtig: {q.get('answer', '—')}",
+                ctk.CTkLabel(f, text=f"Richtig: {_display_text(q.get('answer', '—'))}",
                              font=("Segoe UI", 11), text_color=COLORS["success"]
                              ).grid(row=2, column=0, padx=10, pady=(1, 6), sticky="w")
 
@@ -962,8 +1033,8 @@ def _run_qb(self, questions, difficulty, mode):
         state["currentQ"] = q
 
         diff = q.get("diff", 1)
-        q_diff_lbl.configure(text=DIFF_LABEL[diff], fg_color=DIFF_COLOR[diff], text_color="white")
-        q_text_lbl.configure(text=q["prompt"])
+        q_diff_lbl.configure(text=DIFF_LABEL[diff], fg_color=DIFF_COLOR[diff], text_color="#0d1117")
+        q_text_lbl.configure(text=_display_text(q["prompt"]))
 
         for w in opts_frame.winfo_children():
             w.destroy()
@@ -988,7 +1059,7 @@ def _run_qb(self, questions, difficulty, mode):
             shuffled = q["options"][:]
             random.shuffle(shuffled)
             for i, o in enumerate(shuffled):
-                btn = ctk.CTkButton(opts_frame, text=o["text"], height=38,
+                btn = ctk.CTkButton(opts_frame, text=_display_text(o["text"]), height=38,
                                     corner_radius=RADIUS_SM, fg_color=COLORS["card"],
                                     text_color=COLORS["text"], border_width=1,
                                     border_color=COLORS["border"],
@@ -1001,7 +1072,7 @@ def _run_qb(self, questions, difficulty, mode):
             random.shuffle(shuffled)
             selected = set()
             for i, o in enumerate(shuffled):
-                b = ctk.CTkButton(opts_frame, text=o["text"], height=34,
+                b = ctk.CTkButton(opts_frame, text=_display_text(o["text"]), height=34,
                                   corner_radius=RADIUS_SM, fg_color=COLORS["card"],
                                   text_color=COLORS["text"], border_width=1,
                                   border_color=COLORS["border"], font=("Segoe UI", 11))
@@ -1009,10 +1080,10 @@ def _run_qb(self, questions, difficulty, mode):
                 def toggle(idx=i, btn=b):
                     if idx in selected:
                         selected.discard(idx)
-                        btn.configure(fg_color=COLORS["card"])
+                        btn.configure(fg_color=COLORS["card"], text_color=COLORS["text"])
                     else:
                         selected.add(idx)
-                        btn.configure(fg_color=COLORS["primary"], text_color="white")
+                        btn.configure(fg_color=COLORS["primary"], text_color=COLORS.get("on_primary", "#ffffff"))
                 b.configure(command=toggle)
             confirm = ctk.CTkButton(opts_frame, text="✓ Bestätigen", height=36,
                                     corner_radius=RADIUS_SM, fg_color=COLORS["success"],
@@ -1022,6 +1093,29 @@ def _run_qb(self, questions, difficulty, mode):
                 ok = set(i for i, o in enumerate(shuffled) if o["correct"]) == selected
                 commit(ok, ", ".join(shuffled[i]["text"] for i in selected))
             confirm.configure(command=check_multi)
+        elif q["kind"] == "multi_text":
+            blanks = q["blanks"]
+            entries = []
+            for i, _b in enumerate(blanks):
+                row = ctk.CTkFrame(opts_frame, fg_color="transparent")
+                row.grid(row=i, column=0, columnspan=2, padx=4, pady=3, sticky="ew")
+                row.grid_columnconfigure(1, weight=1)
+                ctk.CTkLabel(row, text=f"Lücke {i+1}:", font=("Segoe UI", 11),
+                             text_color=COLORS["text_light"], width=60
+                             ).grid(row=0, column=0, padx=(0, 6))
+                e = ctk.CTkEntry(row, placeholder_text=f"Lücke {i+1}…",
+                                 font=("Segoe UI", 13), height=34)
+                e.grid(row=0, column=1, sticky="ew")
+                entries.append(e)
+            def submit_blanks(_=None):
+                vals = [e.get() for e in entries]
+                commit(_check_multi_text(blanks, vals), ", ".join(vals))
+            btn = ctk.CTkButton(opts_frame, text="✓ Bestätigen", height=36,
+                                corner_radius=RADIUS_SM, fg_color=COLORS["primary"],
+                                font=("Segoe UI", 12, "bold"), command=submit_blanks)
+            btn.grid(row=len(blanks), column=0, columnspan=2, padx=4, pady=6, sticky="ew")
+            entries[-1].bind("<Return>", submit_blanks)
+            entries[0].focus_set()
         else:
             inp = ctk.CTkEntry(opts_frame, placeholder_text="Antwort eingeben…",
                                font=("Segoe UI", 13), height=38)
@@ -1344,13 +1438,13 @@ def _run_qb(self, questions, difficulty, mode):
                 f = ctk.CTkFrame(scroll, fg_color=COLORS.get("row_bad", "#fee2e2"), corner_radius=8)
                 f.grid(row=4 + j, column=0, sticky="ew", pady=3)
                 f.grid_columnconfigure(0, weight=1)
-                ctk.CTkLabel(f, text=q["prompt"], font=("Segoe UI", 12, "bold"),
+                ctk.CTkLabel(f, text=_display_text(q["prompt"]), font=("Segoe UI", 12, "bold"),
                              text_color=COLORS["text"], wraplength=500, justify="left"
                              ).grid(row=0, column=0, padx=10, pady=(6, 2), sticky="w")
-                ctk.CTkLabel(f, text=f"Deine Antwort: {entry.get('userAnswer', '—')}",
+                ctk.CTkLabel(f, text=f"Deine Antwort: {_display_text(entry.get('userAnswer', '—'))}",
                              font=("Segoe UI", 11), text_color=COLORS["danger"]
                              ).grid(row=1, column=0, padx=10, pady=1, sticky="w")
-                ctk.CTkLabel(f, text=f"Richtig: {q.get('answer', '—')}",
+                ctk.CTkLabel(f, text=f"Richtig: {_display_text(q.get('answer', '—'))}",
                              font=("Segoe UI", 11), text_color=COLORS["success"]
                              ).grid(row=2, column=0, padx=10, pady=(1, 6), sticky="w")
 
