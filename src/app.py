@@ -7118,8 +7118,17 @@ class App(ctk.CTk):
         self._results_session = self.session
         self._results_was_daily = was_daily
         if self.session.mode == "exam":
-            self._save_exam_result()
+            try:
+                self._save_exam_result()
+            except Exception:
+                pass
         scroll = self._make_screen()
+
+        # Always-present home button so the user is never stranded if a row
+        # below fails to render.
+        ctk.CTkButton(scroll, text="🏠 " + t("nav.back_menu"), fg_color=COLORS["text_light"],
+                     width=160, command=(self.show_daily if was_daily else self.show_home)
+                     ).grid(row=500, column=0, sticky="w", pady=(10, 0))
 
         total = self.session.total_score
         maximum = self.session.max_possible_score
@@ -7325,6 +7334,20 @@ class App(ctk.CTk):
         """Show detailed view of a single question result with AI chat."""
         self._clear_main()
         scroll = self._make_screen()
+
+        # Always-present back button at the very top, so the user can never get
+        # stuck even if something below fails to render.
+        ctk.CTkButton(scroll, text="← " + t("results.back_to_results"),
+                     fg_color=COLORS["text_light"], width=200,
+                     command=self._show_results).grid(row=99, column=0, sticky="w", pady=(0, 10))
+        try:
+            self._build_result_detail(scroll, question, result)
+        except Exception as e:
+            ctk.CTkLabel(scroll, text=f"Fehler beim Anzeigen der Details:\n{e}",
+                        font=("Segoe UI", 12), text_color=COLORS["danger"],
+                        wraplength=600, justify="left").grid(row=0, column=0, sticky="w", pady=10)
+
+    def _build_result_detail(self, scroll, question: Question, result: AnswerResult | None):
 
         is_ok = result and result.is_correct
         status_color = COLORS["success"] if is_ok else COLORS["danger"]
