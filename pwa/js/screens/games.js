@@ -18,14 +18,28 @@ export async function render(root) {
       plays: scores["quiz-battle"]?.plays || 0,
     },
     {
-      id: "endless-runner", icon: "🏃", title: "Endless Runner",
-      desc: "Lauf und antworte!", unlocked: false, cost: 0,
-      best: 0, plays: 0, coming: true,
+      id: "speed-quiz", icon: "⚡", title: "Speed-Quiz",
+      desc: "60 Sek, Combo-Multiplikator!", unlocked: true,
+      best: scores["speed-quiz"]?.best || 0,
+      plays: scores["speed-quiz"]?.plays || 0,
     },
     {
-      id: "quiz-roulette", icon: "🎰", title: "Quiz Roulette",
-      desc: "Drehe und gewinne!", unlocked: false, cost: 0,
-      best: 0, plays: 0, coming: true,
+      id: "millionaire", icon: "💰", title: "Wer wird Millionär",
+      desc: "15 Fragen, 3 Joker", unlocked: true,
+      best: scores["millionaire"]?.best || 0,
+      plays: scores["millionaire"]?.plays || 0,
+    },
+    {
+      id: "hangman", icon: "💀", title: "Galgenmännchen",
+      desc: "Errate den Begriff!", unlocked: true,
+      best: scores["hangman"]?.best || 0,
+      plays: scores["hangman"]?.plays || 0,
+    },
+    {
+      id: "boss-fight", icon: "👹", title: "Boss-Kampf",
+      desc: "Besiege deine Schwächen!", unlocked: true,
+      best: scores["boss-fight"]?.best || 0,
+      plays: scores["boss-fight"]?.plays || 0,
     },
   ];
 

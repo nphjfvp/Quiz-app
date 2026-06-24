@@ -1279,6 +1279,91 @@ a:focus-visible, [tabindex]:focus-visible {
 .forecast-bar { width:100%; border-radius:4px 4px 0 0; min-height:4px; transition:height 0.3s; }
 .forecast-label { font-size:0.7rem; color:var(--text-light); }
 
+/* ── Speed Quiz ── */
+.speed-hud { display:flex; justify-content:space-between; align-items:center; padding:12px 0; font-weight:700; }
+.speed-timer { font-size:1.3rem; } .speed-timer.urgent { color:var(--danger); animation:pulse .5s infinite; }
+.speed-score { font-size:1.2rem; color:var(--primary); }
+.speed-combo { font-size:0.9rem; color:var(--warning); min-height:1.2em; transition:all .2s; }
+.speed-combo.active { font-weight:700; }
+.speed-progress { height:6px; background:var(--border); border-radius:3px; margin-bottom:16px; overflow:hidden; }
+.speed-bar { height:100%; background:var(--primary); border-radius:3px; transition:width 1s linear; }
+.speed-q-area { min-height:200px; }
+.speed-prompt { font-size:1.1rem; font-weight:600; margin-bottom:16px; line-height:1.5; }
+.speed-options { display:flex; flex-direction:column; gap:8px; }
+.speed-opt { padding:14px 16px; border:2px solid var(--border); border-radius:12px; background:var(--card); cursor:pointer; font-size:1rem; text-align:left; transition:all .15s; }
+.speed-opt:hover { border-color:var(--primary); }
+.speed-opt.correct { border-color:var(--success); background:var(--success-light); }
+.speed-opt.wrong { border-color:var(--danger); background:var(--danger-light); }
+.speed-input-row { display:flex; gap:8px; }
+.speed-input { flex:1; }
+.speed-result { text-align:center; padding:24px 0; }
+.speed-final-score { font-size:2rem; font-weight:800; color:var(--primary); margin:8px 0; }
+.speed-stats { display:flex; flex-wrap:wrap; justify-content:center; gap:16px; color:var(--text-light); font-size:0.95rem; margin:12px 0; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* ── Millionaire ── */
+.mill-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.mill-prize { font-size:1.5rem; font-weight:800; color:var(--warning); }
+.mill-level { color:var(--text-light); }
+.mill-ladder { display:flex; flex-direction:column; gap:2px; margin-bottom:16px; font-size:0.75rem; max-height:180px; overflow-y:auto; }
+.mill-step { padding:3px 10px; border-radius:4px; background:var(--input-bg); color:var(--text-light); }
+.mill-step.current { background:var(--warning); color:#fff; font-weight:700; }
+.mill-step.done { background:var(--success-light); color:var(--success); }
+.mill-step.safe { border-left:3px solid var(--warning); }
+.mill-question { font-size:1.1rem; font-weight:600; margin-bottom:16px; line-height:1.5; padding:16px; background:var(--card); border-radius:12px; }
+.mill-options { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+.mill-opt { padding:14px 16px; border:2px solid var(--border); border-radius:12px; background:var(--card); cursor:pointer; font-size:1rem; text-align:left; transition:all .15s; }
+.mill-opt:hover { border-color:var(--primary); }
+.mill-opt.correct { border-color:var(--success); background:var(--success-light); }
+.mill-opt.wrong { border-color:var(--danger); background:var(--danger-light); }
+.mill-opt.eliminated { opacity:0.3; text-decoration:line-through; }
+.mill-letter { font-weight:700; color:var(--primary); margin-right:8px; }
+.mill-jokers { display:flex; gap:8px; justify-content:center; margin-top:12px; }
+.mill-joker { padding:8px 16px; border:2px solid var(--primary); border-radius:20px; background:transparent; color:var(--primary); font-weight:600; cursor:pointer; font-size:0.85rem; }
+.mill-joker:hover { background:var(--primary-subtle); }
+.mill-joker.used { opacity:0.3; border-color:var(--border); color:var(--text-light); }
+.mill-audience-result { margin-top:12px; padding:12px; background:var(--card); border-radius:12px; }
+.mill-aud-bar { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:0.85rem; }
+.mill-aud-fill { height:18px; background:var(--primary); border-radius:4px; transition:width .5s; }
+.mill-end { text-align:center; padding:24px 0; }
+
+/* ── Hangman ── */
+.hm-header { display:flex; justify-content:space-between; font-weight:600; margin-bottom:12px; }
+.hm-prompt { font-size:1rem; font-weight:600; margin-bottom:12px; line-height:1.5; }
+.hm-figure { display:flex; justify-content:center; margin:12px 0; }
+.hangman-svg { width:120px; height:140px; color:var(--text); }
+.hm-word { text-align:center; font-size:1.8rem; font-family:monospace; letter-spacing:4px; margin:16px 0; font-weight:700; }
+.hm-keyboard { display:flex; flex-wrap:wrap; gap:4px; justify-content:center; }
+.hm-key { width:36px; height:36px; border:2px solid var(--border); border-radius:8px; background:var(--card); font-size:0.9rem; font-weight:600; cursor:pointer; }
+.hm-key:hover { border-color:var(--primary); }
+.hm-key.correct { background:var(--success-light); border-color:var(--success); color:var(--success); }
+.hm-key.wrong { background:var(--danger-light); border-color:var(--danger); color:var(--danger); opacity:0.5; }
+.hm-result { text-align:center; padding:16px; border-radius:12px; font-size:1.1rem; font-weight:600; margin:12px 0; }
+.hm-result.won { background:var(--success-light); color:var(--success); }
+.hm-result.lost { background:var(--danger-light); color:var(--danger); }
+
+/* ── Boss Fight ── */
+.boss-arena { display:flex; align-items:center; justify-content:space-around; padding:16px 0; }
+.boss-sprite { text-align:center; flex:1; }
+.boss-icon { font-size:3rem; }
+.boss-name { font-weight:700; margin:4px 0; }
+.boss-bar { height:12px; background:var(--border); border-radius:6px; overflow:hidden; margin:4px 10px; }
+.boss-bar-fill { height:100%; background:var(--danger); border-radius:6px; transition:width .5s; }
+.player-bar .boss-bar-fill, .player-fill { background:var(--success); }
+.boss-hp-text { font-size:0.75rem; color:var(--text-light); }
+.boss-vs { font-size:1.5rem; }
+.boss-combo { text-align:center; font-weight:700; color:var(--warning); min-height:1.4em; }
+.boss-question { font-size:1.05rem; font-weight:600; margin:12px 0; line-height:1.5; }
+.boss-options { display:flex; flex-direction:column; gap:8px; }
+.boss-opt { padding:14px 16px; border:2px solid var(--border); border-radius:12px; background:var(--card); cursor:pointer; font-size:1rem; text-align:left; }
+.boss-opt:hover { border-color:var(--primary); }
+.boss-opt.correct { border-color:var(--success); background:var(--success-light); }
+.boss-opt.wrong { border-color:var(--danger); background:var(--danger-light); }
+.boss-hit-msg { position:fixed; top:40%; left:50%; transform:translate(-50%,-50%); padding:16px 24px; border-radius:12px; font-weight:700; font-size:1.2rem; z-index:100; animation:hitFade 1s forwards; }
+.boss-hit-msg.player-hit { background:var(--success-light); color:var(--success); }
+.boss-hit-msg.boss-hit { background:var(--danger-light); color:var(--danger); }
+@keyframes hitFade { 0%{opacity:1;transform:translate(-50%,-50%) scale(1)} 100%{opacity:0;transform:translate(-50%,-80%) scale(1.2)} }
+
 /* ── Study Mode ── */
 .study-overview { text-align:center; padding:20px; }
 .study-overview h3 { margin:0 0 12px; }

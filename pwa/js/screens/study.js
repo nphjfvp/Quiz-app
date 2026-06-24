@@ -95,6 +95,7 @@ export async function render(root, params = {}) {
       <button class="btn btn-ghost study-suggest-btn" data-prompt="Stelle mir 3 Verständnisfragen zu den wichtigsten Konzepten. Warte auf meine Antwort bevor du die nächste stellst.">❓ Mich abfragen</button>
       <button class="btn btn-ghost study-suggest-btn" data-prompt="Erstelle mir eine kurze Übersicht / Karteikarten zu den wichtigsten Definitionen und Formeln.">🗂️ Karteikarten</button>
     </div>
+    <button class="btn btn-ghost" id="go-socratic" style="margin-top:8px;width:100%">🏛️ Sokratischer Modus — KI fragt, du antwortest</button>
   </div>
 
   <div id="study-messages" class="tutor-messages"></div>
@@ -112,6 +113,7 @@ export async function render(root, params = {}) {
   const suggestionsEl = root.querySelector("#suggestions");
 
   root.querySelector("#study-back").addEventListener("click", () => navigate("quiz-modes", { quizId }));
+  root.querySelector("#go-socratic")?.addEventListener("click", () => navigate("socratic", { quizId }));
 
   function addMessage(role, content) {
     const div = document.createElement("div");
