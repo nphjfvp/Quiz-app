@@ -1,5 +1,5 @@
 import { loadQuizzes, loadProgress, addCoins, saveGameScore } from "../store.js";
-import { buildPlayable, shuffle, checkText, checkMultiText, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
+import { buildPlayable, shuffle, checkText, checkTextSmart, checkMultiText, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
 import { navigate } from "../router.js";
 import { mathEsc } from "../utils.js";
 
@@ -93,12 +93,22 @@ export async function render(root) {
     } else {
       const inp = root.querySelector("#boss-ans");
       const sub = root.querySelector("#boss-submit");
-      const submit = () => {
+      const submit = async () => {
         const val = inp.value.trim();
         if (!val) return;
-        const correct = q.kind === "multi_text" ? checkMultiText(q.blanks, [val]) : checkText(q.accept, val);
         inp.disabled = true;
         sub.disabled = true;
+        let correct;
+        if (q.kind === "multi_text") {
+          correct = checkMultiText(q.blanks, [val]);
+        } else {
+          correct = checkText(q.accept, val);
+          if (!correct) {
+            sub.textContent = "🤖 …";
+            const res = await checkTextSmart(q.prompt, q.accept, val);
+            correct = res.correct;
+          }
+        }
         resolveAttack(q, correct, val);
       };
       sub.addEventListener("click", submit);

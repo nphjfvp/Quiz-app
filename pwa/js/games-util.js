@@ -108,6 +108,43 @@ export function checkMultiText(blanks, values) {
   return blanks.every((b, i) => checkText([norm(b)], values[i]));
 }
 
+// Levenshtein edit distance between two strings.
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  let cur = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+
+// How many typos to tolerate for a given target length: longer answers may
+// have a small spelling slip without being wrong. Short answers must be exact.
+function typoTolerance(len) {
+  if (len <= 3) return 0;
+  if (len <= 6) return 1;
+  if (len <= 12) return 2;
+  return 3;
+}
+
+// Fuzzy equality: identical after normalizing, or within the typo tolerance.
+function fuzzyEqual(a, b) {
+  if (a === b) return true;
+  const tol = typoTolerance(Math.max(a.length, b.length));
+  if (tol === 0) return false;
+  // Length difference alone can already exceed the tolerance.
+  if (Math.abs(a.length - b.length) > tol) return false;
+  return editDistance(a, b) <= tol;
+}
+
 export function checkText(accept, value) {
   const v = norm(value);
   if (!v) return false;
@@ -118,6 +155,8 @@ export function checkText(accept, value) {
     if (aStripped === vStripped) return true;
     if (aStripped.length > 3 && aStripped.includes(vStripped)) return true;
     if (vStripped.length > 3 && vStripped.includes(aStripped)) return true;
+    // Tolerate minor spelling mistakes (typos) on the whole answer.
+    if (fuzzyEqual(a, v) || fuzzyEqual(aStripped, vStripped)) return true;
     return false;
   });
 }

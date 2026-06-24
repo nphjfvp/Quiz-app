@@ -124,6 +124,45 @@ def _strip_latex(s):
     return s
 
 
+def _edit_distance(a, b):
+    """Levenshtein edit distance."""
+    m, n = len(a), len(b)
+    if not m:
+        return n
+    if not n:
+        return m
+    prev = list(range(n + 1))
+    for i in range(1, m + 1):
+        cur = [i] + [0] * n
+        for j in range(1, n + 1):
+            cost = 0 if a[i - 1] == b[j - 1] else 1
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+        prev = cur
+    return prev[n]
+
+
+def _typo_tolerance(length):
+    """How many typos to tolerate for a target of given length."""
+    if length <= 3:
+        return 0
+    if length <= 6:
+        return 1
+    if length <= 12:
+        return 2
+    return 3
+
+
+def _fuzzy_equal(a, b):
+    if a == b:
+        return True
+    tol = _typo_tolerance(max(len(a), len(b)))
+    if tol == 0:
+        return False
+    if abs(len(a) - len(b)) > tol:
+        return False
+    return _edit_distance(a, b) <= tol
+
+
 def _check_text(accept, value):
     v = value.strip().lower()
     if not v:
@@ -134,6 +173,14 @@ def _check_text(accept, value):
         if v == al:
             return True
         if vs and _strip_latex(a) == vs:
+            return True
+        # Substring match for longer answers
+        if len(al) > 3 and al in v:
+            return True
+        if len(v) > 3 and v in al:
+            return True
+        # Tolerate minor spelling mistakes (typos)
+        if _fuzzy_equal(al, v) or (vs and _fuzzy_equal(_strip_latex(a), vs)):
             return True
     return False
 
