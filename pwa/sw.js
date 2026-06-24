@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v58";
+const CACHE = "lerntrainer-v59";
 // Relative Pfade – werden relativ zum SW-Standort aufgelöst (funktioniert unter / und /Quiz-app/)
 const ASSETS = [
   "./",
@@ -48,7 +48,7 @@ self.addEventListener("install", (e) => {
   // addAll bricht ab, wenn EINE Datei fehlt – einzeln cachen ist robuster
   e.waitUntil(
     caches.open(CACHE).then((c) =>
-      Promise.allSettled(ASSETS.map((a) => c.add(a)))
+      Promise.allSettled(ASSETS.map((a) => c.add(new Request(a, { cache: "reload" }))))
     )
   );
   self.skipWaiting();
@@ -73,8 +73,10 @@ self.addEventListener("fetch", (e) => {
   // Falls back to cache when offline.
   const isCode = e.request.mode === "navigate" || /\.(js|css|html|json)$/.test(url.pathname);
   if (isCode) {
+    // Bypass the browser HTTP cache for code so a fresh deploy always wins
+    // (GitHub Pages sets a ~10min max-age that otherwise serves stale modules).
     e.respondWith(
-      fetch(e.request)
+      fetch(e.request, { cache: "no-cache" })
         .then((res) => {
           if (res && res.ok) {
             const clone = res.clone();
