@@ -2085,6 +2085,11 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text="+ Frage hinzufügen", fg_color=COLORS["success"],
                      command=add_question).grid(row=0, column=0, padx=(0, 10))
 
+        if editing and quiz.questions:
+            ctk.CTkButton(btn_frame, text="🤖 Mehr Aufgaben generieren", fg_color=COLORS["info"],
+                         command=lambda: self._generate_more_tasks(quiz, on_done=lambda: self.show_create_quiz(quiz))
+                         ).grid(row=0, column=3, padx=(10, 0))
+
         def save_quiz():
             quiz.name = name_entry.get().strip() or "Unbenanntes Quiz"
             quiz.description = desc_entry.get().strip()
@@ -7734,16 +7739,19 @@ from .screens_progress import show_sr_dashboard, show_achievements
 App.show_sr_dashboard = show_sr_dashboard
 App.show_achievements = show_achievements
 
-from .screens_scaffold import (show_scaffold, _run_scaffold, _stage1_guided,
-    _stage2_structure, _stage3_recall, _stage4_linear, _show_scaffold_end,
-    _generate_task_ai, _generate_task_local)
+from .screens_scaffold import (show_scaffold, show_math_import,
+    _show_task_set_stages, _run_scaffold_tasks, _run_scaffold_formulas,
+    _stage1_guided, _stage2_structure, _stage3_recall, _stage4_linear,
+    _show_end, _generate_more_tasks)
 App.show_scaffold = show_scaffold
-App._run_scaffold = _run_scaffold
+App.show_math_import = show_math_import
+App._show_task_set_stages = _show_task_set_stages
+App._run_scaffold_tasks = _run_scaffold_tasks
+App._run_scaffold_formulas = _run_scaffold_formulas
 App._stage1_guided = _stage1_guided
 App._stage2_structure = _stage2_structure
 App._stage3_recall = _stage3_recall
 App._stage4_linear = _stage4_linear
-App._show_scaffold_end = _show_scaffold_end
-App._generate_task_ai = _generate_task_ai
-App._generate_task_local = _generate_task_local
+App._show_scaffold_end = _show_end
+App._generate_more_tasks = _generate_more_tasks
 

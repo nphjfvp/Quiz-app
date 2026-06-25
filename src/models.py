@@ -276,6 +276,14 @@ class DataStore:
                 pass
         os.replace(tmp, path)
 
+    def load_json(self, name: str, default=None):
+        path = self.data_dir / f"{name}.json"
+        return self._read_json(path, default if default is not None else [])
+
+    def save_json(self, name: str, data):
+        path = self.data_dir / f"{name}.json"
+        self._atomic_write(path, data)
+
     def load_quizzes(self) -> list[Quiz]:
         data = self._read_json(self.quizzes_file, [])
         return [Quiz.from_dict(q) for q in data]

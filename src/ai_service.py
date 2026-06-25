@@ -1112,6 +1112,183 @@ class AIService:
                 continue
         return questions
 
+    # ── Math pipeline: extract → solve → formula sheet ──
+
+    MATH_EXTRACT_PROMPT = """Du bist ein Experte für Mathematik-Aufgaben. Extrahiere ALLE Rechenaufgaben
+aus dem Dokument. JEDE Teilaufgabe (a, b, c, …) wird eine EIGENE Aufgabe.
+
+Wenn eine Aufgabe z.B. lautet "Löse die Gleichungen: a) 2x+3=7  b) x²-4=0  c) 3x²+x-7=0"
+dann erzeuge DREI separate Einträge – einen pro Gleichung.
+
+Dein Output MUSS dieses JSON-Format haben:
+{
+  "tasks": [
+    {
+      "id": "aufg1a",
+      "source": "Aufgabe 1a",
+      "text": "Vollständiger Aufgabentext dieser Teilaufgabe",
+      "topic": "Gleichungen / Analysis / Geometrie / ...",
+      "given": {"a": 4, "b": 3, "c": -7},
+      "sought": "x_{1,2}"
+    }
+  ]
+}
+
+Regeln:
+- JEDE Teilaufgabe = eigener Eintrag (a, b, c, i, ii, iii, etc.)
+- "given": alle gegebenen Zahlenwerte als Key-Value (Symbol → Wert)
+- "sought": was berechnet werden soll
+- Behalte den Originaltext so genau wie möglich bei
+- Importiere ALLE Aufgaben, überspringe KEINE"""
+
+    MATH_SOLVE_PROMPT = """Du bist ein Mathematik-Tutor. Löse die folgende Aufgabe SCHRITT FÜR SCHRITT.
+
+{user_instructions}
+
+Dein Output MUSS dieses JSON-Format haben:
+{{
+  "formula_name": "Name der verwendeten Formel (z.B. ABC-Formel, Satz des Pythagoras)",
+  "formula_latex": "LaTeX der Formel, z.B. x_{{1,2}} = \\\\frac{{-b \\\\pm \\\\sqrt{{b^2 - 4ac}}}}{{2a}}",
+  "formula_template": "Wie formula_latex, aber Eingabevariablen in {{{{symbol}}}}, z.B. x_{{1,2}} = \\\\frac{{-{{{{b}}}} \\\\pm \\\\sqrt{{{{{{b}}}}^2 - 4 \\\\cdot {{{{a}}}} \\\\cdot {{{{c}}}}}}}}{{2 \\\\cdot {{{{a}}}}}}",
+  "formula_expression": "Python-auswertbar, z.B. (-b + (b**2 - 4*a*c)**0.5) / (2*a)",
+  "result_symbol": "x_{{1,2}}",
+  "variables": [
+    {{"symbol": "a", "name": "Koeffizient a", "unit": "", "value": 4}},
+    {{"symbol": "b", "name": "Koeffizient b", "unit": "", "value": 3}}
+  ],
+  "steps": [
+    {{"step": 1, "description": "Werte identifizieren", "latex": "a=4,\\\\; b=3,\\\\; c=-7"}},
+    {{"step": 2, "description": "In Formel einsetzen", "latex": "x_{{1,2}} = \\\\frac{{-3 \\\\pm \\\\sqrt{{9+112}}}}{{8}}"}},
+    {{"step": 3, "description": "Berechnen", "latex": "x_1 = 1,\\\\; x_2 = -1{,}75"}}
+  ],
+  "result_text": "x₁ = 1; x₂ = -1,75",
+  "result_numeric": [1.0, -1.75],
+  "linear_notation": "x12=(-3+-wrzl(3^2-4*4*(-7)))/(2*4)"
+}}
+
+Regeln:
+- Löse die Aufgabe KOMPLETT durch, Schritt für Schritt
+- "formula_template": Ersetze JEDE Eingabe-Variable durch {{{{symbol}}}}
+- "linear_notation": Wie ein Schüler es linear tippen würde (wrzl statt √, ^ statt Potenz)
+- "result_numeric": Alle numerischen Ergebnisse als Array
+- Nutze die Formel/Methode die der Benutzer bevorzugt (siehe Anweisungen)"""
+
+    MATH_GENERATE_MORE_PROMPT = """Du bist ein Mathematik-Aufgaben-Generator. Erstelle {count} neue Aufgaben
+die dem gleichen Typ und Schwierigkeitsgrad entsprechen wie die Beispielaufgabe.
+
+Beispielaufgabe:
+{example}
+
+Dein Output MUSS dieses JSON-Format haben:
+{{
+  "tasks": [
+    {{
+      "text": "Aufgabentext",
+      "given": {{"a": 2, "b": 5, "c": -3}},
+      "sought": "x_{{1,2}}",
+      "result_text": "x₁ = 0,5; x₂ = -3",
+      "result_numeric": [0.5, -3.0]
+    }}
+  ]
+}}
+
+Regeln:
+- Variiere die Zahlenwerte, behalte den Aufgabentyp bei
+- Wähle Zahlen die "schöne" Ergebnisse ergeben (ganzzahlig oder einfache Brüche)
+- Rechne jede Aufgabe KORREKT durch, gib die richtigen Ergebnisse an
+- Schwierigkeit beibehalten"""
+
+    def extract_math_tasks(self, file_path: str,
+                           progress_callback: Callable | None = None,
+                           user_instructions: str = "") -> list[dict]:
+        """Extract individual math tasks from a document."""
+        full_text = self._read_file_as_text(file_path)
+        chunks = self._chunk_by_pages(full_text)
+        if not chunks:
+            return []
+
+        all_tasks = []
+        seen = set()
+        total_steps = len(chunks)
+
+        for i, chunk in enumerate(chunks):
+            if progress_callback:
+                progress_callback(i + 1, total_steps, "Aufgaben extrahieren")
+
+            extra = ""
+            if user_instructions:
+                extra = f"\n\nBenutzer-Anweisungen: {user_instructions}"
+
+            messages = [
+                {"role": "system", "content": self.MATH_EXTRACT_PROMPT + extra},
+                {"role": "user", "content": (
+                    f"Abschnitt {i+1} von {len(chunks)}:\n\n{chunk}"
+                )},
+            ]
+            response = self._call_api(messages, max_tokens=8192)
+            tasks = self._parse_math_tasks(response)
+            for t in tasks:
+                key = t.get("text", "").strip().lower()
+                if key and key not in seen:
+                    seen.add(key)
+                    all_tasks.append(t)
+
+        return all_tasks
+
+    def solve_math_tasks(self, tasks: list[dict],
+                         progress_callback: Callable | None = None,
+                         user_instructions: str = "") -> list[dict]:
+        """Solve each math task step by step, returning enriched task dicts."""
+        solved = []
+        instr_text = ""
+        if user_instructions:
+            instr_text = f"WICHTIG – Benutzer-Anweisungen: {user_instructions}"
+
+        for i, task in enumerate(tasks):
+            if progress_callback:
+                progress_callback(i + 1, len(tasks), "Aufgaben lösen")
+
+            prompt = self.MATH_SOLVE_PROMPT.format(user_instructions=instr_text)
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": (
+                    f"Aufgabe: {task['text']}\n"
+                    f"Gegeben: {json.dumps(task.get('given', {}), ensure_ascii=False)}\n"
+                    f"Gesucht: {task.get('sought', '?')}"
+                )},
+            ]
+            response = self._call_api(messages, max_tokens=4096)
+            solution = self._parse_json_response(response) or {}
+            task_solved = {**task, **solution}
+            solved.append(task_solved)
+
+        return solved
+
+    def generate_similar_tasks(self, example_task: dict, count: int = 5,
+                               progress_callback: Callable | None = None) -> list[dict]:
+        """Generate similar math tasks based on an example."""
+        prompt = self.MATH_GENERATE_MORE_PROMPT.format(
+            count=count,
+            example=json.dumps(example_task, ensure_ascii=False, indent=2),
+        )
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": f"Erstelle {count} ähnliche Aufgaben."},
+        ]
+        if progress_callback:
+            progress_callback(1, 1, "Aufgaben generieren")
+        response = self._call_api(messages, max_tokens=8192)
+        result = self._parse_json_response(response) or {}
+        return result.get("tasks", [])
+
+    def _parse_math_tasks(self, response: str | None) -> list[dict]:
+        if not response or response.startswith("ERROR:"):
+            return []
+        parsed = self._parse_json_response(response)
+        if parsed and isinstance(parsed, dict):
+            return parsed.get("tasks", [])
+        return []
+
     # ── Formula sheet (FoSa) extraction ──
 
     FORMULA_SYSTEM_PROMPT = r"""Du bist ein Experte für MINT-Fächer (Mathematik, Physik, Elektrotechnik,
