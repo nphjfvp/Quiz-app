@@ -480,6 +480,7 @@ class App(ctk.CTk):
             ("🧠", "SR-Dashboard", COLORS["info"], self.show_sr_dashboard),
             ("🏅", "Erfolge", COLORS["warning"], self.show_achievements),
             ("🏛️", "Sokrates", COLORS["primary"], lambda: self.show_socratic()),
+            ("🔢", "Formel-Training", COLORS["info"], self.show_scaffold),
         ]
         for idx, (icon, title_, color, cmd) in enumerate(mini_tools):
             self._mini_card(tools_grid, idx % 4, idx // 4, icon, title_, color, cmd)
@@ -7719,4 +7720,17 @@ App._link_material = _link_material
 from .screens_progress import show_sr_dashboard, show_achievements
 App.show_sr_dashboard = show_sr_dashboard
 App.show_achievements = show_achievements
+
+from .screens_scaffold import (show_scaffold, _run_scaffold, _stage1_guided,
+    _stage2_structure, _stage3_recall, _stage4_linear, _show_scaffold_end,
+    _generate_task_ai, _generate_task_local)
+App.show_scaffold = show_scaffold
+App._run_scaffold = _run_scaffold
+App._stage1_guided = _stage1_guided
+App._stage2_structure = _stage2_structure
+App._stage3_recall = _stage3_recall
+App._stage4_linear = _stage4_linear
+App._show_scaffold_end = _show_scaffold_end
+App._generate_task_ai = _generate_task_ai
+App._generate_task_local = _generate_task_local
 
