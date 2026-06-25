@@ -296,3 +296,275 @@ def _link_material(self, quiz: Quiz):
     })
     messagebox.showinfo("OK", "Quellmaterial verknüpft!")
     self.show_study(quiz)
+
+
+def _detect_math_focus(text):
+    import re
+    math_syms = len(re.findall(r'[=∫∑∏√±≤≥≠∞∂αβγδθλμσπω∆Σ]', text))
+    formula_like = len(re.findall(r'\b\d+[\s]*[+\-*/^]\s*\d+', text))
+    math_words = len(re.findall(
+        r'\b(Formel|Gleichung|Integral|Ableitung|Funktion|Matrix|Vektor|Sinus|Cosinus|'
+        r'Tangens|Logarithmus|Polynom|Bruch|Wurzel|Quotient|Faktor|Koeffizient|Variable|'
+        r'Ohm|Watt|Volt|Ampere|Newton|Joule|Kraft|Spannung|Strom|Widerstand|Impedanz|Frequenz)\b',
+        text, re.IGNORECASE))
+    return (math_syms + formula_like + math_words) > 5
+
+
+def show_deep_learn(self):
+    """Deep Learning mode: upload script → extract topics → pick one → deep Q&A."""
+    import json as _json
+
+    self._clear_main()
+    scroll = self._make_screen()
+    scroll.grid_columnconfigure(0, weight=1)
+
+    header = ctk.CTkFrame(scroll, fg_color="transparent")
+    header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    header.grid_columnconfigure(1, weight=1)
+    ctk.CTkButton(header, text="← Zurück", width=80, height=32, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["card"], text_color=COLORS["text"],
+                  hover_color=COLORS.get("card_hover", "#eef7f2"), border_width=1,
+                  border_color=COLORS["border"], font=("Segoe UI", 12),
+                  command=self.show_home).grid(row=0, column=0, padx=(0, 10))
+    ctk.CTkLabel(header, text="🔬 Deep Learning", font=("Segoe UI", 20, "bold"),
+                 text_color=COLORS["text"]).grid(row=0, column=1, sticky="w")
+
+    ctk.CTkLabel(scroll, text="Lade ein Skript/Aufgabenblatt hoch. Die KI extrahiert Themen, "
+                 "du wählst eines und kannst unbegrenzt tief nachfragen.",
+                 font=("Segoe UI", 12), text_color=COLORS["text_light"],
+                 wraplength=620, justify="left").grid(row=1, column=0, sticky="w", pady=(0, 12))
+
+    upload_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_LG)
+    upload_frame.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+    upload_frame.grid_columnconfigure(0, weight=1)
+
+    status_lbl = ctk.CTkLabel(upload_frame, text="", font=("Segoe UI", 11),
+                              text_color=COLORS["text_light"])
+    status_lbl.grid(row=1, column=0, padx=16, pady=(0, 12))
+
+    text_box = ctk.CTkTextbox(upload_frame, height=120, font=("Segoe UI", 12),
+                              fg_color=COLORS["bg"], corner_radius=RADIUS_SM)
+    text_box.grid(row=2, column=0, padx=16, pady=(0, 8), sticky="ew")
+    text_box.insert("1.0", "…oder Text hier einfügen")
+
+    file_text = {"val": ""}
+    math_mode = {"val": None}  # None = auto, True = math, False = text
+
+    mode_btn = ctk.CTkButton(upload_frame, text="🔬 Auto-Erkennung", height=30,
+                             corner_radius=RADIUS_SM, fg_color=COLORS["card"],
+                             text_color=COLORS["text"], hover_color=COLORS.get("card_hover", "#eef7f2"),
+                             border_width=1, border_color=COLORS["border"],
+                             font=("Segoe UI", 11))
+    mode_btn.grid(row=3, column=0, padx=16, pady=(0, 4), sticky="w")
+    modes_cycle = [(None, "🔬 Auto-Erkennung"), (True, "📐 Mathe/MINT-Fokus"), (False, "📖 Text/Theorie-Fokus")]
+    mode_idx = {"val": 0}
+
+    def toggle_mode():
+        mode_idx["val"] = (mode_idx["val"] + 1) % len(modes_cycle)
+        math_mode["val"] = modes_cycle[mode_idx["val"]][0]
+        mode_btn.configure(text=modes_cycle[mode_idx["val"]][1])
+
+    mode_btn.configure(command=toggle_mode)
+
+    def pick_file():
+        path = filedialog.askopenfilename(
+            filetypes=[("Dokumente", "*.pdf *.txt *.md *.docx *.pptx"), ("Alle", "*.*")])
+        if not path:
+            return
+        try:
+            file_text["val"] = self.ai._read_file_as_text(path)
+            status_lbl.configure(text=f"✅ {Path(path).name} geladen ({len(file_text['val'])} Zeichen)")
+        except Exception as e:
+            status_lbl.configure(text=f"❌ {e}")
+
+    ctk.CTkButton(upload_frame, text="📂 Datei wählen", height=36, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["primary"], font=("Segoe UI", 13),
+                  command=pick_file).grid(row=0, column=0, padx=16, pady=(16, 8), sticky="ew")
+
+    def extract_topics():
+        text = file_text["val"] or text_box.get("1.0", "end").strip()
+        if not text or len(text) < 50:
+            messagebox.showwarning("Hinweis", "Bitte einen längeren Text eingeben oder eine Datei wählen.")
+            return
+
+        is_math = math_mode["val"]
+        if is_math is None:
+            is_math = _detect_math_focus(text)
+
+        status_lbl.configure(text="⏳ KI extrahiert Themen…")
+        self.update_idletasks()
+
+        if is_math:
+            extract_detail = (
+                "Extrahiere ALLE Themen, Konzepte und Rechenverfahren.\n"
+                'Jedes Element: {"name":"<Themenname>","desc":"<1-Satz: welche Formeln/Verfahren>","difficulty":"basic|intermediate|advanced","formulas":["<LaTeX>"]}'
+            )
+        else:
+            extract_detail = (
+                "Extrahiere ALLE Themen, Konzepte und Theorien.\n"
+                '{"name":"<Themenname>","desc":"<1-Satz-Zusammenfassung>","difficulty":"basic|intermediate|advanced"}'
+            )
+
+        prompt = (
+            "Analysiere den folgenden Text (Vorlesung/Skript/Aufgabenblatt).\n"
+            + extract_detail + "\n"
+            "Gib sie als JSON-Array zurück, sortiert nach logischer Reihenfolge (Grundlagen zuerst).\n"
+            "NUR das JSON-Array ausgeben.\n\nText:\n" + text[:15000]
+        )
+
+        def run():
+            try:
+                msgs = [{"role": "system", "content": "Du bist ein Experte für MINT-Fächer."},
+                        {"role": "user", "content": prompt}]
+                reply = self.ai._call_api(msgs, max_tokens=1500) or ""
+                parsed = self.ai._parse_json_response(reply)
+                if isinstance(parsed, dict) and "topics" in parsed:
+                    topics = parsed["topics"]
+                elif isinstance(parsed, list):
+                    topics = parsed
+                else:
+                    import re
+                    m = re.search(r'\[[\s\S]*\]', reply)
+                    topics = _json.loads(m.group(0)) if m else []
+                topics = [t for t in topics if isinstance(t, dict) and t.get("name")]
+            except Exception as e:
+                self.after(0, lambda: status_lbl.configure(text=f"❌ Fehler: {e}"))
+                return
+
+            def done():
+                if not topics:
+                    status_lbl.configure(text="Keine Themen gefunden. Versuche einen anderen Text.")
+                    return
+                _show_topic_picker(self, scroll, text, topics, is_math)
+            self.after(0, done)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    ctk.CTkButton(upload_frame, text="🚀 Themen extrahieren", height=40, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["success"], font=("Segoe UI", 14, "bold"),
+                  command=extract_topics).grid(row=4, column=0, padx=16, pady=(8, 16), sticky="ew")
+
+
+def _show_topic_picker(self, parent, source_text, topics, is_math=True):
+    """Show extracted topics as clickable cards."""
+    self._clear_main()
+    scroll = self._make_screen()
+    scroll.grid_columnconfigure(0, weight=1)
+
+    header = ctk.CTkFrame(scroll, fg_color="transparent")
+    header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    header.grid_columnconfigure(1, weight=1)
+    ctk.CTkButton(header, text="← Zurück", width=80, height=32, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["card"], text_color=COLORS["text"],
+                  hover_color=COLORS.get("card_hover", "#eef7f2"), border_width=1,
+                  border_color=COLORS["border"], font=("Segoe UI", 12),
+                  command=lambda: self.show_deep_learn()).grid(row=0, column=0, padx=(0, 10))
+    ctk.CTkLabel(header, text=f"🔬 {len(topics)} Themen gefunden",
+                 font=("Segoe UI", 18, "bold"),
+                 text_color=COLORS["text"]).grid(row=0, column=1, sticky="w")
+
+    diff_colors = {"basic": COLORS["success"], "intermediate": COLORS["warning"],
+                   "advanced": COLORS["danger"]}
+    diff_labels = {"basic": "Grundlagen", "intermediate": "Mittel", "advanced": "Fortgeschritten"}
+
+    for i, t in enumerate(topics):
+        color = diff_colors.get(t.get("difficulty"), COLORS["primary"])
+        frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                             border_width=1, border_color=COLORS["border"])
+        frame.grid(row=i + 1, column=0, sticky="ew", pady=4)
+        frame.grid_columnconfigure(1, weight=1)
+
+        accent = ctk.CTkFrame(frame, width=6, fg_color=color, corner_radius=3)
+        accent.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 8))
+
+        ctk.CTkLabel(frame, text=_plain(t["name"]), font=("Segoe UI", 14, "bold"),
+                     text_color=COLORS["text"]).grid(row=0, column=1, sticky="w", padx=8, pady=(8, 0))
+
+        desc = t.get("desc", "")
+        dl = diff_labels.get(t.get("difficulty"), "")
+        formulas = ", ".join(t.get("formulas", []))
+        sub = f"{desc} · {dl}" + (f"\n{_plain(formulas)}" if formulas else "")
+        ctk.CTkLabel(frame, text=sub, font=("Segoe UI", 11),
+                     text_color=COLORS["text_light"], wraplength=580,
+                     justify="left").grid(row=1, column=1, sticky="w", padx=8, pady=(0, 8))
+
+        ctk.CTkButton(frame, text="›", width=32, height=32, corner_radius=RADIUS_SM,
+                      fg_color="transparent", text_color=COLORS["text_light"],
+                      hover_color=COLORS.get("card_hover", "#eef7f2"),
+                      font=("Segoe UI", 16),
+                      command=lambda tp=t: _start_deep_chat(self, source_text, tp, is_math)
+                      ).grid(row=0, column=2, rowspan=2, padx=8)
+
+
+def _start_deep_chat(self, source_text, topic, is_math=True):
+    """Open the deep-learning chat for a specific topic."""
+    self._clear_main()
+    scroll = self._make_screen()
+    scroll.grid_columnconfigure(0, weight=1)
+
+    header = ctk.CTkFrame(scroll, fg_color="transparent")
+    header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    header.grid_columnconfigure(1, weight=1)
+    ctk.CTkButton(header, text="← Zurück", width=80, height=32, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["card"], text_color=COLORS["text"],
+                  hover_color=COLORS.get("card_hover", "#eef7f2"), border_width=1,
+                  border_color=COLORS["border"], font=("Segoe UI", 12),
+                  command=lambda: self.show_deep_learn()).grid(row=0, column=0, padx=(0, 10))
+    ctk.CTkLabel(header, text=f"🔬 {_plain(topic['name'])}", font=("Segoe UI", 18, "bold"),
+                 text_color=COLORS["text"]).grid(row=0, column=1, sticky="w")
+
+    ctk.CTkLabel(scroll, text="Frag warum, wie, was — so oft du willst. Die KI erklärt immer tiefer.",
+                 font=("Segoe UI", 12), text_color=COLORS["text_light"],
+                 wraplength=620, justify="left").grid(row=1, column=0, sticky="w", pady=(0, 4))
+
+    relevant = source_text[:12000]
+    name = topic["name"]
+
+    if is_math:
+        system_prompt = (
+            f'Du bist ein Experten-Tutor für Mathematik, Physik und Ingenieurwissenschaften. '
+            f'Der Lernende möchte das Thema "{name}" wirklich TIEF verstehen.\n\n'
+            "Deine Regeln:\n"
+            "1. Erkläre anhand der konkreten Aufgaben/Beispiele aus dem Material.\n"
+            "2. Beginne mit dem Grundprinzip: welche Formel, welcher Satz, welches Gesetz steckt dahinter?\n"
+            "3. Schreibe Formeln in LaTeX ($..$ oder $$..$$).\n"
+            "4. Bei 'warum': erkläre die Herleitung.\n"
+            "5. Bei 'wie': zeige den Rechenweg Schritt für Schritt mit konkreten Zahlen.\n"
+            "6. Bei 'was': erkläre die Bedeutung jeder Variablen.\n"
+            "7. Nutze Analogien und Alltagsbeispiele.\n"
+            "8. Zeige typische Fallen und Vorzeichenfehler.\n"
+            "9. Am Ende: stelle eine Verständnisfrage oder schlage eine Vertiefung vor.\n"
+            "10. Antworte IMMER auf Deutsch.\n\n"
+            f"Quellmaterial:\n{relevant}"
+        )
+        suggestions = [
+            ("💡 Grundprinzip", f"Erkläre mir das Grundprinzip von '{name}' — welche Formel/welches Gesetz steckt dahinter und woher kommt es?"),
+            ("📝 Rechenbeispiel", f"Zeig mir Schritt für Schritt mit konkreten Zahlen, wie man eine typische Aufgabe zu '{name}' löst."),
+            ("🔬 Herleitung", "Woher kommt die Formel? Leite sie mir her und erkläre jeden Schritt der Herleitung."),
+            ("⚠️ Typische Fehler", f"Welche typischen Rechen- und Vorzeichenfehler macht man bei '{name}' und wie vermeidet man sie?"),
+        ]
+    else:
+        system_prompt = (
+            f'Du bist ein Experten-Tutor. Der Lernende möchte das Thema "{name}" wirklich TIEF verstehen.\n\n'
+            "Deine Regeln:\n"
+            "1. Erkläre anhand der konkreten Inhalte aus dem Material.\n"
+            "2. Beginne mit dem Kernkonzept: was ist die zentrale Idee?\n"
+            "3. Bei 'warum': erkläre Hintergründe, Ursachen, Zusammenhänge.\n"
+            "4. Bei 'wie': zeige den Ablauf/Prozess Schritt für Schritt.\n"
+            "5. Bei 'was': definiere und erkläre die Begriffe genau.\n"
+            "6. Nutze Analogien und Alltagsbeispiele.\n"
+            "7. Zeige Zusammenhänge zu anderen Themen auf.\n"
+            "8. Am Ende: stelle eine Verständnisfrage oder schlage eine Vertiefung vor.\n"
+            "9. Antworte IMMER auf Deutsch.\n\n"
+            f"Quellmaterial:\n{relevant}"
+        )
+        suggestions = [
+            ("💡 Kernidee", f"Erkläre mir die Kernidee von '{name}' — was ist das Wichtigste?"),
+            ("📝 Beispiel", f"Gib mir ein konkretes Beispiel aus dem Material, das '{name}' veranschaulicht."),
+            ("🔗 Zusammenhänge", f"Wie hängt '{name}' mit den anderen Themen zusammen?"),
+            ("⚠️ Missverständnisse", f"Was sind die häufigsten Missverständnisse bei '{name}'?"),
+        ]
+
+    context = ""
+
+    _ai_chat_panel(self, scroll, 2, system_prompt, context, suggestions)

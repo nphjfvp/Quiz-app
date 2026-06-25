@@ -480,6 +480,7 @@ class App(ctk.CTk):
             ("🧠", "SR-Dashboard", COLORS["info"], self.show_sr_dashboard),
             ("🏅", "Erfolge", COLORS["warning"], self.show_achievements),
             ("🏛️", "Sokrates", COLORS["primary"], lambda: self.show_socratic()),
+            ("🔬", "Deep Learning", COLORS["primary_dark"], lambda: self.show_deep_learn()),
             ("🔢", "Formel-Training", COLORS["info"], self.show_scaffold),
         ]
         for idx, (icon, title_, color, cmd) in enumerate(mini_tools):
@@ -7730,9 +7731,10 @@ App._show_flashcard = _show_flashcard
 App._flash_done = _flash_done
 App.show_random_mode = show_random_mode
 
-from .screens_study import show_study, show_socratic, _link_material
+from .screens_study import show_study, show_socratic, show_deep_learn, _link_material
 App.show_study = show_study
 App.show_socratic = show_socratic
+App.show_deep_learn = show_deep_learn
 App._link_material = _link_material
 
 from .screens_progress import show_sr_dashboard, show_achievements

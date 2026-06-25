@@ -70,6 +70,7 @@ export async function render(root) {
     <div class="grid-card mini-card" data-nav="error-diary"><div class="icon">📕</div><div class="title">Fehler</div></div>
   </div>
   <div class="grid-4 hidden" id="more-grid-2" style="margin-top:-6px">
+    <div class="grid-card mini-card" data-nav="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learning</div></div>
     <div class="grid-card mini-card" data-nav="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
     <div class="grid-card mini-card" data-nav="games"><div class="icon">🎮</div><div class="title">Mini-Games</div></div>
     <div class="grid-card mini-card" data-nav="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>

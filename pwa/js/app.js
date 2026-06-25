@@ -47,6 +47,7 @@ route("hangman", async (root) => { const m = await import("./screens/hangman.js"
 route("boss-fight", async (root) => { const m = await import("./screens/boss-fight.js"); return m.render(root); });
 route("socratic", async (root, params) => { const m = await import("./screens/socratic.js"); return m.render(root, params); });
 route("scaffold", async (root, params) => { const m = await import("./screens/scaffold.js"); return m.render(root, params); });
+route("deep-learn", async (root) => { const m = await import("./screens/deep-learn.js"); return m.render(root); });
 
 async function init() {
   const settings = await loadSettings();
