@@ -20,8 +20,9 @@ import customtkinter as ctk
 from .models import Formula, FormulaSheet
 from .theme import COLORS, RADIUS_SM, RADIUS_MD, RADIUS_LG, color_alpha
 from .latex_render import render_formula, can_render as can_render_latex, has_latex
-
-EPSILON = 0.02
+from .mathutils import (EPSILON, validate_numeric as _validate_numeric,
+                        safe_eval as _safe_eval, check_answer as _check_answer,
+                        evaluate_user_expression as _eval_user_expr)
 STAGE_NAMES = {
     1: "Geführte Formel",
     2: "Struktur-Vorlage",
@@ -56,29 +57,48 @@ def _render_latex_image(self, latex_str, parent, row, col=0, colspan=1):
         return lbl
 
 
-def _validate_numeric(value_str, correct, epsilon=EPSILON):
-    try:
-        user_val = float(str(value_str).replace(",", ".").strip())
-        if isinstance(correct, (list, tuple)):
-            return any(math.isclose(round(user_val, 2), round(float(c), 2), abs_tol=epsilon) for c in correct)
-        correct_val = round(float(correct), 2)
-        return math.isclose(round(user_val, 2), correct_val, abs_tol=epsilon)
-    except (ValueError, TypeError):
-        return False
+def _task_uid(task):
+    """Stable synthetic id for a math task (no real id on math tasks)."""
+    import hashlib
+    key = (task.get("text", "") or task.get("source", "")).strip().lower()
+    return "math:" + hashlib.md5(key.encode("utf-8")).hexdigest()[:12]
 
 
-def _safe_eval(expression, var_values):
-    allowed = {
-        "abs": abs, "round": round, "sqrt": math.sqrt, "pow": pow,
-        "log": math.log, "log10": math.log10, "exp": math.exp,
-        "sin": math.sin, "cos": math.cos, "tan": math.tan,
-        "pi": math.pi, "e": math.e,
-    }
-    allowed.update(var_values)
+def _record_scaffold_result(self, task, correct, task_set=None):
+    """Log a finished scaffold task into stats, error diary and FSRS so math
+    practice feeds the same spaced-repetition / weakness tracking as quizzes."""
     try:
-        return round(eval(expression, {"__builtins__": {}}, allowed), 2)
+        self.store.log_answer(bool(correct))
     except Exception:
-        return None
+        pass
+
+    if not correct:
+        try:
+            final = task.get("final_result_text") or task.get("result_text", "")
+            self.store.log_wrong_answer(
+                question_text=task.get("text", "")[:200],
+                topic=task.get("topic", "") or "Mathe",
+                correct_answer=str(final)[:200],
+                user_answer="(Scaffolding)",
+                quiz_name=(task_set or {}).get("name", "Formel-Training"),
+            )
+        except Exception:
+            pass
+
+    # FSRS update (only when the user enabled it)
+    try:
+        if not self.store.load_settings().get("use_fsrs", False):
+            return
+        from .fsrs import FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
+        uid = _task_uid(task)
+        card_data = self._fsrs_data.get(uid)
+        card = fsrs_from_dict(card_data) if card_data else FSRSCard(question_id=uid)
+        rating = 3 if correct else 1
+        card = self.fsrs.review(card, rating)
+        self._fsrs_data[uid] = fsrs_to_dict(card)
+        self.store.save_fsrs(self._fsrs_data)
+    except Exception:
+        pass
 
 
 def _generate_task_local(formula):
@@ -417,7 +437,8 @@ def _run_scaffold_tasks(self, tasks, stage, task_set=None):
 
     task_list = list(tasks)
     random.shuffle(task_list)
-    state = {"idx": 0, "correct": 0, "total": 0, "tasks": task_list, "stage": stage}
+    state = {"idx": 0, "correct": 0, "total": 0, "tasks": task_list,
+             "stage": stage, "task_set": task_set}
 
     content = ctk.CTkFrame(scroll, fg_color="transparent")
     content.grid(row=0, column=0, sticky="ew")
@@ -488,6 +509,7 @@ def _stage1_guided(self, parent, task, state, next_fn):
             state["total"] += 1
             if chain_state["all_ok"]:
                 state["correct"] += 1
+            _record_scaffold_result(self, task, chain_state["all_ok"], state.get("task_set"))
             final = task.get("final_result_text", chain[-1].get("result_text", ""))
             lbl_text = f"✅ Alle Schritte richtig! → {final}" if chain_state["all_ok"] else f"Endergebnis: {final}"
             lbl_color = COLORS["success"] if chain_state["all_ok"] else COLORS["text"]
@@ -595,14 +617,7 @@ def _stage1_guided(self, parent, task, state, next_fn):
             res_text = step.get("result_text", "")
             val = result_entry.get().strip()
 
-            result_ok = False
-            if res_nums:
-                result_ok = _validate_numeric(val, res_nums)
-            elif res_text:
-                try:
-                    result_ok = _validate_numeric(val, float(res_text.replace(",", ".")))
-                except (ValueError, TypeError):
-                    result_ok = val.lower().strip() == res_text.lower().strip()
+            result_ok = _check_answer(val, res_nums, res_text)
 
             result_entry.configure(border_color=COLORS["success"] if result_ok else COLORS["danger"])
             if not result_ok:
@@ -673,6 +688,7 @@ def _stage2_structure(self, parent, task, state, next_fn):
             state["total"] += 1
             if chain_state["all_ok"]:
                 state["correct"] += 1
+            _record_scaffold_result(self, task, chain_state["all_ok"], state.get("task_set"))
             final = task.get("final_result_text", chain[-1].get("result_text", ""))
             lbl_text = f"✅ Alle Schritte richtig! → {final}" if chain_state["all_ok"] else f"Endergebnis: {final}"
             lbl_color = COLORS["success"] if chain_state["all_ok"] else COLORS["text"]
@@ -779,14 +795,7 @@ def _stage2_structure(self, parent, task, state, next_fn):
             res_nums = step.get("result_numeric", [])
             res_text = step.get("result_text", "")
             val = result_entry.get().strip()
-            result_ok = False
-            if res_nums:
-                result_ok = _validate_numeric(val, res_nums)
-            elif res_text:
-                try:
-                    result_ok = _validate_numeric(val, float(res_text.replace(",", ".")))
-                except (ValueError, TypeError):
-                    result_ok = val.lower().strip() == res_text.lower().strip()
+            result_ok = _check_answer(val, res_nums, res_text)
 
             result_entry.configure(border_color=COLORS["success"] if result_ok else COLORS["danger"])
             if not result_ok:
@@ -942,6 +951,7 @@ def _stage4_linear(self, parent, task, state, next_fn):
             state["total"] += 1
             if chain_state["all_ok"]:
                 state["correct"] += 1
+            _record_scaffold_result(self, task, chain_state["all_ok"], state.get("task_set"))
             final = task.get("final_result_text", chain[-1].get("result_text", ""))
             lbl_text = f"✅ Alle Schritte richtig! → {final}" if chain_state["all_ok"] else f"Endergebnis: {final}"
             lbl_color = COLORS["success"] if chain_state["all_ok"] else COLORS["text"]
@@ -1005,28 +1015,12 @@ def _stage4_linear(self, parent, task, state, next_fn):
             if not raw:
                 return
 
-            correct = False
+            correct = _check_answer(raw, res_nums, res_text)
             user_result = None
-
-            if res_nums and _validate_numeric(raw, res_nums):
-                correct = True
-            elif res_text:
-                try:
-                    correct = _validate_numeric(raw, float(res_text.replace(",", ".")))
-                except (ValueError, TypeError):
-                    pass
-
             if not correct:
-                try:
-                    sanitized = raw.replace("^", "**").replace(",", ".").replace("wrzl", "sqrt")
-                    sanitized = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', sanitized)
-                    result = eval(sanitized.split("=")[-1], {"__builtins__": {}},
-                                  {"sqrt": math.sqrt, "abs": abs, "pi": math.pi, "e": math.e})
-                    user_result = round(float(result), 2)
-                    if res_nums:
-                        correct = _validate_numeric(str(user_result), res_nums)
-                except Exception:
-                    pass
+                user_result = _eval_user_expr(raw)
+                if user_result is not None and res_nums:
+                    correct = _validate_numeric(str(user_result), res_nums)
 
             if correct:
                 expr_entry.configure(border_color=COLORS["success"])
@@ -1051,13 +1045,36 @@ def _stage4_linear(self, parent, task, state, next_fn):
                       font=("Segoe UI", 14, "bold"), command=check_step
                       ).grid(row=0, column=0, padx=(0, 8))
 
-        fname = step.get("formula_name", "")
-        if fname:
-            def show_hint(f=fname):
-                feedback_lbl.configure(text=f"💡 Formel: {f}", text_color=COLORS["info"])
-            ctk.CTkButton(btn_frame, text="💡 Hinweis", fg_color=COLORS["warning"], height=40,
-                          font=("Segoe UI", 13), command=show_hint
-                          ).grid(row=0, column=1)
+        # Staged hint cascade: name → structure → full solution
+        hint_levels = []
+        if step.get("formula_name"):
+            hint_levels.append(f"💡 Formel: {step['formula_name']}")
+        struct = step.get("formula_latex") or step.get("formula_template")
+        if struct:
+            hint_levels.append(f"🧩 Struktur: {struct}")
+        if step.get("linear_notation"):
+            hint_levels.append(f"✍️ Lösungsweg: {step['linear_notation']}")
+        elif res_text:
+            hint_levels.append(f"✍️ Lösung: {res_text}")
+
+        hint_state = {"lvl": 0}
+        if hint_levels:
+            hint_btn = ctk.CTkButton(btn_frame, text="💡 Hinweis", fg_color=COLORS["warning"],
+                                     height=40, font=("Segoe UI", 13))
+
+            def show_hint():
+                lvl = hint_state["lvl"]
+                if lvl >= len(hint_levels):
+                    return
+                feedback_lbl.configure(text=hint_levels[lvl], text_color=COLORS["info"])
+                hint_state["lvl"] += 1
+                if hint_state["lvl"] >= len(hint_levels):
+                    hint_btn.configure(state="disabled")
+                else:
+                    hint_btn.configure(text=f"💡 Mehr Hilfe ({hint_state['lvl']}/{len(hint_levels)})")
+
+            hint_btn.configure(command=show_hint)
+            hint_btn.grid(row=0, column=1)
 
         expr_entry.bind("<Return>", lambda e: check_step())
 

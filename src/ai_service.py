@@ -202,7 +202,10 @@ class AIService:
         self.overlap = 1000
         self.temperature = 0.3
         self.max_workers = 4
-        self._cache: dict[str, str] = {}
+        from collections import OrderedDict
+        self._cache: "OrderedDict[str, str]" = OrderedDict()
+        self._cache_max = 256
+        self._cache_lock = threading.Lock()
 
     # ── Caching ──
 
@@ -210,9 +213,24 @@ class AIService:
         raw = json.dumps(messages, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(raw.encode()).hexdigest()
 
+    def _cache_get(self, key: str):
+        with self._cache_lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+            return None
+
+    def _cache_put(self, key: str, value: str) -> None:
+        with self._cache_lock:
+            self._cache[key] = value
+            self._cache.move_to_end(key)
+            while len(self._cache) > self._cache_max:
+                self._cache.popitem(last=False)
+
     def clear_cache(self) -> None:
         """Clear the in-memory response cache."""
-        self._cache.clear()
+        with self._cache_lock:
+            self._cache.clear()
 
     # ── JSON Repair ──
 
@@ -232,8 +250,9 @@ class AIService:
 
         # Check cache
         cache_key = self._cache_key(messages)
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -257,19 +276,24 @@ class AIService:
                     continue
                 if resp.status_code == 404 and (model or self.model) != "nvidia/nemotron-3-super-120b-a12b:free":
                     used = model or self.model
-                    from tkinter import messagebox
-                    fallback = messagebox.askyesno(
-                        "Modell nicht verfügbar",
-                        f'Das Modell "{used}" ist nicht verfügbar (404).\n\n'
-                        f'Soll stattdessen "nvidia/nemotron-3-super-120b-a12b:free" verwendet werden?'
-                    )
+                    # Only prompt on the main (UI) thread – calling tkinter from
+                    # a worker thread can crash. In a worker we fall back silently.
+                    if threading.current_thread() is threading.main_thread():
+                        from tkinter import messagebox
+                        fallback = messagebox.askyesno(
+                            "Modell nicht verfügbar",
+                            f'Das Modell "{used}" ist nicht verfügbar (404).\n\n'
+                            f'Soll stattdessen "nvidia/nemotron-3-super-120b-a12b:free" verwendet werden?'
+                        )
+                    else:
+                        fallback = True
                     if fallback:
                         payload["model"] = "nvidia/nemotron-3-super-120b-a12b:free"
                         continue
                 resp.raise_for_status()
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
-                self._cache[cache_key] = content
+                self._cache_put(cache_key, content)
                 return content
             except (requests.ConnectionError, requests.Timeout) as e:
                 last_error = str(e)
@@ -1224,6 +1248,22 @@ Regeln:
 - Rechne jede Aufgabe KORREKT durch, gib die richtigen Ergebnisse an
 - Schwierigkeit beibehalten"""
 
+    MATH_VERIFY_PROMPT = """Du bist ein präziser Mathematik-Prüfer. Dir wird eine Aufgabe
+mit gegebenen Werten und einem BEHAUPTETEN Ergebnis vorgelegt. Rechne die Aufgabe
+unabhängig nach und korrigiere das Ergebnis falls nötig.
+
+Antworte NUR mit JSON:
+{
+  "correct": true/false,
+  "result_text": "korrektes Ergebnis als Text",
+  "result_numeric": [korrekte Zahl(en)]
+}
+
+Regeln:
+- Rechne selbst, vertraue dem behaupteten Ergebnis NICHT
+- Bei "correct": false gib die richtigen Werte in result_text/result_numeric an
+- Runde auf sinnvolle Nachkommastellen"""
+
     def extract_math_tasks(self, file_path: str,
                            progress_callback: Callable | None = None,
                            user_instructions: str = "") -> list[dict]:
@@ -1254,8 +1294,14 @@ Regeln:
             response = self._call_api(messages, max_tokens=8192)
             tasks = self._parse_math_tasks(response)
             for t in tasks:
-                key = t.get("text", "").strip().lower()
-                if key and key not in seen:
+                text = t.get("text", "").strip().lower()
+                if not text:
+                    continue
+                # Include the given values so two sub-tasks that share the same
+                # wording ("Berechne x") but different data are kept separate.
+                given_key = json.dumps(t.get("given", {}), sort_keys=True, ensure_ascii=False)
+                key = hashlib.md5((text + "|" + given_key).encode("utf-8")).hexdigest()
+                if key not in seen:
                     seen.add(key)
                     all_tasks.append(t)
 
@@ -1264,17 +1310,16 @@ Regeln:
     def solve_math_tasks(self, tasks: list[dict],
                          progress_callback: Callable | None = None,
                          user_instructions: str = "") -> list[dict]:
-        """Solve each math task step by step, returning enriched task dicts."""
-        solved = []
+        """Solve each math task step by step, returning enriched task dicts.
+
+        Tasks are solved concurrently (thread pool) since each is an
+        independent API call – much faster for large task sets."""
         instr_text = ""
         if user_instructions:
             instr_text = f"WICHTIG – Benutzer-Anweisungen: {user_instructions}"
+        prompt = self.MATH_SOLVE_PROMPT.format(user_instructions=instr_text)
 
-        for i, task in enumerate(tasks):
-            if progress_callback:
-                progress_callback(i + 1, len(tasks), "Aufgaben lösen")
-
-            prompt = self.MATH_SOLVE_PROMPT.format(user_instructions=instr_text)
+        def _solve_one(task):
             messages = [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": (
@@ -1285,14 +1330,32 @@ Regeln:
             ]
             response = self._call_api(messages, max_tokens=4096)
             solution = self._parse_json_response(response) or {}
-            task_solved = {**task, **solution}
-            solved.append(task_solved)
+            return {**task, **solution}
 
-        return solved
+        solved = [None] * len(tasks)
+        done = 0
+        workers = max(1, min(self.max_workers, len(tasks)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = {ex.submit(_solve_one, t): i for i, t in enumerate(tasks)}
+            for fut in concurrent.futures.as_completed(futures):
+                i = futures[fut]
+                try:
+                    solved[i] = fut.result()
+                except Exception:
+                    solved[i] = tasks[i]
+                done += 1
+                if progress_callback:
+                    progress_callback(done, len(tasks), "Aufgaben lösen")
+
+        return [s for s in solved if s is not None]
 
     def generate_similar_tasks(self, example_task: dict, count: int = 5,
-                               progress_callback: Callable | None = None) -> list[dict]:
-        """Generate similar math tasks based on an example."""
+                               progress_callback: Callable | None = None,
+                               verify: bool = True) -> list[dict]:
+        """Generate similar math tasks based on an example.
+
+        When `verify` is set, each generated task is independently re-checked by
+        a second AI pass and its result corrected if the generator miscalculated."""
         prompt = self.MATH_GENERATE_MORE_PROMPT.format(
             count=count,
             example=json.dumps(example_task, ensure_ascii=False, indent=2),
@@ -1302,10 +1365,41 @@ Regeln:
             {"role": "user", "content": f"Erstelle {count} ähnliche Aufgaben."},
         ]
         if progress_callback:
-            progress_callback(1, 1, "Aufgaben generieren")
+            progress_callback(1, 2, "Aufgaben generieren")
         response = self._call_api(messages, max_tokens=8192)
         result = self._parse_json_response(response) or {}
-        return result.get("tasks", [])
+        tasks = result.get("tasks", [])
+
+        if verify and tasks:
+            if progress_callback:
+                progress_callback(2, 2, "Aufgaben prüfen")
+            tasks = self._verify_generated_tasks(tasks)
+        return tasks
+
+    def _verify_generated_tasks(self, tasks: list[dict]) -> list[dict]:
+        """Independently re-check each generated task and patch wrong results."""
+        def _verify_one(task):
+            messages = [
+                {"role": "system", "content": self.MATH_VERIFY_PROMPT},
+                {"role": "user", "content": (
+                    f"Aufgabe: {task.get('text', '')}\n"
+                    f"Gegeben: {json.dumps(task.get('given', {}), ensure_ascii=False)}\n"
+                    f"Gesucht: {task.get('sought', '?')}\n"
+                    f"Behauptetes Ergebnis: {task.get('result_text', '')} "
+                    f"{task.get('result_numeric', [])}"
+                )},
+            ]
+            check = self._parse_json_response(self._call_api(messages, max_tokens=1024)) or {}
+            if check.get("correct") is False:
+                if check.get("result_text"):
+                    task["result_text"] = check["result_text"]
+                if check.get("result_numeric"):
+                    task["result_numeric"] = check["result_numeric"]
+            return task
+
+        workers = max(1, min(self.max_workers, len(tasks)))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            return list(ex.map(_verify_one, tasks))
 
     def _parse_math_tasks(self, response: str | None) -> list[dict]:
         if not response or response.startswith("ERROR:"):
