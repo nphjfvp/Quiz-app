@@ -131,14 +131,27 @@ Dein Output MUSS exakt dieses Format haben:
 
 WICHTIGE Regeln:
 - Importiere ABSOLUT JEDE einzelne Frage – überspringe KEINE einzige!
-- Mehrteilige Aufgaben (z.B. "Aufgabe 3: a) ... b) ... c) ...") → jeder Teilpunkt wird eine EIGENE Frage
 - Rechenaufgaben → question_type "free_text", korrekte Lösung in "correct_text"
 - Wenn eine Frage am Textende abgeschnitten scheint, importiere sie trotzdem so weit wie möglich
 - Erkenne den Fragetyp automatisch (Single/Multiple Choice, Freitext, Lückentext, Zuordnung)
 - Wenn Antworten gegeben sind, markiere die richtigen
 - Behalte den originalen Fragentext möglichst bei
 - "question_count_estimate": Zähle wie viele Fragen du im Text siehst (auch die die du noch nicht importiert hast)
-- "source_hint": Gib an wo im Dokument die Frage stand (Aufgabennummer, Seitenzahl o.ä.)"""
+- "source_hint": Gib an wo im Dokument die Frage stand (Aufgabennummer, Seitenzahl o.ä.)
+
+KRITISCH – Aufgaben-Splitting bei Mathe/MINT-Aufgaben:
+- Wenn eine Aufgabe MEHRERE verschiedene Funktionen/Gleichungen/Objekte definiert
+  (z.B. "Gegeben: g(x)=..., h(x)=..., i(x)=...") und dann Teilaufgaben a), b), c) stellt,
+  dann ist JEDE Kombination aus Objekt+Teilaufgabe eine EIGENE Frage!
+  Beispiel: "Aufgabe 1: g(x), h(x), i(x). a) Bestimmen Sie die Ableitung."
+  → 3 separate Fragen: "Bestimme die Ableitung von g(x)=...",
+    "Bestimme die Ableitung von h(x)=...", "Bestimme die Ableitung von i(x)=..."
+- Jede Frage muss EIGENSTÄNDIG lösbar sein – alle nötigen Informationen
+  (Funktionsdefinition, Konstanten, Bedingungen) müssen im Fragentext stehen!
+- AUSNAHME: Wenn a), b), c) aufeinander aufbauen (z.B. "a) Berechne x. b) Setze x in ... ein"),
+  dann zusammen lassen, aber trotzdem pro Funktion/Gleichung splitten.
+- Bei Integralen, Grenzwerten, Reihen etc.: Jedes einzelne Integral/Grenzwert = eigene Frage.
+  "Aufgabe 13: a) ∫... b) ∫... c) ∫..." → 3 separate Fragen."""
 
 IMPORT_VERIFY_PROMPT = """Du bist ein Qualitätsprüfer für importierte Prüfungsfragen.
 
@@ -170,7 +183,14 @@ Antworte im JSON-Format:
 }
 
 Wenn ALLE Fragen bereits importiert sind, gib "missing_questions": [] zurück.
-Sei extrem gründlich – prüfe jeden Absatz, jede Nummerierung, jede Teilaufgabe."""
+Sei extrem gründlich – prüfe jeden Absatz, jede Nummerierung, jede Teilaufgabe.
+
+BESONDERS WICHTIG bei Mathe/MINT:
+- Wenn eine Aufgabe mehrere Funktionen/Gleichungen definiert (g, h, i, j, k...)
+  und dann Teilaufgaben stellt, muss JEDE Kombination als eigene Frage existieren!
+  z.B. "5 Funktionen × 4 Teilaufgaben = 20 Fragen" – nicht nur 4!
+- Jedes einzelne Integral, jeder Grenzwert, jede Reihe = eigene Frage.
+- Prüfe ob die importierten Fragen eigenständig lösbar sind (alle Infos enthalten)."""
 
 
 class AIService:
