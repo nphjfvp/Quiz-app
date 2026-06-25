@@ -46,6 +46,7 @@ route("millionaire", async (root) => { const m = await import("./screens/million
 route("hangman", async (root) => { const m = await import("./screens/hangman.js"); return m.render(root); });
 route("boss-fight", async (root) => { const m = await import("./screens/boss-fight.js"); return m.render(root); });
 route("socratic", async (root, params) => { const m = await import("./screens/socratic.js"); return m.render(root, params); });
+route("scaffold", async (root, params) => { const m = await import("./screens/scaffold.js"); return m.render(root, params); });
 
 async function init() {
   const settings = await loadSettings();
