@@ -587,3 +587,198 @@ export async function quickExplain(question, correctAnswer, userAnswer) {
   ];
   return chatFast(messages, apiKey);
 }
+
+// ─── Math scaffolding pipeline ───────────────────────────────────────
+// Mirrors the desktop pipeline: extract individual sub-tasks → solve each
+// step by step (multi-step calc_chain) → optionally generate similar tasks.
+
+// Tolerant JSON extraction: handles prose around the JSON and code fences.
+function parseJSONLoose(text) {
+  if (!text) return null;
+  let t = text.trim();
+  if (t.includes("```json")) t = t.split("```json")[1].split("```")[0];
+  else if (t.startsWith("```")) t = t.replace(/^```\w*\s*\n?/, "").replace(/\n?```\s*$/, "");
+  try { return JSON.parse(t.trim()); } catch { /* fall through */ }
+  // Grab the outermost {...} or [...] block
+  for (const [open, close] of [["{", "}"], ["[", "]"]]) {
+    const s = t.indexOf(open), e = t.lastIndexOf(close);
+    if (s !== -1 && e > s) {
+      let chunk = t.slice(s, e + 1).replace(/,\s*([}\]])/g, "$1"); // strip trailing commas
+      try { return JSON.parse(chunk); } catch { /* try next */ }
+    }
+  }
+  return null;
+}
+
+const MATH_EXTRACT_PROMPT = `Du bist ein Experte für Mathematik-Aufgaben. Extrahiere ALLE Rechenaufgaben aus dem Text.
+WICHTIG: Jede eigenständige Teilaufgabe wird EINZELN extrahiert. Wenn eine Aufgabe Teilaufgaben a) b) c) hat, die zusammengehören (gleicher Kontext), fasse sie als eine Aufgabe. Wenn es jedoch unterschiedliche, unabhängige Gleichungen/Aufgaben sind (z.B. g, h, i, j, k), wird JEDE eine eigene Aufgabe.
+
+Antworte NUR mit JSON:
+{
+  "tasks": [
+    {
+      "text": "Vollständiger Aufgabentext",
+      "given": {"a": 2, "b": 5, "c": -3},
+      "sought": "x",
+      "topic": "Quadratische Gleichungen"
+    }
+  ]
+}`;
+
+const MATH_SOLVE_PROMPT = `Du bist ein Mathematik-Tutor. Löse die Aufgabe SCHRITT FÜR SCHRITT.
+
+{user_instructions}
+
+WICHTIG: Viele Aufgaben erfordern MEHRERE Rechenschritte mit verschiedenen Formeln.
+Beispiel: Erst R_ges = R1 + R2 berechnen, dann I = U / R_ges, dann P = U * I.
+Jeder Rechenschritt ist ein eigener Eintrag in "calc_chain"!
+
+Antworte NUR mit JSON:
+{
+  "calc_chain": [
+    {
+      "step_nr": 1,
+      "formula_name": "Reihenschaltung Gesamtwiderstand",
+      "formula_latex": "R_{ges} = R_1 + R_2",
+      "description": "Gesamtwiderstand berechnen",
+      "inputs": [
+        {"symbol": "R_1", "name": "Widerstand 1", "unit": "Ω", "value": 100},
+        {"symbol": "R_2", "name": "Widerstand 2", "unit": "Ω", "value": 200}
+      ],
+      "result_symbol": "R_ges",
+      "result_unit": "Ω",
+      "result_numeric": [300],
+      "result_text": "R_ges = 300 Ω",
+      "linear_notation": "R_ges = 100 + 200 = 300"
+    },
+    {
+      "step_nr": 2,
+      "formula_name": "Ohmsches Gesetz",
+      "formula_latex": "I = \\\\frac{U}{R_{ges}}",
+      "description": "Strom berechnen (nutzt R_ges aus Schritt 1)",
+      "inputs": [
+        {"symbol": "U", "name": "Spannung", "unit": "V", "value": 12},
+        {"symbol": "R_ges", "name": "Gesamtwiderstand", "unit": "Ω", "value": 300, "from_step": 1}
+      ],
+      "result_symbol": "I",
+      "result_unit": "A",
+      "result_numeric": [0.04],
+      "result_text": "I = 0,04 A",
+      "linear_notation": "I = 12 / 300 = 0,04"
+    }
+  ],
+  "final_result_text": "R_ges = 300 Ω, I = 0,04 A",
+  "final_result_numeric": [300, 0.04]
+}
+
+Regeln:
+- JEDER Rechenschritt mit eigener Formel = eigener Eintrag in "calc_chain"
+- Nutzt ein Schritt ein vorheriges Ergebnis: "from_step" setzen
+- Auch einfache Aufgaben → calc_chain mit EINEM Eintrag
+- "result_numeric" als Array (z.B. [1, -1.75] bei quadratischer Gleichung)
+- Runde auf sinnvolle Nachkommastellen`;
+
+const MATH_GENERATE_PROMPT = `Du bist ein Mathematik-Aufgaben-Generator. Erstelle {count} neue Aufgaben vom selben Typ und Schwierigkeitsgrad wie die Beispielaufgabe.
+
+Beispielaufgabe:
+{example}
+
+Antworte NUR mit JSON:
+{
+  "tasks": [
+    {"text": "Aufgabentext", "given": {"a": 2, "b": 5, "c": -3}, "sought": "x", "result_text": "x1 = 0,5; x2 = -3", "result_numeric": [0.5, -3]}
+  ]
+}
+
+Regeln:
+- Variiere die Zahlen, behalte Typ bei
+- Wähle Zahlen die schöne Ergebnisse ergeben
+- Rechne jede Aufgabe KORREKT durch`;
+
+const MATH_VERIFY_PROMPT = `Du bist ein präziser Mathematik-Prüfer. Rechne die Aufgabe unabhängig nach und korrigiere das behauptete Ergebnis falls nötig.
+Antworte NUR mit JSON: {"correct": true/false, "result_text": "...", "result_numeric": [...]}`;
+
+// Split text on page markers / large gaps so each call sees a coherent chunk.
+function chunkText(text, maxLen = 9000) {
+  const pages = text.split(/--- ?Seite ?---|\f/);
+  const chunks = [];
+  let buf = "";
+  for (const p of pages) {
+    if ((buf + p).length > maxLen && buf) { chunks.push(buf); buf = ""; }
+    buf += p + "\n";
+  }
+  if (buf.trim()) chunks.push(buf);
+  return chunks.length ? chunks : [text];
+}
+
+export async function extractMathTasks(text, instructions = "", config = {}, onProgress = null) {
+  const { apiKey, model } = await getConfig(config);
+  const chunks = chunkText(text);
+  const all = [];
+  const seen = new Set();
+  for (let i = 0; i < chunks.length; i++) {
+    if (onProgress) onProgress(i + 1, chunks.length, "Aufgaben extrahieren");
+    const sys = MATH_EXTRACT_PROMPT + (instructions ? `\n\nBenutzer-Anweisungen: ${instructions}` : "");
+    const raw = await chatCompletion(
+      [{ role: "system", content: sys },
+       { role: "user", content: `Abschnitt ${i + 1}/${chunks.length}:\n\n${chunks[i]}` }],
+      { apiKey, model }
+    );
+    const parsed = parseJSONLoose(raw);
+    for (const t of (parsed?.tasks ?? [])) {
+      const key = ((t.text || "") + "|" + JSON.stringify(t.given || {})).toLowerCase().trim();
+      if (key && !seen.has(key)) { seen.add(key); all.push(t); }
+    }
+  }
+  return all;
+}
+
+export async function solveMathTasks(tasks, instructions = "", config = {}, onProgress = null) {
+  const { apiKey, model } = await getConfig(config);
+  const instrText = instructions ? `WICHTIG – Benutzer-Anweisungen: ${instructions}` : "";
+  const sys = MATH_SOLVE_PROMPT.replace("{user_instructions}", instrText);
+  let done = 0;
+  // Solve concurrently – each task is an independent call.
+  const results = await Promise.all(tasks.map(async (task) => {
+    const raw = await chatCompletion(
+      [{ role: "system", content: sys },
+       { role: "user", content: `Aufgabe: ${task.text}\nGegeben: ${JSON.stringify(task.given || {})}\nGesucht: ${task.sought || "?"}` }],
+      { apiKey, model }
+    );
+    const sol = parseJSONLoose(raw) || {};
+    done++;
+    if (onProgress) onProgress(done, tasks.length, "Aufgaben lösen");
+    return { ...task, ...sol };
+  }));
+  return results;
+}
+
+export async function generateSimilarTasks(example, count = 5, config = {}, verify = true) {
+  const { apiKey, model } = await getConfig(config);
+  const sys = MATH_GENERATE_PROMPT
+    .replace("{count}", count)
+    .replace("{example}", JSON.stringify(example, null, 2));
+  const raw = await chatCompletion(
+    [{ role: "system", content: sys },
+     { role: "user", content: `Erstelle ${count} ähnliche Aufgaben.` }],
+    { apiKey, model }
+  );
+  let tasks = (parseJSONLoose(raw)?.tasks) ?? [];
+  if (verify && tasks.length) {
+    tasks = await Promise.all(tasks.map(async (task) => {
+      try {
+        const v = parseJSONLoose(await chatCompletion(
+          [{ role: "system", content: MATH_VERIFY_PROMPT },
+           { role: "user", content: `Aufgabe: ${task.text}\nGegeben: ${JSON.stringify(task.given || {})}\nGesucht: ${task.sought || "?"}\nBehauptetes Ergebnis: ${task.result_text || ""} ${JSON.stringify(task.result_numeric || [])}` }],
+          { apiKey, model }
+        ));
+        if (v && v.correct === false) {
+          if (v.result_text) task.result_text = v.result_text;
+          if (v.result_numeric) task.result_numeric = v.result_numeric;
+        }
+      } catch { /* keep original on verify failure */ }
+      return task;
+    }));
+  }
+  return tasks;
+}

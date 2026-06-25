@@ -179,6 +179,14 @@ export async function saveAchievements(data) {
   await set("achievements", data);
 }
 
+// ── Math task sets (Formel-Training / Scaffolding) ──
+export async function loadMathTasks() {
+  return (await get("math_tasks")) ?? [];
+}
+export async function saveMathTasks(sets) {
+  await set("math_tasks", sets);
+}
+
 // ── Study Materials ──
 export async function loadMaterials() {
   return (await get("materials")) ?? {};
