@@ -123,6 +123,19 @@ COLORS = dict(LIGHT)
 _state = {"dark": False}
 
 
+def color_alpha(hex_color: str, alpha: int) -> str:
+    """Blend a hex color toward the current background at the given alpha (0-255).
+
+    tkinter doesn't support 8-digit hex (RGBA), so we manually mix.
+    """
+    bg = COLORS["bg"]
+    r1, g1, b1 = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+    r2, g2, b2 = int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)
+    a = alpha / 255
+    r, g, b = int(r1 * a + r2 * (1 - a)), int(g1 * a + g2 * (1 - a)), int(b1 * a + b2 * (1 - a))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 def is_dark() -> bool:
     return _state["dark"]
 

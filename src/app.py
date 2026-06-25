@@ -26,7 +26,7 @@ from .models import (
 from .quiz_engine import QuizSession, SpacedRepetition, AnswerResult, DeadlinePlanner
 from .ai_service import AIService
 from .fsrs import FSRSScheduler, FSRSCard, to_dict as fsrs_to_dict, from_dict as fsrs_from_dict
-from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL, animate_color
+from .theme import COLORS, apply_theme, is_dark, RADIUS_SM, RADIUS_MD, RADIUS_LG, RADIUS_XL, animate_color, color_alpha
 from .i18n import t, set_language, get_language
 from .latex_render import has_latex, split_text_and_formulas, render_formula, latex_to_plain, can_render as can_render_latex, autowrap_latex
 from .games import show_games, show_tower_defense, show_quiz_battle, _run_td, _run_qb, _game_card as _game_card_games
@@ -6907,7 +6907,7 @@ class App(ctk.CTk):
         if result:
             # User's answer (red if wrong, green if correct)
             user_color = COLORS["success"] if is_ok else COLORS["danger"]
-            ua_frame = ctk.CTkFrame(ans_frame, fg_color=user_color + "20", corner_radius=RADIUS_SM)
+            ua_frame = ctk.CTkFrame(ans_frame, fg_color=color_alpha(user_color, 32), corner_radius=RADIUS_SM)
             ua_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
             ua_frame.grid_columnconfigure(1, weight=1)
             ctk.CTkLabel(ua_frame, text=t("results.your_answer") + ":", font=("Segoe UI", 11, "bold"),
@@ -6917,7 +6917,7 @@ class App(ctk.CTk):
                         ).grid(row=0, column=1, padx=10, pady=8, sticky="w")
 
             # Correct answer (always green)
-            ca_frame = ctk.CTkFrame(ans_frame, fg_color=COLORS["success"] + "20", corner_radius=RADIUS_SM)
+            ca_frame = ctk.CTkFrame(ans_frame, fg_color=color_alpha(COLORS["success"], 32), corner_radius=RADIUS_SM)
             ca_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 5))
             ca_frame.grid_columnconfigure(1, weight=1)
             ctk.CTkLabel(ca_frame, text=t("results.correct_answer") + ":", font=("Segoe UI", 11, "bold"),
@@ -6944,7 +6944,7 @@ class App(ctk.CTk):
                 opts_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
                 opts_frame.grid_columnconfigure(0, weight=1)
                 for oi, opt in enumerate(question.options):
-                    opt_color = COLORS["success"] + "30" if opt.is_correct else COLORS["row_neutral"]
+                    opt_color = color_alpha(COLORS["success"], 48) if opt.is_correct else COLORS["row_neutral"]
                     of = ctk.CTkFrame(opts_frame, fg_color=opt_color, corner_radius=4)
                     of.grid(row=oi, column=0, sticky="ew", pady=1)
                     of.grid_columnconfigure(1, weight=1)
@@ -6957,7 +6957,7 @@ class App(ctk.CTk):
                                 ).grid(row=0, column=1, padx=8, pady=4, sticky="w")
 
         if question.explanation:
-            exp_frame = ctk.CTkFrame(ans_frame, fg_color=COLORS["primary"] + "15", corner_radius=RADIUS_SM)
+            exp_frame = ctk.CTkFrame(ans_frame, fg_color=color_alpha(COLORS["primary"], 21), corner_radius=RADIUS_SM)
             exp_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
             exp_frame.grid_columnconfigure(0, weight=1)
             ctk.CTkLabel(exp_frame, text="Erklärung:", font=("Segoe UI", 11, "bold"),
