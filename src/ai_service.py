@@ -1949,14 +1949,31 @@ Regeln:
         return self._parse_json_response(raw)
 
     def _parse_json_response(self, raw: Optional[str]) -> Optional[dict]:
-        if not raw:
+        if not raw or raw.startswith("ERROR:"):
             return None
         import json as _json
+        text = raw.strip()
+        # Strip code fences if present
+        if "```json" in text:
+            text = text.split("```json", 1)[1].split("```", 1)[0]
+        elif text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0]
+        # Direct parse
         try:
-            raw = raw.strip()
-            if raw.startswith("```"):
-                raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
-            return _json.loads(raw)
+            return _json.loads(text.strip())
         except _json.JSONDecodeError:
-            return None
+            pass
+        # Extract the outermost {...} object even if surrounded by prose
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start != -1 and end > start:
+            chunk = text[start:end]
+            try:
+                return _json.loads(chunk)
+            except _json.JSONDecodeError:
+                try:
+                    return _json.loads(self._repair_json(chunk))
+                except _json.JSONDecodeError:
+                    return None
+        return None
     # ── EXPERIMENTAL: AI Question Creation ── END
