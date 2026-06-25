@@ -3871,31 +3871,44 @@ class App(ctk.CTk):
 
     def _generate_image_questions(self, file_path: str, progress_label=None) -> list:
         """Extract diagrams/images from a PDF and generate one vision question each.
+
+        Uses context-aware extraction: embedded images + rendered visual pages,
+        each with surrounding text for better question quality.
         Returns a list of Question objects (may be empty)."""
         images_dir = str(Path(self.store.data_dir) / "images")
         try:
-            img_paths = self.ai.extract_images_from_pdf(file_path, images_dir)
+            items = self.ai.extract_images_with_context(file_path, images_dir)
         except Exception:
-            img_paths = []
-        if not img_paths:
+            items = []
+        if not items:
+            try:
+                img_paths = self.ai.extract_images_from_pdf(file_path, images_dir)
+                items = [{"path": p, "context": "", "page": -1, "source": "embedded"}
+                         for p in img_paths]
+            except Exception:
+                items = []
+        if not items:
             if progress_label is not None:
                 self.after(0, lambda: progress_label.configure(text=t("gen.no_images")))
             return []
 
         questions = []
-        total = len(img_paths)
-        for i, img_path in enumerate(img_paths):
+        total = len(items)
+        for i, item in enumerate(items):
             if progress_label is not None:
-                self.after(0, lambda c=i + 1, tt=total: progress_label.configure(
-                    text=t("gen.image_progress", c=c, total=tt)))
+                page_info = f" (Seite {item['page']+1})" if item.get("page", -1) >= 0 else ""
+                self.after(0, lambda c=i + 1, tt=total, pi=page_info: progress_label.configure(
+                    text=t("gen.image_progress", c=c, total=tt) + pi))
             try:
                 result = self.ai.generate_question_from_image(
-                    image_path=img_path, question_type="diagram_label")
+                    image_path=item["path"],
+                    question_type="diagram_label",
+                    context_text=item.get("context", ""))
             except Exception:
                 result = None
             if not result:
                 continue
-            q = self._question_from_ai_result(result, img_path)
+            q = self._question_from_ai_result(result, item["path"])
             if q is not None:
                 questions.append(q)
         return questions

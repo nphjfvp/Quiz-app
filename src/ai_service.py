@@ -459,6 +459,190 @@ class AIService:
             doc.close()
         return saved
 
+    def _detect_visual_pages(self, file_path: str) -> list[dict]:
+        """Detect PDF pages that contain significant visual content.
+
+        Returns a list of dicts: {"page": int, "reason": str, "text": str,
+        "has_embedded_images": bool, "has_drawings": bool, "text_ratio": float}.
+        """
+        if fitz is None:
+            return []
+        try:
+            doc = fitz.open(str(file_path))
+        except Exception:
+            return []
+        results = []
+        try:
+            for i in range(len(doc)):
+                page = doc[i]
+                text = page.get_text("text").strip()
+                page_area = page.rect.width * page.rect.height
+                text_blocks = page.get_text("blocks")
+                text_area = sum(
+                    (b[2] - b[0]) * (b[3] - b[1])
+                    for b in text_blocks if b[6] == 0
+                )
+                text_ratio = text_area / page_area if page_area > 0 else 1.0
+
+                embedded_imgs = page.get_images(full=True)
+                has_big_images = any(
+                    self._is_significant_image(doc, img[0])
+                    for img in embedded_imgs
+                )
+
+                drawings = page.get_drawings()
+                has_drawings = len(drawings) > 10
+
+                is_visual = has_big_images or has_drawings or text_ratio < 0.3
+                if is_visual:
+                    reasons = []
+                    if has_big_images:
+                        reasons.append("eingebettete Bilder")
+                    if has_drawings:
+                        reasons.append(f"Vektorgrafiken ({len(drawings)} Zeichnungen)")
+                    if text_ratio < 0.3:
+                        reasons.append(f"wenig Text ({text_ratio:.0%})")
+                    results.append({
+                        "page": i,
+                        "reason": ", ".join(reasons),
+                        "text": text,
+                        "has_embedded_images": has_big_images,
+                        "has_drawings": has_drawings,
+                        "text_ratio": text_ratio,
+                    })
+        finally:
+            doc.close()
+        return results
+
+    @staticmethod
+    def _is_significant_image(doc, xref: int, min_dim: int = 150) -> bool:
+        try:
+            base = doc.extract_image(xref)
+            return base.get("width", 0) >= min_dim and base.get("height", 0) >= min_dim
+        except Exception:
+            return False
+
+    def render_pdf_pages(self, file_path: str, out_dir: str,
+                         pages: list[int] | None = None,
+                         dpi: int = 150, max_pages: int = 30) -> list[dict]:
+        """Render PDF pages as PNG images.
+
+        Args:
+            pages: list of 0-based page indices, or None for visual pages only.
+        Returns list of {"page": int, "path": str, "text": str}.
+        """
+        if fitz is None:
+            return []
+        path = Path(file_path)
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+
+        try:
+            doc = fitz.open(str(path))
+        except Exception:
+            return []
+
+        if pages is None:
+            visual = self._detect_visual_pages(file_path)
+            pages = [v["page"] for v in visual][:max_pages]
+
+        results = []
+        try:
+            zoom = dpi / 72.0
+            mat = fitz.Matrix(zoom, zoom)
+            for page_num in pages[:max_pages]:
+                if page_num >= len(doc):
+                    continue
+                page = doc[page_num]
+                pix = page.get_pixmap(matrix=mat)
+                fname = out / f"{path.stem}_page{page_num+1}.png"
+                pix.save(str(fname))
+                results.append({
+                    "page": page_num,
+                    "path": str(fname),
+                    "text": page.get_text("text").strip(),
+                })
+        finally:
+            doc.close()
+        return results
+
+    def extract_images_with_context(self, file_path: str, out_dir: str,
+                                     max_items: int = 30) -> list[dict]:
+        """Extract images from a PDF with surrounding text context.
+
+        Combines embedded image extraction with page rendering for visual pages.
+        Returns list of {"path": str, "context": str, "page": int, "source": str}.
+        """
+        path = Path(file_path)
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        results = []
+        pages_covered = set()
+
+        if fitz is None:
+            return results
+
+        try:
+            doc = fitz.open(str(path))
+        except Exception:
+            return results
+
+        try:
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                page_text = page.get_text("text").strip()
+                for img in page.get_images(full=True):
+                    xref = img[0]
+                    if not self._is_significant_image(doc, xref):
+                        continue
+                    try:
+                        base = doc.extract_image(xref)
+                    except Exception:
+                        continue
+                    ext = base.get("ext", "png")
+                    img_bytes = base.get("image")
+                    if not img_bytes:
+                        continue
+                    fname = out / f"{path.stem}_p{page_num+1}_{xref}.{ext}"
+                    try:
+                        with open(fname, "wb") as f:
+                            f.write(img_bytes)
+                    except OSError:
+                        continue
+                    results.append({
+                        "path": str(fname),
+                        "context": page_text[:2000],
+                        "page": page_num,
+                        "source": "embedded",
+                    })
+                    pages_covered.add(page_num)
+                    if len(results) >= max_items:
+                        break
+                if len(results) >= max_items:
+                    break
+        finally:
+            doc.close()
+
+        visual_pages = self._detect_visual_pages(file_path)
+        remaining = max_items - len(results)
+        if remaining > 0:
+            render_pages = [
+                v["page"] for v in visual_pages
+                if v["page"] not in pages_covered
+                and (v["has_drawings"] or v["text_ratio"] < 0.3)
+            ][:remaining]
+            if render_pages:
+                rendered = self.render_pdf_pages(file_path, str(out), pages=render_pages)
+                for r in rendered:
+                    results.append({
+                        "path": r["path"],
+                        "context": r["text"][:2000],
+                        "page": r["page"],
+                        "source": "page_render",
+                    })
+
+        return results
+
     def _chunk_with_overlap(self, text: str) -> list[str]:
         """Split text into overlapping chunks (sliding window)."""
         if len(text) <= self.chunk_size:
@@ -1433,7 +1617,9 @@ Regeln:
 
     def generate_question_from_image(self, image_path: str, question_type: str = "diagram_label",
                                       topic: str = "", difficulty: str = "mittel",
-                                      vision_model: str = "") -> Optional[dict]:
+                                      vision_model: str = "",
+                                      context_text: str = "") -> Optional[dict]:
+        """Generate a question from an image, optionally with surrounding text context."""
         if not vision_model:
             if self.is_current_model_vision():
                 vision_model = self.model
@@ -1516,6 +1702,12 @@ Regeln:
         }
         instruction = type_instructions.get(question_type, type_instructions["diagram_label"])
         topic_part = f"\nThema/Kontext: {topic}" if topic else ""
+        context_part = ""
+        if context_text:
+            context_part = (
+                f"\n\nUmgebender Text auf dieser Seite (nutze ihn für Kontext, "
+                f"Fachbegriffe und korrekte Antworten):\n{context_text[:2000]}"
+            )
 
         messages = [
             {"role": "system", "content": (
@@ -1526,7 +1718,7 @@ Regeln:
                 "Antworte AUSSCHLIESSLICH mit validem JSON (kein Markdown, keine Erklärung)."
             )},
             {"role": "user", "content": [
-                {"type": "text", "text": f"Erstelle eine Frage basierend auf diesem Diagramm/Bild.{topic_part}"},
+                {"type": "text", "text": f"Erstelle eine Frage basierend auf diesem Diagramm/Bild.{topic_part}{context_part}"},
                 {"type": "image_url", "image_url": {"url": f"data:image/{suffix};base64,{encoded}"}},
             ]},
         ]
