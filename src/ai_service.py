@@ -105,12 +105,13 @@ def _build_generate_prompt(question_types: list[str] | None = None) -> str:
     )
 
 IMPORT_SYSTEM_PROMPT = """Du bist ein Experte für das Importieren von Prüfungsfragen aus Dokumenten.
-Das Dokument enthält bereits fertige Fragen (z.B. aus Übungsskripten).
+Das Dokument enthält bereits fertige Fragen (z.B. aus Übungsskripten, Altklausuren, Arbeitsblättern).
 Extrahiere ALLE Fragen und konvertiere sie in das folgende JSON-Format.
 
 Dein Output MUSS exakt dieses Format haben:
 {
   "summary": "Kurze Zusammenfassung der gefundenen Fragen-Themen",
+  "question_count_estimate": 12,
   "questions": [
     {
       "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop",
@@ -122,16 +123,54 @@ Dein Output MUSS exakt dieses Format haben:
       "correct_text": "Richtige Antwort",
       "blanks": ["Wort1", "Wort2"],
       "drag_drop_pairs": [{"source": "Begriff", "target": "Ziel"}],
-      "explanation": "Erklärung (falls vorhanden)"
+      "explanation": "Erklärung (falls vorhanden)",
+      "source_hint": "z.B. 'Aufgabe 3b' oder 'Seite 5, Frage 2'"
     }
   ]
 }
 
-Regeln:
-- Importiere ABSOLUT JEDE einzelne Frage aus dem Dokument – überspringe KEINE einzige Frage
-- Erkenne den Fragetyp automatisch
+WICHTIGE Regeln:
+- Importiere ABSOLUT JEDE einzelne Frage – überspringe KEINE einzige!
+- Mehrteilige Aufgaben (z.B. "Aufgabe 3: a) ... b) ... c) ...") → jeder Teilpunkt wird eine EIGENE Frage
+- Rechenaufgaben → question_type "free_text", korrekte Lösung in "correct_text"
+- Wenn eine Frage am Textende abgeschnitten scheint, importiere sie trotzdem so weit wie möglich
+- Erkenne den Fragetyp automatisch (Single/Multiple Choice, Freitext, Lückentext, Zuordnung)
 - Wenn Antworten gegeben sind, markiere die richtigen
-- Behalte den originalen Fragentext bei"""
+- Behalte den originalen Fragentext möglichst bei
+- "question_count_estimate": Zähle wie viele Fragen du im Text siehst (auch die die du noch nicht importiert hast)
+- "source_hint": Gib an wo im Dokument die Frage stand (Aufgabennummer, Seitenzahl o.ä.)"""
+
+IMPORT_VERIFY_PROMPT = """Du bist ein Qualitätsprüfer für importierte Prüfungsfragen.
+
+Du bekommst:
+1. Den Originaltext eines Dokuments (oder Abschnitts)
+2. Eine Liste bereits importierter Fragen
+
+Deine Aufgabe: Finde ALLE Fragen im Originaltext, die NICHT in der importierten Liste enthalten sind.
+
+Antworte im JSON-Format:
+{
+  "total_questions_in_text": 15,
+  "imported_count": 12,
+  "missing_questions": [
+    {
+      "question_type": "free_text",
+      "title": "Kurztitel",
+      "text": "Der fehlende Fragentext",
+      "topic": "Themengebiet",
+      "points": 1,
+      "options": [],
+      "correct_text": "Antwort falls bekannt",
+      "blanks": [],
+      "drag_drop_pairs": [],
+      "explanation": "",
+      "source_hint": "Aufgabe 5c, Seite 3"
+    }
+  ]
+}
+
+Wenn ALLE Fragen bereits importiert sind, gib "missing_questions": [] zurück.
+Sei extrem gründlich – prüfe jeden Absatz, jede Nummerierung, jede Teilaufgabe."""
 
 
 class AIService:
@@ -434,6 +473,39 @@ class AIService:
                 break
         return chunks
 
+    def _chunk_by_pages(self, text: str) -> list[str]:
+        """Split text by page/slide boundaries, grouping pages to fit chunk_size.
+
+        Falls back to overlap chunking if no page markers are found."""
+        separators = ["--- Seite ---", "--- Folie ---"]
+        pages = None
+        for sep in separators:
+            if sep in text:
+                pages = text.split(sep)
+                break
+        if not pages:
+            return self._chunk_with_overlap(text)
+
+        pages = [p.strip() for p in pages if p.strip()]
+        if not pages:
+            return self._chunk_with_overlap(text)
+
+        chunks = []
+        current = []
+        current_len = 0
+        for i, page in enumerate(pages):
+            page_with_marker = f"\n\n[Seite {i+1}]\n{page}"
+            if current_len + len(page_with_marker) > self.chunk_size and current:
+                chunks.append("\n".join(current))
+                overlap_text = current[-1] if current else ""
+                current = [overlap_text] if len(overlap_text) < self.chunk_size // 3 else []
+                current_len = len(current[0]) if current else 0
+            current.append(page_with_marker)
+            current_len += len(page_with_marker)
+        if current:
+            chunks.append("\n".join(current))
+        return chunks if chunks else self._chunk_with_overlap(text)
+
     # ── Model Recommendations ──
 
     RECOMMENDED_MODELS = [
@@ -716,54 +788,125 @@ class AIService:
     def import_questions(self, file_path: str,
                          progress_callback: Callable | None = None) -> list[Question]:
         full_text = self._read_file_as_text(file_path)
-        chunks = self._chunk_with_overlap(full_text)
+        chunks = self._chunk_by_pages(full_text)
         if not chunks:
             return []
 
-        all_questions: list[Question] = [None] * len(chunks)  # type: ignore
-        completed = [0]
-        lock = threading.Lock()
+        total_steps = len(chunks) + 1  # +1 for verification pass
+        result = []
+        seen_texts = set()
+        rolling_found: list[str] = []
 
-        def process_chunk(idx: int, chunk: str) -> list[Question]:
+        for i, chunk in enumerate(chunks):
+            if progress_callback:
+                progress_callback(i + 1, total_steps)
+
+            context_prefix = ""
+            if rolling_found:
+                found_summary = "\n".join(f"- {t}" for t in rolling_found[-30:])
+                context_prefix = (
+                    f"Bereits importierte Fragen (NICHT nochmal importieren):\n"
+                    f"{found_summary}\n\n---\n\n"
+                )
+
             messages = [
                 {"role": "system", "content": IMPORT_SYSTEM_PROMPT},
                 {"role": "user", "content": (
-                    f"Hier ist Teil {idx+1} von {len(chunks)} des Dokuments mit Übungsfragen:\n\n"
+                    f"{context_prefix}"
+                    f"Hier ist Teil {i+1} von {len(chunks)} des Dokuments:\n\n"
                     f"{chunk}\n\n"
-                    f"Importiere ALLE Fragen aus diesem Abschnitt."
+                    f"Importiere ALLE neuen Fragen aus diesem Abschnitt. "
+                    f"Überspringe keine einzige Frage oder Teilaufgabe!"
                 )},
             ]
-            response = self._call_api(messages, max_tokens=4096)
+            response = self._call_api(messages, max_tokens=8192)
             questions, _ = self._parse_response(response)
-            with lock:
-                completed[0] += 1
-                if progress_callback:
-                    progress_callback(completed[0], len(chunks))
-            return questions
+            for q in questions:
+                normalized = q.text.strip().lower()
+                if normalized not in seen_texts:
+                    seen_texts.add(normalized)
+                    result.append(q)
+                    title_hint = q.title or q.text[:60]
+                    rolling_found.append(title_hint)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = {
-                executor.submit(process_chunk, i, chunk): i
-                for i, chunk in enumerate(chunks)
-            }
-            for future in concurrent.futures.as_completed(futures):
-                idx = futures[future]
-                try:
-                    all_questions[idx] = future.result()
-                except Exception:
-                    all_questions[idx] = []
-
-        # Flatten and deduplicate by question text
-        result = []
-        seen_texts = set()
-        for chunk_questions in all_questions:
-            if chunk_questions:
-                for q in chunk_questions:
+        # Verification pass: check for missed questions
+        if result and len(full_text) <= 80000:
+            if progress_callback:
+                progress_callback(total_steps, total_steps)
+            found_list = "\n".join(
+                f"{i+1}. [{q.question_type.value}] {q.title or ''}: {q.text[:80]}"
+                for i, q in enumerate(result)
+            )
+            verify_text = full_text[:40000] if len(full_text) > 40000 else full_text
+            messages = [
+                {"role": "system", "content": IMPORT_VERIFY_PROMPT},
+                {"role": "user", "content": (
+                    f"Originaltext:\n{verify_text}\n\n---\n\n"
+                    f"Bereits importierte Fragen ({len(result)} Stück):\n{found_list}\n\n"
+                    f"Welche Fragen fehlen?"
+                )},
+            ]
+            response = self._call_api(messages, max_tokens=8192)
+            if response and not response.startswith("ERROR:"):
+                missing_qs = self._parse_verify_response(response)
+                for q in missing_qs:
                     normalized = q.text.strip().lower()
                     if normalized not in seen_texts:
                         seen_texts.add(normalized)
                         result.append(q)
+        elif progress_callback:
+            progress_callback(total_steps, total_steps)
+
         return result
+
+    def _parse_verify_response(self, response: str) -> list['Question']:
+        """Parse the verification pass response for missing questions."""
+        text = response.strip()
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        brace_s = text.find("{")
+        brace_e = text.rfind("}") + 1
+        if brace_s == -1 or brace_e <= 0:
+            return []
+        raw = text[brace_s:brace_e]
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            try:
+                obj = json.loads(self._repair_json(raw))
+            except json.JSONDecodeError:
+                return []
+        missing = obj.get("missing_questions", [])
+        if not missing:
+            return []
+        questions = []
+        for item in missing:
+            try:
+                qt = QuestionType(item.get("question_type", "free_text"))
+                q = Question(
+                    question_type=qt,
+                    title=item.get("title", ""),
+                    text=item.get("text", ""),
+                    topic=item.get("topic", ""),
+                    points=item.get("points", 1),
+                    explanation=item.get("explanation", ""),
+                )
+                if qt in (QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE):
+                    q.options = [Option(text=o["text"], is_correct=o.get("is_correct", False))
+                                 for o in item.get("options", [])]
+                elif qt == QuestionType.FREE_TEXT:
+                    q.correct_text = item.get("correct_text", "")
+                elif qt == QuestionType.FILL_BLANK:
+                    q.blanks = item.get("blanks", [])
+                elif qt == QuestionType.DRAG_DROP:
+                    q.drag_drop_pairs = [DragDropPair(source=p["source"], target=p["target"])
+                                         for p in item.get("drag_drop_pairs", [])]
+                questions.append(q)
+            except (KeyError, ValueError):
+                continue
+        return questions
 
     # ── Formula sheet (FoSa) extraction ──
 
