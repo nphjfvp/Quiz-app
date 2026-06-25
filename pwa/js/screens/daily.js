@@ -1,6 +1,7 @@
 import { loadQuizzes, loadProgress, loadDailyState, saveDailyState, loadFsrs } from "../store.js";
 import { navigate } from "../router.js";
 import { daysUntilDue, retrievability } from "../fsrs.js";
+import { esc } from "../utils.js";
 
 export async function render(root) {
   const quizzes = await loadQuizzes();
@@ -63,9 +64,56 @@ export async function render(root) {
     </button>`;
   }
 
+  // Deep Learning sessions: suggest topics to review
+  let dlSessions = [];
+  try {
+    const db = await new Promise((res, rej) => {
+      const r = indexedDB.open("lerntrainer", 1);
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    dlSessions = await new Promise((res, rej) => {
+      const tx = db.transaction("kv", "readonly");
+      const rq = tx.objectStore("kv").get("deep_learn_sessions");
+      rq.onsuccess = () => res(rq.result ?? []);
+      rq.onerror = () => rej(rq.error);
+    });
+  } catch { /* no sessions */ }
+
+  if (dlSessions.length > 0) {
+    html += `<div class="section-title" style="margin-top:16px">🔬 Konzepte vertiefen</div>`;
+    for (const sess of dlSessions.slice(0, 3)) {
+      const topics = (sess.topics || []).slice(0, 4);
+      html += `<div class="card" style="padding:12px;margin-bottom:8px">
+        <div style="font-weight:600;margin-bottom:8px">${esc(sess.name)}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">`;
+      for (const t of topics) {
+        const prompt = sess.mathMode
+          ? `Erkläre mir das Grundprinzip von '${t.name}' — welche Formel steckt dahinter?`
+          : `Erkläre mir die Kernidee von '${t.name}' — was ist das Wichtigste?`;
+        html += `<button class="btn btn-ghost btn-sm dl-topic-btn"
+          data-sess="${esc(sess.id)}" data-topic="${esc(t.name)}"
+          data-prompt="${esc(prompt)}"
+          style="font-size:0.8rem">${esc(t.name)}</button>`;
+      }
+      html += `</div></div>`;
+    }
+  }
+
   root.innerHTML = html;
 
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
+
+  // Deep learn topic buttons
+  root.querySelectorAll(".dl-topic-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      navigate("deep-learn", {
+        sessionId: btn.dataset.sess,
+        topicName: btn.dataset.topic,
+        prompt: btn.dataset.prompt,
+      });
+    });
+  });
   root.querySelector("#start-btn")?.addEventListener("click", () => {
     const fakeQuiz = { id: "daily", name: "Tägliches Lernen", questions: remaining, description: "", created: "", exam_date: "", weight: 1 };
     navigate("quiz", { quiz: fakeQuiz, mode: "single" });

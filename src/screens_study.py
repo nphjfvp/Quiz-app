@@ -64,12 +64,21 @@ def _build_study_context(self, quiz: Quiz, material):
     return "\n".join(ctx)
 
 
-def _ai_chat_panel(self, scroll, start_row, system_prompt, context, suggestions):
+def _ai_chat_panel(self, scroll, start_row, system_prompt, context, suggestions,
+                    persist_key=None):
     """Build a reusable chat panel (messages + input). Returns nothing.
 
     suggestions: list of (label, prompt) tuples rendered as quick buttons.
+    persist_key: if set, (session_id, topic_name) tuple → saves chat to deep_learn store.
     """
-    history = []  # list of {"role","content"}
+    # Load persisted history if available
+    history = []
+    if persist_key:
+        sid, tname = persist_key
+        sessions = self.store.load_json("deep_learn", [])
+        sess = next((s for s in sessions if s.get("id") == sid), None)
+        if sess and tname in (sess.get("chats") or {}):
+            history = list(sess["chats"][tname])
 
     msg_frame = ctk.CTkScrollableFrame(scroll, fg_color=COLORS["bg"], corner_radius=RADIUS_MD,
                                         height=320)
@@ -90,8 +99,12 @@ def _ai_chat_panel(self, scroll, start_row, system_prompt, context, suggestions)
         msg_frame._parent_canvas.yview_moveto(1.0)
         return lbl
 
-    # Suggestion buttons
-    if suggestions:
+    # Restore persisted messages
+    for msg in history:
+        add_bubble(msg["role"], msg["content"])
+
+    # Suggestion buttons (hide if chat already has history)
+    if suggestions and not history:
         sug_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         sug_frame.grid(row=start_row, column=0, sticky="ew", pady=(0, 4))
         col = 0
@@ -142,6 +155,15 @@ def _ai_chat_panel(self, scroll, start_row, system_prompt, context, suggestions)
                 typing.configure(text=_plain(reply))
                 history.append({"role": "user", "content": msg})
                 history.append({"role": "assistant", "content": reply})
+                if persist_key:
+                    sid, tname = persist_key
+                    sessions = self.store.load_json("deep_learn", [])
+                    sess = next((s for s in sessions if s.get("id") == sid), None)
+                    if sess:
+                        if "chats" not in sess:
+                            sess["chats"] = {}
+                        sess["chats"][tname] = list(history)
+                        self.store.save_json("deep_learn", sessions)
                 send_btn.configure(state="normal")
                 entry.configure(state="normal")
                 entry.focus_set()
@@ -313,6 +335,7 @@ def _detect_math_focus(text):
 def show_deep_learn(self):
     """Deep Learning mode: upload script → extract topics → pick one → deep Q&A."""
     import json as _json
+    import uuid
 
     self._clear_main()
     scroll = self._make_screen()
@@ -329,33 +352,219 @@ def show_deep_learn(self):
     ctk.CTkLabel(header, text="🔬 Deep Learning", font=("Segoe UI", 20, "bold"),
                  text_color=COLORS["text"]).grid(row=0, column=1, sticky="w")
 
-    ctk.CTkLabel(scroll, text="Lade ein Skript/Aufgabenblatt hoch. Die KI extrahiert Themen, "
-                 "du wählst eines und kannst unbegrenzt tief nachfragen.",
-                 font=("Segoe UI", 12), text_color=COLORS["text_light"],
-                 wraplength=620, justify="left").grid(row=1, column=0, sticky="w", pady=(0, 12))
+    # ── Saved sessions ──
+    sessions = self.store.load_json("deep_learn", [])
+    row_idx = 1
+
+    if sessions:
+        ctk.CTkLabel(scroll, text="Gespeicherte Sessions", font=("Segoe UI", 14, "bold"),
+                     text_color=COLORS["text"]).grid(row=row_idx, column=0, sticky="w", pady=(0, 4))
+        row_idx += 1
+        for sess in sessions[:8]:
+            topic_count = len(sess.get("topics", []))
+            chat_count = len(sess.get("chats", {}))
+            frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                                 border_width=1, border_color=COLORS["border"], cursor="hand2")
+            frame.grid(row=row_idx, column=0, sticky="ew", pady=2)
+            frame.grid_columnconfigure(1, weight=1)
+            ctk.CTkLabel(frame, text=sess.get("name", "Session"), font=("Segoe UI", 13, "bold"),
+                         text_color=COLORS["text"]).grid(row=0, column=0, columnspan=2, padx=12, pady=(8, 0), sticky="w")
+            mode_icon = "📐" if sess.get("mathMode") else "📖"
+            ctk.CTkLabel(frame, text=f"{mode_icon} {topic_count} Themen · {chat_count} Chats",
+                         font=("Segoe UI", 11), text_color=COLORS["text_light"]
+                         ).grid(row=1, column=0, padx=12, pady=(0, 8), sticky="w")
+            ctk.CTkButton(frame, text="🗑", width=30, height=30, fg_color="transparent",
+                          text_color=COLORS["danger"], hover_color=COLORS.get("card_hover", "#eef7f2"),
+                          command=lambda sid=sess["id"]: _delete_session(self, sid)
+                          ).grid(row=0, column=2, rowspan=2, padx=4)
+            frame.bind("<Button-1>", lambda e, s=sess: _resume_session(self, s))
+            for child in frame.winfo_children():
+                if not isinstance(child, ctk.CTkButton):
+                    child.bind("<Button-1>", lambda e, s=sess: _resume_session(self, s))
+            row_idx += 1
+
+    # ── New session: file upload or quiz import ──
+    ctk.CTkLabel(scroll, text="Neue Session", font=("Segoe UI", 14, "bold"),
+                 text_color=COLORS["text"]).grid(row=row_idx, column=0, sticky="w", pady=(12, 4))
+    row_idx += 1
+
+    btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+    btn_frame.grid(row=row_idx, column=0, sticky="ew", pady=(0, 12))
+    btn_frame.grid_columnconfigure((0, 1), weight=1)
+
+    ctk.CTkButton(btn_frame, text="📄 PDF / Text hochladen", height=44, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["primary"], font=("Segoe UI", 13),
+                  command=lambda: _show_file_import(self)).grid(row=0, column=0, padx=(0, 6), sticky="ew")
+    ctk.CTkButton(btn_frame, text="📚 Aus Quiz importieren", height=44, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["info"], font=("Segoe UI", 13),
+                  command=lambda: _show_quiz_import(self)).grid(row=0, column=1, padx=(6, 0), sticky="ew")
+    row_idx += 1
+
+
+def _delete_session(self, session_id):
+    sessions = self.store.load_json("deep_learn", [])
+    sessions = [s for s in sessions if s.get("id") != session_id]
+    self.store.save_json("deep_learn", sessions)
+    self.show_deep_learn()
+
+
+def _resume_session(self, sess):
+    _show_topic_picker(self, None, sess["sourceText"], sess["topics"],
+                       sess.get("mathMode", True), sess["id"])
+
+
+def _quiz_to_text(quiz):
+    lines = [f"Quiz: {quiz.name}\n"]
+    for q in (quiz.questions or []):
+        lines.append(f"Frage: {q.question_text or q.text or ''}")
+        if q.topic:
+            lines.append(f"Thema: {q.topic}")
+        if q.correct_answer:
+            lines.append(f"Antwort: {q.correct_answer}")
+        if hasattr(q, "explanation") and q.explanation:
+            lines.append(f"Erklärung: {q.explanation}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _show_quiz_import(self):
+    """Let user pick a quiz or folder to create a deep-learn session."""
+    quizzes = self.store.load_quizzes()
+    folders = self.store.load_json("folders", [])
+
+    if not quizzes and not folders:
+        messagebox.showinfo("Hinweis", "Keine Quizze vorhanden.")
+        return
+
+    self._clear_main()
+    scroll = self._make_screen()
+    scroll.grid_columnconfigure(0, weight=1)
+
+    header = ctk.CTkFrame(scroll, fg_color="transparent")
+    header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    header.grid_columnconfigure(1, weight=1)
+    ctk.CTkButton(header, text="← Zurück", width=80, height=32, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["card"], text_color=COLORS["text"],
+                  hover_color=COLORS.get("card_hover", "#eef7f2"), border_width=1,
+                  border_color=COLORS["border"], font=("Segoe UI", 12),
+                  command=self.show_deep_learn).grid(row=0, column=0, padx=(0, 10))
+    ctk.CTkLabel(header, text="📚 Quiz wählen", font=("Segoe UI", 18, "bold"),
+                 text_color=COLORS["text"]).grid(row=0, column=1, sticky="w")
+
+    row = 1
+    for folder in folders:
+        qids = folder.get("quiz_ids") or folder.get("quizIds") or []
+        frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                             border_width=1, border_color=COLORS["border"], cursor="hand2")
+        frame.grid(row=row, column=0, sticky="ew", pady=2)
+        ctk.CTkLabel(frame, text=f"📁 {folder.get('name', 'Ordner')} ({len(qids)} Quizze)",
+                     font=("Segoe UI", 13), text_color=COLORS["text"]
+                     ).grid(row=0, column=0, padx=12, pady=8, sticky="w")
+
+        def on_folder(e, f=folder, qs=quizzes):
+            fq = [q for q in qs if q.id in (f.get("quiz_ids") or f.get("quizIds") or [])]
+            if not fq:
+                return
+            text = "\n\n---\n\n".join(_quiz_to_text(q) for q in fq)
+            _import_text(self, text, f.get("name", "Ordner"))
+
+        frame.bind("<Button-1>", on_folder)
+        for c in frame.winfo_children():
+            c.bind("<Button-1>", on_folder)
+        row += 1
+
+    for quiz in quizzes:
+        n = len(quiz.questions or [])
+        frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_MD,
+                             border_width=1, border_color=COLORS["border"], cursor="hand2")
+        frame.grid(row=row, column=0, sticky="ew", pady=2)
+        ctk.CTkLabel(frame, text=f"{quiz.name} ({n} Fragen)",
+                     font=("Segoe UI", 13), text_color=COLORS["text"]
+                     ).grid(row=0, column=0, padx=12, pady=8, sticky="w")
+
+        def on_quiz(e, q=quiz):
+            _import_text(self, _quiz_to_text(q), q.name)
+
+        frame.bind("<Button-1>", on_quiz)
+        for c in frame.winfo_children():
+            c.bind("<Button-1>", on_quiz)
+        row += 1
+
+
+def _import_text(self, text, name):
+    """Start topic extraction from pre-loaded text."""
+    import json as _json
+    import uuid
+
+    is_math = _detect_math_focus(text)
+    _extract_and_show(self, text, name, is_math)
+
+
+def _show_file_import(self):
+    """File upload dialog for deep learn."""
+    import json as _json
+    import uuid
+
+    self._clear_main()
+    scroll = self._make_screen()
+    scroll.grid_columnconfigure(0, weight=1)
+
+    header = ctk.CTkFrame(scroll, fg_color="transparent")
+    header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+    header.grid_columnconfigure(1, weight=1)
+    ctk.CTkButton(header, text="← Zurück", width=80, height=32, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["card"], text_color=COLORS["text"],
+                  hover_color=COLORS.get("card_hover", "#eef7f2"), border_width=1,
+                  border_color=COLORS["border"], font=("Segoe UI", 12),
+                  command=self.show_deep_learn).grid(row=0, column=0, padx=(0, 10))
+    ctk.CTkLabel(header, text="📄 Datei importieren", font=("Segoe UI", 18, "bold"),
+                 text_color=COLORS["text"]).grid(row=0, column=1, sticky="w")
 
     upload_frame = ctk.CTkFrame(scroll, fg_color=COLORS["card"], corner_radius=RADIUS_LG)
-    upload_frame.grid(row=2, column=0, sticky="ew", pady=(0, 12))
+    upload_frame.grid(row=1, column=0, sticky="ew", pady=(0, 12))
     upload_frame.grid_columnconfigure(0, weight=1)
+
+    ctk.CTkLabel(upload_frame, text="Session-Name", font=("Segoe UI", 12, "bold"),
+                 text_color=COLORS["text"]).grid(row=0, column=0, padx=16, pady=(16, 4), sticky="w")
+    name_entry = ctk.CTkEntry(upload_frame, placeholder_text="z.B. Analysis Vorlesung 3",
+                              height=36, font=("Segoe UI", 12))
+    name_entry.grid(row=1, column=0, padx=16, pady=(0, 8), sticky="ew")
 
     status_lbl = ctk.CTkLabel(upload_frame, text="", font=("Segoe UI", 11),
                               text_color=COLORS["text_light"])
-    status_lbl.grid(row=1, column=0, padx=16, pady=(0, 12))
+    status_lbl.grid(row=2, column=0, padx=16, pady=(0, 8))
 
     text_box = ctk.CTkTextbox(upload_frame, height=120, font=("Segoe UI", 12),
                               fg_color=COLORS["bg"], corner_radius=RADIUS_SM)
-    text_box.grid(row=2, column=0, padx=16, pady=(0, 8), sticky="ew")
+    text_box.grid(row=3, column=0, padx=16, pady=(0, 8), sticky="ew")
     text_box.insert("1.0", "…oder Text hier einfügen")
 
     file_text = {"val": ""}
-    math_mode = {"val": None}  # None = auto, True = math, False = text
+    math_mode = {"val": None}
+
+    def pick_file():
+        path = filedialog.askopenfilename(
+            filetypes=[("Dokumente", "*.pdf *.txt *.md *.docx *.pptx"), ("Alle", "*.*")])
+        if not path:
+            return
+        try:
+            file_text["val"] = self.ai._read_file_as_text(path)
+            name_entry.delete(0, "end")
+            name_entry.insert(0, Path(path).stem)
+            status_lbl.configure(text=f"✅ {Path(path).name} geladen ({len(file_text['val'])} Zeichen)")
+        except Exception as e:
+            status_lbl.configure(text=f"❌ {e}")
+
+    ctk.CTkButton(upload_frame, text="📂 Datei wählen", height=36, corner_radius=RADIUS_MD,
+                  fg_color=COLORS["primary"], font=("Segoe UI", 13),
+                  command=pick_file).grid(row=4, column=0, padx=16, pady=(0, 8), sticky="ew")
 
     mode_btn = ctk.CTkButton(upload_frame, text="🔬 Auto-Erkennung", height=30,
                              corner_radius=RADIUS_SM, fg_color=COLORS["card"],
                              text_color=COLORS["text"], hover_color=COLORS.get("card_hover", "#eef7f2"),
                              border_width=1, border_color=COLORS["border"],
                              font=("Segoe UI", 11))
-    mode_btn.grid(row=3, column=0, padx=16, pady=(0, 4), sticky="w")
+    mode_btn.grid(row=5, column=0, padx=16, pady=(0, 4), sticky="w")
     modes_cycle = [(None, "🔬 Auto-Erkennung"), (True, "📐 Mathe/MINT-Fokus"), (False, "📖 Text/Theorie-Fokus")]
     mode_idx = {"val": 0}
 
@@ -366,86 +575,95 @@ def show_deep_learn(self):
 
     mode_btn.configure(command=toggle_mode)
 
-    def pick_file():
-        path = filedialog.askopenfilename(
-            filetypes=[("Dokumente", "*.pdf *.txt *.md *.docx *.pptx"), ("Alle", "*.*")])
-        if not path:
-            return
-        try:
-            file_text["val"] = self.ai._read_file_as_text(path)
-            status_lbl.configure(text=f"✅ {Path(path).name} geladen ({len(file_text['val'])} Zeichen)")
-        except Exception as e:
-            status_lbl.configure(text=f"❌ {e}")
-
-    ctk.CTkButton(upload_frame, text="📂 Datei wählen", height=36, corner_radius=RADIUS_MD,
-                  fg_color=COLORS["primary"], font=("Segoe UI", 13),
-                  command=pick_file).grid(row=0, column=0, padx=16, pady=(16, 8), sticky="ew")
-
     def extract_topics():
         text = file_text["val"] or text_box.get("1.0", "end").strip()
+        name = name_entry.get().strip() or "Session"
         if not text or len(text) < 50:
             messagebox.showwarning("Hinweis", "Bitte einen längeren Text eingeben oder eine Datei wählen.")
             return
-
         is_math = math_mode["val"]
         if is_math is None:
             is_math = _detect_math_focus(text)
-
-        status_lbl.configure(text="⏳ KI extrahiert Themen…")
-        self.update_idletasks()
-
-        if is_math:
-            extract_detail = (
-                "Extrahiere ALLE Themen, Konzepte und Rechenverfahren.\n"
-                'Jedes Element: {"name":"<Themenname>","desc":"<1-Satz: welche Formeln/Verfahren>","difficulty":"basic|intermediate|advanced","formulas":["<LaTeX>"]}'
-            )
-        else:
-            extract_detail = (
-                "Extrahiere ALLE Themen, Konzepte und Theorien.\n"
-                '{"name":"<Themenname>","desc":"<1-Satz-Zusammenfassung>","difficulty":"basic|intermediate|advanced"}'
-            )
-
-        prompt = (
-            "Analysiere den folgenden Text (Vorlesung/Skript/Aufgabenblatt).\n"
-            + extract_detail + "\n"
-            "Gib sie als JSON-Array zurück, sortiert nach logischer Reihenfolge (Grundlagen zuerst).\n"
-            "NUR das JSON-Array ausgeben.\n\nText:\n" + text[:15000]
-        )
-
-        def run():
-            try:
-                msgs = [{"role": "system", "content": "Du bist ein Experte für MINT-Fächer."},
-                        {"role": "user", "content": prompt}]
-                reply = self.ai._call_api(msgs, max_tokens=1500) or ""
-                parsed = self.ai._parse_json_response(reply)
-                if isinstance(parsed, dict) and "topics" in parsed:
-                    topics = parsed["topics"]
-                elif isinstance(parsed, list):
-                    topics = parsed
-                else:
-                    import re
-                    m = re.search(r'\[[\s\S]*\]', reply)
-                    topics = _json.loads(m.group(0)) if m else []
-                topics = [t for t in topics if isinstance(t, dict) and t.get("name")]
-            except Exception as e:
-                self.after(0, lambda: status_lbl.configure(text=f"❌ Fehler: {e}"))
-                return
-
-            def done():
-                if not topics:
-                    status_lbl.configure(text="Keine Themen gefunden. Versuche einen anderen Text.")
-                    return
-                _show_topic_picker(self, scroll, text, topics, is_math)
-            self.after(0, done)
-
-        threading.Thread(target=run, daemon=True).start()
+        _extract_and_show(self, text, name, is_math)
 
     ctk.CTkButton(upload_frame, text="🚀 Themen extrahieren", height=40, corner_radius=RADIUS_MD,
                   fg_color=COLORS["success"], font=("Segoe UI", 14, "bold"),
-                  command=extract_topics).grid(row=4, column=0, padx=16, pady=(8, 16), sticky="ew")
+                  command=extract_topics).grid(row=6, column=0, padx=16, pady=(8, 16), sticky="ew")
 
 
-def _show_topic_picker(self, parent, source_text, topics, is_math=True):
+def _extract_and_show(self, text, name, is_math):
+    """Run AI topic extraction in a background thread, save session, show picker."""
+    import json as _json
+    import uuid
+
+    self._clear_main()
+    scroll = self._make_screen()
+    scroll.grid_columnconfigure(0, weight=1)
+    ctk.CTkLabel(scroll, text="⏳ KI extrahiert Themen…", font=("Segoe UI", 14),
+                 text_color=COLORS["text"]).grid(row=0, column=0, pady=40)
+
+    if is_math:
+        extract_detail = (
+            "Extrahiere ALLE Themen, Konzepte und Rechenverfahren.\n"
+            'Jedes Element: {"name":"<Themenname>","desc":"<1-Satz: welche Formeln/Verfahren>","difficulty":"basic|intermediate|advanced","formulas":["<LaTeX>"]}'
+        )
+    else:
+        extract_detail = (
+            "Extrahiere ALLE Themen, Konzepte und Theorien.\n"
+            '{"name":"<Themenname>","desc":"<1-Satz-Zusammenfassung>","difficulty":"basic|intermediate|advanced"}'
+        )
+
+    prompt = (
+        "Analysiere den folgenden Text (Vorlesung/Skript/Aufgabenblatt).\n"
+        + extract_detail + "\n"
+        "Gib sie als JSON-Array zurück, sortiert nach logischer Reihenfolge (Grundlagen zuerst).\n"
+        "NUR das JSON-Array ausgeben.\n\nText:\n" + text[:15000]
+    )
+
+    def run():
+        try:
+            msgs = [{"role": "system", "content": "Du bist ein Experte für MINT-Fächer."},
+                    {"role": "user", "content": prompt}]
+            reply = self.ai._call_api(msgs, max_tokens=1500) or ""
+            parsed = self.ai._parse_json_response(reply)
+            if isinstance(parsed, dict) and "topics" in parsed:
+                topics = parsed["topics"]
+            elif isinstance(parsed, list):
+                topics = parsed
+            else:
+                import re
+                m = re.search(r'\[[\s\S]*\]', reply)
+                topics = _json.loads(m.group(0)) if m else []
+            topics = [t for t in topics if isinstance(t, dict) and t.get("name")]
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror("Fehler", str(e)))
+            self.after(0, self.show_deep_learn)
+            return
+
+        def done():
+            if not topics:
+                messagebox.showinfo("Hinweis", "Keine Themen gefunden.")
+                self.show_deep_learn()
+                return
+            # Save session
+            sessions = self.store.load_json("deep_learn", [])
+            sess_id = str(uuid.uuid4())
+            sessions.insert(0, {
+                "id": sess_id,
+                "name": name,
+                "sourceText": text,
+                "topics": topics,
+                "mathMode": is_math,
+                "chats": {},
+            })
+            self.store.save_json("deep_learn", sessions)
+            _show_topic_picker(self, None, text, topics, is_math, sess_id)
+        self.after(0, done)
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+def _show_topic_picker(self, parent, source_text, topics, is_math=True, session_id=None):
     """Show extracted topics as clickable cards."""
     self._clear_main()
     scroll = self._make_screen()
@@ -492,11 +710,11 @@ def _show_topic_picker(self, parent, source_text, topics, is_math=True):
                       fg_color="transparent", text_color=COLORS["text_light"],
                       hover_color=COLORS.get("card_hover", "#eef7f2"),
                       font=("Segoe UI", 16),
-                      command=lambda tp=t: _start_deep_chat(self, source_text, tp, is_math)
+                      command=lambda tp=t: _start_deep_chat(self, source_text, tp, is_math, session_id)
                       ).grid(row=0, column=2, rowspan=2, padx=8)
 
 
-def _start_deep_chat(self, source_text, topic, is_math=True):
+def _start_deep_chat(self, source_text, topic, is_math=True, session_id=None):
     """Open the deep-learning chat for a specific topic."""
     self._clear_main()
     scroll = self._make_screen()
@@ -509,11 +727,12 @@ def _start_deep_chat(self, source_text, topic, is_math=True):
                   fg_color=COLORS["card"], text_color=COLORS["text"],
                   hover_color=COLORS.get("card_hover", "#eef7f2"), border_width=1,
                   border_color=COLORS["border"], font=("Segoe UI", 12),
-                  command=lambda: self.show_deep_learn()).grid(row=0, column=0, padx=(0, 10))
+                  command=lambda: self.show_deep_learn()
+                  ).grid(row=0, column=0, padx=(0, 10))
     ctk.CTkLabel(header, text=f"🔬 {_plain(topic['name'])}", font=("Segoe UI", 18, "bold"),
                  text_color=COLORS["text"]).grid(row=0, column=1, sticky="w")
 
-    ctk.CTkLabel(scroll, text="Frag warum, wie, was — so oft du willst. Die KI erklärt immer tiefer.",
+    ctk.CTkLabel(scroll, text="Frag warum, wie, was — so oft du willst. Chat wird gespeichert.",
                  font=("Segoe UI", 12), text_color=COLORS["text_light"],
                  wraplength=620, justify="left").grid(row=1, column=0, sticky="w", pady=(0, 4))
 
@@ -567,4 +786,5 @@ def _start_deep_chat(self, source_text, topic, is_math=True):
 
     context = ""
 
-    _ai_chat_panel(self, scroll, 2, system_prompt, context, suggestions)
+    pk = (session_id, topic["name"]) if session_id else None
+    _ai_chat_panel(self, scroll, 2, system_prompt, context, suggestions, persist_key=pk)
