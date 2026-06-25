@@ -1145,33 +1145,59 @@ Regeln:
 
 {user_instructions}
 
+WICHTIG: Viele Aufgaben erfordern MEHRERE Rechenschritte mit verschiedenen Formeln.
+Beispiel: Erst R_ges = R1 + R2 berechnen, dann I = U / R_ges, dann P = U * I.
+Jeder Rechenschritt ist ein eigener Eintrag in "calc_chain"!
+
 Dein Output MUSS dieses JSON-Format haben:
 {{
-  "formula_name": "Name der verwendeten Formel (z.B. ABC-Formel, Satz des Pythagoras)",
-  "formula_latex": "LaTeX der Formel, z.B. x_{{1,2}} = \\\\frac{{-b \\\\pm \\\\sqrt{{b^2 - 4ac}}}}{{2a}}",
-  "formula_template": "Wie formula_latex, aber Eingabevariablen in {{{{symbol}}}}, z.B. x_{{1,2}} = \\\\frac{{-{{{{b}}}} \\\\pm \\\\sqrt{{{{{{b}}}}^2 - 4 \\\\cdot {{{{a}}}} \\\\cdot {{{{c}}}}}}}}{{2 \\\\cdot {{{{a}}}}}}",
-  "formula_expression": "Python-auswertbar, z.B. (-b + (b**2 - 4*a*c)**0.5) / (2*a)",
-  "result_symbol": "x_{{1,2}}",
-  "variables": [
-    {{"symbol": "a", "name": "Koeffizient a", "unit": "", "value": 4}},
-    {{"symbol": "b", "name": "Koeffizient b", "unit": "", "value": 3}}
+  "calc_chain": [
+    {{
+      "step_nr": 1,
+      "formula_name": "Name der Formel (z.B. Reihenschaltung Gesamtwiderstand)",
+      "formula_latex": "R_{{ges}} = R_1 + R_2",
+      "formula_template": "{{{{R_ges}}}} = {{{{R_1}}}} + {{{{R_2}}}}",
+      "description": "Gesamtwiderstand berechnen",
+      "inputs": [
+        {{"symbol": "R_1", "name": "Widerstand 1", "unit": "Ω", "value": 100}},
+        {{"symbol": "R_2", "name": "Widerstand 2", "unit": "Ω", "value": 200}}
+      ],
+      "result_symbol": "R_ges",
+      "result_unit": "Ω",
+      "result_numeric": [300.0],
+      "result_text": "R_ges = 300 Ω",
+      "linear_notation": "R_ges = 100 + 200 = 300"
+    }},
+    {{
+      "step_nr": 2,
+      "formula_name": "Ohmsches Gesetz",
+      "formula_latex": "I = \\\\frac{{U}}{{R_{{ges}}}}",
+      "formula_template": "{{{{I}}}} = \\\\frac{{{{{{U}}}}}}{{{{{{R_ges}}}}}}",
+      "description": "Strom berechnen (nutzt R_ges aus Schritt 1)",
+      "inputs": [
+        {{"symbol": "U", "name": "Spannung", "unit": "V", "value": 12}},
+        {{"symbol": "R_ges", "name": "Gesamtwiderstand (aus Schritt 1)", "unit": "Ω", "value": 300, "from_step": 1}}
+      ],
+      "result_symbol": "I",
+      "result_unit": "A",
+      "result_numeric": [0.04],
+      "result_text": "I = 0,04 A = 40 mA",
+      "linear_notation": "I = 12 / 300 = 0,04"
+    }}
   ],
-  "steps": [
-    {{"step": 1, "description": "Werte identifizieren", "latex": "a=4,\\\\; b=3,\\\\; c=-7"}},
-    {{"step": 2, "description": "In Formel einsetzen", "latex": "x_{{1,2}} = \\\\frac{{-3 \\\\pm \\\\sqrt{{9+112}}}}{{8}}"}},
-    {{"step": 3, "description": "Berechnen", "latex": "x_1 = 1,\\\\; x_2 = -1{,}75"}}
-  ],
-  "result_text": "x₁ = 1; x₂ = -1,75",
-  "result_numeric": [1.0, -1.75],
-  "linear_notation": "x12=(-3+-wrzl(3^2-4*4*(-7)))/(2*4)"
+  "final_result_text": "R_ges = 300 Ω, I = 40 mA",
+  "final_result_numeric": [300.0, 0.04]
 }}
 
 Regeln:
-- Löse die Aufgabe KOMPLETT durch, Schritt für Schritt
+- JEDER Rechenschritt der eine eigene Formel braucht = eigener Eintrag in "calc_chain"
+- Wenn ein Schritt das Ergebnis eines vorherigen nutzt: "from_step": Schritt-Nr setzen
+- Auch einfache Aufgaben mit nur EINER Formel → calc_chain mit einem Eintrag
 - "formula_template": Ersetze JEDE Eingabe-Variable durch {{{{symbol}}}}
-- "linear_notation": Wie ein Schüler es linear tippen würde (wrzl statt √, ^ statt Potenz)
-- "result_numeric": Alle numerischen Ergebnisse als Array
-- Nutze die Formel/Methode die der Benutzer bevorzugt (siehe Anweisungen)"""
+- "linear_notation": Wie ein Schüler es tippen würde
+- "result_numeric": Numerische Ergebnisse als Array (z.B. [1.0, -1.75] bei quadratischer Gl.)
+- Nutze die Formel/Methode die der Benutzer bevorzugt (siehe Anweisungen)
+- Runde auf sinnvolle Nachkommastellen"""
 
     MATH_GENERATE_MORE_PROMPT = """Du bist ein Mathematik-Aufgaben-Generator. Erstelle {count} neue Aufgaben
 die dem gleichen Typ und Schwierigkeitsgrad entsprechen wie die Beispielaufgabe.

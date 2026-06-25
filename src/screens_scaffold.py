@@ -468,289 +468,374 @@ def _run_scaffold_tasks(self, tasks, stage, task_set=None):
     show_task(0)
 
 
-# ── Stage 1: Geführte Formel ────────────────────────────────────────────
+# ── Stage 1: Geführte Formel (mit Rechenketten) ───────────────────────
 def _stage1_guided(self, parent, task, state, next_fn):
-    card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
-                        border_width=1, border_color=COLORS["border"])
-    card.grid(row=2, column=0, sticky="ew", padx=0, pady=(0, 12))
-    card.grid_columnconfigure(0, weight=1)
+    chain = task.get("calc_chain", [])
+    if not chain:
+        chain = [_task_as_single_step(task)]
 
-    formula_latex = task.get("formula_latex", "")
-    formula_name = task.get("formula_name", "")
+    chain_state = {"step_idx": 0, "computed": {}, "all_ok": True}
 
-    # Show formula
-    if formula_name:
-        ctk.CTkLabel(card, text=f"📝 Formel: {formula_name}",
-                     font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
-                     ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 4))
-    if formula_latex and can_render_latex():
-        _render_latex_image(self, formula_latex, card, row=1)
-    elif formula_latex:
-        ctk.CTkLabel(card, text=formula_latex, font=("Consolas", 14),
-                     text_color=COLORS["text"]).grid(row=1, column=0, sticky="w", padx=14, pady=4)
+    chain_frame = ctk.CTkFrame(parent, fg_color="transparent")
+    chain_frame.grid(row=2, column=0, sticky="ew")
+    chain_frame.grid_columnconfigure(0, weight=1)
 
-    # Variable inputs — user clicks each variable and enters the value
-    variables = task.get("variables", [])
-    given = task.get("given", {})
-    r = 2
+    def show_chain_step(si):
+        for w in chain_frame.winfo_children():
+            w.destroy()
 
-    if variables:
-        ctk.CTkLabel(card, text="Setze die Werte ein (klicke auf jede Variable):",
-                     font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
-                     ).grid(row=r, column=0, sticky="w", padx=14, pady=(12, 6))
-        r += 1
+        if si >= len(chain):
+            state["total"] += 1
+            if chain_state["all_ok"]:
+                state["correct"] += 1
+            final = task.get("final_result_text", chain[-1].get("result_text", ""))
+            lbl_text = f"✅ Alle Schritte richtig! → {final}" if chain_state["all_ok"] else f"Endergebnis: {final}"
+            lbl_color = COLORS["success"] if chain_state["all_ok"] else COLORS["text"]
+            ctk.CTkLabel(chain_frame, text=lbl_text, font=("Segoe UI", 14, "bold"),
+                         text_color=lbl_color, wraplength=600
+                         ).grid(row=0, column=0, sticky="w", padx=14, pady=12)
+            state["idx"] += 1
+            self.after(2000, lambda: next_fn(state["idx"]))
+            return
 
-        var_frame = ctk.CTkFrame(card, fg_color="transparent")
-        var_frame.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 8))
-        var_frame.grid_columnconfigure(1, weight=1)
+        step = chain[si]
+        total_steps = len(chain)
 
-        entries = {}
-        for i, v in enumerate(variables):
-            sym = v.get("symbol", f"x{i}")
-            name = v.get("name", sym)
-            unit = v.get("unit", "")
-            given_val = given.get(sym, v.get("value"))
-            unit_str = f" [{unit}]" if unit else ""
+        card = ctk.CTkFrame(chain_frame, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                            border_width=1, border_color=COLORS["border"])
+        card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        card.grid_columnconfigure(0, weight=1)
 
-            ctk.CTkLabel(var_frame, text=f"{sym} ({name}{unit_str}) =",
-                         font=("Segoe UI", 13), text_color=COLORS["text"]
-                         ).grid(row=i, column=0, sticky="w", padx=(0, 8), pady=4)
+        # Step header
+        step_label = f"Rechenschritt {si+1}/{total_steps}" if total_steps > 1 else "Rechnung"
+        desc = step.get("description", "")
+        fname = step.get("formula_name", "")
+        header = f"📝 {step_label}: {desc}" + (f" ({fname})" if fname else "")
+        ctk.CTkLabel(card, text=header, font=("Segoe UI", 13, "bold"),
+                     text_color=COLORS["text"]).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 4))
 
-            e = ctk.CTkEntry(var_frame, height=36, font=("Segoe UI", 13),
-                             placeholder_text=f"Wert für {sym}")
-            e.grid(row=i, column=1, sticky="ew", pady=4)
-            entries[sym] = (e, given_val)
-        r += 1
-    else:
-        entries = {}
-
-    # Result input
-    result_symbol = task.get("result_symbol", task.get("sought", "Ergebnis"))
-    ctk.CTkLabel(card, text=f"Ergebnis ({result_symbol}) =",
-                 font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
-                 ).grid(row=r, column=0, sticky="w", padx=14, pady=(8, 4))
-    r += 1
-
-    result_entry = ctk.CTkEntry(card, height=42, font=("Segoe UI", 15),
-                                placeholder_text=f"{result_symbol} = ?")
-    result_entry.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 8))
-    result_entry.focus_set()
-    r += 1
-
-    feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
-    feedback_lbl.grid(row=r, column=0, sticky="w", padx=14, pady=(0, 4))
-    r += 1
-
-    # Steps (collapsible)
-    steps = task.get("steps", [])
-    steps_shown = {"v": False}
-    steps_frame = ctk.CTkFrame(card, fg_color=COLORS.get("input_bg", "#f1f6f3"), corner_radius=RADIUS_MD)
-
-    def toggle_steps():
-        if not steps_shown["v"]:
-            steps_shown["v"] = True
-            steps_frame.grid(row=r + 1, column=0, sticky="ew", padx=14, pady=(0, 8))
-            for si, step in enumerate(steps):
-                desc = step.get("description", "")
-                latex = step.get("latex", "")
-                ctk.CTkLabel(steps_frame, text=f"Schritt {step.get('step', si+1)}: {desc}",
-                             font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
-                             ).grid(row=si * 2, column=0, sticky="w", padx=12, pady=(8, 2))
-                if latex and can_render_latex():
-                    _render_latex_image(self, latex, steps_frame, row=si * 2 + 1)
-                elif latex:
-                    ctk.CTkLabel(steps_frame, text=latex, font=("Consolas", 12),
-                                 text_color=COLORS["text_light"]
-                                 ).grid(row=si * 2 + 1, column=0, sticky="w", padx=12, pady=(0, 4))
-
-    def check():
-        all_ok = True
-        # Check variable entries
-        for sym, (e, expected) in entries.items():
-            val = e.get().strip()
-            if expected is not None and not _validate_numeric(val, expected):
-                e.configure(border_color=COLORS["danger"])
-                all_ok = False
-            else:
-                e.configure(border_color=COLORS["success"])
-
-        # Check result
-        result_nums = task.get("result_numeric", [])
-        result_text = task.get("result_text", "")
-        val = result_entry.get().strip()
-
-        result_ok = False
-        if result_nums:
-            result_ok = _validate_numeric(val, result_nums)
-        elif result_text:
-            try:
-                result_ok = _validate_numeric(val, float(result_text.replace(",", ".")))
-            except (ValueError, TypeError):
-                result_ok = val.lower().strip() == result_text.lower().strip()
-
-        result_entry.configure(border_color=COLORS["success"] if result_ok else COLORS["danger"])
-        if not result_ok:
-            all_ok = False
-
-        state["total"] += 1
-        if all_ok:
-            state["correct"] += 1
-            feedback_lbl.configure(text=f"✅ Richtig! {result_text}",
-                                   text_color=COLORS["success"])
-        else:
-            feedback_lbl.configure(text=f"❌ Lösung: {result_text}",
-                                   text_color=COLORS["danger"])
-            toggle_steps()
-
-        state["idx"] += 1
-        self.after(2500, lambda: next_fn(state["idx"]))
-
-    btn_frame = ctk.CTkFrame(card, fg_color="transparent")
-    btn_frame.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 14))
-    ctk.CTkButton(btn_frame, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
-                  font=("Segoe UI", 14, "bold"), command=check
-                  ).grid(row=0, column=0, padx=(0, 8))
-    if steps:
-        ctk.CTkButton(btn_frame, text="💡 Lösungsweg", fg_color=COLORS["warning"], height=40,
-                      font=("Segoe UI", 13), command=toggle_steps
-                      ).grid(row=0, column=1)
-
-    result_entry.bind("<Return>", lambda e: check())
-
-
-# ── Stage 2: Struktur-Vorlage ──────────────────────────────────────────
-def _stage2_structure(self, parent, task, state, next_fn):
-    card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
-                        border_width=1, border_color=COLORS["border"])
-    card.grid(row=2, column=0, sticky="ew", padx=0, pady=(0, 12))
-    card.grid_columnconfigure(0, weight=1)
-
-    formula_template = task.get("formula_template", "")
-    formula_latex = task.get("formula_latex", "")
-
-    # Show template with □ placeholders
-    ctk.CTkLabel(card, text="🧩 Formel mit Platzhaltern – fülle die □ aus:",
-                 font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
-                 ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 4))
-
-    display_latex = formula_template or formula_latex
-    if display_latex:
-        blanked = re.sub(r'\{\{(\w+)\}\}', r'\\boxed{?}', display_latex)
-        if can_render_latex():
-            _render_latex_image(self, blanked, card, row=1)
-        else:
-            ctk.CTkLabel(card, text=blanked, font=("Consolas", 14),
+        # Show formula
+        flatex = step.get("formula_latex", "")
+        if flatex and can_render_latex():
+            _render_latex_image(self, flatex, card, row=1)
+        elif flatex:
+            ctk.CTkLabel(card, text=flatex, font=("Consolas", 14),
                          text_color=COLORS["text"]).grid(row=1, column=0, sticky="w", padx=14, pady=4)
 
-    # Variable inputs
-    variables = task.get("variables", [])
-    given = task.get("given", {})
-    entries = {}
+        # Show carried-forward values
+        inputs = step.get("inputs", [])
+        r = 2
+        if inputs:
+            ctk.CTkLabel(card, text="Setze die Werte ein:",
+                         font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
+                         ).grid(row=r, column=0, sticky="w", padx=14, pady=(8, 4))
+            r += 1
 
-    var_frame = ctk.CTkFrame(card, fg_color="transparent")
-    var_frame.grid(row=2, column=0, sticky="ew", padx=14, pady=(8, 4))
-    var_frame.grid_columnconfigure(1, weight=1)
+            var_frame = ctk.CTkFrame(card, fg_color="transparent")
+            var_frame.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 8))
+            var_frame.grid_columnconfigure(1, weight=1)
 
-    for i, v in enumerate(variables):
-        sym = v.get("symbol", f"x{i}")
-        unit = v.get("unit", "")
-        unit_str = f" [{unit}]" if unit else ""
-        ctk.CTkLabel(var_frame, text=f"□ {i+1}{unit_str} =",
-                     font=("Segoe UI", 13), text_color=COLORS["text"]
-                     ).grid(row=i, column=0, sticky="w", padx=(0, 8), pady=3)
-        e = ctk.CTkEntry(var_frame, height=36, font=("Segoe UI", 13),
-                         placeholder_text=f"Wert für □ {i+1}")
-        e.grid(row=i, column=1, sticky="ew", pady=3)
-        entries[sym] = (e, given.get(sym, v.get("value")))
+            entries = {}
+            for i, inp in enumerate(inputs):
+                sym = inp.get("symbol", f"x{i}")
+                name = inp.get("name", sym)
+                unit = inp.get("unit", "")
+                from_step = inp.get("from_step")
+                unit_str = f" [{unit}]" if unit else ""
 
-    # Result
-    result_symbol = task.get("result_symbol", task.get("sought", "Ergebnis"))
-    ctk.CTkLabel(card, text=f"Ergebnis ({result_symbol}) =",
-                 font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
-                 ).grid(row=3, column=0, sticky="w", padx=14, pady=(8, 4))
-    result_entry = ctk.CTkEntry(card, height=42, font=("Segoe UI", 15),
-                                placeholder_text=f"{result_symbol} = ?")
-    result_entry.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 8))
+                # Value either from previous step or given
+                if from_step and sym in chain_state["computed"]:
+                    expected = chain_state["computed"][sym]
+                    source_hint = f" (aus Schritt {from_step})"
+                else:
+                    expected = inp.get("value")
+                    source_hint = ""
 
-    feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
-    feedback_lbl.grid(row=5, column=0, sticky="w", padx=14, pady=(0, 4))
-
-    if entries:
-        first = list(entries.values())[0][0]
-        first.focus_set()
-
-    def check():
-        all_ok = True
-        for sym, (e, expected) in entries.items():
-            val = e.get().strip()
-            if expected is not None and not _validate_numeric(val, expected):
-                e.configure(border_color=COLORS["danger"])
-                all_ok = False
-            else:
-                e.configure(border_color=COLORS["success"])
-
-        result_nums = task.get("result_numeric", [])
-        result_text = task.get("result_text", "")
-        val = result_entry.get().strip()
-        result_ok = False
-        if result_nums:
-            result_ok = _validate_numeric(val, result_nums)
-        elif result_text:
-            try:
-                result_ok = _validate_numeric(val, float(result_text.replace(",", ".")))
-            except (ValueError, TypeError):
-                result_ok = val.lower().strip() == result_text.lower().strip()
-
-        result_entry.configure(border_color=COLORS["success"] if result_ok else COLORS["danger"])
-        if not result_ok:
-            all_ok = False
-
-        state["total"] += 1
-        if all_ok:
-            state["correct"] += 1
-            feedback_lbl.configure(text=f"✅ Richtig!", text_color=COLORS["success"])
+                ctk.CTkLabel(var_frame, text=f"{sym}{unit_str}{source_hint} =",
+                             font=("Segoe UI", 13), text_color=COLORS["text"]
+                             ).grid(row=i, column=0, sticky="w", padx=(0, 8), pady=4)
+                e = ctk.CTkEntry(var_frame, height=36, font=("Segoe UI", 13),
+                                 placeholder_text=f"Wert für {sym}")
+                e.grid(row=i, column=1, sticky="ew", pady=4)
+                entries[sym] = (e, expected)
+            r += 1
         else:
-            parts = [f"{v.get('symbol', '?')} = {given.get(v.get('symbol', ''), v.get('value', '?'))}" for v in variables]
-            feedback_lbl.configure(text=f"❌ Lösung: {', '.join(parts)} → {result_text}",
-                                   text_color=COLORS["danger"])
+            entries = {}
 
-        state["idx"] += 1
-        self.after(2000, lambda: next_fn(state["idx"]))
+        # Result input
+        res_sym = step.get("result_symbol", "?")
+        res_unit = step.get("result_unit", "")
+        res_label = f"{res_sym}" + (f" [{res_unit}]" if res_unit else "")
+        ctk.CTkLabel(card, text=f"Ergebnis: {res_label} =",
+                     font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
+                     ).grid(row=r, column=0, sticky="w", padx=14, pady=(8, 4))
+        r += 1
 
-    ctk.CTkButton(card, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
-                  font=("Segoe UI", 14, "bold"), command=check
-                  ).grid(row=6, column=0, sticky="w", padx=14, pady=(0, 14))
-    result_entry.bind("<Return>", lambda e: check())
+        result_entry = ctk.CTkEntry(card, height=42, font=("Segoe UI", 15),
+                                    placeholder_text=f"{res_sym} = ?")
+        result_entry.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 8))
+        result_entry.focus_set()
+        r += 1
+
+        feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
+        feedback_lbl.grid(row=r, column=0, sticky="w", padx=14, pady=(0, 4))
+        r += 1
+
+        def check_step():
+            step_ok = True
+            for sym, (e, expected) in entries.items():
+                val = e.get().strip()
+                if expected is not None and not _validate_numeric(val, expected):
+                    e.configure(border_color=COLORS["danger"])
+                    step_ok = False
+                else:
+                    e.configure(border_color=COLORS["success"])
+
+            res_nums = step.get("result_numeric", [])
+            res_text = step.get("result_text", "")
+            val = result_entry.get().strip()
+
+            result_ok = False
+            if res_nums:
+                result_ok = _validate_numeric(val, res_nums)
+            elif res_text:
+                try:
+                    result_ok = _validate_numeric(val, float(res_text.replace(",", ".")))
+                except (ValueError, TypeError):
+                    result_ok = val.lower().strip() == res_text.lower().strip()
+
+            result_entry.configure(border_color=COLORS["success"] if result_ok else COLORS["danger"])
+            if not result_ok:
+                step_ok = False
+
+            if step_ok:
+                feedback_lbl.configure(text=f"✅ Richtig! {res_text}",
+                                       text_color=COLORS["success"])
+                # Store result for next steps
+                if res_nums:
+                    chain_state["computed"][res_sym] = res_nums[0]
+                next_label = "Weiter →" if si + 1 < len(chain) else "Fertig!"
+            else:
+                chain_state["all_ok"] = False
+                feedback_lbl.configure(text=f"❌ Lösung: {res_text}",
+                                       text_color=COLORS["danger"])
+                if res_nums:
+                    chain_state["computed"][res_sym] = res_nums[0]
+
+            chain_state["step_idx"] = si + 1
+            self.after(1800, lambda: show_chain_step(si + 1))
+
+        btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+        btn_frame.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 14))
+        ctk.CTkButton(btn_frame, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
+                      font=("Segoe UI", 14, "bold"), command=check_step
+                      ).grid(row=0, column=0, padx=(0, 8))
+
+        result_entry.bind("<Return>", lambda e: check_step())
+
+    show_chain_step(0)
 
 
-# ── Stage 3: Formel-Recall ─────────────────────────────────────────────
+def _task_as_single_step(task):
+    """Convert a legacy single-formula task into a one-element calc_chain step."""
+    return {
+        "step_nr": 1,
+        "formula_name": task.get("formula_name", ""),
+        "formula_latex": task.get("formula_latex", ""),
+        "formula_template": task.get("formula_template", ""),
+        "description": task.get("text", "")[:80],
+        "inputs": task.get("variables", []),
+        "result_symbol": task.get("result_symbol", task.get("sought", "?")),
+        "result_unit": "",
+        "result_numeric": task.get("result_numeric", []),
+        "result_text": task.get("result_text", ""),
+        "linear_notation": task.get("linear_notation", ""),
+    }
+
+
+# ── Stage 2: Struktur-Vorlage (mit Rechenketten) ─────────────────────
+def _stage2_structure(self, parent, task, state, next_fn):
+    chain = task.get("calc_chain", [])
+    if not chain:
+        chain = [_task_as_single_step(task)]
+
+    chain_state = {"step_idx": 0, "computed": {}, "all_ok": True}
+
+    chain_frame = ctk.CTkFrame(parent, fg_color="transparent")
+    chain_frame.grid(row=2, column=0, sticky="ew")
+    chain_frame.grid_columnconfigure(0, weight=1)
+
+    def show_chain_step(si):
+        for w in chain_frame.winfo_children():
+            w.destroy()
+
+        if si >= len(chain):
+            state["total"] += 1
+            if chain_state["all_ok"]:
+                state["correct"] += 1
+            final = task.get("final_result_text", chain[-1].get("result_text", ""))
+            lbl_text = f"✅ Alle Schritte richtig! → {final}" if chain_state["all_ok"] else f"Endergebnis: {final}"
+            lbl_color = COLORS["success"] if chain_state["all_ok"] else COLORS["text"]
+            ctk.CTkLabel(chain_frame, text=lbl_text, font=("Segoe UI", 14, "bold"),
+                         text_color=lbl_color, wraplength=600
+                         ).grid(row=0, column=0, sticky="w", padx=14, pady=12)
+            state["idx"] += 1
+            self.after(2000, lambda: next_fn(state["idx"]))
+            return
+
+        step = chain[si]
+        total_steps = len(chain)
+
+        card = ctk.CTkFrame(chain_frame, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                            border_width=1, border_color=COLORS["border"])
+        card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        card.grid_columnconfigure(0, weight=1)
+
+        step_label = f"Rechenschritt {si+1}/{total_steps}" if total_steps > 1 else "Rechnung"
+        desc = step.get("description", "")
+        ctk.CTkLabel(card, text=f"🧩 {step_label}: {desc}",
+                     font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                     ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 4))
+
+        # Show formula with □ placeholders
+        formula_template = step.get("formula_template", "")
+        formula_latex = step.get("formula_latex", "")
+        display_latex = formula_template or formula_latex
+        if display_latex:
+            blanked = re.sub(r'\{\{(\w+)\}\}', r'\\boxed{?}', display_latex)
+            if can_render_latex():
+                _render_latex_image(self, blanked, card, row=1)
+            else:
+                ctk.CTkLabel(card, text=blanked, font=("Consolas", 14),
+                             text_color=COLORS["text"]).grid(row=1, column=0, sticky="w", padx=14, pady=4)
+
+        # Variable inputs as □ placeholders
+        inputs = step.get("inputs", [])
+        entries = {}
+        r = 2
+
+        if inputs:
+            ctk.CTkLabel(card, text="Fülle die □ Platzhalter aus:",
+                         font=("Segoe UI", 12, "bold"), text_color=COLORS["text"]
+                         ).grid(row=r, column=0, sticky="w", padx=14, pady=(8, 4))
+            r += 1
+
+            var_frame = ctk.CTkFrame(card, fg_color="transparent")
+            var_frame.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 8))
+            var_frame.grid_columnconfigure(1, weight=1)
+
+            for i, inp in enumerate(inputs):
+                sym = inp.get("symbol", f"x{i}")
+                unit = inp.get("unit", "")
+                from_step = inp.get("from_step")
+                unit_str = f" [{unit}]" if unit else ""
+
+                if from_step and sym in chain_state["computed"]:
+                    expected = chain_state["computed"][sym]
+                else:
+                    expected = inp.get("value")
+
+                ctk.CTkLabel(var_frame, text=f"□ {i+1}{unit_str} =",
+                             font=("Segoe UI", 13), text_color=COLORS["text"]
+                             ).grid(row=i, column=0, sticky="w", padx=(0, 8), pady=3)
+                e = ctk.CTkEntry(var_frame, height=36, font=("Segoe UI", 13),
+                                 placeholder_text=f"Wert für □ {i+1}")
+                e.grid(row=i, column=1, sticky="ew", pady=3)
+                entries[sym] = (e, expected)
+            r += 1
+
+        # Result input
+        res_sym = step.get("result_symbol", "?")
+        res_unit = step.get("result_unit", "")
+        res_label = f"{res_sym}" + (f" [{res_unit}]" if res_unit else "")
+        ctk.CTkLabel(card, text=f"Ergebnis: {res_label} =",
+                     font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
+                     ).grid(row=r, column=0, sticky="w", padx=14, pady=(8, 4))
+        r += 1
+
+        result_entry = ctk.CTkEntry(card, height=42, font=("Segoe UI", 15),
+                                    placeholder_text=f"{res_sym} = ?")
+        result_entry.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 8))
+        if not entries:
+            result_entry.focus_set()
+        else:
+            list(entries.values())[0][0].focus_set()
+        r += 1
+
+        feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
+        feedback_lbl.grid(row=r, column=0, sticky="w", padx=14, pady=(0, 4))
+        r += 1
+
+        def check_step():
+            step_ok = True
+            for sym, (e, expected) in entries.items():
+                val = e.get().strip()
+                if expected is not None and not _validate_numeric(val, expected):
+                    e.configure(border_color=COLORS["danger"])
+                    step_ok = False
+                else:
+                    e.configure(border_color=COLORS["success"])
+
+            res_nums = step.get("result_numeric", [])
+            res_text = step.get("result_text", "")
+            val = result_entry.get().strip()
+            result_ok = False
+            if res_nums:
+                result_ok = _validate_numeric(val, res_nums)
+            elif res_text:
+                try:
+                    result_ok = _validate_numeric(val, float(res_text.replace(",", ".")))
+                except (ValueError, TypeError):
+                    result_ok = val.lower().strip() == res_text.lower().strip()
+
+            result_entry.configure(border_color=COLORS["success"] if result_ok else COLORS["danger"])
+            if not result_ok:
+                step_ok = False
+
+            if step_ok:
+                feedback_lbl.configure(text=f"✅ Richtig! {res_text}",
+                                       text_color=COLORS["success"])
+            else:
+                chain_state["all_ok"] = False
+                feedback_lbl.configure(text=f"❌ Lösung: {res_text}",
+                                       text_color=COLORS["danger"])
+
+            if res_nums:
+                chain_state["computed"][res_sym] = res_nums[0]
+            chain_state["step_idx"] = si + 1
+            self.after(1800, lambda: show_chain_step(si + 1))
+
+        btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+        btn_frame.grid(row=r, column=0, sticky="ew", padx=14, pady=(0, 14))
+        ctk.CTkButton(btn_frame, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
+                      font=("Segoe UI", 14, "bold"), command=check_step
+                      ).grid(row=0, column=0, padx=(0, 8))
+        result_entry.bind("<Return>", lambda e: check_step())
+
+    show_chain_step(0)
+
+
+# ── Stage 3: Formel-Recall (mit Rechenketten) ────────────────────────
 def _stage3_recall(self, parent, task, state, next_fn):
-    card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
-                        border_width=1, border_color=COLORS["border"])
-    card.grid(row=2, column=0, sticky="ew", padx=0, pady=(0, 12))
-    card.grid_columnconfigure(0, weight=1)
+    chain = task.get("calc_chain", [])
+    if not chain:
+        chain = [_task_as_single_step(task)]
 
-    formula_name = task.get("formula_name", "")
+    # Collect unique formula names from chain
+    formula_names = []
+    for step in chain:
+        fn = step.get("formula_name", "")
+        if fn and fn not in formula_names:
+            formula_names.append(fn)
 
-    ctk.CTkLabel(card, text="🧠 Welche Formel wird hier benötigt?",
-                 font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
-                 ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 8))
+    if not formula_names:
+        formula_names = [task.get("formula_name", "Formel")]
 
-    topic = task.get("topic", "")
-    if topic:
-        ctk.CTkLabel(card, text=f"Thema: {topic}", font=("Segoe UI", 12),
-                     text_color=COLORS["text_light"]
-                     ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 8))
+    recall_state = {"idx": 0}
 
-    name_entry = ctk.CTkEntry(card, height=42, font=("Segoe UI", 15),
-                              placeholder_text="Formelname eingeben…")
-    name_entry.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 8))
-    name_entry.focus_set()
-
-    feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
-    feedback_lbl.grid(row=3, column=0, sticky="w", padx=14, pady=(0, 4))
-
-    revealed = {"v": False}
+    recall_frame = ctk.CTkFrame(parent, fg_color="transparent")
+    recall_frame.grid(row=2, column=0, sticky="ew")
+    recall_frame.grid_columnconfigure(0, weight=1)
 
     def _fuzzy_match(user_input, correct):
         u = user_input.strip().lower()
@@ -765,142 +850,218 @@ def _stage3_recall(self, parent, task, state, next_fn):
         except Exception:
             return False
 
-    def check_name():
-        if revealed["v"]:
+    def show_recall(fi):
+        for w in recall_frame.winfo_children():
+            w.destroy()
+
+        if fi >= len(formula_names):
+            # All formulas named, proceed to stage 2 structure
+            _stage2_structure(self, parent, task, state, next_fn)
             return
-        if _fuzzy_match(name_entry.get(), formula_name):
+
+        fname = formula_names[fi]
+
+        card = ctk.CTkFrame(recall_frame, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                            border_width=1, border_color=COLORS["border"])
+        card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        card.grid_columnconfigure(0, weight=1)
+
+        step_label = f"Formel {fi+1}/{len(formula_names)}" if len(formula_names) > 1 else ""
+        ctk.CTkLabel(card, text=f"🧠 Welche Formel wird benötigt? {step_label}",
+                     font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
+                     ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 8))
+
+        topic = task.get("topic", "")
+        if topic:
+            ctk.CTkLabel(card, text=f"Thema: {topic}", font=("Segoe UI", 12),
+                         text_color=COLORS["text_light"]
+                         ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 8))
+
+        name_entry = ctk.CTkEntry(card, height=42, font=("Segoe UI", 15),
+                                  placeholder_text="Formelname eingeben…")
+        name_entry.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 8))
+        name_entry.focus_set()
+
+        feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
+        feedback_lbl.grid(row=3, column=0, sticky="w", padx=14, pady=(0, 4))
+
+        revealed = {"v": False}
+
+        def check_name():
+            if revealed["v"]:
+                return
+            if _fuzzy_match(name_entry.get(), fname):
+                revealed["v"] = True
+                feedback_lbl.configure(text="✅ Richtig!",
+                                       text_color=COLORS["success"])
+                name_entry.configure(border_color=COLORS["success"])
+                self.after(800, lambda: show_recall(fi + 1))
+            else:
+                hint = fname[:3] + "…" if len(fname) > 3 else fname
+                feedback_lbl.configure(text=f"❌ Nicht ganz. Tipp: {hint}",
+                                       text_color=COLORS["danger"])
+                name_entry.configure(border_color=COLORS["danger"])
+
+        btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+        btn_frame.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 14))
+        ctk.CTkButton(btn_frame, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
+                      font=("Segoe UI", 14, "bold"), command=check_name
+                      ).grid(row=0, column=0, padx=(0, 8))
+
+        def skip():
             revealed["v"] = True
-            feedback_lbl.configure(text="✅ Richtig! Weiter mit der Formel…",
-                                   text_color=COLORS["success"])
-            name_entry.configure(border_color=COLORS["success"])
-            self.after(800, lambda: _stage2_structure(self, parent, task, state, next_fn))
-        else:
-            hint = formula_name[:3] + "…" if len(formula_name) > 3 else formula_name
-            feedback_lbl.configure(text=f"❌ Nicht ganz. Tipp: {hint}",
-                                   text_color=COLORS["danger"])
-            name_entry.configure(border_color=COLORS["danger"])
+            feedback_lbl.configure(text=f"Die Formel war: {fname}",
+                                   text_color=COLORS["warning"])
+            self.after(1200, lambda: show_recall(fi + 1))
 
-    btn_frame = ctk.CTkFrame(card, fg_color="transparent")
-    btn_frame.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 14))
-    ctk.CTkButton(btn_frame, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
-                  font=("Segoe UI", 14, "bold"), command=check_name
-                  ).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(btn_frame, text="⏭ Überspringen", fg_color=COLORS["warning"], height=40,
+                      font=("Segoe UI", 13), command=skip
+                      ).grid(row=0, column=1)
+        name_entry.bind("<Return>", lambda e: check_name())
 
-    def skip():
-        revealed["v"] = True
-        feedback_lbl.configure(text=f"Die Formel war: {formula_name}",
-                               text_color=COLORS["warning"])
-        self.after(1200, lambda: _stage2_structure(self, parent, task, state, next_fn))
-
-    ctk.CTkButton(btn_frame, text="⏭ Überspringen", fg_color=COLORS["warning"], height=40,
-                  font=("Segoe UI", 13), command=skip
-                  ).grid(row=0, column=1)
-    name_entry.bind("<Return>", lambda e: check_name())
+    show_recall(0)
 
 
-# ── Stage 4: Lineare Eingabe ───────────────────────────────────────────
+# ── Stage 4: Lineare Eingabe (mit Rechenketten) ──────────────────────
 def _stage4_linear(self, parent, task, state, next_fn):
-    card = ctk.CTkFrame(parent, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
-                        border_width=1, border_color=COLORS["border"])
-    card.grid(row=2, column=0, sticky="ew", padx=0, pady=(0, 12))
-    card.grid_columnconfigure(0, weight=1)
+    chain = task.get("calc_chain", [])
+    if not chain:
+        chain = [_task_as_single_step(task)]
 
-    ctk.CTkLabel(card, text="✍️ Tippe die komplette Lösung:",
-                 font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
-                 ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 4))
+    chain_state = {"step_idx": 0, "computed": {}, "all_ok": True}
 
-    # Show given values
-    given = task.get("given", {})
-    if given:
-        vals_text = ", ".join(f"{k} = {v}" for k, v in given.items())
-        ctk.CTkLabel(card, text=f"Gegeben: {vals_text}", font=("Segoe UI", 13, "bold"),
-                     text_color=COLORS["primary"], wraplength=550
-                     ).grid(row=1, column=0, sticky="w", padx=14, pady=(4, 8))
+    chain_frame = ctk.CTkFrame(parent, fg_color="transparent")
+    chain_frame.grid(row=2, column=0, sticky="ew")
+    chain_frame.grid_columnconfigure(0, weight=1)
 
-    result_symbol = task.get("result_symbol", task.get("sought", "Ergebnis"))
-    ctk.CTkLabel(card, text=f"Berechne: {result_symbol} = ?",
-                 font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
-                 ).grid(row=2, column=0, sticky="w", padx=14, pady=(4, 8))
+    def show_chain_step(si):
+        for w in chain_frame.winfo_children():
+            w.destroy()
 
-    expr_entry = ctk.CTkEntry(card, height=46, font=("Consolas", 15),
-                              placeholder_text="z.B. x12=(-3+-wrzl(9+112))/8")
-    expr_entry.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 4))
-    expr_entry.focus_set()
-
-    ctk.CTkLabel(card, text="Oder gib direkt das numerische Ergebnis ein:",
-                 font=("Segoe UI", 11), text_color=COLORS["text_light"]
-                 ).grid(row=4, column=0, sticky="w", padx=14, pady=(0, 8))
-
-    feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
-    feedback_lbl.grid(row=5, column=0, sticky="w", padx=14, pady=(0, 4))
-
-    linear_correct = task.get("linear_notation", "")
-    result_text = task.get("result_text", "")
-    result_nums = task.get("result_numeric", [])
-
-    def check():
-        raw = expr_entry.get().strip()
-        if not raw:
+        if si >= len(chain):
+            state["total"] += 1
+            if chain_state["all_ok"]:
+                state["correct"] += 1
+            final = task.get("final_result_text", chain[-1].get("result_text", ""))
+            lbl_text = f"✅ Alle Schritte richtig! → {final}" if chain_state["all_ok"] else f"Endergebnis: {final}"
+            lbl_color = COLORS["success"] if chain_state["all_ok"] else COLORS["text"]
+            ctk.CTkLabel(chain_frame, text=lbl_text, font=("Segoe UI", 14, "bold"),
+                         text_color=lbl_color, wraplength=600
+                         ).grid(row=0, column=0, sticky="w", padx=14, pady=12)
+            state["idx"] += 1
+            self.after(2000, lambda: next_fn(state["idx"]))
             return
 
-        correct = False
-        user_result = None
+        step = chain[si]
+        total_steps = len(chain)
 
-        # Try as numeric
-        if result_nums and _validate_numeric(raw, result_nums):
-            correct = True
-        elif result_text:
-            try:
-                correct = _validate_numeric(raw, float(result_text.replace(",", ".")))
-            except (ValueError, TypeError):
-                pass
+        card = ctk.CTkFrame(chain_frame, fg_color=COLORS["card"], corner_radius=RADIUS_LG,
+                            border_width=1, border_color=COLORS["border"])
+        card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        card.grid_columnconfigure(0, weight=1)
 
-        # Try evaluating expression
-        if not correct:
-            try:
-                sanitized = raw.replace("^", "**").replace(",", ".").replace("wrzl", "sqrt")
-                sanitized = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', sanitized)
-                result = eval(sanitized.split("=")[-1], {"__builtins__": {}},
-                              {"sqrt": math.sqrt, "abs": abs, "pi": math.pi, "e": math.e})
-                user_result = round(float(result), 2)
-                if result_nums:
-                    correct = _validate_numeric(str(user_result), result_nums)
-            except Exception:
-                pass
+        step_label = f"Rechenschritt {si+1}/{total_steps}" if total_steps > 1 else "Rechnung"
+        desc = step.get("description", "")
+        ctk.CTkLabel(card, text=f"✍️ {step_label}: {desc}",
+                     font=("Segoe UI", 13, "bold"), text_color=COLORS["text"]
+                     ).grid(row=0, column=0, sticky="w", padx=14, pady=(12, 4))
 
-        state["total"] += 1
-        if correct:
-            state["correct"] += 1
-            expr_entry.configure(border_color=COLORS["success"])
-            feedback_lbl.configure(text=f"✅ Richtig! {result_text}",
-                                   text_color=COLORS["success"])
-        else:
-            expr_entry.configure(border_color=COLORS["danger"])
-            hint = f" (dein Ergebnis: {user_result})" if user_result is not None else ""
-            feedback_lbl.configure(
-                text=f"❌ Lösung: {linear_correct or result_text}{hint}",
-                text_color=COLORS["danger"])
+        # Show given values for this step
+        inputs = step.get("inputs", [])
+        if inputs:
+            parts = []
+            for inp in inputs:
+                sym = inp.get("symbol", "?")
+                from_step = inp.get("from_step")
+                if from_step and sym in chain_state["computed"]:
+                    val = chain_state["computed"][sym]
+                else:
+                    val = inp.get("value", "?")
+                parts.append(f"{sym} = {val}")
+            ctk.CTkLabel(card, text=f"Gegeben: {', '.join(parts)}",
+                         font=("Segoe UI", 13, "bold"), text_color=COLORS["primary"],
+                         wraplength=550
+                         ).grid(row=1, column=0, sticky="w", padx=14, pady=(4, 8))
 
-        state["idx"] += 1
-        self.after(2000, lambda: next_fn(state["idx"]))
+        res_sym = step.get("result_symbol", "?")
+        ctk.CTkLabel(card, text=f"Berechne: {res_sym} = ?",
+                     font=("Segoe UI", 14, "bold"), text_color=COLORS["text"]
+                     ).grid(row=2, column=0, sticky="w", padx=14, pady=(4, 8))
 
-    btn_frame = ctk.CTkFrame(card, fg_color="transparent")
-    btn_frame.grid(row=6, column=0, sticky="ew", padx=14, pady=(0, 14))
-    ctk.CTkButton(btn_frame, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
-                  font=("Segoe UI", 14, "bold"), command=check
-                  ).grid(row=0, column=0, padx=(0, 8))
+        expr_entry = ctk.CTkEntry(card, height=46, font=("Consolas", 15),
+                                  placeholder_text="Lösung oder numerisches Ergebnis eingeben")
+        expr_entry.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 4))
+        expr_entry.focus_set()
 
-    steps = task.get("steps", [])
-    if steps:
-        def show_hint():
-            feedback_lbl.configure(
-                text=f"💡 {steps[0].get('description', '')} – {task.get('formula_name', '')}",
-                text_color=COLORS["info"])
-        ctk.CTkButton(btn_frame, text="💡 Hinweis", fg_color=COLORS["warning"], height=40,
-                      font=("Segoe UI", 13), command=show_hint
-                      ).grid(row=0, column=1)
+        feedback_lbl = ctk.CTkLabel(card, text="", font=("Segoe UI", 13))
+        feedback_lbl.grid(row=4, column=0, sticky="w", padx=14, pady=(0, 4))
 
-    expr_entry.bind("<Return>", lambda e: check())
+        linear_correct = step.get("linear_notation", "")
+        res_text = step.get("result_text", "")
+        res_nums = step.get("result_numeric", [])
+
+        def check_step():
+            raw = expr_entry.get().strip()
+            if not raw:
+                return
+
+            correct = False
+            user_result = None
+
+            if res_nums and _validate_numeric(raw, res_nums):
+                correct = True
+            elif res_text:
+                try:
+                    correct = _validate_numeric(raw, float(res_text.replace(",", ".")))
+                except (ValueError, TypeError):
+                    pass
+
+            if not correct:
+                try:
+                    sanitized = raw.replace("^", "**").replace(",", ".").replace("wrzl", "sqrt")
+                    sanitized = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', sanitized)
+                    result = eval(sanitized.split("=")[-1], {"__builtins__": {}},
+                                  {"sqrt": math.sqrt, "abs": abs, "pi": math.pi, "e": math.e})
+                    user_result = round(float(result), 2)
+                    if res_nums:
+                        correct = _validate_numeric(str(user_result), res_nums)
+                except Exception:
+                    pass
+
+            if correct:
+                expr_entry.configure(border_color=COLORS["success"])
+                feedback_lbl.configure(text=f"✅ Richtig! {res_text}",
+                                       text_color=COLORS["success"])
+            else:
+                chain_state["all_ok"] = False
+                expr_entry.configure(border_color=COLORS["danger"])
+                hint = f" (dein Ergebnis: {user_result})" if user_result is not None else ""
+                feedback_lbl.configure(
+                    text=f"❌ Lösung: {linear_correct or res_text}{hint}",
+                    text_color=COLORS["danger"])
+
+            if res_nums:
+                chain_state["computed"][res_sym] = res_nums[0]
+            chain_state["step_idx"] = si + 1
+            self.after(1800, lambda: show_chain_step(si + 1))
+
+        btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+        btn_frame.grid(row=5, column=0, sticky="ew", padx=14, pady=(0, 14))
+        ctk.CTkButton(btn_frame, text="✓ Prüfen", fg_color=COLORS["primary"], height=40,
+                      font=("Segoe UI", 14, "bold"), command=check_step
+                      ).grid(row=0, column=0, padx=(0, 8))
+
+        fname = step.get("formula_name", "")
+        if fname:
+            def show_hint(f=fname):
+                feedback_lbl.configure(text=f"💡 Formel: {f}", text_color=COLORS["info"])
+            ctk.CTkButton(btn_frame, text="💡 Hinweis", fg_color=COLORS["warning"], height=40,
+                          font=("Segoe UI", 13), command=show_hint
+                          ).grid(row=0, column=1)
+
+        expr_entry.bind("<Return>", lambda e: check_step())
+
+    show_chain_step(0)
 
 
 # ── Run Scaffold with Formula Sheet (legacy mode) ──────────────────────
