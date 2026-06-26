@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lerntrainer – Full App Mockup (Merged)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <style>
 :root {
   --bg: #0f1117;
@@ -503,6 +505,8 @@ textarea.input { min-height: 100px; resize: vertical; }
     <div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
     <div class="toggle-row"><span>🔊 Sound-Effekte</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
     <div class="toggle-row"><span>📳 Haptisches Feedback</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
+    <div class="toggle-row"><span>∑ LaTeX-Formeln rendern</span><div class="toggle-track on" id="latex-toggle"><div class="toggle-knob"></div></div></div>
+    <small style="color:var(--text-light);font-size:.75em;display:block;margin-top:-4px">Mathematische Ausdrücke werden überall als schön gesetzte Formeln dargestellt.</small>
   </div>
   <div class="card">
     <h3>KI-Einstellungen</h3>
@@ -616,7 +620,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
   <div style="background:var(--surface);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px">
     <small style="color:var(--text-light)">Antwort:</small>
-    <p style="margin-top:4px;color:var(--success);font-weight:600">B) U = R × I</p>
+    <p style="margin-top:4px;color:var(--success);font-weight:600">B) <span class="math" data-tex="U = R \cdot I">U = R × I</span></p>
     <small style="color:var(--text-light);margin-top:8px;display:block">Das Ohmsche Gesetz beschreibt den Zusammenhang zwischen Spannung (U), Widerstand (R) und Stromstärke (I).</small>
   </div>
   <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:12px" id="browse-answer-toggle">🎯 Diese Frage beantworten</button>
@@ -635,10 +639,10 @@ textarea.input { min-height: 100px; resize: vertical; }
     <small style="color:var(--primary-light)">Multiple Choice</small>
     <h3 style="margin-top:6px">Wie lautet das Ohmsche Gesetz?</h3>
   </div>
-  <button class="option-btn">A) P = U × I</button>
-  <button class="option-btn selected">B) U = R × I</button>
-  <button class="option-btn">C) R = U × I</button>
-  <button class="option-btn">D) I = U × R</button>
+  <button class="option-btn">A) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
+  <button class="option-btn selected">B) <span class="math" data-tex="U = R \cdot I">U = R × I</span></button>
+  <button class="option-btn">C) <span class="math" data-tex="R = U \cdot I">R = U × I</span></button>
+  <button class="option-btn">D) <span class="math" data-tex="I = U \cdot R">I = U × R</span></button>
   <button class="btn btn-primary" data-go="results" style="margin-top:16px">Antwort prüfen</button>
 </div>
 
@@ -742,7 +746,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="chat-area">
     <div class="chat-ai">Hallo! Ich bin dein KI-Tutor. Wie kann ich dir helfen?</div>
     <div class="chat-user">Kannst du mir das Ohmsche Gesetz erklären?</div>
-    <div class="chat-ai">Natürlich! Das Ohmsche Gesetz beschreibt den Zusammenhang zwischen Spannung (U), Strom (I) und Widerstand (R): <strong>U = R × I</strong>. Die Spannung ist also das Produkt aus Widerstand und Strom.</div>
+    <div class="chat-ai">Natürlich! Das Ohmsche Gesetz beschreibt den Zusammenhang zwischen Spannung (U), Strom (I) und Widerstand (R): <strong><span class="math" data-tex="U = R \cdot I">U = R × I</span></strong>. Die Spannung ist also das Produkt aus Widerstand und Strom.</div>
   </div>
   <div class="chip-row">
     <span class="chip">Erkläre genauer</span>
@@ -778,7 +782,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>⭐ Markierte Fragen</h2></div>
   <p style="margin-bottom:12px">8 markierte Fragen</p>
   <div class="quiz-row"><div class="quiz-info"><h4>Was ist die Kirchhoffsche Knotenregel?</h4><small>Elektrotechnik 1</small></div><span>⭐</span></div>
-  <div class="quiz-row"><div class="quiz-info"><h4>Berechne ∫ x² dx</h4><small>Mathe Klausur 2</small></div><span>⭐</span></div>
+  <div class="quiz-row"><div class="quiz-info"><h4>Berechne <span class="math" data-tex="\int x^2 \, dx">∫ x² dx</span></h4><small>Mathe Klausur 2</small></div><span>⭐</span></div>
   <div class="quiz-row"><div class="quiz-info"><h4>Definiere die Entropie</h4><small>Physik Grundlagen</small></div><span>⭐</span></div>
   <button class="btn btn-primary" data-go="quiz" style="margin-top:12px">Markierte üben</button>
 </div>
@@ -838,7 +842,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="section-title">Themen</div>
   <div class="card" data-go="deep-learn-chat" style="cursor:pointer">
     <div style="display:flex;justify-content:space-between"><h3>⚡ Ohmsches Gesetz</h3><span class="badge badge-success">8 💬</span></div>
-    <p>U = R × I, Grundlagen der Elektrotechnik</p>
+    <p><span class="math" data-tex="U = R \cdot I">U = R × I</span>, Grundlagen der Elektrotechnik</p>
   </div>
   <div class="card" data-go="deep-learn-chat" style="cursor:pointer">
     <div style="display:flex;justify-content:space-between"><h3>🔌 Kirchhoffsche Gesetze</h3><span class="badge badge-warning">3 💬</span></div>
@@ -862,7 +866,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 <div class="screen" id="s-deep-learn-chat">
   <div class="top-bar"><button class="back" data-go="deep-learn-topics">‹</button><h2>⚡ Ohmsches Gesetz</h2></div>
   <div class="chat-area">
-    <div class="chat-ai">Lass uns das Ohmsche Gesetz vertiefen! U = R × I beschreibt den linearen Zusammenhang zwischen Spannung, Widerstand und Strom. Was möchtest du genauer verstehen?</div>
+    <div class="chat-ai">Lass uns das Ohmsche Gesetz vertiefen! <span class="math" data-tex="U = R \cdot I">U = R × I</span> beschreibt den linearen Zusammenhang zwischen Spannung, Widerstand und Strom. Was möchtest du genauer verstehen?</div>
     <div class="chat-user">Wie berechne ich den Strom wenn ich U und R kenne?</div>
     <div class="chat-ai">Ganz einfach – du stellst die Formel um: <strong>I = U / R</strong>. Wenn du z.B. U = 12V und R = 4Ω hast, dann ist I = 12/4 = 3A.</div>
   </div>
@@ -895,7 +899,7 @@ textarea.input { min-height: 100px; resize: vertical; }
       </div>
     </div>
   </div>
-  <div class="formula-box">I = U / R</div>
+  <div class="formula-box"><span class="math" data-tex="I = \frac{U}{R}">I = U / R</span></div>
   <div class="step-chain">
     <div class="step-node"><div class="step-dot done"></div><span>Formel identifiziert: I = U/R</span></div>
     <div class="step-node"><div class="step-dot active"></div><span>Werte einsetzen</span></div>
@@ -909,7 +913,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 <div class="screen" id="s-socratic">
   <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🏛️ Sokratisches Lernen</h2></div>
   <div class="chat-area">
-    <div class="chat-ai">Betrachte die Formel U = R × I. Was passiert mit dem Strom I, wenn du den Widerstand R verdoppelst, aber die Spannung U gleich lässt?</div>
+    <div class="chat-ai">Betrachte die Formel <span class="math" data-tex="U = R \cdot I">U = R × I</span>. Was passiert mit dem Strom I, wenn du den Widerstand R verdoppelst, aber die Spannung U gleich lässt?</div>
     <div class="chat-user">Der Strom wird halbiert?</div>
     <div class="chat-ai">Genau richtig! 👏 Kannst du erklären, warum das so ist? Denk an die Formel umgestellt nach I…</div>
   </div>
@@ -1164,7 +1168,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
   <div class="progress"><div class="progress-fill" style="width:70%;background:var(--warning)"></div></div>
   <div class="card" style="margin-top:12px">
-    <h3>Wie viel ist 3² × 2?</h3>
+    <h3>Wie viel ist <span class="math" data-tex="3^2 \cdot 2">3² × 2</span>?</h3>
   </div>
   <div class="grid-2">
     <button class="option-btn" style="text-align:center">12</button>
@@ -1189,10 +1193,10 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="card" style="margin-top:12px">
     <h3>Wie lautet die Formel für die elektrische Leistung?</h3>
   </div>
-  <button class="option-btn">A) P = m × g</button>
-  <button class="option-btn">B) P = U × I</button>
-  <button class="option-btn">C) P = F × v</button>
-  <button class="option-btn">D) P = ½mv²</button>
+  <button class="option-btn">A) <span class="math" data-tex="P = m \cdot g">P = m × g</span></button>
+  <button class="option-btn">B) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
+  <button class="option-btn">C) <span class="math" data-tex="P = F \cdot v">P = F × v</span></button>
+  <button class="option-btn">D) <span class="math" data-tex="P = \tfrac{1}{2}mv^2">P = ½mv²</span></button>
   <div class="chip-row" style="justify-content:center;margin-top:10px">
     <span class="chip">50:50</span>
     <span class="chip">Telefon</span>
@@ -1283,7 +1287,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
   <!-- Question -->
   <div class="card">
-    <h3>Berechne: ∫₀¹ 2x dx = ?</h3>
+    <h3>Berechne: <span class="math" data-tex="\int_0^1 2x \, dx = \;?">∫₀¹ 2x dx = ?</span></h3>
     <input class="input" placeholder="Antwort eingeben…" style="margin-top:8px">
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary btn-sm" style="flex:1">Angreifen!</button>
@@ -1344,10 +1348,10 @@ textarea.input { min-height: 100px; resize: vertical; }
     <small style="color:var(--warning)">🔓 Frage beantworten um Block freizuschalten</small>
     <h3 style="margin-top:6px">Was beschreibt das Ohmsche Gesetz?</h3>
     <div style="margin-top:8px">
-      <button class="option-btn">A) P = U × I</button>
-      <button class="option-btn selected">B) U = R × I</button>
-      <button class="option-btn">C) F = m × a</button>
-      <button class="option-btn">D) E = mc²</button>
+      <button class="option-btn">A) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
+      <button class="option-btn selected">B) <span class="math" data-tex="U = R \cdot I">U = R × I</span></button>
+      <button class="option-btn">C) <span class="math" data-tex="F = m \cdot a">F = m × a</span></button>
+      <button class="option-btn">D) <span class="math" data-tex="E = mc^2">E = mc²</span></button>
     </div>
   </div>
 </div>
@@ -1364,7 +1368,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <!-- Task -->
   <div class="card" style="margin-top:12px;border-left:3px solid var(--accent)">
     <small style="color:var(--accent)">Aufgabe</small>
-    <h3 style="margin-top:4px">Löse: 2x² + 4x - 6 = 0</h3>
+    <h3 style="margin-top:4px">Löse: <span class="math" data-tex="2x^2 + 4x - 6 = 0">2x² + 4x - 6 = 0</span></h3>
     <small>Finde x₁ und x₂</small>
   </div>
   <!-- Already completed steps -->
@@ -1372,7 +1376,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="step-chain">
     <div class="step-node">
       <div class="step-dot done"></div>
-      <div><strong style="color:var(--success)">✓ Schritt 1:</strong> <span style="font-size:.9em">ABC-Formel anwenden: x = (-b ± √(b²-4ac)) / 2a</span></div>
+      <div><strong style="color:var(--success)">✓ Schritt 1:</strong> <span style="font-size:.9em">ABC-Formel anwenden: <span class="math" data-tex="x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}">x = (-b ± √(b²-4ac)) / 2a</span></span></div>
     </div>
     <div class="step-node">
       <div class="step-dot active"></div>
@@ -1383,10 +1387,10 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="card">
     <small style="color:var(--text-light)">Wähle den nächsten richtigen Schritt:</small>
     <div style="margin-top:8px">
-      <button class="option-btn">A) x = (-4 ± √(16+48)) / 4</button>
-      <button class="option-btn selected" style="border-color:var(--primary);background:rgba(108,92,231,.15)">B) x = (-4 ± √(16-4·2·(-6))) / (2·2)</button>
-      <button class="option-btn">C) x = (4 ± √(16-48)) / 4</button>
-      <button class="option-btn">D) x = (-4 ± √(16+24)) / 2</button>
+      <button class="option-btn">A) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+48}}{4}">x = (-4 ± √(16+48)) / 4</span></button>
+      <button class="option-btn selected" style="border-color:var(--primary);background:rgba(108,92,231,.15)">B) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16 - 4 \cdot 2 \cdot (-6)}}{2 \cdot 2}">x = (-4 ± √(16-4·2·(-6))) / (2·2)</span></button>
+      <button class="option-btn">C) <span class="math" data-tex="x = \frac{4 \pm \sqrt{16-48}}{4}">x = (4 ± √(16-48)) / 4</span></button>
+      <button class="option-btn">D) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+24}}{2}">x = (-4 ± √(16+24)) / 2</span></button>
     </div>
   </div>
   <button class="btn btn-primary" style="margin-top:8px">Bestätigen →</button>
@@ -1480,6 +1484,36 @@ document.querySelectorAll('.chip-row .chip').forEach(c => {
     if (!c.dataset.go) c.classList.toggle('active');
   });
 });
+
+// === LaTeX rendering ===
+let latexEnabled = true;
+function renderMath() {
+  document.querySelectorAll('.math').forEach(el => {
+    if (!el.dataset.plain) el.dataset.plain = el.textContent; // store fallback once
+    if (latexEnabled && window.katex) {
+      try {
+        el.innerHTML = '';
+        window.katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: false });
+      } catch { el.textContent = el.dataset.plain; }
+    } else {
+      el.textContent = el.dataset.plain;
+    }
+  });
+}
+// Render once KaTeX has loaded
+if (window.katex) renderMath();
+else window.addEventListener('load', renderMath);
+
+const latexToggle = document.getElementById('latex-toggle');
+if (latexToggle) {
+  latexToggle.addEventListener('click', () => {
+    // toggle-track click handler already flips .on; read resulting state
+    setTimeout(() => {
+      latexEnabled = latexToggle.classList.contains('on');
+      renderMath();
+    }, 0);
+  });
+}
 
 // Model selector in settings
 document.querySelectorAll('.model-option').forEach(el => {
