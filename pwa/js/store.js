@@ -171,6 +171,33 @@ export function getStreak(stats) {
   return { current, max };
 }
 
+// ── Player Profile (Shop / Avatar / House) ──
+const DEFAULT_PROFILE = {
+  house: { level: 0 },
+  owned: {
+    skin_light: true, skin_pale: true, skin_medium: true, skin_dark: true,
+    top_tee: true, face_default: true, hat_none: true, acc_none: true,
+    bg_none: true, theme_default: true,
+  },
+  equipped: {
+    skin: "skin_light", top: "top_tee", face: "face_default",
+    hat: "hat_none", accessory: "acc_none", bg: "bg_none", theme: "theme_default",
+  },
+};
+export async function loadProfile() {
+  const p = await get("profile");
+  if (!p) return structuredClone(DEFAULT_PROFILE);
+  return {
+    ...DEFAULT_PROFILE, ...p,
+    house: { ...DEFAULT_PROFILE.house, ...(p.house || {}) },
+    owned: { ...DEFAULT_PROFILE.owned, ...(p.owned || {}) },
+    equipped: { ...DEFAULT_PROFILE.equipped, ...(p.equipped || {}) },
+  };
+}
+export async function saveProfile(profile) {
+  await set("profile", profile);
+}
+
 // ── Achievements ──
 export async function loadAchievements() {
   return (await get("achievements")) ?? {};

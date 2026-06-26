@@ -48,9 +48,19 @@ route("boss-fight", async (root) => { const m = await import("./screens/boss-fig
 route("socratic", async (root, params) => { const m = await import("./screens/socratic.js"); return m.render(root, params); });
 route("scaffold", async (root, params) => { const m = await import("./screens/scaffold.js"); return m.render(root, params); });
 route("deep-learn", async (root, params) => { const m = await import("./screens/deep-learn.js"); return m.render(root, params); });
+route("shop", async (root) => { const m = await import("./screens/shop.js"); return m.render(root); });
 
 async function init() {
   const settings = await loadSettings();
+
+  // Apply the player's chosen theme-skin accent (Shop) before first render.
+  try {
+    const { loadProfile } = await import("./store.js");
+    const { applyThemeSkin } = await import("./shop-catalog.js");
+    const profile = await loadProfile();
+    applyThemeSkin(profile.equipped?.theme || "theme_default");
+  } catch (_) { /* shop optional */ }
+
   if (settings.accountEmail && settings.accountToken) {
     setAccount({
       email: settings.accountEmail,

@@ -69,9 +69,20 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - **quiz-battle** – Karten-Kampf inkl. **PvC** (Computer-Gegner).
 - **speed-quiz** – Zeitdruck. **millionaire** – Wer wird Millionär (Joker).
 - **hangman** – Galgenmännchen. **boss-fight** – Endgegner mit HP/Combo.
-- Drumherum: **Coin-Economy** (`loadCoins/addCoins/spendCoins`) + **Highscores**
-  (`game_scores`) sind im Store schon da. ⚠️ Coins/Shop sind noch NICHT im UI sichtbar
-  → echtes offenes Potenzial, kein "neues" Feature von null.
+- Drumherum: **Coin-Economy** (`loadCoins/addCoins/spendCoins`) + **Highscores** (`game_scores`).
+
+### Shop / Meta-Progression (umgesetzt)
+- `js/shop-catalog.js` – Item-Katalog + SVG-Renderer. Avatar = gestapelte SVG-Layer
+  (bg→skin→top→face→hat→accessory) im 100×100-viewBox. Haus = `renderHouseSVG(level)`
+  (Zelt→Hütte→Haus→Villa→Schloss). Theme-Skins recolorn `--primary` via `applyThemeSkin`.
+- `js/screens/shop.js` – Hub mit 3 Tabs: **Charakter** (Slots kaufen/anlegen),
+  **Haus** (Stufen-Upgrade), **Skins** (App-Akzentfarben). Kauf via `spendCoins`.
+- Store: neuer Key **`profile`** (`loadProfile/saveProfile`): `{ house:{level}, owned:{}, equipped:{} }`.
+- Münzen jetzt AUCH beim Lernen: +2 pro richtiger Antwort in `quiz.js`.
+- Einstieg: Profil-Strip auf **home** (Avatar + Münzen → Shop), Shop-Button auf **games**,
+  Mini-Card "Shop" in Home-Tools. Theme-Skin wird beim Boot in `app.js` angewandt.
+- ⚠️ Offen/Ideen: Game-spezifische Skins (Turm-/Ball-Designs), Deko im Haus platzieren,
+  Münz-Belohnung bei Quiz-Abschluss/Daily/Streak (aktuell nur pro Antwort + Games).
 
 ### KI-Funktionen (`ai-service.js`)
 generateQuiz (Text), generateQuizFromImage(s) (Vision/PDF-Seiten),

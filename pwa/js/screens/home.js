@@ -1,21 +1,25 @@
-import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary } from "../store.js";
+import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount } from "../firebase-sync.js";
 import { esc } from "../utils.js";
+import { renderAvatarSVG } from "../shop-catalog.js";
 
 export async function render(root) {
-  const [quizzes, stats, progress, account, marked, diary] = await Promise.all([
+  const [quizzes, stats, progress, account, marked, diary, profile, coins] = await Promise.all([
     loadQuizzes(), loadStats(), loadProgress(), Promise.resolve(getAccount()),
-    loadMarked(), loadErrorDiary(),
+    loadMarked(), loadErrorDiary(), loadProfile(), loadCoins(),
   ]);
   const { current: streak, max: maxStreak } = getStreak(stats);
 
   let html = "";
 
-  html += `<div class="welcome">
-    <h2>👋 Willkommen zurück!</h2>
-    <p>Bereit zum Lernen?</p>
-    ${account ? `<small style="opacity:0.8">👤 ${esc(account.email)}</small>` : ""}
+  html += `<div class="profile-strip" data-nav="shop">
+    <div class="profile-avatar">${renderAvatarSVG(profile.equipped, 54)}</div>
+    <div class="profile-info">
+      <strong>👋 Willkommen zurück!</strong>
+      ${account ? `<small>${esc(account.email)}</small>` : `<small>Bereit zum Lernen?</small>`}
+    </div>
+    <div class="profile-coins">🪙 ${coins.balance}</div>
   </div>`;
 
   if (streak > 0 || maxStreak > 0) {
@@ -73,6 +77,7 @@ export async function render(root) {
     <div class="grid-card mini-card" data-nav="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learning</div></div>
     <div class="grid-card mini-card" data-nav="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
     <div class="grid-card mini-card" data-nav="games"><div class="icon">🎮</div><div class="title">Mini-Games</div></div>
+    <div class="grid-card mini-card" data-nav="shop"><div class="icon">🛍️</div><div class="title">Shop</div></div>
     <div class="grid-card mini-card" data-nav="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>
     <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner</div></div>
     <div class="grid-card mini-card" data-nav="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div></div>
