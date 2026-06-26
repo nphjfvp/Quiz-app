@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lerntrainer – Full App Mockup</title>
+<title>Lerntrainer – Full App Mockup (Merged)</title>
 <style>
 :root {
   --bg: #0f1117;
@@ -36,7 +36,6 @@ h2 { font-size: 1.3em; margin-bottom: 8px; }
 h3 { font-size: 1.1em; margin-bottom: 6px; }
 p, small { color: var(--text-light); }
 
-/* Navigation bar */
 .tab-bar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 430px;
@@ -54,7 +53,6 @@ p, small { color: var(--text-light); }
 .tab-bar button .tab-icon { font-size: 20px; }
 .tab-bar button.active { color: var(--primary-light); }
 
-/* Top bar */
 .top-bar {
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 16px; padding: 4px 0;
@@ -62,7 +60,6 @@ p, small { color: var(--text-light); }
 .top-bar .back { background: none; border: none; color: var(--text); font-size: 22px; cursor: pointer; padding: 4px 8px 4px 0; }
 .top-bar h2 { margin: 0; flex: 1; }
 
-/* Cards */
 .card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -71,10 +68,9 @@ p, small { color: var(--text-light); }
 }
 .card-accent { border-left: 3px solid var(--primary); }
 
-/* Grid */
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
 .grid-card {
   background: var(--surface);
   border-radius: var(--radius);
@@ -89,7 +85,6 @@ p, small { color: var(--text-light); }
 .mini-card .icon { font-size: 22px; margin-bottom: 4px; }
 .mini-card .title { font-size: 0.72em; }
 
-/* Daily card */
 .daily-card {
   background: linear-gradient(135deg, var(--primary), #4834d4);
   border-radius: var(--radius);
@@ -102,7 +97,6 @@ p, small { color: var(--text-light); }
 .daily-card p { color: rgba(255,255,255,.8); font-size: 0.85em; margin: 0; }
 .daily-card .chev { margin-left: auto; font-size: 22px; color: rgba(255,255,255,.6); }
 
-/* Streak */
 .streak-bar {
   display: flex; align-items: center; gap: 10px;
   background: var(--surface); border-radius: var(--radius);
@@ -110,7 +104,6 @@ p, small { color: var(--text-light); }
 }
 .streak-fire { font-size: 28px; }
 
-/* Quiz row */
 .quiz-row {
   background: var(--surface); border-radius: var(--radius);
   padding: 14px 16px; display: flex; align-items: center;
@@ -122,7 +115,6 @@ p, small { color: var(--text-light); }
 .quiz-row .box-1 { background: var(--danger); color: #fff; }
 .quiz-row .box-5 { background: var(--success); color: #fff; }
 
-/* Buttons */
 .btn {
   display: inline-block; padding: 12px 24px;
   border-radius: var(--radius); border: none;
@@ -133,7 +125,6 @@ p, small { color: var(--text-light); }
 .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary-light); }
 .btn-sm { padding: 8px 16px; font-size: 0.85em; width: auto; }
 
-/* Input */
 .input {
   width: 100%; padding: 12px 14px;
   background: var(--surface2); border: 1px solid transparent;
@@ -143,20 +134,13 @@ p, small { color: var(--text-light); }
 .input:focus { border-color: var(--primary); }
 textarea.input { min-height: 100px; resize: vertical; }
 
-/* Chat */
 .chat-area { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.chat-msg {
-  padding: 10px 14px; border-radius: 14px;
-  max-width: 85%; font-size: 0.9em; line-height: 1.4;
-}
-.chat-user { background: var(--primary); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
-.chat-ai { background: var(--surface2); align-self: flex-start; border-bottom-left-radius: 4px; }
+.chat-user { background: var(--primary); color: #fff; align-self: flex-end; border-radius: 14px; border-bottom-right-radius: 4px; padding: 10px 14px; max-width: 85%; font-size: 0.9em; line-height: 1.4; }
+.chat-ai { background: var(--surface2); align-self: flex-start; border-radius: 14px; border-bottom-left-radius: 4px; padding: 10px 14px; max-width: 85%; font-size: 0.9em; line-height: 1.4; }
 
-/* Progress bar */
 .progress { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin: 8px 0; }
 .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s; }
 
-/* Chips */
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .chip {
   padding: 6px 14px; border-radius: 20px;
@@ -165,12 +149,10 @@ textarea.input { min-height: 100px; resize: vertical; }
 }
 .chip.active { border-color: var(--primary); color: var(--primary-light); }
 
-/* Badge */
 .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: 600; }
 .badge-success { background: var(--success); color: #fff; }
 .badge-warning { background: var(--warning); color: #000; }
 
-/* Toggle */
 .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
 .toggle-track {
   width: 44px; height: 24px; border-radius: 12px;
@@ -183,13 +165,11 @@ textarea.input { min-height: 100px; resize: vertical; }
 }
 .toggle-track.on .toggle-knob { left: 22px; }
 
-/* Stat */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
 .stat-item { text-align: center; background: var(--surface); border-radius: 10px; padding: 12px 8px; }
 .stat-val { font-size: 1.5em; font-weight: 700; color: var(--primary-light); }
 .stat-label { font-size: 0.7em; color: var(--text-light); margin-top: 2px; }
 
-/* Answer options */
 .option-btn {
   display: block; width: 100%; text-align: left;
   padding: 14px 16px; margin-bottom: 8px;
@@ -200,61 +180,43 @@ textarea.input { min-height: 100px; resize: vertical; }
 .option-btn.correct { border-color: var(--success); background: rgba(0,184,148,.15); }
 .option-btn.wrong { border-color: var(--danger); background: rgba(225,112,85,.15); }
 
-/* Achievement */
 .ach-card { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; }
 .ach-icon { font-size: 32px; }
 .ach-info .ach-title { font-weight: 600; font-size: 0.9em; }
 .ach-info .ach-desc { font-size: 0.75em; color: var(--text-light); }
 .ach-card.locked { opacity: 0.4; }
 
-/* Pomodoro */
-.pom-circle {
-  width: 200px; height: 200px; border-radius: 50%;
-  border: 6px solid var(--primary);
-  display: flex; align-items: center; justify-content: center;
-  margin: 30px auto; font-size: 2.5em; font-weight: 700;
-}
-
-/* Game specific */
+.pom-circle { width: 200px; height: 200px; border-radius: 50%; border: 6px solid var(--primary); display: flex; align-items: center; justify-content: center; margin: 30px auto; font-size: 2.5em; font-weight: 700; }
 .td-board { background: var(--surface2); border-radius: 10px; height: 200px; display: flex; align-items: center; justify-content: center; margin: 12px 0; color: var(--text-light); font-size: 0.9em; }
 .hangman-fig { font-size: 48px; text-align: center; margin: 20px 0; letter-spacing: 8px; }
 .letter-grid { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 12px 0; }
 .letter-btn { width: 36px; height: 36px; border-radius: 8px; background: var(--surface2); border: none; color: var(--text); font-weight: 600; cursor: pointer; }
-
-/* Money ladder (Millionaire) */
 .money-ladder { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
 .money-step { display: flex; justify-content: space-between; padding: 6px 12px; border-radius: 6px; font-size: 0.8em; }
 .money-step.current { background: var(--primary); color: #fff; }
 .money-step.done { color: var(--success); }
 
-/* Section */
 .section-title { font-size: 0.8em; color: var(--text-light); text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 8px; font-weight: 600; }
 
-/* Folder tree */
 .folder-item { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--surface); border-radius: 10px; margin-bottom: 6px; cursor: pointer; }
 .folder-item .f-icon { font-size: 20px; }
 
-/* Formula */
 .formula-box { background: var(--surface2); border-radius: 10px; padding: 20px; text-align: center; margin: 12px 0; font-size: 1.2em; font-style: italic; color: var(--primary-light); }
 
-/* Step chain */
 .step-chain { display: flex; flex-direction: column; gap: 0; margin: 12px 0; }
 .step-node { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-left: 2px solid var(--surface2); margin-left: 10px; }
 .step-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--surface2); flex-shrink: 0; margin-left: -17px; }
 .step-dot.done { background: var(--success); }
 .step-dot.active { background: var(--primary); }
 
-/* Nav helper */
 [data-go] { cursor: pointer; }
-
-/* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
 </style>
 </head>
 <body>
 
-<!-- ===================== HOME ===================== -->
+<!-- ===================== HOME (Gemini layout: clean, focused) ===================== -->
 <div class="screen active" id="s-home">
   <div class="welcome" style="margin-bottom:12px">
     <h2>👋 Willkommen zurück!</h2>
@@ -268,45 +230,168 @@ textarea.input { min-height: 100px; resize: vertical; }
 
   <div class="daily-card" data-go="daily">
     <span class="daily-icon">📅</span>
-    <div><h3>Tägliches Lernen</h3><p>Personalisierte Wiederholung starten</p></div>
+    <div><h3>Tägliches Lernen</h3><p>Personalisierte Wiederholung</p></div>
     <span class="chev">›</span>
   </div>
 
   <div class="grid-2">
-    <div class="grid-card" data-go="my-quizzes"><div class="icon">📚</div><div class="title">Meine Quizze</div><div class="desc">12 Quizze</div></div>
-    <div class="grid-card" data-go="ai-generate"><div class="icon">🤖</div><div class="title">KI-Generator</div><div class="desc">Quiz aus Text</div></div>
-    <div class="grid-card" data-go="editor"><div class="icon">✏️</div><div class="title">Quiz erstellen</div><div class="desc">Manuell</div></div>
-    <div class="grid-card" data-go="stats"><div class="icon">📊</div><div class="title">Statistik</div><div class="desc">Lernfortschritt</div></div>
+    <div class="grid-card" data-go="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Board</div><div class="desc">Dein Fortschritt</div></div>
+    <div class="grid-card" data-go="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div><div class="desc">Fragen stellen</div></div>
+    <div class="grid-card" data-go="folders"><div class="icon">📁</div><div class="title">Prüfungen</div><div class="desc">Alle Ordner</div></div>
+    <div class="grid-card" data-go="my-quizzes"><div class="icon">📚</div><div class="title">Quizze</div><div class="desc">12 Quizze</div></div>
   </div>
 
-  <div class="grid-4">
-    <div class="grid-card mini-card" data-go="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
-    <div class="grid-card mini-card" data-go="pomodoro"><div class="icon">🍅</div><div class="title">Pomodoro</div></div>
-    <div class="grid-card mini-card" data-go="marked"><div class="icon">⭐</div><div class="title">Markiert</div></div>
-    <div class="grid-card mini-card" data-go="error-diary"><div class="icon">📕</div><div class="title">Fehler</div></div>
-  </div>
-  <div class="grid-4" style="margin-top:-4px">
-    <div class="grid-card mini-card" data-go="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learn</div></div>
-    <div class="grid-card mini-card" data-go="scaffold"><div class="icon">🔢</div><div class="title">Formeln</div></div>
-    <div class="grid-card mini-card" data-go="games"><div class="icon">🎮</div><div class="title">Games</div></div>
-    <div class="grid-card mini-card" data-go="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>
-  </div>
-  <div class="grid-4" style="margin-top:-4px">
-    <div class="grid-card mini-card" data-go="folders"><div class="icon">📁</div><div class="title">Ordner</div></div>
-    <div class="grid-card mini-card" data-go="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Board</div></div>
-    <div class="grid-card mini-card" data-go="socratic"><div class="icon">🏛️</div><div class="title">Sokrates</div></div>
-    <div class="grid-card mini-card" data-go="achievements"><div class="icon">🏅</div><div class="title">Erfolge</div></div>
-  </div>
-  <div class="grid-4" style="margin-top:-4px">
-    <div class="grid-card mini-card" data-go="study"><div class="icon">📖</div><div class="title">Lernen</div></div>
-    <div class="grid-card mini-card" data-go="settings"><div class="icon">⚙️</div><div class="title">Settings</div></div>
-    <div class="grid-card mini-card" data-go="sync"><div class="icon">☁️</div><div class="title">Sync</div></div>
-    <div class="grid-card mini-card" style="opacity:.3"><div class="icon">&nbsp;</div><div class="title">&nbsp;</div></div>
+  <div class="section-title">Fokus Session</div>
+  <div class="quiz-row" data-go="pomodoro" style="border-left-color:var(--warning)">
+    <div class="quiz-info"><h4>🍅 Pomodoro Timer</h4><small>Konzentriert lernen</small></div>
+    <span style="color:var(--text-light)">›</span>
   </div>
 
-  <div class="section-title">Zuletzt</div>
+  <div class="section-title">Zuletzt gelernt</div>
   <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>25 Fragen</small></div><div class="quiz-boxes"><span class="quiz-box box-1">5</span><span class="quiz-box">8</span><span class="quiz-box">6</span><span class="quiz-box">3</span><span class="quiz-box box-5">3</span></div><span style="color:var(--text-light)">›</span></div>
   <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>18 Fragen</small></div><div class="quiz-boxes"><span class="quiz-box box-1">2</span><span class="quiz-box">4</span><span class="quiz-box">7</span><span class="quiz-box">3</span><span class="quiz-box box-5">2</span></div><span style="color:var(--text-light)">›</span></div>
+</div>
+
+<!-- ===================== LEARN TAB (Gemini: dedicated learning methods) ===================== -->
+<div class="screen" id="s-learn-tab">
+  <div class="top-bar"><h2>📖 Lernmethoden</h2></div>
+
+  <div class="grid-2">
+    <div class="grid-card" data-go="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learn</div><div class="desc">Verstehen</div></div>
+    <div class="grid-card" data-go="socratic"><div class="icon">🏛️</div><div class="title">Sokrates</div><div class="desc">Hinterfragen</div></div>
+    <div class="grid-card" data-go="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div><div class="desc">Ausfüllen</div></div>
+    <div class="grid-card" data-go="scaffold"><div class="icon">🔢</div><div class="title">Formeln</div><div class="desc">Schrittweise</div></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>🤖 KI-Generator</h3>
+    <p style="margin-bottom:12px">Lass dir aus Freitexten oder Skripten neue Quizze und Lernkarten erstellen.</p>
+    <button class="btn btn-primary" data-go="ai-generate">Inhalte generieren</button>
+  </div>
+
+  <div class="section-title">Weitere Tools</div>
+  <div class="grid-3">
+    <div class="grid-card mini-card" data-go="error-diary"><div class="icon">📕</div><div class="title">Fehler</div></div>
+    <div class="grid-card mini-card" data-go="study"><div class="icon">📖</div><div class="title">Karteikarten</div></div>
+    <div class="grid-card mini-card" data-go="stats"><div class="icon">📊</div><div class="title">Statistik</div></div>
+  </div>
+</div>
+
+<!-- ===================== MY-QUIZZES (Gemini: banner + create/import + filters) ===================== -->
+<div class="screen" id="s-my-quizzes">
+  <div class="top-bar"><h2>📚 Meine Quizze</h2></div>
+  <input class="input" placeholder="🔍 Quiz suchen…">
+
+  <div class="daily-card" data-go="marked" style="background:linear-gradient(135deg, var(--warning), #d63031);padding:14px 16px">
+    <span class="daily-icon">⭐</span>
+    <div><h3>Markierte Fragen</h3><p>8 Fragen zur Wiederholung</p></div>
+    <span class="chev">›</span>
+  </div>
+
+  <div class="section-title">Erstellen & Importieren</div>
+  <div class="grid-3">
+    <div class="grid-card mini-card" data-go="editor"><div class="icon">✏️</div><div class="title">Manuell</div></div>
+    <div class="grid-card mini-card" data-go="slide-generate"><div class="icon">📊</div><div class="title">Aus Folien</div></div>
+    <div class="grid-card mini-card" data-go="import-questions"><div class="icon">📥</div><div class="title">Import</div></div>
+  </div>
+
+  <div class="section-title">Quiz- & Fragetypen</div>
+  <div class="chip-row">
+    <span class="chip active">🎯 Multiple Choice</span>
+    <span class="chip">📝 Freitext</span>
+    <span class="chip">✂️ Lückentext</span>
+    <span class="chip">🔄 Zuordnung</span>
+    <span class="chip">⚖️ Wahr/Falsch</span>
+  </div>
+
+  <div class="section-title">Alle Quizze</div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>25 Fragen · 3 markiert</small></div><span style="color:var(--text-light)">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>18 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Physik Grundlagen</h4><small>30 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Informatik Basics</h4><small>15 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>BWL Einführung</h4><small>20 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
+</div>
+
+<!-- ===================== SLIDE-GENERATE (new from Gemini) ===================== -->
+<div class="screen" id="s-slide-generate">
+  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>📊 KI Folien-Konverter</h2></div>
+  <div class="card">
+    <h3>Quiz aus Präsentation generieren</h3>
+    <p style="margin-bottom:12px">Lade deine Vorlesungsfolien oder Skripte hoch (PDF, PPTX).</p>
+    <button class="btn btn-outline" style="margin-bottom:12px;width:100%">📎 Folien auswählen (.pptx, .pdf)</button>
+    <label style="font-size:.85em;color:var(--text-light)">Seiten/Folien eingrenzen (optional)</label>
+    <input class="input" placeholder="z.B. 1-15, 23, 40-50" style="margin-top:4px">
+  </div>
+  <div class="card">
+    <h3>Generierungs-Fokus</h3>
+    <div class="toggle-row"><span>Kernkonzepte priorisieren</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
+    <div class="toggle-row"><span>Detailfragen (Definitionen, Zahlen)</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
+  </div>
+  <button class="btn btn-primary">🤖 Folien analysieren & generieren</button>
+</div>
+
+<!-- ===================== IMPORT-QUESTIONS (new from Gemini) ===================== -->
+<div class="screen" id="s-import-questions">
+  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>📥 Fragen importieren</h2></div>
+  <div class="card">
+    <h3>Dateibasierter Import</h3>
+    <p style="margin-bottom:12px">Importiere bestehende Fragen-Sets direkt in deine App.</p>
+    <div class="folder-item" style="margin-bottom:8px"><span class="f-icon">📄</span><div><strong>Excel / CSV Tabelle</strong><br><small>Vorlage herunterladen</small></div></div>
+    <div class="folder-item" style="margin-bottom:8px"><span class="f-icon">🧠</span><div><strong>Anki Deck (.apkg)</strong><br><small>Karteikarten konvertieren</small></div></div>
+    <div class="folder-item" style="margin-bottom:12px"><span class="f-icon">💻</span><div><strong>JSON Format</strong><br><small>Für Entwickler</small></div></div>
+    <button class="btn btn-primary" style="margin-top:8px">📎 Datei hochladen</button>
+  </div>
+</div>
+
+<!-- ===================== GAMES (Tab-level, no back button) ===================== -->
+<div class="screen" id="s-games">
+  <div class="top-bar"><h2>🎮 Mini-Games</h2></div>
+  <div class="grid-2">
+    <div class="grid-card" data-go="tower-defense"><div class="icon">🏰</div><div class="title">Tower Defense</div><div class="desc">Verteidige mit Wissen</div></div>
+    <div class="grid-card" data-go="quiz-battle"><div class="icon">⚔️</div><div class="title">Quiz Battle</div><div class="desc">KI Duell</div></div>
+    <div class="grid-card" data-go="speed-quiz"><div class="icon">⚡</div><div class="title">Speed Quiz</div><div class="desc">Zeitdruck</div></div>
+    <div class="grid-card" data-go="millionaire"><div class="icon">💰</div><div class="title">Millionär</div><div class="desc">Wer wird…?</div></div>
+    <div class="grid-card" data-go="hangman"><div class="icon">🪓</div><div class="title">Hangman</div><div class="desc">Wörter raten</div></div>
+    <div class="grid-card" data-go="boss-fight"><div class="icon">🐉</div><div class="title">Boss Fight</div><div class="desc">Endgegner</div></div>
+  </div>
+</div>
+
+<!-- ===================== SETTINGS (Gemini: achievements+sync cards at top) ===================== -->
+<div class="screen" id="s-settings">
+  <div class="top-bar"><h2>⚙️ Einstellungen</h2></div>
+
+  <div class="grid-2" style="margin-bottom:12px">
+    <div class="grid-card" data-go="achievements"><div class="icon">🏅</div><div class="title">Erfolge</div><div class="desc">8 freigeschaltet</div></div>
+    <div class="grid-card" data-go="sync"><div class="icon">☁️</div><div class="title">Cloud Sync</div><div class="desc">Verbunden</div></div>
+  </div>
+
+  <div class="card">
+    <h3>Konto</h3>
+    <div class="toggle-row"><span>👤 piuslipp@gmail.com</span><span class="badge badge-success">Aktiv</span></div>
+    <button class="btn btn-outline btn-sm">Abmelden</button>
+  </div>
+  <div class="card">
+    <h3>Allgemein</h3>
+    <div class="toggle-row"><span>🔔 Erinnerungen</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
+    <div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
+    <div class="toggle-row"><span>🔊 Sound-Effekte</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
+  </div>
+  <div class="card">
+    <h3>KI-Einstellungen</h3>
+    <label style="font-size:.85em;color:var(--text-light)">API-Key</label>
+    <input class="input" type="password" value="sk-or-v1-xxx...xxx">
+    <label style="font-size:.85em;color:var(--text-light)">Modell</label>
+    <input class="input" value="nvidia/nemotron-3-super-120b-a12b:free">
+  </div>
+  <div class="card">
+    <h3>Statistik & Daten</h3>
+    <button class="btn btn-outline" data-go="stats" style="width:100%;margin-bottom:8px">📊 Zu meinen Lerndaten</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline btn-sm" style="flex:1">📤 Export</button>
+      <button class="btn btn-outline btn-sm" style="flex:1">📥 Import</button>
+    </div>
+    <button class="btn btn-sm" style="background:var(--danger);color:#fff;margin-top:8px;width:100%">🗑️ Alle Daten löschen</button>
+  </div>
 </div>
 
 <!-- ===================== DAILY ===================== -->
@@ -324,21 +409,10 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="quiz-row"><div class="quiz-info"><h4>Physik Grundlagen</h4><small>3 fällig</small></div><span class="badge badge-warning">3</span></div>
   <div class="section-title">Deep Learning Themen</div>
   <div class="chip-row">
-    <span class="chip" data-go="deep-learn">⚡ Ohmsches Gesetz</span>
-    <span class="chip" data-go="deep-learn">📐 Integrale</span>
-    <span class="chip" data-go="deep-learn">🔋 Kirchhoff</span>
+    <span class="chip" data-go="deep-learn-chat">⚡ Ohmsches Gesetz</span>
+    <span class="chip" data-go="deep-learn-chat">📐 Integrale</span>
+    <span class="chip" data-go="deep-learn-chat">🔋 Kirchhoff</span>
   </div>
-</div>
-
-<!-- ===================== MY-QUIZZES ===================== -->
-<div class="screen" id="s-my-quizzes">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📚 Meine Quizze</h2></div>
-  <input class="input" placeholder="🔍 Quiz suchen…">
-  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>25 Fragen · 3 markiert</small></div><span style="color:var(--text-light)">›</span></div>
-  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>18 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
-  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Physik Grundlagen</h4><small>30 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
-  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Informatik Basics</h4><small>15 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
-  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>BWL Einführung</h4><small>20 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
 </div>
 
 <!-- ===================== QUIZ-MODES ===================== -->
@@ -401,7 +475,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== AI-GENERATE ===================== -->
 <div class="screen" id="s-ai-generate">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🤖 KI-Generator</h2></div>
+  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🤖 KI-Generator</h2></div>
   <div class="card">
     <h3>Quiz aus Text generieren</h3>
     <p style="margin-bottom:10px">Füge einen Text ein oder lade eine Datei hoch</p>
@@ -424,7 +498,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== EDITOR ===================== -->
 <div class="screen" id="s-editor">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>✏️ Quiz erstellen</h2></div>
+  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>✏️ Quiz erstellen</h2></div>
   <input class="input" placeholder="Quiz-Name">
   <div class="card">
     <h3>Frage 1</h3>
@@ -445,7 +519,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== STATS ===================== -->
 <div class="screen" id="s-stats">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📊 Statistik</h2></div>
+  <div class="top-bar"><button class="back" data-go="settings">‹</button><h2>📊 Statistik</h2></div>
   <div class="stat-grid">
     <div class="stat-item"><div class="stat-val">342</div><div class="stat-label">Fragen beantwortet</div></div>
     <div class="stat-item"><div class="stat-val">78%</div><div class="stat-label">Richtig</div></div>
@@ -510,7 +584,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== MARKED ===================== -->
 <div class="screen" id="s-marked">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>⭐ Markierte Fragen</h2></div>
+  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>⭐ Markierte Fragen</h2></div>
   <p style="margin-bottom:12px">8 markierte Fragen</p>
   <div class="quiz-row"><div class="quiz-info"><h4>Was ist die Kirchhoffsche Knotenregel?</h4><small>Elektrotechnik 1</small></div><span>⭐</span></div>
   <div class="quiz-row"><div class="quiz-info"><h4>Berechne ∫ x² dx</h4><small>Mathe Klausur 2</small></div><span>⭐</span></div>
@@ -520,7 +594,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== ERROR-DIARY ===================== -->
 <div class="screen" id="s-error-diary">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📕 Fehlertagebuch</h2></div>
+  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>📕 Fehlertagebuch</h2></div>
   <p style="margin-bottom:12px">Häufigste Fehler analysieren</p>
   <div class="card card-accent">
     <div style="display:flex;justify-content:space-between;align-items:center">
@@ -540,7 +614,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== DEEP-LEARN ===================== -->
 <div class="screen" id="s-deep-learn">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🔬 Deep Learning</h2></div>
+  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🔬 Deep Learning</h2></div>
   <div class="card" style="text-align:center">
     <div style="font-size:32px;margin-bottom:8px">🔬</div>
     <h3>Neues Thema starten</h3>
@@ -614,7 +688,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== SCAFFOLD ===================== -->
 <div class="screen" id="s-scaffold">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🔢 Formel-Training</h2></div>
+  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🔢 Formel-Training</h2></div>
   <div class="card">
     <small style="color:var(--primary-light)">Stufe 1 — Gegeben & Gesucht</small>
     <h3 style="margin:8px 0">Berechne den Strom I</h3>
@@ -642,7 +716,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 
 <!-- ===================== SOCRATIC ===================== -->
 <div class="screen" id="s-socratic">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🏛️ Sokratisches Lernen</h2></div>
+  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🏛️ Sokratisches Lernen</h2></div>
   <div class="chat-area">
     <div class="chat-ai">Betrachte die Formel U = R × I. Was passiert mit dem Strom I, wenn du den Widerstand R verdoppelst, aber die Spannung U gleich lässt?</div>
     <div class="chat-user">Der Strom wird halbiert?</div>
@@ -658,16 +732,105 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 </div>
 
-<!-- ===================== GAMES (Hub) ===================== -->
-<div class="screen" id="s-games">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🎮 Mini-Games</h2></div>
-  <div class="grid-2">
-    <div class="grid-card" data-go="tower-defense"><div class="icon">🏰</div><div class="title">Tower Defense</div><div class="desc">Verteidige mit Wissen</div></div>
-    <div class="grid-card" data-go="quiz-battle"><div class="icon">⚔️</div><div class="title">Quiz Battle</div><div class="desc">KI Duell</div></div>
-    <div class="grid-card" data-go="speed-quiz"><div class="icon">⚡</div><div class="title">Speed Quiz</div><div class="desc">Zeitdruck</div></div>
-    <div class="grid-card" data-go="millionaire"><div class="icon">💰</div><div class="title">Millionär</div><div class="desc">Wer wird…?</div></div>
-    <div class="grid-card" data-go="hangman"><div class="icon">🪓</div><div class="title">Hangman</div><div class="desc">Wörter raten</div></div>
-    <div class="grid-card" data-go="boss-fight"><div class="icon">🐉</div><div class="title">Boss Fight</div><div class="desc">Endgegner</div></div>
+<!-- ===================== CLOZE ===================== -->
+<div class="screen" id="s-cloze">
+  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>✂️ Lückentext</h2></div>
+  <div class="card">
+    <p>Das Ohmsche Gesetz lautet <span style="background:var(--primary);color:#fff;padding:2px 12px;border-radius:4px;margin:0 2px">______</span> = R × I. Der <span style="background:var(--primary);color:#fff;padding:2px 12px;border-radius:4px;margin:0 2px">______</span> wird in Ohm (Ω) gemessen.</p>
+  </div>
+  <div class="chip-row">
+    <span class="chip">U</span>
+    <span class="chip">Widerstand</span>
+    <span class="chip">Strom</span>
+    <span class="chip">Spannung</span>
+  </div>
+  <button class="btn btn-primary" style="margin-top:12px">Prüfen</button>
+</div>
+
+<!-- ===================== FOLDERS ===================== -->
+<div class="screen" id="s-folders">
+  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📁 Ordner</h2></div>
+  <button class="btn btn-outline btn-sm" style="margin-bottom:12px">+ Neuer Ordner</button>
+  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Elektrotechnik</strong><br><small>3 Quizze</small></div></div>
+  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Mathematik</strong><br><small>5 Quizze</small></div></div>
+  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Physik</strong><br><small>2 Quizze</small></div></div>
+  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Klausur-Vorbereitung</strong><br><small>4 Quizze</small></div></div>
+</div>
+
+<!-- ===================== SR-DASHBOARD ===================== -->
+<div class="screen" id="s-sr-dashboard">
+  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🧠 Spaced Repetition</h2></div>
+  <div class="stat-grid">
+    <div class="stat-item"><div class="stat-val">12</div><div class="stat-label">Heute fällig</div></div>
+    <div class="stat-item"><div class="stat-val">45</div><div class="stat-label">Gelernt</div></div>
+    <div class="stat-item"><div class="stat-val">89%</div><div class="stat-label">Retention</div></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <h3>Box-Verteilung</h3>
+    <div style="display:flex;gap:4px;margin-top:10px;height:80px;align-items:flex-end">
+      <div style="flex:1;background:var(--danger);border-radius:4px 4px 0 0;height:60%"></div>
+      <div style="flex:1;background:var(--warning);border-radius:4px 4px 0 0;height:40%"></div>
+      <div style="flex:1;background:#74b9ff;border-radius:4px 4px 0 0;height:70%"></div>
+      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:30%"></div>
+      <div style="flex:1;background:var(--success);border-radius:4px 4px 0 0;height:90%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:.65em;color:var(--text-light);margin-top:4px">
+      <span>Box 1</span><span>Box 2</span><span>Box 3</span><span>Box 4</span><span>Box 5</span>
+    </div>
+  </div>
+  <div class="section-title">Nächste Reviews</div>
+  <div class="quiz-row"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>5 Karten fällig</small></div></div>
+  <div class="quiz-row"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>4 Karten morgen</small></div></div>
+</div>
+
+<!-- ===================== ACHIEVEMENTS ===================== -->
+<div class="screen" id="s-achievements">
+  <div class="top-bar"><button class="back" data-go="settings">‹</button><h2>🏅 Erfolge</h2></div>
+  <div class="stat-grid" style="margin-bottom:16px">
+    <div class="stat-item"><div class="stat-val">8</div><div class="stat-label">Freigeschaltet</div></div>
+    <div class="stat-item"><div class="stat-val">15</div><div class="stat-label">Gesamt</div></div>
+    <div class="stat-item"><div class="stat-val">53%</div><div class="stat-label">Fortschritt</div></div>
+  </div>
+  <div class="ach-card"><span class="ach-icon">🎯</span><div class="ach-info"><div class="ach-title">Erste Schritte</div><div class="ach-desc">Erstes Quiz abgeschlossen</div></div></div>
+  <div class="ach-card"><span class="ach-icon">🔥</span><div class="ach-info"><div class="ach-title">Streak Master</div><div class="ach-desc">7 Tage Streak erreicht</div></div></div>
+  <div class="ach-card"><span class="ach-icon">💯</span><div class="ach-info"><div class="ach-title">Perfektionist</div><div class="ach-desc">100% in einem Quiz</div></div></div>
+  <div class="ach-card"><span class="ach-icon">🐉</span><div class="ach-info"><div class="ach-title">Drachentöter</div><div class="ach-desc">Ersten Boss besiegt</div></div></div>
+  <div class="ach-card locked"><span class="ach-icon">🔒</span><div class="ach-info"><div class="ach-title">Marathon</div><div class="ach-desc">100 Fragen an einem Tag</div></div></div>
+  <div class="ach-card locked"><span class="ach-icon">🔒</span><div class="ach-info"><div class="ach-title">Unbesiegbar</div><div class="ach-desc">30 Tage Streak</div></div></div>
+</div>
+
+<!-- ===================== STUDY ===================== -->
+<div class="screen" id="s-study">
+  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>📖 Karteikarten</h2></div>
+  <div class="card" style="min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+    <small style="color:var(--primary-light);margin-bottom:8px">Frage 3/15</small>
+    <h3>Was ist die SI-Einheit der elektrischen Kapazität?</h3>
+    <p style="margin-top:12px;font-size:.85em;color:var(--text-light)">Tippe zum Umdrehen</p>
+  </div>
+  <div class="progress"><div class="progress-fill" style="width:20%"></div></div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-sm" style="flex:1;background:var(--danger);color:#fff">✗ Falsch</button>
+    <button class="btn btn-sm" style="flex:1;background:var(--warning);color:#000">~ Unsicher</button>
+    <button class="btn btn-sm" style="flex:1;background:var(--success);color:#fff">✓ Richtig</button>
+  </div>
+</div>
+
+<!-- ===================== SYNC ===================== -->
+<div class="screen" id="s-sync">
+  <div class="top-bar"><button class="back" data-go="settings">‹</button><h2>☁️ Cloud Sync</h2></div>
+  <div class="card" style="text-align:center">
+    <div style="font-size:48px;margin-bottom:8px">☁️</div>
+    <h3>Firebase Sync</h3>
+    <p>Synchronisiere deine Daten über alle Geräte</p>
+  </div>
+  <div class="card">
+    <div class="toggle-row"><span>Auto-Sync</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
+    <div class="toggle-row"><span>Status</span><span class="badge badge-success">Verbunden</span></div>
+    <small>Letzte Sync: vor 5 Minuten</small>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-primary btn-sm" style="flex:1">🔄 Jetzt synchronisieren</button>
+    <button class="btn btn-outline btn-sm" style="flex:1">📱 Anmelden</button>
   </div>
 </div>
 
@@ -799,150 +962,16 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 </div>
 
-<!-- ===================== CLOZE ===================== -->
-<div class="screen" id="s-cloze">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>✂️ Lückentext</h2></div>
-  <div class="card">
-    <p>Das Ohmsche Gesetz lautet <span style="background:var(--primary);color:#fff;padding:2px 12px;border-radius:4px;margin:0 2px">______</span> = R × I. Der <span style="background:var(--primary);color:#fff;padding:2px 12px;border-radius:4px;margin:0 2px">______</span> wird in Ohm (Ω) gemessen.</p>
-  </div>
-  <div class="chip-row">
-    <span class="chip">U</span>
-    <span class="chip">Widerstand</span>
-    <span class="chip">Strom</span>
-    <span class="chip">Spannung</span>
-  </div>
-  <button class="btn btn-primary" style="margin-top:12px">Prüfen</button>
-</div>
-
-<!-- ===================== FOLDERS ===================== -->
-<div class="screen" id="s-folders">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📁 Ordner</h2></div>
-  <button class="btn btn-outline btn-sm" style="margin-bottom:12px">+ Neuer Ordner</button>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Elektrotechnik</strong><br><small>3 Quizze</small></div></div>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Mathematik</strong><br><small>5 Quizze</small></div></div>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Physik</strong><br><small>2 Quizze</small></div></div>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div><strong>Klausur-Vorbereitung</strong><br><small>4 Quizze</small></div></div>
-</div>
-
-<!-- ===================== SR-DASHBOARD ===================== -->
-<div class="screen" id="s-sr-dashboard">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🧠 Spaced Repetition</h2></div>
-  <div class="stat-grid">
-    <div class="stat-item"><div class="stat-val">12</div><div class="stat-label">Heute fällig</div></div>
-    <div class="stat-item"><div class="stat-val">45</div><div class="stat-label">Gelernt</div></div>
-    <div class="stat-item"><div class="stat-val">89%</div><div class="stat-label">Retention</div></div>
-  </div>
-  <div class="card" style="margin-top:12px">
-    <h3>Box-Verteilung</h3>
-    <div style="display:flex;gap:4px;margin-top:10px;height:80px;align-items:flex-end">
-      <div style="flex:1;background:var(--danger);border-radius:4px 4px 0 0;height:60%"></div>
-      <div style="flex:1;background:var(--warning);border-radius:4px 4px 0 0;height:40%"></div>
-      <div style="flex:1;background:#74b9ff;border-radius:4px 4px 0 0;height:70%"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:30%"></div>
-      <div style="flex:1;background:var(--success);border-radius:4px 4px 0 0;height:90%"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:.65em;color:var(--text-light);margin-top:4px">
-      <span>Box 1</span><span>Box 2</span><span>Box 3</span><span>Box 4</span><span>Box 5</span>
-    </div>
-  </div>
-  <div class="section-title">Nächste Reviews</div>
-  <div class="quiz-row"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>5 Karten fällig</small></div></div>
-  <div class="quiz-row"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>4 Karten morgen</small></div></div>
-</div>
-
-<!-- ===================== ACHIEVEMENTS ===================== -->
-<div class="screen" id="s-achievements">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🏅 Erfolge</h2></div>
-  <div class="stat-grid" style="margin-bottom:16px">
-    <div class="stat-item"><div class="stat-val">8</div><div class="stat-label">Freigeschaltet</div></div>
-    <div class="stat-item"><div class="stat-val">15</div><div class="stat-label">Gesamt</div></div>
-    <div class="stat-item"><div class="stat-val">53%</div><div class="stat-label">Fortschritt</div></div>
-  </div>
-  <div class="ach-card"><span class="ach-icon">🎯</span><div class="ach-info"><div class="ach-title">Erste Schritte</div><div class="ach-desc">Erstes Quiz abgeschlossen</div></div></div>
-  <div class="ach-card"><span class="ach-icon">🔥</span><div class="ach-info"><div class="ach-title">Streak Master</div><div class="ach-desc">7 Tage Streak erreicht</div></div></div>
-  <div class="ach-card"><span class="ach-icon">💯</span><div class="ach-info"><div class="ach-title">Perfektionist</div><div class="ach-desc">100% in einem Quiz</div></div></div>
-  <div class="ach-card"><span class="ach-icon">🐉</span><div class="ach-info"><div class="ach-title">Drachentöter</div><div class="ach-desc">Ersten Boss besiegt</div></div></div>
-  <div class="ach-card locked"><span class="ach-icon">🔒</span><div class="ach-info"><div class="ach-title">Marathon</div><div class="ach-desc">100 Fragen an einem Tag</div></div></div>
-  <div class="ach-card locked"><span class="ach-icon">🔒</span><div class="ach-info"><div class="ach-title">Unbesiegbar</div><div class="ach-desc">30 Tage Streak</div></div></div>
-</div>
-
-<!-- ===================== STUDY ===================== -->
-<div class="screen" id="s-study">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📖 Karteikarten</h2></div>
-  <div class="card" style="min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
-    <small style="color:var(--primary-light);margin-bottom:8px">Frage 3/15</small>
-    <h3>Was ist die SI-Einheit der elektrischen Kapazität?</h3>
-    <p style="margin-top:12px;font-size:.85em;color:var(--text-light)">Tippe zum Umdrehen</p>
-  </div>
-  <div class="progress"><div class="progress-fill" style="width:20%"></div></div>
-  <div style="display:flex;gap:8px;margin-top:12px">
-    <button class="btn btn-sm" style="flex:1;background:var(--danger);color:#fff">✗ Falsch</button>
-    <button class="btn btn-sm" style="flex:1;background:var(--warning);color:#000">~ Unsicher</button>
-    <button class="btn btn-sm" style="flex:1;background:var(--success);color:#fff">✓ Richtig</button>
-  </div>
-</div>
-
-<!-- ===================== SETTINGS ===================== -->
-<div class="screen" id="s-settings">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>⚙️ Einstellungen</h2></div>
-  <div class="card">
-    <h3>Konto</h3>
-    <div class="toggle-row"><span>👤 piuslipp@gmail.com</span><span class="badge badge-success">Sync</span></div>
-    <button class="btn btn-outline btn-sm">Abmelden</button>
-  </div>
-  <div class="card">
-    <h3>Allgemein</h3>
-    <div class="toggle-row"><span>🔔 Erinnerungen</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>🔊 Sound-Effekte</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
-  </div>
-  <div class="card">
-    <h3>KI-Einstellungen</h3>
-    <label style="font-size:.85em;color:var(--text-light)">API-Key</label>
-    <input class="input" type="password" value="sk-or-v1-xxx...xxx">
-    <label style="font-size:.85em;color:var(--text-light)">Modell</label>
-    <input class="input" value="nvidia/nemotron-3-super-120b-a12b:free">
-  </div>
-  <div class="card">
-    <h3>Daten</h3>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm" style="flex:1">📤 Export</button>
-      <button class="btn btn-outline btn-sm" style="flex:1">📥 Import</button>
-    </div>
-    <button class="btn btn-sm" style="background:var(--danger);color:#fff;margin-top:8px;width:100%">🗑️ Alle Daten löschen</button>
-  </div>
-</div>
-
-<!-- ===================== SYNC ===================== -->
-<div class="screen" id="s-sync">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>☁️ Cloud Sync</h2></div>
-  <div class="card" style="text-align:center">
-    <div style="font-size:48px;margin-bottom:8px">☁️</div>
-    <h3>Firebase Sync</h3>
-    <p>Synchronisiere deine Daten über alle Geräte</p>
-  </div>
-  <div class="card">
-    <div class="toggle-row"><span>Auto-Sync</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>Status</span><span class="badge badge-success">Verbunden</span></div>
-    <small>Letzte Sync: vor 5 Minuten</small>
-  </div>
-  <div style="display:flex;gap:8px;margin-top:12px">
-    <button class="btn btn-primary btn-sm" style="flex:1">🔄 Jetzt synchronisieren</button>
-    <button class="btn btn-outline btn-sm" style="flex:1">📱 Anmelden</button>
-  </div>
-</div>
-
-<!-- ===================== TAB BAR ===================== -->
+<!-- ===================== TAB BAR (Gemini: Home, Lernen, Quizze, Games, Settings) ===================== -->
 <div class="tab-bar">
-  <button data-go="home"><span class="tab-icon">🏠</span>Home</button>
-  <button data-go="daily"><span class="tab-icon">📅</span>Daily</button>
+  <button data-go="home" class="active"><span class="tab-icon">🏠</span>Home</button>
+  <button data-go="learn-tab"><span class="tab-icon">📖</span>Lernen</button>
   <button data-go="my-quizzes"><span class="tab-icon">📚</span>Quizze</button>
   <button data-go="games"><span class="tab-icon">🎮</span>Games</button>
   <button data-go="settings"><span class="tab-icon">⚙️</span>Settings</button>
 </div>
 
 <script>
-// Simple navigation
 function go(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById('s-' + id);
@@ -950,10 +979,12 @@ function go(id) {
     target.classList.add('active');
     window.scrollTo(0, 0);
   }
-  // Update tab bar
-  document.querySelectorAll('.tab-bar button').forEach(b => {
-    b.classList.toggle('active', b.dataset.go === id);
-  });
+  const mainTabs = ['home', 'learn-tab', 'my-quizzes', 'games', 'settings'];
+  if (mainTabs.includes(id)) {
+    document.querySelectorAll('.tab-bar button').forEach(b => {
+      b.classList.toggle('active', b.dataset.go === id);
+    });
+  }
 }
 
 document.addEventListener('click', e => {
@@ -964,12 +995,10 @@ document.addEventListener('click', e => {
   }
 });
 
-// Toggle toggles on click
 document.querySelectorAll('.toggle-track').forEach(t => {
   t.addEventListener('click', () => t.classList.toggle('on'));
 });
 
-// Option selection
 document.querySelectorAll('.option-btn').forEach(b => {
   b.addEventListener('click', () => {
     b.parentElement.querySelectorAll('.option-btn').forEach(o => o.classList.remove('selected'));
@@ -977,7 +1006,6 @@ document.querySelectorAll('.option-btn').forEach(b => {
   });
 });
 
-// Chip selection
 document.querySelectorAll('.chip-row .chip').forEach(c => {
   c.addEventListener('click', () => {
     if (!c.dataset.go) c.classList.toggle('active');
