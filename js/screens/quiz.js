@@ -1,5 +1,5 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
-import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs } from "../store.js";
+import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, addCoins } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
@@ -267,6 +267,8 @@ function showQuestion(root, quiz, session) {
     progress = updateProgress(progress, q.id, result.is_correct);
     await saveProgress(progress);
     await logAnswer(result.is_correct);
+    // Münzen fürs Lernen: richtige Antwort belohnen (Shop-Economy).
+    if (result.is_correct) { try { await addCoins(2, "lernen"); } catch (_) {} }
 
     // FSRS-Planung aktualisieren (Spaced Repetition)
     try {

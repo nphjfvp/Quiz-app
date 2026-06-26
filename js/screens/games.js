@@ -47,7 +47,7 @@ export async function render(root) {
     <div class="coin-bar">
       <span class="coin-icon">🪙</span>
       <span class="coin-amount">${coins.balance}</span>
-      <span style="color:var(--text-light);font-size:0.8rem;margin-left:auto">Gesamt verdient: ${coins.earned}</span>
+      <button class="btn btn-primary btn-sm" id="games-shop" style="margin-left:auto">🛍️ Shop</button>
     </div>
     <h2 style="margin-bottom:4px">🎮 Mini-Games</h2>
     <p style="color:var(--text-light);margin-bottom:16px;font-size:0.9rem">Lerne spielend — verdiene Münzen für richtige Antworten!</p>
@@ -75,4 +75,5 @@ export async function render(root) {
     el.addEventListener("click", () => navigate(el.dataset.game));
   });
   root.querySelector("#games-back").addEventListener("click", () => navigate("home"));
+  root.querySelector("#games-shop")?.addEventListener("click", () => navigate("shop"));
 }
