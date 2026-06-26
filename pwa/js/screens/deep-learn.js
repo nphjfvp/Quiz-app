@@ -551,6 +551,17 @@ ${relevantText}`;
 
   root.querySelector("#dl-back").addEventListener("click", () => showTopicPicker(root, state));
 
+  // Math keyboard for chat input
+  if (isMath) {
+    import("../math-keyboard.js").then(({ createMathKeyboard }) => {
+      const inputRow = root.querySelector(".tutor-input-row");
+      if (!inputRow) return;
+      const kbWrap = document.createElement("div");
+      inputRow.parentElement.insertBefore(kbWrap, inputRow);
+      createMathKeyboard(kbWrap, inputEl);
+    }).catch(() => {});
+  }
+
   // Restore previous messages
   for (const msg of state.chatHistory) {
     const div = document.createElement("div");

@@ -428,6 +428,20 @@ function runChain(area, task, stage, state, set, doneFn) {
       </div>`;
 
     const resultIn = area.querySelector("#result-in");
+
+    // Math keyboard
+    import("../math-keyboard.js").then(({ createMathKeyboard }) => {
+      const kbContainer = area.querySelector("#hint-box").parentElement;
+      const kbTarget = document.createElement("div");
+      kbTarget.style.cssText = "margin-top:4px";
+      kbContainer.insertBefore(kbTarget, area.querySelector("#hint-box"));
+      const kb = createMathKeyboard(kbTarget, resultIn);
+      area.querySelectorAll(".var-in").forEach(el => {
+        el.addEventListener("focus", () => kb.setTarget(el));
+      });
+      resultIn.addEventListener("focus", () => kb.setTarget(resultIn));
+    });
+
     resultIn.focus();
 
     // Stage 4 staged hint cascade

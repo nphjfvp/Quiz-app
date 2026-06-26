@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v63";
+const CACHE = "lerntrainer-v64";
 // Relative Pfade – werden relativ zum SW-Standort aufgelöst (funktioniert unter / und /Quiz-app/)
 const ASSETS = [
   "./",
@@ -41,6 +41,7 @@ const ASSETS = [
   "js/screens/socratic.js",
   "js/screens/scaffold.js",
   "js/screens/deep-learn.js",
+  "js/math-keyboard.js",
   "js/games-util.js",
   "js/blackout.js",
   "manifest.json",
