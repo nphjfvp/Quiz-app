@@ -1,6 +1,7 @@
 import { navigate } from "../router.js";
 import { explainAnswer } from "../ai-service.js";
 import { esc, mathEsc } from "../utils.js";
+import { addCoins, loadDailyState, saveDailyState } from "../store.js";
 
 export async function render(root, params) {
   const { session, quiz } = params;
@@ -18,12 +19,51 @@ export async function render(root, params) {
   else if (pct >= 40) { bgColor = "var(--warning)"; emoji = "💪"; }
   else { bgColor = "var(--danger)"; emoji = "📚"; }
 
+  // Award completion bonus coins
+  let bonusCoins = 0;
+  if (answered >= 3) {
+    bonusCoins += 10;
+    if (pct >= 80) bonusCoins += 10;
+    else if (pct >= 60) bonusCoins += 5;
+    if (pct === 100) bonusCoins += 5;
+    try { await addCoins(bonusCoins, "quiz-abschluss"); } catch (_) {}
+  }
+
+  // Update daily state if this was a daily quiz
+  const isDailyQuiz = quiz?.id === "daily" || quiz?.id === "daily-retry";
+  if (isDailyQuiz) {
+    try {
+      const daily = await loadDailyState();
+      if (daily) {
+        const completed = new Set(daily.completed || []);
+        const wrong = new Set(daily.wrong || []);
+        for (const q of session.questions) {
+          const r = session.answers[q.id];
+          if (r) {
+            completed.add(q.id);
+            if (!r.is_correct) wrong.add(q.id);
+          }
+        }
+        daily.completed = [...completed];
+        daily.wrong = [...wrong];
+        const allDone = daily.plan?.length > 0 && daily.plan.every(id => completed.has(id));
+        if (allDone && !daily.bonus_awarded) {
+          daily.bonus_awarded = true;
+          bonusCoins += 15;
+          try { await addCoins(15, "daily-abschluss"); } catch (_) {}
+        }
+        await saveDailyState(daily);
+      }
+    } catch (_) {}
+  }
+
   let html = `
     <div class="result-hero" style="background:${bgColor}">
       <div style="font-size:2rem;margin-bottom:4px">${emoji}</div>
       <div class="pct">${pct}%</div>
       <div class="subtitle">${total.toFixed(1)} / ${max.toFixed(1)} Punkte</div>
       <div class="subtitle" style="margin-top:4px;font-weight:600">${correct}/${answered} Fragen richtig</div>
+      ${bonusCoins > 0 ? `<div style="margin-top:8px;font-size:0.95rem;background:rgba(0,0,0,.15);padding:4px 12px;border-radius:12px;display:inline-block">🪙 +${bonusCoins} Münzen</div>` : ""}
     </div>
 
     <div class="section-title">Details</div>`;

@@ -155,7 +155,7 @@ export const HOUSE_LEVELS = [
   { level: 4, name: "Schloss", price: 2000 },
 ];
 
-export function renderHouseSVG(level, size = 160) {
+export function renderHouseSVG(level, size = 160, decos = []) {
   const ground = `<rect x="0" y="86" width="120" height="14" fill="#86b85a"/>`;
   let body = "";
   if (level <= 0) { // Zelt
@@ -191,8 +191,20 @@ export function renderHouseSVG(level, size = 160) {
             <rect x="40" y="52" width="10" height="10" fill="#cfe8ff"/><rect x="70" y="52" width="10" height="10" fill="#cfe8ff"/>
             <path d="M24 46 h72 v4 h-6 v-4 h-6 v4 h-6 v-4 h-6 v4 h-6 v-4 h-6 v4 h-6 v-4 h-6 v4 h-6 z" fill="#94a3b8"/>`;
   }
-  return `<svg viewBox="0 0 120 100" width="${size}" height="${size * 0.83}" xmlns="http://www.w3.org/2000/svg" style="display:block">${ground}${body}</svg>`;
+  const decoSvg = decos.map(id => HOUSE_DECOS.find(d => d.id === id)?.svg || "").join("");
+  return `<svg viewBox="0 0 120 100" width="${size}" height="${size * 0.83}" xmlns="http://www.w3.org/2000/svg" style="display:block">${ground}${body}${decoSvg}</svg>`;
 }
+
+// ─── House Decorations ───────────────────────────────────────────────
+// Rendered inside the house SVG as overlay elements.
+export const HOUSE_DECOS = [
+  { id: "deco_flag", name: "Flagge", price: 50, svg: `<line x1="100" y1="20" x2="100" y2="45" stroke="#6b7280" stroke-width="2"/><polygon points="100,20 115,26 100,32" fill="#ef4444"/>` },
+  { id: "deco_flowers", name: "Blumen", price: 40, svg: `<circle cx="28" cy="84" r="3" fill="#f472b6"/><circle cx="35" cy="82" r="3" fill="#fb923c"/><circle cx="92" cy="84" r="3" fill="#a78bfa"/><line x1="28" y1="84" x2="28" y2="90" stroke="#22c55e" stroke-width="1.5"/><line x1="35" y1="82" x2="35" y2="90" stroke="#22c55e" stroke-width="1.5"/><line x1="92" y1="84" x2="92" y2="90" stroke="#22c55e" stroke-width="1.5"/>` },
+  { id: "deco_cat", name: "Katze", price: 80, svg: `<ellipse cx="16" cy="82" rx="5" ry="4" fill="#f59e0b"/><circle cx="16" cy="77" r="3.5" fill="#f59e0b"/><polygon points="13,74 14,70 16,73" fill="#f59e0b"/><polygon points="19,74 18,70 16,73" fill="#f59e0b"/><circle cx="14.5" cy="76.5" r="1" fill="#1e293b"/><circle cx="17.5" cy="76.5" r="1" fill="#1e293b"/>` },
+  { id: "deco_lamp", name: "Laterne", price: 60, svg: `<line x1="105" y1="60" x2="105" y2="80" stroke="#92400e" stroke-width="2"/><circle cx="105" cy="58" r="4" fill="#fde047" opacity="0.8"/><rect x="103" y="56" width="4" height="3" rx="1" fill="#78350f"/>` },
+  { id: "deco_tree", name: "Baum", price: 70, svg: `<rect x="8" y="72" width="4" height="14" fill="#92400e"/><circle cx="10" cy="68" r="9" fill="#22c55e"/><circle cx="6" cy="72" r="6" fill="#16a34a"/><circle cx="14" cy="71" r="6" fill="#16a34a"/>` },
+  { id: "deco_well", name: "Brunnen", price: 100, svg: `<ellipse cx="95" cy="82" rx="9" ry="5" fill="#64748b"/><ellipse cx="95" cy="82" rx="7" ry="3.5" fill="#1e3a5f"/><line x1="88" y1="82" x2="88" y2="72" stroke="#92400e" stroke-width="1.5"/><line x1="102" y1="82" x2="102" y2="72" stroke="#92400e" stroke-width="1.5"/><line x1="87" y1="72" x2="103" y2="72" stroke="#92400e" stroke-width="1.5"/>` },
+];
 
 // ─── Theme skins (accent recolor) ────────────────────────────────────
 // Each: { id, name, price, palette: [primary, dark, light, subtle] }
@@ -211,6 +223,25 @@ export function findTheme(id) {
 }
 
 // Apply a theme skin's accent to the document root (overrides theme primary).
+// ─── Game skins (tower colors, bloon styles) ────────────────────────
+// Each: { id, name, price, game, palette: [base, earned] }
+export const GAME_SKINS = [
+  { id: "td_default", name: "Standard", price: 0, game: "tower-defense", palette: ["#1cb487", "#06b6d4"] },
+  { id: "td_fire", name: "Feuer", price: 120, game: "tower-defense", palette: ["#ef4444", "#f97316"] },
+  { id: "td_ice", name: "Eis", price: 120, game: "tower-defense", palette: ["#38bdf8", "#818cf8"] },
+  { id: "td_neon", name: "Neon", price: 180, game: "tower-defense", palette: ["#a855f7", "#ec4899"] },
+  { id: "td_gold", name: "Gold", price: 250, game: "tower-defense", palette: ["#eab308", "#f59e0b"] },
+  { id: "qb_default", name: "Standard", price: 0, game: "quiz-battle", palette: ["#3b82f6", "#22c55e"] },
+  { id: "qb_dark", name: "Dunkel", price: 120, game: "quiz-battle", palette: ["#6366f1", "#14b8a6"] },
+  { id: "qb_fire", name: "Feuer", price: 150, game: "quiz-battle", palette: ["#dc2626", "#f97316"] },
+  { id: "qb_royal", name: "Royal", price: 200, game: "quiz-battle", palette: ["#7c3aed", "#c084fc"] },
+];
+
+export function getGameSkin(game, equippedSkins) {
+  const id = equippedSkins?.[game];
+  return GAME_SKINS.find(s => s.id === id) || GAME_SKINS.find(s => s.game === game);
+}
+
 export function applyThemeSkin(id) {
   const t = findTheme(id);
   const [p, d, l, s] = t.palette;

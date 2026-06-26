@@ -1,7 +1,8 @@
-import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
+import { loadQuizzes, addCoins, saveGameScore, loadProfile } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc } from "../utils.js";
 import { buildPlayable, checkText, checkTextSmart, checkMulti, checkMultiText, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
+import { getGameSkin } from "../shop-catalog.js";
 
 const CANVAS_W = 360, CANVAS_H = 420;
 const TOWER_Y = CANVAS_H - 36;     // player fortress (bottom)
@@ -87,7 +88,7 @@ export async function render(root) {
   return () => { if (_activeState) { _activeState.gameOver = true; _activeState = null; } };
 }
 
-function startBattle(root, quiz, difficulty, mode) {
+async function startBattle(root, quiz, difficulty, mode) {
   const questions = shuffle(buildPlayable(quiz.questions));
   if (!questions.length) {
     root.innerHTML = `<div class="screen-empty">
@@ -107,8 +108,15 @@ function startBattle(root, quiz, difficulty, mode) {
     enemy: null, enemyLevel: 1, cpuLevel: 1, correctTotal: 0,
     score: 0, coins: 0, kills: 0, qIndex: 0,
     gameOver: false, won: false, currentQ: null, currentDiff: 1, locked: false,
-    goalKills: 5, log: [], questions,
+    goalKills: 5, log: [], questions, fortressColor: "#3b82f6",
   };
+
+  try {
+    const profile = await loadProfile();
+    const skin = getGameSkin("quiz-battle", profile.gameSkins);
+    if (skin) state.fortressColor = skin.palette[0];
+  } catch (_) {}
+
   _activeState = state;
 
   const hud = mode === "pvc"
@@ -628,7 +636,7 @@ function draw(ctx, state) {
   }
 
   // ── Player fortress (bottom) ──────────────────────────────────────
-  drawFortress(ctx, CANVAS_W / 2, TOWER_Y, state.towerHP / state.towerMax, "#3b82f6", now, false);
+  drawFortress(ctx, CANVAS_W / 2, TOWER_Y, state.towerHP / state.towerMax, state.fortressColor, now, false);
 
   // ── CPU fortress (top, PvC only) ──────────────────────────────────
   if (pvc) drawFortress(ctx, CANVAS_W / 2, CPU_TOWER_Y, state.cpuHP / state.cpuMax, "#dc2626", now, true);

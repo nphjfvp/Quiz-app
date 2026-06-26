@@ -3,7 +3,7 @@ import { navigate } from "../router.js";
 import { esc } from "../utils.js";
 import {
   CATALOG, SLOT_ORDER, SLOT_LABELS, findItem, renderAvatarSVG,
-  HOUSE_LEVELS, renderHouseSVG, THEME_SKINS, applyThemeSkin,
+  HOUSE_LEVELS, renderHouseSVG, THEME_SKINS, applyThemeSkin, GAME_SKINS, HOUSE_DECOS,
 } from "../shop-catalog.js";
 
 let activeTab = "char";
@@ -23,11 +23,13 @@ export async function render(root) {
       <button class="shop-tab ${activeTab === "char" ? "active" : ""}" data-tab="char">🧑 Charakter</button>
       <button class="shop-tab ${activeTab === "house" ? "active" : ""}" data-tab="house">🏠 Haus</button>
       <button class="shop-tab ${activeTab === "skins" ? "active" : ""}" data-tab="skins">🎨 Skins</button>
+      <button class="shop-tab ${activeTab === "games" ? "active" : ""}" data-tab="games">🎮 Games</button>
     </div>
     <div id="shop-body">`;
 
   if (activeTab === "char") html += renderCharTab(profile);
   else if (activeTab === "house") html += renderHouseTab(profile, coins);
+  else if (activeTab === "games") html += renderGamesTab(profile);
   else html += renderSkinsTab(profile);
 
   html += `</div>`;
@@ -60,6 +62,61 @@ export async function render(root) {
       p.equipped[slot] = id;
       await saveProfile(p);
       if (slot === "theme") applyThemeSkin(id);
+      rerender();
+    }));
+
+  // ── Game skin buy/equip ──
+  root.querySelectorAll("[data-buy-game]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const { game, id, price } = b.dataset;
+      const ok = await spendCoins(parseInt(price), `shop:${id}`);
+      if (!ok) { flash(b, "Zu wenig 🪙"); return; }
+      const p = await loadProfile();
+      p.owned[id] = true;
+      if (!p.gameSkins) p.gameSkins = {};
+      p.gameSkins[game] = id;
+      await saveProfile(p);
+      rerender();
+    }));
+
+  root.querySelectorAll("[data-equip-game]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const { game, id } = b.dataset;
+      const p = await loadProfile();
+      if (!p.gameSkins) p.gameSkins = {};
+      p.gameSkins[game] = id;
+      await saveProfile(p);
+      rerender();
+    }));
+
+  // ── House decoration ──
+  root.querySelectorAll("[data-deco-buy]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const { id, price } = b.dataset;
+      const ok = await spendCoins(parseInt(price), `deco:${id}`);
+      if (!ok) { flash(b, "Zu wenig 🪙"); return; }
+      const p = await loadProfile();
+      p.owned[id] = true;
+      if (!p.house.decos) p.house.decos = [];
+      p.house.decos.push(id);
+      await saveProfile(p);
+      rerender();
+    }));
+
+  root.querySelectorAll("[data-deco-place]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const p = await loadProfile();
+      if (!p.house.decos) p.house.decos = [];
+      if (!p.house.decos.includes(b.dataset.id)) p.house.decos.push(b.dataset.id);
+      await saveProfile(p);
+      rerender();
+    }));
+
+  root.querySelectorAll("[data-deco-remove]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const p = await loadProfile();
+      p.house.decos = (p.house.decos || []).filter(d => d !== b.dataset.id);
+      await saveProfile(p);
       rerender();
     }));
 
@@ -112,7 +169,8 @@ function renderHouseTab(profile, coins) {
   const lvl = profile.house.level;
   const cur = HOUSE_LEVELS[lvl];
   const next = HOUSE_LEVELS[lvl + 1];
-  let html = `<div class="house-preview">${renderHouseSVG(lvl, 200)}
+  const decos = profile.house.decos || [];
+  let html = `<div class="house-preview">${renderHouseSVG(lvl, 200, decos)}
       <div class="house-name">${esc(cur.name)} · Stufe ${lvl}</div>
     </div>`;
 
@@ -140,6 +198,27 @@ function renderHouseTab(profile, coins) {
       <span style="font-size:0.85rem;color:var(--text-light)">${state}</span>
     </div>`;
   }
+
+  html += `<div class="section-title">Dekoration</div>
+    <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:10px">Verschönere dein Zuhause!</p>
+    <div class="skins-grid">`;
+  for (const d of HOUSE_DECOS) {
+    const owned = !!profile.owned[d.id];
+    const placed = decos.includes(d.id);
+    html += `<div class="skin-card ${placed ? "equipped" : ""}">
+      <div class="skin-swatch" style="background:var(--bg-card);display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 120 100" width="70" height="58">${d.svg}</svg>
+      </div>
+      <div class="skin-name">${esc(d.name)}</div>
+      ${placed
+        ? `<button class="btn btn-ghost btn-sm" data-deco-remove data-id="${d.id}">Entfernen</button>`
+        : owned
+          ? `<button class="btn btn-ghost btn-sm" data-deco-place data-id="${d.id}">Platzieren</button>`
+          : `<button class="btn btn-primary btn-sm" data-deco-buy data-id="${d.id}" data-price="${d.price}">🪙 ${d.price}</button>`}
+    </div>`;
+  }
+  html += `</div>`;
+
   return html;
 }
 
@@ -163,6 +242,36 @@ function renderSkinsTab(profile) {
     </div>`;
   }
   html += `</div>`;
+  return html;
+}
+
+// ─── Tab: Game Skins ─────────────────────────────────────────────────
+function renderGamesTab(profile) {
+  const gameSkins = profile.gameSkins || {};
+  const gameGroups = {};
+  for (const s of GAME_SKINS) {
+    (gameGroups[s.game] ||= []).push(s);
+  }
+  const GAME_LABELS = { "tower-defense": "🏰 Tower Defense", "quiz-battle": "⚔️ Quiz Battle" };
+  let html = `<p style="color:var(--text-light);font-size:0.85rem;margin-bottom:12px">Ändere Farben & Styles in Mini-Games.</p>`;
+  for (const [game, skins] of Object.entries(gameGroups)) {
+    html += `<div class="section-title">${GAME_LABELS[game] || game}</div><div class="skins-grid">`;
+    for (const s of skins) {
+      const owned = s.price === 0 || !!profile.owned[s.id];
+      const equipped = (gameSkins[game] || skins[0].id) === s.id;
+      const [c1, c2] = s.palette;
+      html += `<div class="skin-card ${equipped ? "equipped" : ""}">
+        <div class="skin-swatch" style="background:linear-gradient(135deg, ${c1}, ${c2})"></div>
+        <div class="skin-name">${esc(s.name)}</div>
+        ${equipped
+          ? `<span class="skin-badge">✓ Aktiv</span>`
+          : owned
+            ? `<button class="btn btn-ghost btn-sm" data-equip-game data-game="${game}" data-id="${s.id}">Anwenden</button>`
+            : `<button class="btn btn-primary btn-sm" data-buy-game data-game="${game}" data-id="${s.id}" data-price="${s.price}">🪙 ${s.price}</button>`}
+      </div>`;
+    }
+    html += `</div>`;
+  }
   return html;
 }
 

@@ -1,7 +1,8 @@
-import { loadQuizzes, addCoins, saveGameScore } from "../store.js";
+import { loadQuizzes, addCoins, saveGameScore, loadProfile } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc } from "../utils.js";
 import { buildPlayable, checkText, checkTextSmart, checkMulti, checkMultiText, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
+import { getGameSkin } from "../shop-catalog.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -87,7 +88,7 @@ export async function render(root) {
   return () => { if (_activeState) { _activeState.gameOver = true; _activeState = null; } };
 }
 
-function startGame(root, quiz, difficulty) {
+async function startGame(root, quiz, difficulty) {
   const questions = shuffle(buildPlayable(quiz.questions));
   if (!questions.length) {
     root.innerHTML = `<div class="screen-empty">
@@ -111,8 +112,14 @@ function startGame(root, quiz, difficulty) {
     score: 0, coins: 0, wave: 0, kills: 0, qIndex: 0,
     gameOver: false, won: false, paused: false, currentQ: null, answering: false,
     lastSpawn: performance.now() - cfg.spawnRate, spawnRate: cfg.spawnRate, cfg, questions, comboCount: 0,
-    goalWaves: cfg.goalWaves, log: [],
+    goalWaves: cfg.goalWaves, log: [], towerPalette: ["#1cb487", "#06b6d4"],
   };
+
+  try {
+    const profile = await loadProfile();
+    const skin = getGameSkin("tower-defense", profile.gameSkins);
+    if (skin) state.towerPalette = skin.palette;
+  } catch (_) {}
   _activeState = state;
 
   root.innerHTML = `
@@ -209,7 +216,7 @@ function startGame(root, quiz, difficulty) {
     if (state.towers.some(t => t.col === col && t.row === row)) return;
     if (state.coins >= 15) {
       state.coins -= 15;
-      addTower(state, col, row, "#06b6d4");
+      addTower(state, col, row, state.towerPalette[1]);
       addFloater(state, col * TILE + TILE / 2, row * TILE + TILE / 2, "-15 🪙", "#f59e0b");
     } else {
       addFloater(state, col * TILE + TILE / 2, row * TILE + TILE / 2, "15 🪙 nötig", "#ef4444");
@@ -816,5 +823,5 @@ function addTower(state, col, row, color) {
 function placeTowers(state) {
   [{ col: 2, row: 1 }, { col: 6, row: 3 }, { col: 2, row: 5 }]
     .filter(p => !PATH.some(pp => pp.col === p.col && pp.row === p.row))
-    .forEach(p => addTower(state, p.col, p.row, "#1cb487"));
+    .forEach(p => addTower(state, p.col, p.row, state.towerPalette[0]));
 }

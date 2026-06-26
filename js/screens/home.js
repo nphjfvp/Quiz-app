@@ -1,4 +1,4 @@
-import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins } from "../store.js";
+import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins, addCoins, loadAchievements, saveAchievements } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount } from "../firebase-sync.js";
 import { esc } from "../utils.js";
@@ -10,6 +10,24 @@ export async function render(root) {
     loadMarked(), loadErrorDiary(), loadProfile(), loadCoins(),
   ]);
   const { current: streak, max: maxStreak } = getStreak(stats);
+
+  // Streak milestone coin rewards (once per milestone)
+  const STREAK_REWARDS = [[3, 15], [7, 30], [14, 50], [30, 100]];
+  let streakBonus = 0;
+  try {
+    const ach = await loadAchievements();
+    for (const [days, reward] of STREAK_REWARDS) {
+      const key = `streak_coins_${days}`;
+      if (streak >= days && !ach[key]) {
+        ach[key] = Date.now();
+        streakBonus += reward;
+      }
+    }
+    if (streakBonus > 0) {
+      await addCoins(streakBonus, "streak-bonus");
+      await saveAchievements(ach);
+    }
+  } catch (_) {}
 
   let html = "";
 
@@ -30,6 +48,7 @@ export async function render(root) {
         <strong>${streak} Tage Streak</strong>
         <small>Bester: ${maxStreak} Tage</small>
       </div>
+      ${streakBonus > 0 ? `<div style="margin-left:auto;background:var(--warning);color:#fff;padding:2px 10px;border-radius:12px;font-size:0.8rem;font-weight:600">🪙 +${streakBonus}</div>` : ""}
     </div>`;
   }
 

@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v66";
+const CACHE = "lerntrainer-v67";
 // Relative Pfade – werden relativ zum SW-Standort aufgelöst (funktioniert unter / und /Quiz-app/)
 const ASSETS = [
   "./",
