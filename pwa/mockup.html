@@ -837,35 +837,130 @@ textarea.input { min-height: 100px; resize: vertical; }
 <!-- ===================== TOWER-DEFENSE ===================== -->
 <div class="screen" id="s-tower-defense">
   <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🏰 Tower Defense</h2></div>
-  <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-    <span>❤️ Leben: 3</span><span>💎 Punkte: 450</span><span>🌊 Welle: 3/10</span>
-  </div>
-  <div class="td-board">🏰 Spielfeld (Gegner nähern sich…)</div>
+  <!-- Setup screen -->
   <div class="card">
-    <h3>⚡ Feind nähert sich!</h3>
-    <p style="margin-bottom:8px">Beantworte die Frage um einen Turm zu platzieren:</p>
-    <p><strong>Was ist 1 kΩ in Ohm?</strong></p>
-    <input class="input" placeholder="Antwort…">
-    <button class="btn btn-primary btn-sm">Turm bauen!</button>
+    <h3>Verteidige deine Basis!</h3>
+    <p style="margin-bottom:12px">Schwere Fragen richten mehr Schaden an. Überstehe alle Wellen um zu gewinnen!</p>
+    <label style="font-size:.85em;color:var(--text-light)">Quiz wählen:</label>
+    <select class="input" style="margin-top:4px">
+      <option>Elektrotechnik 1 (25)</option>
+      <option>Mathe Klausur 2 (18)</option>
+      <option>Physik Grundlagen (30)</option>
+    </select>
+  </div>
+  <div class="card">
+    <label style="font-size:.85em;color:var(--text-light)">Schwierigkeit:</label>
+    <div class="chip-row" style="margin-top:6px">
+      <span class="chip active" style="border-color:var(--success);color:var(--success)">Leicht</span>
+      <span class="chip">Normal</span>
+      <span class="chip">Schwer</span>
+    </div>
+  </div>
+  <button class="btn btn-primary" data-go="td-ingame">Spiel starten</button>
+  <button class="btn btn-outline" data-go="games" style="margin-top:8px">Zurück</button>
+</div>
+<div class="screen" id="s-td-ingame">
+  <div class="top-bar"><button class="back" data-go="tower-defense">‹</button><h2>Tower Defense</h2></div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:.85em">
+    <span style="color:var(--danger)">❤️ 3</span>
+    <span style="color:var(--warning)">💰 450</span>
+    <span style="color:var(--primary-light)">Welle 3/10</span>
+  </div>
+  <!-- Canvas placeholder styled like the real game -->
+  <div style="background:var(--surface2);border-radius:10px;height:240px;position:relative;overflow:hidden;margin-bottom:12px">
+    <!-- Path visualization -->
+    <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,.03) 39px,rgba(255,255,255,.03) 40px),repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,.03) 39px,rgba(255,255,255,.03) 40px)"></div>
+    <!-- Path -->
+    <div style="position:absolute;top:0;left:0;width:100%;height:40px;background:rgba(108,92,231,.15)"></div>
+    <div style="position:absolute;top:40px;right:0;width:40px;height:40px;background:rgba(108,92,231,.15)"></div>
+    <div style="position:absolute;top:80px;left:0;width:100%;height:40px;background:rgba(108,92,231,.15)"></div>
+    <!-- Towers -->
+    <div style="position:absolute;top:44px;left:80px;width:32px;height:32px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#000">T1</div>
+    <div style="position:absolute;top:44px;left:200px;width:32px;height:32px;background:var(--warning);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#000">T2</div>
+    <!-- Enemies (colored circles like Bloons) -->
+    <div style="position:absolute;top:8px;left:120px;width:24px;height:24px;border-radius:50%;background:#e11d48"></div>
+    <div style="position:absolute;top:8px;left:180px;width:24px;height:24px;border-radius:50%;background:#3b82f6"></div>
+    <div style="position:absolute;top:8px;left:250px;width:24px;height:24px;border-radius:50%;background:#22c55e"></div>
+    <!-- Base -->
+    <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:var(--primary);padding:4px 12px;border-radius:6px;font-size:.75em;font-weight:600">DEINE BASIS</div>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <small style="color:var(--danger)">Feind nähert sich!</small>
+      <span class="badge" style="background:var(--surface2)">Schwer</span>
+    </div>
+    <h3>Was ist 1 kΩ in Ohm?</h3>
+    <input class="input" placeholder="Antwort eingeben…" style="margin-top:8px">
+    <button class="btn btn-primary btn-sm">Turm platzieren</button>
   </div>
 </div>
 
 <!-- ===================== QUIZ-BATTLE ===================== -->
 <div class="screen" id="s-quiz-battle">
   <div class="top-bar"><button class="back" data-go="games">‹</button><h2>⚔️ Quiz Battle</h2></div>
-  <div style="display:flex;gap:12px;margin-bottom:12px">
-    <div class="card" style="flex:1;text-align:center"><strong>Du</strong><br><span style="font-size:1.5em;color:var(--success)">3</span></div>
-    <div style="display:flex;align-items:center;font-size:1.5em;font-weight:700">VS</div>
-    <div class="card" style="flex:1;text-align:center"><strong>KI 🤖</strong><br><span style="font-size:1.5em;color:var(--danger)">2</span></div>
+  <!-- Setup -->
+  <div class="card">
+    <h3>Kämpfe gegen die KI!</h3>
+    <p style="margin-bottom:12px">Ziehe die richtige Antwort ins Feld — dein Held greift an. Falsche Antworten machen den Gegner stärker.</p>
+    <label style="font-size:.85em;color:var(--text-light)">Quiz wählen:</label>
+    <select class="input" style="margin-top:4px">
+      <option>Elektrotechnik 1 (25)</option>
+      <option>Mathe Klausur 2 (18)</option>
+    </select>
   </div>
   <div class="card">
-    <small>Runde 6/10</small>
-    <h3 style="margin:8px 0">Welche Einheit hat die elektrische Leistung?</h3>
+    <label style="font-size:.85em;color:var(--text-light)">Schwierigkeit:</label>
+    <div class="chip-row" style="margin-top:6px">
+      <span class="chip active" style="border-color:var(--success);color:var(--success)">Leicht</span>
+      <span class="chip">Normal</span>
+      <span class="chip">Schwer</span>
+    </div>
+    <label style="font-size:.85em;color:var(--text-light);margin-top:8px;display:block">Modus:</label>
+    <div class="chip-row" style="margin-top:6px">
+      <span class="chip active">Verteidigung</span>
+      <span class="chip">Duell vs. KI</span>
+    </div>
   </div>
-  <button class="option-btn">A) Volt (V)</button>
-  <button class="option-btn">B) Ampere (A)</button>
-  <button class="option-btn">C) Watt (W)</button>
-  <button class="option-btn">D) Ohm (Ω)</button>
+  <button class="btn btn-primary" data-go="qb-ingame">Kampf starten</button>
+  <button class="btn btn-outline" data-go="games" style="margin-top:8px">Zurück</button>
+</div>
+<div class="screen" id="s-qb-ingame">
+  <div class="top-bar"><button class="back" data-go="quiz-battle">‹</button><h2>Quiz Battle</h2></div>
+  <!-- Battle canvas area -->
+  <div style="background:var(--surface2);border-radius:10px;height:200px;position:relative;overflow:hidden;margin-bottom:12px">
+    <!-- Player fortress (bottom) -->
+    <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%)">
+      <div style="width:48px;height:48px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">🛡️</div>
+    </div>
+    <div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);margin-top:2px">
+      <div style="width:80px;height:6px;background:rgba(0,0,0,.3);border-radius:3px;margin-top:52px">
+        <div style="width:75%;height:100%;background:var(--success);border-radius:3px"></div>
+      </div>
+    </div>
+    <!-- Enemy (top) -->
+    <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%)">
+      <div style="width:48px;height:48px;background:var(--danger);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">👹</div>
+    </div>
+    <div style="position:absolute;top:8px;left:50%;transform:translateX(-50%)">
+      <div style="width:80px;height:6px;background:rgba(0,0,0,.3);border-radius:3px;margin-top:52px">
+        <div style="width:60%;height:100%;background:var(--danger);border-radius:3px"></div>
+      </div>
+    </div>
+    <!-- Projectile -->
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:var(--warning);border-radius:50%;box-shadow:0 0 8px var(--warning)"></div>
+    <!-- HUD -->
+    <div style="position:absolute;top:8px;left:8px;font-size:.7em;color:var(--text-light)">Runde 3/5</div>
+    <div style="position:absolute;top:8px;right:8px;font-size:.7em;color:var(--warning)">Score: 240</div>
+  </div>
+  <div class="card">
+    <h3>Welche Einheit hat die elektrische Leistung?</h3>
+    <div style="margin-top:10px">
+      <button class="option-btn">Volt (V)</button>
+      <button class="option-btn">Ampere (A)</button>
+      <button class="option-btn selected">Watt (W)</button>
+      <button class="option-btn">Ohm (Ω)</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===================== SPEED-QUIZ ===================== -->
@@ -873,7 +968,8 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="top-bar"><button class="back" data-go="games">‹</button><h2>⚡ Speed Quiz</h2></div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
     <span style="font-size:2em;font-weight:700;color:var(--warning)">0:07</span>
-    <span>Punkte: 1200</span>
+    <span style="font-size:.9em">Score: <strong>1200</strong></span>
+    <span class="badge badge-success">12/15</span>
   </div>
   <div class="progress"><div class="progress-fill" style="width:70%;background:var(--warning)"></div></div>
   <div class="card" style="margin-top:12px">
@@ -881,7 +977,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
   <div class="grid-2">
     <button class="option-btn" style="text-align:center">12</button>
-    <button class="option-btn" style="text-align:center">18</button>
+    <button class="option-btn" style="text-align:center;border-color:var(--primary);background:rgba(108,92,231,.15)">18</button>
     <button class="option-btn" style="text-align:center">24</button>
     <button class="option-btn" style="text-align:center">36</button>
   </div>
@@ -908,57 +1004,100 @@ textarea.input { min-height: 100px; resize: vertical; }
   <button class="option-btn">D) P = ½mv²</button>
   <div class="chip-row" style="justify-content:center;margin-top:10px">
     <span class="chip">50:50</span>
-    <span class="chip">📞 Telefon</span>
-    <span class="chip">👥 Publikum</span>
+    <span class="chip">Telefon</span>
+    <span class="chip">Publikum</span>
   </div>
 </div>
 
 <!-- ===================== HANGMAN ===================== -->
 <div class="screen" id="s-hangman">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🪓 Hangman</h2></div>
-  <div style="text-align:center">
-    <div style="font-size:48px;margin:20px 0">😰</div>
-    <div class="hangman-fig">_ I _ _ _ _ _ _ _</div>
-    <p style="margin-bottom:12px">Kategorie: <strong>Elektrotechnik</strong></p>
-    <small>Noch 4 Versuche</small>
+  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>💀 Galgenmännchen</h2></div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:.85em">
+    <span>Runde 3/10</span>
+    <span style="color:var(--danger)">❤️ 4</span>
+    <span style="color:var(--warning)">Score: 20</span>
   </div>
+  <div class="card" style="padding:8px 16px">
+    <small style="color:var(--text-light)">Was ist die Einheit des Widerstands?</small>
+  </div>
+  <!-- SVG Hangman figure -->
+  <div style="text-align:center;margin:12px 0">
+    <svg viewBox="0 0 120 140" style="width:140px;height:160px;color:var(--text)">
+      <!-- Gallows -->
+      <line x1="20" y1="135" x2="100" y2="135" stroke="currentColor" stroke-width="3"/>
+      <line x1="40" y1="135" x2="40" y2="15" stroke="currentColor" stroke-width="3"/>
+      <line x1="40" y1="15" x2="80" y2="15" stroke="currentColor" stroke-width="3"/>
+      <line x1="80" y1="15" x2="80" y2="30" stroke="currentColor" stroke-width="3"/>
+      <!-- Head -->
+      <circle cx="80" cy="40" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+      <!-- Body -->
+      <line x1="80" y1="50" x2="80" y2="85" stroke="currentColor" stroke-width="2"/>
+      <!-- Left arm -->
+      <line x1="80" y1="58" x2="65" y2="72" stroke="currentColor" stroke-width="2"/>
+    </svg>
+  </div>
+  <!-- Word display -->
+  <div style="text-align:center;font-size:1.8em;letter-spacing:8px;font-weight:700;margin:12px 0;font-family:monospace">
+    _ _ _ <span style="color:var(--text)">M</span> &nbsp; _ _ _ _ _
+  </div>
+  <!-- Keyboard -->
   <div class="letter-grid">
-    <button class="letter-btn">A</button><button class="letter-btn" style="opacity:.3">B</button>
+    <button class="letter-btn">A</button><button class="letter-btn" style="opacity:.3;background:var(--danger)">B</button>
     <button class="letter-btn">C</button><button class="letter-btn">D</button>
-    <button class="letter-btn" style="background:var(--success);color:#fff">E</button>
-    <button class="letter-btn">F</button><button class="letter-btn">G</button>
-    <button class="letter-btn">H</button><button class="letter-btn" style="background:var(--success);color:#fff">I</button>
-    <button class="letter-btn">J</button><button class="letter-btn">K</button>
-    <button class="letter-btn">L</button><button class="letter-btn">M</button>
+    <button class="letter-btn">E</button><button class="letter-btn">F</button>
+    <button class="letter-btn">G</button><button class="letter-btn">H</button>
+    <button class="letter-btn">I</button><button class="letter-btn">J</button>
+    <button class="letter-btn">K</button><button class="letter-btn">L</button>
+    <button class="letter-btn" style="background:var(--success);color:#fff">M</button>
     <button class="letter-btn">N</button><button class="letter-btn">O</button>
     <button class="letter-btn">P</button><button class="letter-btn">Q</button>
     <button class="letter-btn">R</button><button class="letter-btn" style="opacity:.3;background:var(--danger)">S</button>
     <button class="letter-btn">T</button><button class="letter-btn">U</button>
     <button class="letter-btn">V</button><button class="letter-btn">W</button>
-    <button class="letter-btn">X</button><button class="letter-btn">Y</button>
+    <button class="letter-btn">X</button><button class="letter-btn" style="opacity:.3;background:var(--danger)">Y</button>
     <button class="letter-btn">Z</button>
+    <button class="letter-btn">Ä</button><button class="letter-btn">Ö</button>
+    <button class="letter-btn">Ü</button>
   </div>
 </div>
 
 <!-- ===================== BOSS-FIGHT ===================== -->
 <div class="screen" id="s-boss-fight">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🐉 Boss Fight</h2></div>
-  <div style="text-align:center;margin-bottom:12px">
-    <div style="font-size:64px">🐉</div>
-    <h3>Mathe-Drache</h3>
-    <div class="progress" style="margin:8px auto;max-width:250px"><div class="progress-fill" style="width:60%;background:var(--danger)"></div></div>
-    <small>Boss HP: 60%</small>
+  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>👹 Boss-Kampf</h2></div>
+  <!-- Arena -->
+  <div style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <!-- Boss -->
+      <div style="text-align:center;flex:1">
+        <div style="font-size:42px">👹</div>
+        <div style="font-weight:600;font-size:.85em;margin:4px 0">Boss</div>
+        <div style="height:8px;background:rgba(0,0,0,.3);border-radius:4px;overflow:hidden">
+          <div style="width:45%;height:100%;background:var(--danger);border-radius:4px"></div>
+        </div>
+        <small style="font-size:.7em">180/400 HP</small>
+      </div>
+      <!-- VS -->
+      <div style="font-size:1.2em;font-weight:700;padding:0 12px;color:var(--warning)">⚔️</div>
+      <!-- Player -->
+      <div style="text-align:center;flex:1">
+        <div style="font-size:42px">🧙</div>
+        <div style="font-weight:600;font-size:.85em;margin:4px 0">Du</div>
+        <div style="height:8px;background:rgba(0,0,0,.3);border-radius:4px;overflow:hidden">
+          <div style="width:70%;height:100%;background:var(--success);border-radius:4px"></div>
+        </div>
+        <small style="font-size:.7em">70/100 HP</small>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:8px;font-size:.85em;color:var(--warning)">🔥 3x Combo</div>
   </div>
-  <div style="text-align:center;margin-bottom:12px">
-    <div class="progress" style="max-width:200px;margin:0 auto"><div class="progress-fill" style="width:80%;background:var(--success)"></div></div>
-    <small>Dein HP: 80%</small>
-  </div>
+  <!-- Question -->
   <div class="card">
-    <h3>⚔️ Boss-Angriff!</h3>
-    <p>Löse die Aufgabe um zu kontern:</p>
-    <p style="margin:8px 0"><strong>Berechne: ∫₀¹ 2x dx = ?</strong></p>
-    <input class="input" placeholder="Deine Antwort…">
-    <button class="btn btn-primary btn-sm">⚔️ Angreifen!</button>
+    <h3>Berechne: ∫₀¹ 2x dx = ?</h3>
+    <input class="input" placeholder="Antwort eingeben…" style="margin-top:8px">
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" style="flex:1">Angreifen!</button>
+      <button class="btn btn-outline btn-sm" style="flex:1">Überspringen (-10 HP)</button>
+    </div>
   </div>
 </div>
 
