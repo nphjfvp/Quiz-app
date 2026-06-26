@@ -206,7 +206,7 @@ function renderHouseTab(profile, coins) {
     const owned = !!profile.owned[d.id];
     const placed = decos.includes(d.id);
     html += `<div class="skin-card ${placed ? "equipped" : ""}">
-      <div class="skin-swatch" style="background:var(--bg-card);display:flex;align-items:center;justify-content:center">
+      <div class="skin-swatch" style="background:var(--card-hover);display:flex;align-items:center;justify-content:center">
         <svg viewBox="0 0 120 100" width="70" height="58">${d.svg}</svg>
       </div>
       <div class="skin-name">${esc(d.name)}</div>
