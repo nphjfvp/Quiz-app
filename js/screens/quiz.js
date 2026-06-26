@@ -142,6 +142,21 @@ function showQuestion(root, quiz, session) {
 
   root.innerHTML = html;
 
+  // Math keyboard for text input question types
+  if (["free_text", "fill_blank"].includes(q.question_type) || root.querySelector("#generic-input")) {
+    import("../math-keyboard.js").then(({ createMathKeyboard }) => {
+      const ansArea = root.querySelector("#answer-area");
+      if (!ansArea) return;
+      const kbWrap = document.createElement("div");
+      ansArea.appendChild(kbWrap);
+      const firstInput = ansArea.querySelector("input[type=text]");
+      const kb = createMathKeyboard(kbWrap, firstInput);
+      ansArea.querySelectorAll("input[type=text]").forEach(el => {
+        el.addEventListener("focus", () => kb.setTarget(el));
+      });
+    }).catch(() => {});
+  }
+
   // Blackout button on question image
   root.querySelector("#q-blackout-btn")?.addEventListener("click", () => {
     const imgSrc = q.image || q.image_path;

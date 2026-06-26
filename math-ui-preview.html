@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Math UI Preview</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding: 16px; max-width: 480px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin-bottom: 20px; }
+    .preview-section { margin-bottom: 32px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+    .preview-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary); margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<h1>🔬 Math UI Konzepte — Preview</h1>
+
+<!-- ═══ 1. Formula Highlight Box ═══ -->
+<div class="preview-section">
+  <div class="preview-label">1. Formula Highlight Box</div>
+  <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px">Formeln in einer eigenen zentrierten Box statt inline im Fließtext.</p>
+
+  <div class="card" style="padding:16px">
+    <div class="question-title">Elektrotechnik · Ohmsches Gesetz</div>
+    <div class="question-text">Berechne den Strom durch einen Widerstand.</div>
+
+    <div class="formula-box" id="formula1"></div>
+
+    <p style="font-size:0.9rem;margin-top:8px">Gegeben: <strong>U = 12V</strong>, <strong>R = 4Ω</strong></p>
+  </div>
+</div>
+
+<!-- ═══ 2. Besseres Rechenfeld ═══ -->
+<div class="preview-section">
+  <div class="preview-label">2. Mathe-Eingabefeld mit Live-Preview</div>
+  <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px">Monospace-Feld, Einheit rechts, LaTeX-Vorschau darunter.</p>
+
+  <div class="card" style="padding:16px">
+    <label style="font-weight:600;display:block;margin-bottom:6px">Ergebnis: I =</label>
+    <div style="display:flex;align-items:center;gap:8px">
+      <input type="text" class="input" id="math-input" value="12/4"
+        style="font-family:'Courier New',monospace;font-size:1.1rem;font-weight:600;flex:1;letter-spacing:0.5px">
+      <span style="font-weight:700;color:var(--text-light);font-size:0.95rem;white-space:nowrap">A</span>
+    </div>
+    <div id="math-preview" style="margin-top:8px;min-height:28px;padding:6px 12px;background:var(--input-bg);border-radius:var(--radius-sm);text-align:center;font-size:1.1rem"></div>
+
+    <!-- Math keyboard inline -->
+    <div style="margin-top:8px">
+      <div class="math-kb">
+        <button class="math-kb-btn kb-op" type="button">x²</button>
+        <button class="math-kb-btn kb-op" type="button">x³</button>
+        <button class="math-kb-btn kb-op" type="button">√</button>
+        <button class="math-kb-btn kb-op" type="button">π</button>
+        <button class="math-kb-btn kb-op" type="button">^</button>
+        <button class="math-kb-btn kb-op" type="button">×</button>
+        <button class="math-kb-btn kb-op" type="button">÷</button>
+        <button class="math-kb-btn kb-op" type="button">±</button>
+        <button class="math-kb-btn" type="button">(</button>
+        <button class="math-kb-btn" type="button">)</button>
+      </div>
+      <div class="math-kb" style="margin-top:4px">
+        <button class="math-kb-btn kb-fn" type="button">sin</button>
+        <button class="math-kb-btn kb-fn" type="button">cos</button>
+        <button class="math-kb-btn kb-fn" type="button">tan</button>
+        <button class="math-kb-btn kb-fn" type="button">ln</button>
+        <button class="math-kb-btn kb-fn" type="button">log</button>
+        <button class="math-kb-btn" type="button">α</button>
+        <button class="math-kb-btn" type="button">β</button>
+        <button class="math-kb-btn" type="button">Δ</button>
+        <button class="math-kb-btn" type="button">θ</button>
+        <button class="math-kb-btn kb-fn" type="button">·10^</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 3. Schritt-für-Schritt Kette ═══ -->
+<div class="preview-section">
+  <div class="preview-label">3. Schritt-für-Schritt Visualisierung</div>
+  <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px">Vertikale Rechenkette mit Verbindungslinien und Status-Dots.</p>
+
+  <div class="card" style="padding:16px">
+    <h4 style="margin-bottom:12px">📐 Stufe 1 · Ohmsches Gesetz</h4>
+
+    <div class="step-chain">
+      <!-- Step 1 — correct -->
+      <div class="step-node step-ok">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--success);margin-bottom:4px">Schritt 1/3 ✓</div>
+        <div class="formula-box" id="step1-formula" style="margin:4px 0"></div>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+          <span style="font-size:0.85rem">I =</span>
+          <span style="font-family:monospace;font-weight:700;color:var(--success);font-size:1rem">3 A</span>
+        </div>
+      </div>
+
+      <!-- Step 2 — correct -->
+      <div class="step-node step-ok">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--success);margin-bottom:4px">Schritt 2/3 ✓</div>
+        <div class="formula-box" id="step2-formula" style="margin:4px 0"></div>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+          <span style="font-size:0.85rem">P =</span>
+          <span style="font-family:monospace;font-weight:700;color:var(--success);font-size:1rem">36 W</span>
+        </div>
+      </div>
+
+      <!-- Step 3 — active (current) -->
+      <div class="step-node step-active">
+        <div style="font-size:0.75rem;font-weight:700;color:var(--primary);margin-bottom:4px">Schritt 3/3 — aktiv</div>
+        <div class="formula-box" id="step3-formula" style="margin:4px 0"></div>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+          <span style="font-size:0.85rem">E =</span>
+          <input type="text" class="input" placeholder="Wert eingeben…" style="font-family:monospace;font-weight:600;flex:1">
+          <span style="font-weight:700;color:var(--text-light)">J</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-sm">✓ Prüfen</button>
+          <button class="btn btn-warning btn-sm">💡 Hinweis</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 4. Chat-Bubbles mit Formel-Blöcken ═══ -->
+<div class="preview-section">
+  <div class="preview-label">4. Chat mit Formel-Blöcken</div>
+  <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px">Block-Formeln heben sich visuell vom Erklärtext ab.</p>
+
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px;display:flex;flex-direction:column;gap:8px">
+    <!-- User -->
+    <div class="tutor-bubble user">Warum ist I = U/R?</div>
+
+    <!-- Assistant with formula blocks -->
+    <div class="tutor-bubble assistant" style="white-space:normal">
+      <p style="margin:0 0 8px">Das Ohmsche Gesetz beschreibt den linearen Zusammenhang zwischen Spannung, Strom und Widerstand:</p>
+      <div class="formula-box" id="chat-formula1"></div>
+      <p style="margin:8px 0">Wenn du die Formel nach <em>I</em> umstellst:</p>
+      <div class="formula-box" id="chat-formula2"></div>
+      <p style="margin:8px 0 0">Das bedeutet: je höher die Spannung, desto mehr Strom fließt. Je größer der Widerstand, desto weniger Strom.</p>
+      <p style="margin:8px 0 0;color:var(--primary);font-weight:600">🤔 Kannst du dir vorstellen, was passiert, wenn R gegen 0 geht?</p>
+    </div>
+
+    <!-- User -->
+    <div class="tutor-bubble user">Dann wird I unendlich groß — Kurzschluss?</div>
+
+    <!-- Assistant -->
+    <div class="tutor-bubble assistant" style="white-space:normal">
+      <p style="margin:0">Genau! ✅ Bei R → 0 geht I → ∞. In der Praxis begrenzt der Innenwiderstand der Quelle den Strom, aber theoretisch hast du einen <strong>Kurzschluss</strong>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 5. Gegeben/Gesucht-Karte ═══ -->
+<div class="preview-section">
+  <div class="preview-label">5. Gegeben / Gesucht Karte</div>
+  <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px">Klare visuelle Trennung wie auf einem Aufgabenblatt.</p>
+
+  <div class="card" style="padding:16px">
+    <div class="question-title">Aufgabe 3 · Reihenschaltung</div>
+    <div class="question-text">Bestimme die Gesamtspannung der Reihenschaltung.</div>
+
+    <div class="given-sought">
+      <div class="given-col">
+        <h5>✅ Gegeben</h5>
+        <div id="given-vals" style="font-family:monospace;line-height:1.8"></div>
+      </div>
+      <div class="sought-col">
+        <h5>🎯 Gesucht</h5>
+        <div id="sought-vals" style="font-family:monospace;line-height:1.8"></div>
+      </div>
+    </div>
+
+    <div class="formula-box" id="formula-reihe"></div>
+
+    <label style="font-weight:600;display:block;margin-top:12px">U_ges =</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" class="input" placeholder="Ergebnis" style="font-family:monospace;font-weight:600;flex:1">
+      <span style="font-weight:700;color:var(--text-light)">V</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 6. Mathe-Tastatur (funktional) ═══ -->
+<div class="preview-section">
+  <div class="preview-label">6. Mathe-Tastatur (bereits eingebaut!)</div>
+  <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px">Eingebaut in Scaffold, Quiz (Freitext/Lücken) und Deep-Learn-Chat.</p>
+
+  <div class="card" style="padding:16px">
+    <label style="font-weight:600;margin-bottom:6px;display:block">Teste hier:</label>
+    <input type="text" class="input" id="test-input" placeholder="Tippe oder nutze die Tastatur…"
+      style="font-family:monospace;font-size:1.1rem;margin-bottom:4px">
+    <div id="kb-mount"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { createMathKeyboard } from "./js/math-keyboard.js";
+
+  // Render KaTeX formulas
+  function renderKatex(id, tex, display = true) {
+    const el = document.getElementById(id);
+    if (el && window.katex) {
+      katex.render(tex, el, { displayMode: display, throwOnError: false });
+    }
+  }
+
+  window.addEventListener("load", () => {
+    // Wait for KaTeX
+    const t = setInterval(() => {
+      if (!window.katex) return;
+      clearInterval(t);
+
+      renderKatex("formula1", "I = \\frac{U}{R}");
+      renderKatex("step1-formula", "I = \\frac{U}{R} = \\frac{12\\,\\text{V}}{4\\,\\Omega} = 3\\,\\text{A}");
+      renderKatex("step2-formula", "P = U \\cdot I = 12\\,\\text{V} \\cdot 3\\,\\text{A} = 36\\,\\text{W}");
+      renderKatex("step3-formula", "E = P \\cdot t");
+      renderKatex("chat-formula1", "U = R \\cdot I");
+      renderKatex("chat-formula2", "I = \\frac{U}{R}");
+      renderKatex("formula-reihe", "U_{ges} = U_1 + U_2 + U_3");
+
+      document.getElementById("given-vals").innerHTML = [
+        "U₁ = 5 V", "U₂ = 3 V", "U₃ = 7 V", "R = 10 Ω"
+      ].join("<br>");
+      document.getElementById("sought-vals").innerHTML = "U<sub>ges</sub> = ? V";
+
+      // Live preview for math input
+      const inp = document.getElementById("math-input");
+      const prev = document.getElementById("math-preview");
+      function updatePreview() {
+        const v = inp.value.trim();
+        if (!v) { prev.innerHTML = ""; return; }
+        try {
+          const tex = v.replace(/\//g, "\\div ").replace(/\*/g, "\\cdot ").replace(/pi/g, "\\pi ");
+          katex.render(tex, prev, { displayMode: false, throwOnError: false });
+        } catch { prev.textContent = v; }
+      }
+      inp.addEventListener("input", updatePreview);
+      updatePreview();
+    }, 100);
+
+    // Functional math keyboard
+    const input = document.getElementById("test-input");
+    const mount = document.getElementById("kb-mount");
+    const kb = createMathKeyboard(mount, input);
+    kb.show();
+  });
+</script>
+
+</body>
+</html>
