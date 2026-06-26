@@ -212,9 +212,119 @@ textarea.input { min-height: 100px; resize: vertical; }
 [data-go] { cursor: pointer; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
+
+/* === ONBOARDING === */
+.onboarding-overlay {
+  position: fixed; inset: 0; background: var(--bg); z-index: 200;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  max-width: 430px; margin: 0 auto; padding: 32px 24px; text-align: center;
+}
+.onboarding-overlay.hidden { display: none; }
+.onboarding-slide { display: none; flex-direction: column; align-items: center; gap: 16px; }
+.onboarding-slide.active { display: flex; }
+.onboarding-slide .ob-icon { font-size: 64px; margin-bottom: 8px; }
+.onboarding-slide h2 { font-size: 1.4em; }
+.onboarding-slide p { color: var(--text-light); max-width: 300px; line-height: 1.5; }
+.ob-dots { display: flex; gap: 8px; margin: 24px 0; }
+.ob-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--surface2); }
+.ob-dot.active { background: var(--primary); }
+.ob-next { padding: 14px 48px; border-radius: var(--radius); background: var(--primary); color: #fff; border: none; font-weight: 600; font-size: 1em; cursor: pointer; }
+.ob-skip { background: none; border: none; color: var(--text-light); font-size: .85em; cursor: pointer; margin-top: 12px; }
+
+/* === OFFLINE INDICATOR === */
+.offline-banner {
+  background: var(--warning); color: #000; text-align: center;
+  padding: 6px 12px; font-size: .8em; font-weight: 600;
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+  max-width: 430px; width: 100%; z-index: 150;
+  display: none;
+}
+.offline-banner.show { display: block; }
+
+/* === BOTTOM SHEET === */
+.bottom-sheet-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 120;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+  max-width: 430px; margin: 0 auto;
+}
+.bottom-sheet-overlay.open { opacity: 1; pointer-events: auto; }
+.bottom-sheet {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
+  max-width: 430px; width: 100%; max-height: 85vh;
+  background: var(--surface); border-radius: 16px 16px 0 0;
+  padding: 12px 16px 24px; z-index: 121;
+  transition: transform .3s cubic-bezier(.32,.72,0,1);
+  overflow-y: auto;
+}
+.bottom-sheet-overlay.open .bottom-sheet { transform: translateX(-50%) translateY(0); }
+.bottom-sheet .sheet-handle {
+  width: 36px; height: 4px; border-radius: 2px; background: var(--surface2);
+  margin: 0 auto 12px;
+}
+
+/* === SCREEN TRANSITIONS === */
+.screen { animation: fadeSlideIn .25s ease-out; }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* === MODEL SELECTOR (KI settings) === */
+.model-select-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.model-option {
+  padding: 10px 12px; background: var(--surface2); border-radius: 10px;
+  cursor: pointer; border: 1px solid transparent; transition: border-color .15s;
+}
+.model-option.selected { border-color: var(--primary); background: rgba(108,92,231,.1); }
+.model-option .model-name { font-weight: 600; font-size: .85em; display: flex; align-items: center; gap: 6px; }
+.model-option .model-icons { font-size: .75em; color: var(--text-light); }
+.model-option .model-meta { font-size: .7em; color: var(--text-light); margin-top: 2px; }
+
+/* === BROWSE MODE === */
+.browse-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+.browse-nav button { background: var(--surface2); border: none; color: var(--text); padding: 10px 20px; border-radius: 10px; font-size: .9em; cursor: pointer; }
+.browse-nav button:disabled { opacity: .3; }
+.browse-answer-btn { background: var(--primary) !important; color: #fff !important; }
 </style>
 </head>
 <body>
+
+<!-- ===================== OFFLINE INDICATOR ===================== -->
+<div class="offline-banner show" id="offline-banner">📡 Kein Internet — Offline-Modus aktiv</div>
+
+<!-- ===================== ONBOARDING (3 slides, first visit) ===================== -->
+<div class="onboarding-overlay" id="onboarding">
+  <div class="onboarding-slide active" data-slide="0">
+    <div class="ob-icon">📚</div>
+    <h2>Willkommen beim Lerntrainer!</h2>
+    <p>Dein persönlicher Lernbegleiter – mit KI-Unterstützung, Karteikarten und Mini-Games.</p>
+  </div>
+  <div class="onboarding-slide" data-slide="1">
+    <div class="ob-icon">🧠</div>
+    <h2>Intelligentes Lernen</h2>
+    <p>Spaced Repetition sorgt dafür, dass du genau das wiederholst, was du noch nicht kannst. Dein Fortschritt wird automatisch gespeichert.</p>
+  </div>
+  <div class="onboarding-slide" data-slide="2">
+    <div class="ob-icon">🚀</div>
+    <h2>Loslegen!</h2>
+    <p>Erstelle dein erstes Quiz manuell oder lasse die KI eins aus deinen Unterlagen generieren.</p>
+  </div>
+  <div class="ob-dots">
+    <div class="ob-dot active" data-dot="0"></div>
+    <div class="ob-dot" data-dot="1"></div>
+    <div class="ob-dot" data-dot="2"></div>
+  </div>
+  <button class="ob-next" id="ob-next">Weiter</button>
+  <button class="ob-skip" id="ob-skip">Überspringen</button>
+</div>
+
+<!-- ===================== BOTTOM SHEET (reusable overlay for sub-screens) ===================== -->
+<div class="bottom-sheet-overlay" id="sheet-overlay">
+  <div class="bottom-sheet" id="sheet-content">
+    <div class="sheet-handle"></div>
+    <div id="sheet-body"></div>
+  </div>
+</div>
 
 <!-- ===================== HOME (Gemini layout: clean, focused) ===================== -->
 <div class="screen active" id="s-home">
@@ -226,6 +336,13 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="streak-bar">
     <span class="streak-fire">🔥</span>
     <div><strong>7 Tage Streak</strong><br><small>Bester: 14 Tage</small></div>
+  </div>
+
+  <!-- Heute gelernt timer -->
+  <div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:12px">
+    <span style="font-size:24px">⏱️</span>
+    <div style="flex:1"><strong>Heute: 45 min gelernt</strong><br><small>12 Fragen beantwortet</small></div>
+    <span class="badge badge-success">+3 ✓</span>
   </div>
 
   <div class="daily-card" data-go="daily">
@@ -375,13 +492,38 @@ textarea.input { min-height: 100px; resize: vertical; }
     <div class="toggle-row"><span>🔔 Erinnerungen</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
     <div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
     <div class="toggle-row"><span>🔊 Sound-Effekte</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
+    <div class="toggle-row"><span>📳 Haptisches Feedback</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
   </div>
   <div class="card">
     <h3>KI-Einstellungen</h3>
-    <label style="font-size:.85em;color:var(--text-light)">API-Key</label>
-    <input class="input" type="password" value="sk-or-v1-xxx...xxx">
-    <label style="font-size:.85em;color:var(--text-light)">Modell</label>
-    <input class="input" value="nvidia/nemotron-3-super-120b-a12b:free">
+    <p style="font-size:.8em;color:var(--text-light);margin-bottom:10px">Für KI-Funktionen (Quiz-Generator, Tutor) wird ein OpenRouter API-Key benötigt.</p>
+    <label style="font-size:.85em;color:var(--text-light)">OpenRouter API-Key</label>
+    <input class="input" type="password" value="sk-or-v1-xxx...xxx" placeholder="sk-or-...">
+    <label style="font-size:.85em;color:var(--text-light)">KI-Modell</label>
+    <div class="model-select-list">
+      <div class="model-option selected" data-model="nvidia/nemotron-3-super-120b-a12b:free">
+        <div class="model-name">Nemotron Super 120B <span class="model-icons">📝 Text</span></div>
+        <div class="model-meta">Free · Kostenlos · 32k ctx</div>
+      </div>
+      <div class="model-option" data-model="google/gemini-2.0-flash-exp:free">
+        <div class="model-name">Gemini 2.0 Flash <span class="model-icons">👁 Bilder</span></div>
+        <div class="model-meta">Free · Kostenlos · 1M ctx</div>
+      </div>
+      <div class="model-option" data-model="deepseek/deepseek-chat-v3-0324:free">
+        <div class="model-name">DeepSeek V3 <span class="model-icons">📝 Text</span></div>
+        <div class="model-meta">Free · Kostenlos · 128k ctx</div>
+      </div>
+      <div class="model-option" data-model="openai/gpt-4o-mini">
+        <div class="model-name">GPT-4o Mini <span class="model-icons">👁 Bilder</span></div>
+        <div class="model-meta">Günstig · $0.15/M · 128k ctx</div>
+      </div>
+      <div class="model-option" data-model="anthropic/claude-sonnet-4">
+        <div class="model-name">Claude Sonnet 4 <span class="model-icons">👁 Bilder</span></div>
+        <div class="model-meta">Premium · $3/M · 200k ctx</div>
+      </div>
+    </div>
+    <div style="font-size:.75em;color:var(--text-light);margin:4px 0 10px">👁 = kann Bilder sehen · 📝 = nur Text. Bei Bild-Aufgaben wird automatisch ein Bild-Modell genutzt.</div>
+    <button class="btn btn-primary btn-sm" style="width:100%">Speichern</button>
   </div>
   <div class="card">
     <h3>Statistik & Daten</h3>
@@ -430,10 +572,34 @@ textarea.input { min-height: 100px; resize: vertical; }
     <div class="grid-card" data-go="quiz"><div class="icon">🔀</div><div class="title">Nur falsche</div><div class="desc">Box 1–2</div></div>
   </div>
   <div class="grid-2">
+    <div class="grid-card" data-go="browse"><div class="icon">👀</div><div class="title">Browse-Modus</div><div class="desc">Durchblättern</div></div>
     <div class="grid-card" data-go="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
+  </div>
+  <div class="grid-2">
     <div class="grid-card" data-go="socratic"><div class="icon">🏛️</div><div class="title">Sokratisch</div></div>
   </div>
   <button class="btn btn-outline" data-go="editor" style="margin-top:8px">✏️ Bearbeiten</button>
+</div>
+
+<!-- ===================== BROWSE-MODUS ===================== -->
+<div class="screen" id="s-browse">
+  <div class="top-bar"><button class="back" data-go="quiz-modes">‹</button><h2>👀 Browse-Modus</h2><span class="badge badge-success">3/25</span></div>
+  <div class="progress"><div class="progress-fill" style="width:12%"></div></div>
+  <div class="card" style="margin-top:12px">
+    <small style="color:var(--text-light)">Multiple Choice</small>
+    <h3 style="margin-top:6px">Wie lautet das Ohmsche Gesetz?</h3>
+  </div>
+  <div style="background:var(--surface);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px">
+    <small style="color:var(--text-light)">Antwort:</small>
+    <p style="margin-top:4px;color:var(--success);font-weight:600">B) U = R × I</p>
+    <small style="color:var(--text-light);margin-top:8px;display:block">Das Ohmsche Gesetz beschreibt den Zusammenhang zwischen Spannung (U), Widerstand (R) und Stromstärke (I).</small>
+  </div>
+  <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:12px" id="browse-answer-toggle">🎯 Diese Frage beantworten</button>
+  <div class="browse-nav">
+    <button disabled>‹ Zurück</button>
+    <span style="font-size:.85em;color:var(--text-light)">3 / 25</span>
+    <button>Weiter ›</button>
+  </div>
 </div>
 
 <!-- ===================== QUIZ (active question) ===================== -->
@@ -1149,6 +1315,42 @@ document.querySelectorAll('.chip-row .chip').forEach(c => {
   c.addEventListener('click', () => {
     if (!c.dataset.go) c.classList.toggle('active');
   });
+});
+
+// Model selector in settings
+document.querySelectorAll('.model-option').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.model-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  });
+});
+
+// Onboarding
+let obSlide = 0;
+function showSlide(n) {
+  document.querySelectorAll('.onboarding-slide').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.ob-dot').forEach(d => d.classList.remove('active'));
+  document.querySelector(`[data-slide="${n}"]`).classList.add('active');
+  document.querySelector(`[data-dot="${n}"]`).classList.add('active');
+  document.getElementById('ob-next').textContent = n === 2 ? 'Los geht\'s!' : 'Weiter';
+}
+document.getElementById('ob-next').addEventListener('click', () => {
+  if (obSlide < 2) { obSlide++; showSlide(obSlide); }
+  else { document.getElementById('onboarding').classList.add('hidden'); }
+});
+document.getElementById('ob-skip').addEventListener('click', () => {
+  document.getElementById('onboarding').classList.add('hidden');
+});
+
+// Offline banner toggle (demo: click to dismiss)
+document.getElementById('offline-banner').addEventListener('click', () => {
+  document.getElementById('offline-banner').classList.toggle('show');
+});
+
+// Bottom sheet (demo: can be opened programmatically)
+const sheetOverlay = document.getElementById('sheet-overlay');
+sheetOverlay.addEventListener('click', e => {
+  if (e.target === sheetOverlay) sheetOverlay.classList.remove('open');
 });
 </script>
 </body>
