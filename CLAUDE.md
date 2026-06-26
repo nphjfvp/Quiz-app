@@ -81,8 +81,13 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - Münzen jetzt AUCH beim Lernen: +2 pro richtiger Antwort in `quiz.js`.
 - Einstieg: Profil-Strip auf **home** (Avatar + Münzen → Shop), Shop-Button auf **games**,
   Mini-Card "Shop" in Home-Tools. Theme-Skin wird beim Boot in `app.js` angewandt.
-- ⚠️ Offen/Ideen: Game-spezifische Skins (Turm-/Ball-Designs), Deko im Haus platzieren,
-  Münz-Belohnung bei Quiz-Abschluss/Daily/Streak (aktuell nur pro Antwort + Games).
+- **Münz-Boni**: +10 Münzen Quiz-Abschluss (≥3 Fragen), +5/+10 bei ≥60%/≥80%, +5 bei 100%.
+  +15 Daily-Abschluss-Bonus. Streak-Meilensteine: 3d→15, 7d→30, 14d→50, 30d→100 (einmalig).
+- Daily-State-Tracking: `results.js` aktualisiert `daily.completed`/`daily.wrong` nach Quiz.
+- **Game Skins**: 5 Tower-Defense-Paletten, 4 Quiz-Battle-Paletten. Über `getGameSkin()` in
+  `shop-catalog.js` abgerufen. Games lesen Skin aus `profile.gameSkins`. Shop-Tab "Games".
+- **Haus-Dekoration**: 6 Deko-Items (Flagge, Blumen, Katze, Laterne, Baum, Brunnen).
+  In `profile.house.decos[]` gespeichert, im Haus-SVG gerendert via `renderHouseSVG(level, size, decos)`.
 
 ### KI-Funktionen (`ai-service.js`)
 generateQuiz (Text), generateQuizFromImage(s) (Vision/PDF-Seiten),

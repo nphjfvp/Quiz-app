@@ -52,6 +52,7 @@ export async function render(root) {
       <div style="font-size:2rem;margin-bottom:8px">🎉</div>
       <div style="font-size:1rem;font-weight:700">Alles geschafft!</div>
       <div style="font-size:0.85rem;color:var(--text-light);margin-top:4px">Dein Daily ist erledigt. Komm morgen wieder!</div>
+      ${daily.bonus_awarded ? `<div style="margin-top:8px;font-size:0.85rem;color:var(--warning);font-weight:600">🪙 +15 Münzen Tagesbonus erhalten!</div>` : ""}
     </div>`;
   }
 
