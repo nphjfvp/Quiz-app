@@ -183,6 +183,40 @@
   </div>
 </div>
 
+<!-- ═══ 7. Editable Formula (Word-style) ═══ -->
+<div class="preview-section">
+  <div class="preview-label">⭐ Editable Formula (NEU)</div>
+  <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px">
+    Inputs DIREKT in der Formel — wie in der Word-Vorlage.
+  </p>
+
+  <div class="card" style="padding:16px">
+    <h4 style="margin-bottom:6px">📐 Schritt 1/2: Berechne den Strom</h4>
+    <small style="color:var(--text-light)">Trage die Werte direkt in die Formel ein</small>
+
+    <div id="editable-1" style="margin-top:10px"></div>
+
+    <label style="font-weight:600;display:block;margin-top:12px">Ergebnis: I =</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" class="input" placeholder="?" style="font-family:monospace;font-weight:600;flex:1">
+      <span style="font-weight:700;color:var(--text-light)">A</span>
+    </div>
+  </div>
+
+  <div class="card" style="padding:16px;margin-top:12px">
+    <h4 style="margin-bottom:6px">📐 Schritt 2/2: Berechne die Leistung</h4>
+    <small style="color:var(--text-light)">↑ U aus Schritt 1, I aus Schritt 1</small>
+
+    <div id="editable-2" style="margin-top:10px"></div>
+
+    <label style="font-weight:600;display:block;margin-top:12px">Ergebnis: P =</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" class="input" placeholder="?" style="font-family:monospace;font-weight:600;flex:1">
+      <span style="font-weight:700;color:var(--text-light)">W</span>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ 6. Mathe-Tastatur (funktional) ═══ -->
 <div class="preview-section">
   <div class="preview-label">6. Mathe-Tastatur (bereits eingebaut!)</div>
@@ -246,6 +280,34 @@
     const mount = document.getElementById("kb-mount");
     const kb = createMathKeyboard(mount, input);
     kb.show();
+
+    // Editable formulas
+    import("./js/editable-formula.js").then(({ renderEditableFormula }) => {
+      const f1 = renderEditableFormula(
+        "I = \\frac{ {{U}} }{ {{R}} }",
+        [
+          { symbol: "U", unit: "V" },
+          { symbol: "R", unit: "Ω" },
+        ],
+        { showSymbolPlaceholder: true }
+      );
+      document.getElementById("editable-1").appendChild(f1.el);
+
+      const f2 = renderEditableFormula(
+        "P = {{U}} \\cdot {{I}}",
+        [
+          { symbol: "U", unit: "V" },
+          { symbol: "I", unit: "A" },
+        ],
+        { showSymbolPlaceholder: true }
+      );
+      // Pre-fill the U from previous step (disabled)
+      f2.inputs.get("U").value = "12";
+      f2.inputs.get("U").disabled = true;
+      f2.inputs.get("I").value = "3";
+      f2.inputs.get("I").disabled = true;
+      document.getElementById("editable-2").appendChild(f2.el);
+    });
   });
 </script>
 

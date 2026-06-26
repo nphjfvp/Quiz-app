@@ -385,8 +385,13 @@ function runChain(area, task, stage, state, set, doneFn) {
     const inputs = step.inputs || [];
 
     // Stage-specific formula presentation
+    // Stages 1 & 2 with a formula and variable inputs → embed inputs directly
+    // inside the formula (Word-style fill-in blanks).
     let formulaHtml = "";
-    if (stage === 1 && step.formula_latex) {
+    const useEmbedded = (stage === 1 || stage === 2) && step.formula_latex && inputs.length > 0;
+    if (useEmbedded) {
+      formulaHtml = `<div id="editable-formula-mount"></div>`;
+    } else if (stage === 1 && step.formula_latex) {
       formulaHtml = `<div style="margin:6px 0">${mathEsc("$" + step.formula_latex + "$")}</div>`;
     } else if (stage === 2 && step.formula_latex) {
       const blanked = step.formula_latex.replace(/\{\{(\w+)\}\}/g, "\\boxed{?}");
@@ -395,7 +400,14 @@ function runChain(area, task, stage, state, set, doneFn) {
 
     // Stage 4 = linear input only (no per-variable fields)
     let inputsHtml = "";
-    if (stage !== 4 && inputs.length) {
+    if (useEmbedded) {
+      // Pre-step hint for variables that come from earlier steps
+      const fromSteps = inputs.filter(inp => inp.from_step);
+      if (fromSteps.length) {
+        const txt = fromSteps.map(inp => `${inp.symbol} aus Schritt ${inp.from_step}`).join(", ");
+        inputsHtml = `<small style="color:var(--text-light)">↑ ${esc(txt)}</small>`;
+      }
+    } else if (stage !== 4 && inputs.length) {
       inputsHtml = `<div class="var-inputs">` + inputs.map((inp, k) => {
         const sym = inp.symbol || `x${k}`;
         const unit = inp.unit ? ` [${inp.unit}]` : "";
@@ -429,20 +441,62 @@ function runChain(area, task, stage, state, set, doneFn) {
 
     const resultIn = area.querySelector("#result-in");
 
+    // Mount editable formula (stage 1 & 2) — inputs embedded in the formula
+    const embeddedInputs = new Map();
+    if (useEmbedded) {
+      import("../editable-formula.js").then(({ renderEditableFormula }) => {
+        const mount = area.querySelector("#editable-formula-mount");
+        if (!mount) return;
+        const { el, inputs: inputMap } = renderEditableFormula(
+          step.formula_latex,
+          inputs.map(inp => ({ symbol: inp.symbol || "x", unit: inp.unit })),
+          { showSymbolPlaceholder: stage === 1 }
+        );
+        mount.replaceWith(el);
+        // Pre-fill from previous step results
+        for (const inp of inputs) {
+          const sym = inp.symbol;
+          const el2 = inputMap.get(sym);
+          if (!el2) continue;
+          if (inp.from_step && computed[sym] != null) {
+            el2.value = String(computed[sym]);
+            el2.disabled = true;
+            el2.dataset.from = inp.from_step;
+          }
+          el2.dataset.sym = sym;
+          embeddedInputs.set(sym, el2);
+        }
+        // Hook math keyboard
+        import("../math-keyboard.js").then(({ createMathKeyboard }) => {
+          [...inputMap.values()].forEach(el => {
+            el.addEventListener("focus", () => kbRef && kbRef.setTarget(el));
+          });
+        });
+        // Focus first empty input
+        const firstEmpty = [...inputMap.values()].find(e => !e.value);
+        if (firstEmpty) firstEmpty.focus();
+      }).catch(err => console.error("editable-formula failed:", err));
+    }
+
     // Math keyboard
+    let kbRef = null;
     import("../math-keyboard.js").then(({ createMathKeyboard }) => {
       const kbContainer = area.querySelector("#hint-box").parentElement;
       const kbTarget = document.createElement("div");
       kbTarget.style.cssText = "margin-top:4px";
       kbContainer.insertBefore(kbTarget, area.querySelector("#hint-box"));
-      const kb = createMathKeyboard(kbTarget, resultIn);
+      kbRef = createMathKeyboard(kbTarget, resultIn);
       area.querySelectorAll(".var-in").forEach(el => {
-        el.addEventListener("focus", () => kb.setTarget(el));
+        el.addEventListener("focus", () => kbRef.setTarget(el));
       });
-      resultIn.addEventListener("focus", () => kb.setTarget(resultIn));
+      embeddedInputs.forEach(el => {
+        el.addEventListener("focus", () => kbRef.setTarget(el));
+      });
+      resultIn.addEventListener("focus", () => kbRef.setTarget(resultIn));
     });
 
-    resultIn.focus();
+    // Focus result input only if no embedded formula will steal focus
+    if (!useEmbedded) resultIn.focus();
 
     // Stage 4 staged hint cascade
     if (stage === 4) {
@@ -464,14 +518,26 @@ function runChain(area, task, stage, state, set, doneFn) {
 
     function check() {
       let stepOk = true;
-      area.querySelectorAll(".var-in").forEach((el) => {
+      const allVarEls = [
+        ...area.querySelectorAll(".var-in"),
+        ...embeddedInputs.values(),
+      ];
+      allVarEls.forEach((el) => {
+        if (el.disabled) return;  // pre-filled from a previous step
         const sym = el.dataset.sym;
         const from = el.dataset.from;
         const inp = inputs.find((x) => (x.symbol || "") === sym);
         let expected = inp ? inp.value : null;
         if (from && computed[sym] != null) expected = computed[sym];
-        if (expected != null && !validateNumeric(el.value, expected)) { el.style.borderColor = "var(--danger)"; stepOk = false; }
-        else el.style.borderColor = "var(--success)";
+        const isEmbedded = el.classList.contains("formula-blank-input");
+        if (expected != null && !validateNumeric(el.value, expected)) {
+          if (isEmbedded) { el.classList.add("wrong"); el.classList.remove("correct"); }
+          else el.style.borderColor = "var(--danger)";
+          stepOk = false;
+        } else {
+          if (isEmbedded) { el.classList.add("correct"); el.classList.remove("wrong"); }
+          else el.style.borderColor = "var(--success)";
+        }
       });
       const resNums = step.result_numeric || [];
       const resText = step.result_text || "";

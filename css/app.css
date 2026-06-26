@@ -882,6 +882,66 @@ input:focus { border-color: var(--primary); }
 }
 .math-kb-toggle:hover { background: var(--card-hover); }
 
+/* ── Editable formula (Word-style fill-in blanks) ── */
+.editable-formula {
+  margin: 12px 0; padding: 14px 16px;
+  background: var(--input-bg); border-left: 3px solid var(--primary);
+  border-radius: var(--radius-sm);
+  text-align: center; overflow-x: auto;
+  font-size: 1.1rem;
+}
+.editable-formula .katex { font-size: 1.15em; }
+.editable-formula .katex-display { margin: 0; }
+.formula-blank-wrap {
+  display: inline-block !important;
+  vertical-align: middle;
+  margin: 0 2px;
+  white-space: nowrap;
+}
+.formula-blank-input {
+  display: inline-block;
+  width: 2.6em; min-width: 2em; max-width: 4em;
+  height: 1.5em; line-height: 1.3em;
+  border: none; border-bottom: 2px solid var(--primary);
+  background: transparent;
+  font-family: 'KaTeX_Math', 'Cambria Math', 'Latin Modern Math', serif;
+  font-style: italic; font-size: 0.9em; font-weight: 600;
+  text-align: center;
+  padding: 0 4px;
+  outline: none; border-radius: 0;
+  color: var(--primary-dark);
+  vertical-align: middle;
+  transition: background 0.12s, border-color 0.12s;
+  box-sizing: border-box;
+}
+.formula-blank-input::placeholder {
+  color: var(--text-light); opacity: 0.55; font-weight: 400;
+}
+.formula-blank-input:focus {
+  background: var(--primary-subtle);
+  border-bottom-color: var(--primary-dark);
+  border-bottom-width: 3px;
+}
+.formula-blank-input.correct {
+  border-bottom-color: var(--success);
+  color: var(--success); background: var(--success-light);
+}
+.formula-blank-input.wrong {
+  border-bottom-color: var(--danger);
+  color: var(--danger); background: var(--danger-light);
+}
+.formula-blank-input:disabled {
+  color: var(--text); opacity: 0.85;
+  border-bottom-style: dashed; border-bottom-color: var(--text-light);
+  font-style: normal;
+}
+.formula-blank-unit {
+  font-family: 'KaTeX_Main', serif;
+  font-size: 0.85em;
+  margin-left: 3px; color: var(--text-light);
+  font-style: normal;
+}
+
 /* ── Formula highlight box (block equations) ── */
 .formula-box {
   background: var(--input-bg); border-left: 3px solid var(--primary);
