@@ -463,6 +463,14 @@ textarea.input { min-height: 100px; resize: vertical; }
 <!-- ===================== GAMES (Tab-level, no back button) ===================== -->
 <div class="screen" id="s-games">
   <div class="top-bar"><h2>🎮 Mini-Games</h2></div>
+
+  <!-- Mix-Game Kampagne highlight -->
+  <div class="daily-card" data-go="mix-game" style="background:linear-gradient(135deg, #e17055, #d63031);margin-bottom:16px">
+    <span class="daily-icon">🎯</span>
+    <div><h3>Mix-Kampagne</h3><p>Alle Spiele in einer Runde!</p></div>
+    <span class="chev">›</span>
+  </div>
+
   <div class="grid-2">
     <div class="grid-card" data-go="tower-defense"><div class="icon">🏰</div><div class="title">Tower Defense</div><div class="desc">Verteidige mit Wissen</div></div>
     <div class="grid-card" data-go="quiz-battle"><div class="icon">⚔️</div><div class="title">Quiz Battle</div><div class="desc">KI Duell</div></div>
@@ -470,6 +478,8 @@ textarea.input { min-height: 100px; resize: vertical; }
     <div class="grid-card" data-go="millionaire"><div class="icon">💰</div><div class="title">Millionär</div><div class="desc">Wer wird…?</div></div>
     <div class="grid-card" data-go="hangman"><div class="icon">🪓</div><div class="title">Hangman</div><div class="desc">Wörter raten</div></div>
     <div class="grid-card" data-go="boss-fight"><div class="icon">🐉</div><div class="title">Boss Fight</div><div class="desc">Endgegner</div></div>
+    <div class="grid-card" data-go="block-blast"><div class="icon">🧱</div><div class="title">Block Blast</div><div class="desc">Blöcke freischalten</div></div>
+    <div class="grid-card" data-go="math-solver"><div class="icon">🧮</div><div class="title">Mathe-Solver</div><div class="desc">Lösungsweg-Puzzle</div></div>
   </div>
 </div>
 
@@ -501,11 +511,7 @@ textarea.input { min-height: 100px; resize: vertical; }
     <input class="input" type="password" value="sk-or-v1-xxx...xxx" placeholder="sk-or-...">
     <label style="font-size:.85em;color:var(--text-light)">KI-Modell</label>
     <div class="model-select-list">
-      <div class="model-option selected" data-model="nvidia/nemotron-3-super-120b-a12b:free">
-        <div class="model-name">Nemotron Super 120B <span class="model-icons">📝 Text</span></div>
-        <div class="model-meta">Free · Kostenlos · 32k ctx</div>
-      </div>
-      <div class="model-option" data-model="google/gemini-2.0-flash-exp:free">
+      <div class="model-option selected" data-model="google/gemini-2.0-flash-exp:free">
         <div class="model-name">Gemini 2.0 Flash <span class="model-icons">👁 Bilder</span></div>
         <div class="model-meta">Free · Kostenlos · 1M ctx</div>
       </div>
@@ -513,13 +519,32 @@ textarea.input { min-height: 100px; resize: vertical; }
         <div class="model-name">DeepSeek V3 <span class="model-icons">📝 Text</span></div>
         <div class="model-meta">Free · Kostenlos · 128k ctx</div>
       </div>
+      <div class="model-option" data-model="nvidia/nemotron-3-super-120b-a12b:free">
+        <div class="model-name">Nemotron Super 120B <span class="model-icons">📝 Text</span></div>
+        <div class="model-meta">Free · Kostenlos · 32k ctx</div>
+      </div>
+    </div>
+    <button class="btn btn-outline btn-sm" id="more-models-btn" style="width:100%;margin:6px 0">▼ Weitere Modelle anzeigen</button>
+    <div class="model-select-list hidden" id="more-models">
       <div class="model-option" data-model="openai/gpt-4o-mini">
         <div class="model-name">GPT-4o Mini <span class="model-icons">👁 Bilder</span></div>
         <div class="model-meta">Günstig · $0.15/M · 128k ctx</div>
       </div>
+      <div class="model-option" data-model="openai/gpt-4o">
+        <div class="model-name">GPT-4o <span class="model-icons">👁 Bilder</span></div>
+        <div class="model-meta">Standard · $2.50/M · 128k ctx</div>
+      </div>
       <div class="model-option" data-model="anthropic/claude-sonnet-4">
         <div class="model-name">Claude Sonnet 4 <span class="model-icons">👁 Bilder</span></div>
         <div class="model-meta">Premium · $3/M · 200k ctx</div>
+      </div>
+      <div class="model-option" data-model="anthropic/claude-opus-4">
+        <div class="model-name">Claude Opus 4 <span class="model-icons">👁 Bilder</span></div>
+        <div class="model-meta">Premium · $15/M · 200k ctx</div>
+      </div>
+      <div class="model-option" data-model="google/gemini-2.5-pro">
+        <div class="model-name">Gemini 2.5 Pro <span class="model-icons">👁 Bilder</span></div>
+        <div class="model-meta">Premium · $1.25/M · 1M ctx</div>
       </div>
     </div>
     <div style="font-size:.75em;color:var(--text-light);margin:4px 0 10px">👁 = kann Bilder sehen · 📝 = nur Text. Bei Bild-Aufgaben wird automatisch ein Bild-Modell genutzt.</div>
@@ -1267,6 +1292,145 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 </div>
 
+<!-- ===================== BLOCK BLAST ===================== -->
+<div class="screen" id="s-block-blast">
+  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🧱 Block Blast</h2></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:.85em">
+    <span>Score: <strong style="color:var(--warning)">1840</strong></span>
+    <span>Reihen: <strong style="color:var(--success)">3</strong></span>
+    <span>Level: <strong>4</strong></span>
+  </div>
+  <!-- Game board 8x8 grid -->
+  <div style="background:var(--surface);border-radius:12px;padding:8px;margin-bottom:12px">
+    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:2px">
+      <!-- Row 1-3: some filled blocks -->
+      <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
+      <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
+      <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
+      <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
+      <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--warning);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--success);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--success);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--success);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
+      <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--warning);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--warning);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--danger);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--danger);border-radius:3px"></div>
+      <div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--warning);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--danger);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
+      <div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--success);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
+    </div>
+  </div>
+  <!-- Block pieces (locked until question answered) -->
+  <div style="display:flex;justify-content:space-around;margin-bottom:12px">
+    <div style="text-align:center">
+      <div style="display:grid;grid-template-columns:repeat(3,20px);gap:2px;opacity:.3">
+        <div style="width:20px;height:20px;background:var(--warning);border-radius:3px"></div><div style="width:20px;height:20px;background:var(--warning);border-radius:3px"></div><div style="width:20px;height:20px;background:var(--warning);border-radius:3px"></div>
+      </div>
+      <small style="font-size:.65em;color:var(--text-light)">🔒 Gesperrt</small>
+    </div>
+    <div style="text-align:center">
+      <div style="display:grid;grid-template-columns:repeat(2,20px);gap:2px">
+        <div style="width:20px;height:20px;background:var(--success);border-radius:3px"></div><div style="width:20px;height:20px;background:var(--success);border-radius:3px"></div>
+        <div style="width:20px;height:20px;background:var(--success);border-radius:3px"></div><div style="width:20px;height:20px;background:var(--success);border-radius:3px"></div>
+      </div>
+      <small style="font-size:.65em;color:var(--success)">✓ Bereit</small>
+    </div>
+    <div style="text-align:center">
+      <div style="display:grid;grid-template-columns:repeat(1,20px);gap:2px;opacity:.3">
+        <div style="width:20px;height:20px;background:var(--danger);border-radius:3px"></div>
+        <div style="width:20px;height:20px;background:var(--danger);border-radius:3px"></div>
+        <div style="width:20px;height:20px;background:var(--danger);border-radius:3px"></div>
+        <div style="width:20px;height:20px;background:var(--danger);border-radius:3px"></div>
+      </div>
+      <small style="font-size:.65em;color:var(--text-light)">🔒 Gesperrt</small>
+    </div>
+  </div>
+  <!-- Question to unlock block -->
+  <div class="card" style="border-left:3px solid var(--warning)">
+    <small style="color:var(--warning)">🔓 Frage beantworten um Block freizuschalten</small>
+    <h3 style="margin-top:6px">Was beschreibt das Ohmsche Gesetz?</h3>
+    <div style="margin-top:8px">
+      <button class="option-btn">A) P = U × I</button>
+      <button class="option-btn selected">B) U = R × I</button>
+      <button class="option-btn">C) F = m × a</button>
+      <button class="option-btn">D) E = mc²</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MATH-SOLVER GAME ===================== -->
+<div class="screen" id="s-math-solver">
+  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🧮 Mathe-Solver</h2></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span style="font-size:1.8em;font-weight:700;color:var(--warning)">0:23</span>
+    <span style="font-size:.85em">Schritt <strong>2/4</strong></span>
+    <span class="badge badge-success">Score: 340</span>
+  </div>
+  <div class="progress"><div class="progress-fill" style="width:50%;background:var(--accent)"></div></div>
+  <!-- Task -->
+  <div class="card" style="margin-top:12px;border-left:3px solid var(--accent)">
+    <small style="color:var(--accent)">Aufgabe</small>
+    <h3 style="margin-top:4px">Löse: 2x² + 4x - 6 = 0</h3>
+    <small>Finde x₁ und x₂</small>
+  </div>
+  <!-- Already completed steps -->
+  <div class="section-title">Dein Lösungsweg</div>
+  <div class="step-chain">
+    <div class="step-node">
+      <div class="step-dot done"></div>
+      <div><strong style="color:var(--success)">✓ Schritt 1:</strong> <span style="font-size:.9em">ABC-Formel anwenden: x = (-b ± √(b²-4ac)) / 2a</span></div>
+    </div>
+    <div class="step-node">
+      <div class="step-dot active"></div>
+      <div><strong style="color:var(--primary-light)">→ Schritt 2:</strong> <span style="font-size:.9em">Werte einsetzen …</span></div>
+    </div>
+  </div>
+  <!-- Current step: choose the right formula -->
+  <div class="card">
+    <small style="color:var(--text-light)">Wähle den nächsten richtigen Schritt:</small>
+    <div style="margin-top:8px">
+      <button class="option-btn">A) x = (-4 ± √(16+48)) / 4</button>
+      <button class="option-btn selected" style="border-color:var(--primary);background:rgba(108,92,231,.15)">B) x = (-4 ± √(16-4·2·(-6))) / (2·2)</button>
+      <button class="option-btn">C) x = (4 ± √(16-48)) / 4</button>
+      <button class="option-btn">D) x = (-4 ± √(16+24)) / 2</button>
+    </div>
+  </div>
+  <button class="btn btn-primary" style="margin-top:8px">Bestätigen →</button>
+</div>
+
+<!-- ===================== MIX-GAME KAMPAGNE ===================== -->
+<div class="screen" id="s-mix-game">
+  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🎯 Mix-Kampagne</h2></div>
+  <div class="card">
+    <h3>Kampagne starten</h3>
+    <p style="margin-bottom:10px">Spiele mehrere Mini-Games hintereinander. Schwierigkeit steigt, Fehler werden am Ende wiederholt!</p>
+    <label style="font-size:.85em;color:var(--text-light)">Quiz wählen:</label>
+    <select class="input" style="margin-top:4px">
+      <option>Elektrotechnik 1 (25)</option>
+      <option>Mathe Klausur 2 (18)</option>
+      <option>Alle Quizze</option>
+    </select>
+  </div>
+  <div class="section-title">Kampagne-Ablauf</div>
+  <div class="step-chain">
+    <div class="step-node">
+      <div class="step-dot active"></div>
+      <div><strong>Runde 1 — 🧱 Block Blast</strong><br><small style="color:var(--success)">Leichte Fragen · Aufwärmen</small></div>
+    </div>
+    <div class="step-node">
+      <div class="step-dot"></div>
+      <div><strong>Runde 2 — 🏰 Tower Defense</strong><br><small style="color:var(--warning)">Mittlere Fragen · Verteidigung</small></div>
+    </div>
+    <div class="step-node">
+      <div class="step-dot"></div>
+      <div><strong>Runde 3 — ⚔️ Quiz Battle</strong><br><small style="color:var(--danger)">Schwere Fragen · KI-Duell</small></div>
+    </div>
+    <div class="step-node">
+      <div class="step-dot"></div>
+      <div><strong>Finale — 💰 Millionär</strong><br><small style="color:var(--primary-light)">Wiederholung · Falsche Antworten nochmal</small></div>
+    </div>
+  </div>
+  <div class="card" style="text-align:center;margin-top:12px">
+    <div style="font-size:32px;margin-bottom:8px">🏆</div>
+    <small style="color:var(--text-light)">Gesamtscore über alle Runden · Sterne-Bewertung am Ende</small>
+  </div>
+  <button class="btn btn-primary" data-go="block-blast" style="margin-top:8px">Kampagne starten!</button>
+</div>
+
 <!-- ===================== TAB BAR (Gemini: Home, Lernen, Quizze, Games, Settings) ===================== -->
 <div class="tab-bar">
   <button data-go="home" class="active"><span class="tab-icon">🏠</span>Home</button>
@@ -1324,6 +1488,17 @@ document.querySelectorAll('.model-option').forEach(el => {
     el.classList.add('selected');
   });
 });
+
+// More models toggle
+const moreModelsBtn = document.getElementById('more-models-btn');
+if (moreModelsBtn) {
+  moreModelsBtn.addEventListener('click', () => {
+    const list = document.getElementById('more-models');
+    const hidden = list.classList.contains('hidden');
+    list.classList.toggle('hidden');
+    moreModelsBtn.textContent = hidden ? '▲ Weniger anzeigen' : '▼ Weitere Modelle anzeigen';
+  });
+}
 
 // Onboarding
 let obSlide = 0;
