@@ -1,6 +1,6 @@
 import { loadQuizzes, loadProgress } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, getBoxCounts } from "../utils.js";
 
 export async function render(root) {
   const quizzes = await loadQuizzes();
@@ -17,11 +17,7 @@ export async function render(root) {
   } else {
     for (const quiz of quizzes) {
       const n = quiz.questions?.length ?? 0;
-      const counts = {};
-      for (const q of (quiz.questions || [])) {
-        const b = progress[q.id]?.box ?? 1;
-        counts[b] = (counts[b] || 0) + 1;
-      }
+      const counts = getBoxCounts(quiz, progress);
       html += `<div class="quiz-row" data-quiz-id="${quiz.id}">
         <div class="quiz-accent"></div>
         <div class="quiz-info">

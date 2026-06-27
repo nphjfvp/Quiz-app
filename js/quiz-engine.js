@@ -142,6 +142,9 @@ function normMath(expr) {
   if (e.startsWith("$$") && e.endsWith("$$")) e = e.slice(2, -2);
   else if (e.startsWith("$") && e.endsWith("$")) e = e.slice(1, -1);
   e = e.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "(($1)/($2))");
+  // \sqrt{...} VOR dem Brace-Removal zu Math.sqrt(...) konvertieren, sonst
+  // wären die Klammern weg (\sqrt{16} -> Math.sqrt16, ungültig).
+  e = e.replace(/\\sqrt\{([^}]*)\}/g, "Math.sqrt($1)");
   e = e.replace(/[{} ]/g, "").replace(/\\cdot|\\times/g, "*");
   e = e.replace(/\\left|\\right/g, "").replace(/\\sqrt/g, "Math.sqrt");
   e = e.replace(/\\pi/g, String(Math.PI)).replace(/\^/g, "**");
@@ -151,8 +154,17 @@ function normMath(expr) {
 function evalMath(expr) {
   try {
     const c = normMath(expr);
+    // Sicherheits-Whitelist: normMath lowercased alles, sodass nur Ziffern,
+    // Operatoren, Klammern und die Buchstaben {m,a,t,h,s,q,r,p,i} verbleiben.
+    // Bezeichner wie fetch/window sind so nicht bildbar -> keine Code-Injektion.
+    // Längenschutz gegen ressourcenfressende Riesenausdrücke (z. B. 9**9**9...).
+    if (c.length > 200) return null;
     if (!/^[0-9.+\-*/() mathsqrpi]+$/i.test(c)) return null;
-    return Function(`"use strict"; return (${c})`)();
+    // normMath lowercased auch das injizierte "Math.sqrt" zu "math.sqrt"
+    // (undefiniert). Case NACH der Whitelist wiederherstellen, damit sqrt
+    // numerisch ausgewertet wird statt über Stringgleichheit abzufallen.
+    const safe = c.replace(/\bmath\.sqrt\b/g, "Math.sqrt");
+    return Function(`"use strict"; return (${safe});`)();
   } catch { return null; }
 }
 

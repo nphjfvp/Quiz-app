@@ -1,6 +1,6 @@
 import { loadQuizzes, loadProgress, getMaterial } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, getBoxCounts, loadPdfJs } from "../utils.js";
 
 export async function render(root, params) {
   const quizzes = await loadQuizzes();
@@ -9,11 +9,7 @@ export async function render(root, params) {
 
   const [progress, material] = await Promise.all([loadProgress(), getMaterial(params.quizId)]);
   const n = quiz.questions?.length ?? 0;
-  const counts = {};
-  for (const q of (quiz.questions || [])) {
-    const b = progress[q.id]?.box ?? 1;
-    counts[b] = (counts[b] || 0) + 1;
-  }
+  const counts = getBoxCounts(quiz, progress);
 
   // Weak questions (box 1-2)
   const weakQs = quiz.questions.filter(q => (progress[q.id]?.box ?? 1) <= 2);
@@ -124,20 +120,5 @@ export async function render(root, params) {
       st.textContent = "✓ Material verknüpft!";
       setTimeout(() => render(root, params), 1500);
     } catch (err) { st.textContent = "Fehler: " + (err.message || err); }
-  });
-}
-
-async function loadPdfJs() {
-  if (window.pdfjsLib) return window.pdfjsLib;
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    script.onload = () => {
-      const lib = window.pdfjsLib;
-      if (lib) { lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; resolve(lib); }
-      else reject(new Error("pdf.js nicht geladen"));
-    };
-    script.onerror = () => reject(new Error("pdf.js nicht geladen"));
-    document.head.appendChild(script);
   });
 }

@@ -1,6 +1,6 @@
 import { askTutor } from "../ai-service.js";
 import { navigate } from "../router.js";
-import { esc, mathEsc } from "../utils.js";
+import { esc, mathEsc, escAttr } from "../utils.js";
 
 export async function render(root, params = {}) {
   const chatHistory = [];
@@ -15,7 +15,7 @@ export async function render(root, params = {}) {
     const qText = params.question.text || params.question.question || JSON.stringify(params.question);
     html += `<div class="card tutor-context">
       <strong>Frage:</strong> ${esc(qText)}
-      ${questionImage ? `<img src="${esc(questionImage)}" alt="Aufgabenbild">` : ""}
+      ${questionImage ? `<img src="${escAttr(questionImage)}" alt="Aufgabenbild">` : ""}
       ${questionImage ? `<div class="tutor-img-hint">📷 Bild wird automatisch an die KI gesendet</div>` : ""}
     </div>`;
   }

@@ -1,4 +1,5 @@
 import { loadSettings } from "./store.js";
+import { uid } from "./utils.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "nvidia/nemotron-3-super-120b-a12b:free";
@@ -40,10 +41,6 @@ export function getModelContextLimit(modelId) {
   const reserveForPrompt = 2000;
   const availableTokens = ctx - reserveForOutput - reserveForPrompt;
   return Math.floor(availableTokens * 3.5);
-}
-
-function uid() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 async function getConfig(overrides = {}) {

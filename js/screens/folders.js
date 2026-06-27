@@ -1,8 +1,6 @@
 import { loadQuizzes, loadFolders, saveFolders, loadProgress } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
-
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+import { esc, uid } from "../utils.js";
 
 export async function render(root, params = {}) {
   if (params.folderId) {

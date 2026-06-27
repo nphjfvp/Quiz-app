@@ -6,6 +6,7 @@ import { mathEsc } from "../utils.js";
 export async function render(root) {
   const chosen = await pickQuizSource(root, { title: "⚡ Speed-Quiz", subtitle: "Welches Quiz möchtest du üben?" });
   if (!chosen) return;
+  if (!root.isConnected) return;
   const playable = shuffle(buildPlayable(chosen));
   if (!playable.length) {
     root.innerHTML = `<div style="padding:30px 20px;text-align:center"><h3>Keine spielbaren Fragen</h3><p>Dieses Quiz enthält keine passenden Fragen.</p><button class="btn btn-primary" id="b">← Zurück</button></div>`;
@@ -185,4 +186,8 @@ export async function render(root) {
 
   startTimer();
   nextQuestion();
+
+  // Cleanup bei Screen-Wechsel: Timer stoppen, sonst läuft das Interval auf
+  // einem entfernten root weiter und ruft endGame auf totem DOM.
+  return () => clearInterval(timer);
 }

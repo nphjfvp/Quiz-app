@@ -56,11 +56,18 @@ async function ensureToken() {
   return _account.idToken;
 }
 
+// Liest eine Fehlermeldung aus einer Firestore-Antwort (best-effort).
+async function safeErr(r) {
+  try { const e = await r.json(); return e.error?.message || r.statusText || `HTTP ${r.status}`; }
+  catch { return r.statusText || `HTTP ${r.status}`; }
+}
+
 async function fsGet(path) {
   const token = await ensureToken();
   if (!token) return null;
   const r = await fetch(`${FS_BASE}/${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!r.ok) return null;
+  if (r.status === 404) return null; // noch keine Daten vorhanden – kein Fehler
+  if (!r.ok) throw new Error(`Sync-Lesen fehlgeschlagen: ${await safeErr(r)}`);
   const doc = await r.json();
   const payload = doc.fields?.payload?.stringValue;
   return payload ? JSON.parse(payload) : null;
@@ -68,11 +75,18 @@ async function fsGet(path) {
 
 async function fsPut(path, data) {
   const token = await ensureToken();
-  if (!token) return;
-  await fetch(`${FS_BASE}/${path}`, {
+  if (!token) throw new Error("Nicht eingeloggt.");
+  // Firestore-Dokumente sind auf ~1 MB begrenzt. Zu große Nutzlasten wurden
+  // zuvor still verworfen (fsPut prüfte r.ok gar nicht) -> jetzt klarer Fehler.
+  const payload = JSON.stringify(data);
+  if (payload.length > 900_000) {
+    throw new Error(`Daten zu groß für Cloud-Sync (${Math.round(payload.length / 1024)} KB). Bitte Quiz-Sammlung aufteilen.`);
+  }
+  const r = await fetch(`${FS_BASE}/${path}`, {
     method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ fields: { payload: { stringValue: JSON.stringify(data) } } }),
+    body: JSON.stringify({ fields: { payload: { stringValue: payload } } }),
   });
+  if (!r.ok) throw new Error(`Sync-Schreiben fehlgeschlagen: ${await safeErr(r)}`);
 }
 
 function syncPath(name) {

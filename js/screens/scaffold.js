@@ -3,7 +3,7 @@
 // (multi-step calc_chain) → practice with 4 graduated stages.
 
 import { navigate } from "../router.js";
-import { esc, mathEsc } from "../utils.js";
+import { esc, mathEsc, loadPdfJs } from "../utils.js";
 import { loadMathTasks, saveMathTasks, logAnswer,
          loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, loadSettings } from "../store.js";
 import { extractMathTasks, solveMathTasks, generateSimilarTasks } from "../ai-service.js";
@@ -39,8 +39,12 @@ function evalExpr(raw) {
   let s = normNum(raw).replace(/\^/g, "**").replace(/wrzl|√/g, "sqrt");
   s = s.replace(/(\d)([a-zA-Z(])/g, "$1*$2");
   if (s.includes("=")) s = s.split("=").pop();
-  // allow only safe characters + a few functions
+  // Sicherheits-Whitelist: nur Ziffern, Operatoren, Klammern und Buchstaben.
+  // Da keine Anführungszeichen/Backticks/Eckigen Klammern/Unterstriche erlaubt
+  // sind, lassen sich keine String-Literale oder Globals (fetch/window) bilden
+  // -> keine Code-Injektion über den nachfolgenden Function()-Aufruf.
   if (!/^[0-9.+\-*/() a-z]*$/i.test(s)) return null;
+  if (s.length > 200) return null; // Längenschutz gegen Riesenausdrücke
   s = s.replace(/sqrt/g, "Math.sqrt").replace(/\bpi\b/g, "Math.PI").replace(/\babs\b/g, "Math.abs");
   try {
     // eslint-disable-next-line no-new-func
@@ -163,21 +167,6 @@ export async function render(root, params = {}) {
 }
 
 // ── Import view ──
-async function loadPdfJs() {
-  if (window.pdfjsLib) return window.pdfjsLib;
-  return new Promise((resolve, reject) => {
-    const sc = document.createElement("script");
-    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    sc.onload = () => {
-      const lib = window.pdfjsLib;
-      if (lib) { lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; resolve(lib); }
-      else reject(new Error("pdf.js nicht geladen"));
-    };
-    sc.onerror = () => reject(new Error("pdf.js nicht geladen"));
-    document.head.appendChild(sc);
-  });
-}
-
 function showImport(root) {
   root.innerHTML = `
     <div class="topbar">

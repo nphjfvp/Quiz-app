@@ -15,6 +15,7 @@ const SAFE_LEVELS = [4, 9];
 export async function render(root) {
   const chosen = await pickQuizSource(root, { title: "💰 Wer wird Millionär", subtitle: "Welches Quiz möchtest du üben?" });
   if (!chosen) return;
+  if (!root.isConnected) return;
   let playable = buildPlayable(chosen).filter(q => q.kind === "choice");
   if (playable.length < 5) {
     root.innerHTML = `<div style="padding:30px 20px;text-align:center"><h3>Zu wenige Single/Multiple-Choice Fragen</h3><p>Mindestens 5 nötig.</p><button class="btn btn-primary" id="b">← Zurück</button></div>`;
@@ -32,6 +33,7 @@ export async function render(root) {
   let jokers = { fifty: true, audience: true, skip: true };
   let safeScore = 0;
   const log = [];
+  let pendingTimer = null;
 
   function renderGame() {
     if (level >= 15) { win(); return; }
@@ -127,7 +129,8 @@ export async function render(root) {
         }
         log.push({ q, correct, userAnswer: opts[idx].text });
 
-        setTimeout(() => {
+        pendingTimer = setTimeout(() => {
+          if (!root.isConnected) return;
           if (correct) {
             if (SAFE_LEVELS.includes(level)) safeScore = PRIZES[level].pts;
             level++;
@@ -175,4 +178,8 @@ export async function render(root) {
   }
 
   renderGame();
+
+  // Cleanup bei Screen-Wechsel: Antwort-Timeout stoppen, sonst feuert er
+  // renderGame()/gameOver() auf einem entfernten root.
+  return () => clearTimeout(pendingTimer);
 }

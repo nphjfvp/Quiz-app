@@ -1,11 +1,12 @@
 import { loadQuizzes, saveQuizzes } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, uid, CHIP_COLORS } from "../utils.js";
 import { openBlackoutEditor } from "../blackout.js";
 
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
+// Registry für document-Listener (Diagram-Label-Drag im Editor). renderChips
+// wird pro Neuzeichnen mehrfach aufgerufen; ohne Entfernung lecken die
+// document-Listener mit jedem Redraw.
+let _docCleanups = [];
 
 function emptyQuestion(type = "single_choice") {
   const q = { id: uid(), question_text: "", question_type: type, points: 1 };
@@ -53,6 +54,9 @@ export async function render(root, params = {}) {
   editingIndex = -1;
 
   renderMain(root, quizzes);
+
+  // Beim Verlassen des Editors alle offenen document-Listener entfernen.
+  return () => { _docCleanups.forEach(fn => fn()); _docCleanups = []; };
 }
 
 function renderMain(root, quizzes) {
@@ -494,8 +498,6 @@ async function saveQuiz(quizzes) {
   navigate("my-quizzes");
 }
 
-const CHIP_COLORS = ["#ef4444","#f59e0b","#22c55e","#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f97316"];
-
 function initDiagramPlacement(root, q, quizzes) {
   const canvas = root.querySelector("#placement-canvas");
   const chipsEl = root.querySelector("#placement-chips");
@@ -569,6 +571,8 @@ function initDiagramPlacement(root, q, quizzes) {
 
   function renderChips() {
     chipsEl.innerHTML = "";
+    // document-Listener des vorherigen Redraws entfernen (sonst Leck pro Neuzeichnen).
+    _docCleanups.forEach(fn => fn()); _docCleanups = [];
     labels.forEach((l, i) => {
       const color = CHIP_COLORS[i % CHIP_COLORS.length];
       const name = l.label || `Label ${i + 1}`;
@@ -593,8 +597,11 @@ function initDiagramPlacement(root, q, quizzes) {
         // Mouse drag
         let mouseDown = false;
         chip.addEventListener("mousedown", e => { mouseDown = true; dragIdx = i; createGhost(name, color, e.clientX, e.clientY); e.preventDefault(); });
-        document.addEventListener("mousemove", e => { if (mouseDown) moveGhost(e.clientX, e.clientY); });
-        document.addEventListener("mouseup", e => { if (mouseDown) { mouseDown = false; dropAt(e.clientX, e.clientY); } });
+        const onMove = e => { if (mouseDown) moveGhost(e.clientX, e.clientY); };
+        const onUp = e => { if (mouseDown) { mouseDown = false; dropAt(e.clientX, e.clientY); } };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+        _docCleanups.push(() => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); });
       }
       chipsEl.appendChild(chip);
     });

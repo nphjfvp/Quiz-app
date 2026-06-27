@@ -1,9 +1,14 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
 import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, addCoins } from "../store.js";
 import { navigate } from "../router.js";
-import { esc, mathEsc } from "../utils.js";
+import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
+
+// Registry für document-Listener (Diagram-Label-Drag). Werden pro Frage neu
+// angelegt und müssen beim Weiter-/Screen-Wechsel entfernt werden, da sie auf
+// `document` liegen und sonst über Fragen hinweg lecken.
+let _docCleanups = [];
 
 export async function render(root, params) {
   const { quiz, mode } = params;
@@ -13,10 +18,16 @@ export async function render(root, params) {
 
   const session = new QuizSession(questions, mode || "single");
   showQuestion(root, quiz, session);
+
+  // Beim Verlassen des Screens alle offenen document-Listener entfernen.
+  return () => { _docCleanups.forEach(fn => fn()); _docCleanups = []; };
 }
 
 function showQuestion(root, quiz, session) {
   if (session.finished) { navigate("results", { session, quiz }); return; }
+
+  // document-Listener der vorherigen Diagram-Frage entfernen.
+  _docCleanups.forEach(fn => fn()); _docCleanups = [];
 
   const q = session.current;
   const total = session.questions.length;
@@ -38,7 +49,7 @@ function showQuestion(root, quiz, session) {
       ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${mathEsc(q.question_text || q.text)}</div>`}
       ${q.question_type === "multiple_choice" ? `<div class="mc-badge">☑️ Mehrere Antworten richtig</div>` : ""}
       ${q.question_type === "single_choice" ? `<div class="mc-badge sc">🔘 Genau eine Antwort richtig</div>` : ""}
-      ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${q.image || q.image_path}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
+      ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${escAttr(q.image || q.image_path)}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
     </div>
     <div class="card" id="answer-area">`;
 
@@ -385,8 +396,6 @@ function shuffle(arr) {
   return arr;
 }
 
-const CHIP_COLORS = ["#ef4444","#f59e0b","#22c55e","#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f97316"];
-
 function setupDragDrop(root, q, assignments) {
   const sources = shuffle([...q.drag_drop_pairs.map(p => p.source)]);
   const targets = q.drag_drop_pairs.map(p => p.target);
@@ -669,6 +678,10 @@ function setupDiagramLabel(root, q, placements) {
     };
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
+    _docCleanups.push(() => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    });
   }
 
   const imgSrc = q.diagram_image_path || q.diagram_image;

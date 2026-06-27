@@ -159,13 +159,13 @@ export async function render(root) {
       const st = root.querySelector("#sync-status");
       st.textContent = "Lade hoch…";
       try { await pushAll(); st.textContent = "✓ Hochgeladen!"; }
-      catch { st.textContent = "Fehler beim Hochladen."; }
+      catch (e) { st.textContent = "Fehler beim Hochladen: " + (e?.message || ""); }
     });
     root.querySelector("#sync-pull")?.addEventListener("click", async () => {
       const st = root.querySelector("#sync-status");
       st.textContent = "Lade herunter…";
       try { const ok = await pullAll(); st.textContent = ok ? "✓ Heruntergeladen!" : "Keine Cloud-Daten gefunden."; }
-      catch { st.textContent = "Fehler beim Herunterladen."; }
+      catch (e) { st.textContent = "Fehler beim Herunterladen: " + (e?.message || ""); }
     });
     root.querySelector("#logout-btn")?.addEventListener("click", async () => {
       setAccount(null);
