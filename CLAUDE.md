@@ -149,10 +149,23 @@ Karteikarten, FSRS, Pomodoro, Deep-Learn/Sokrates, PDF→Quiz, Cloud-Sync,
 **Modell-Kostensperre** + KI-Feature-Toggles, **KI-Memory** (auto-Schwächen),
 **Quick-Actions-Editor**, **HTML/JSON-Export**, **Lernphasen + Themen ausblenden**,
 **Hybrid-PDF** (Text+Bildseiten), **untere Tab-Bar**, **gestufte Hinweise**,
-**KI-Zusammenfassung**, **„Einfacher erklären"**, **LaTeX-Toggle**, KaTeX self-hosted.
+**KI-Zusammenfassung**, **„Einfacher erklären"**, **LaTeX-Toggle**, KaTeX self-hosted,
+**Fragetypen-Auswahl** (ausschließen vor Generierung, alle Pfade: Text/Bild/PDF),
+**Text-Chunking** (große Texte abschnittsweise statt abschneiden, Granularität wählbar),
+robustes **parseJSON** (repariert ungültige LaTeX-Escapes wie `\(`/`\sqrt`).
+
+### KI-Generierung – Optionen (ai-generate.js + ai-service.js)
+- `generateQuiz/generateQuizFromImage/generateQuizFromImages` akzeptieren `config.allowedTypes`
+  (Fragetypen-Whitelist; Prompt-Constraint + Post-Filter-Fallback).
+- `generateQuiz` unterstützt `config.chunkSize` (Zeichen) + `config.onProgress(i,n)`:
+  Bei großem Text wird via `chunkText()` abschnittsweise generiert, mit Rolling-Context
+  (bereits abgedeckte Themen) gegen Dopplungen, danach Dedupe über Fragetext.
+  UI: Chunking-Selektor Auto/Aus/Grob/Mittel/Fein (Auto chunkt ab ~10k Zeichen).
+- `parseJSON` probiert mehrere Reparatur-Varianten (Code-Fences strippen, äußersten
+  JSON-Block extrahieren, ungültige Backslash-Escapes verdoppeln) bevor es wirft.
 
 ## Offen / noch NICHT umgesetzt (echte neue Ideen)
 - **i18n / Mehrsprachigkeit** (PWA nur Deutsch; Desktop hat DE/EN via `i18n.py`).
-- **Chunking mit Rolling-Summary** für sehr große PDFs (über das Kontextfenster hinaus) –
-  aktuell wird Text in EINEM Call gesendet; Desktop (`src/ai_service.py`) hat Sliding-Window.
+- **Echtes Rolling-Summary** für Chunking (statt nur Themen-Liste als Kontext) –
+  der Bild-/Hybrid-PDF-Pfad chunkt zudem noch nicht (nur der Text-Pfad).
 - Mockup-Spiele noch nicht in echter PWA: **Block Blast, Math-Solver, Mix-Kampagne**.

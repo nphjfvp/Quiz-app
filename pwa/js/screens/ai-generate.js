@@ -129,6 +129,18 @@ export async function render(root, params = {}) {
         </div>
 
         <div class="input-group">
+          <label>Verarbeitung großer Texte (Chunking)</label>
+          <div class="detail-presets" id="chunk-presets">
+            <button type="button" class="detail-preset active" data-chunk="auto">⚙️ Auto</button>
+            <button type="button" class="detail-preset" data-chunk="off">⛔ Aus</button>
+            <button type="button" class="detail-preset" data-chunk="coarse">🧱 Grob</button>
+            <button type="button" class="detail-preset" data-chunk="medium">⚖️ Mittel</button>
+            <button type="button" class="detail-preset" data-chunk="fine">🔬 Fein</button>
+          </div>
+          <small class="file-hint" id="chunk-hint">Auto: Große Texte werden automatisch in Abschnitte zerlegt, damit nichts abgeschnitten wird. Feiner = kleinere Abschnitte, gründlicher, aber mehr KI-Aufrufe.</small>
+        </div>
+
+        <div class="input-group">
           <label>Fragetypen (welche erlaubt sind)</label>
           <div id="qtype-select" class="qtype-select">
             ${Q_TYPES.map(t => `<label class="qtype-chip">
@@ -212,6 +224,33 @@ export async function render(root, params = {}) {
   function getAllowedTypes() {
     const ids = [...root.querySelectorAll(".qtype-cb:checked")].map(cb => cb.value);
     return ids.length ? ids : undefined;
+  }
+
+  // --- Chunking-Granularität ---
+  let chunkMode = "auto";
+  const CHUNK_SIZES = { coarse: 12000, medium: 7000, fine: 3500 };
+  const CHUNK_HINTS = {
+    auto: "Auto: Große Texte werden automatisch in Abschnitte zerlegt, damit nichts abgeschnitten wird.",
+    off: "Aus: Text wird in EINEM Aufruf gesendet und ggf. auf das Kontextfenster gekürzt (schnell, günstig).",
+    coarse: "Grob: ~12.000 Zeichen pro Abschnitt — wenige Aufrufe, schnell.",
+    medium: "Mittel: ~7.000 Zeichen pro Abschnitt — ausgewogen.",
+    fine: "Fein: ~3.500 Zeichen pro Abschnitt — gründlichste Abdeckung, aber die meisten KI-Aufrufe (höhere Kosten).",
+  };
+  const chunkHintEl = root.querySelector("#chunk-hint");
+  root.querySelectorAll("#chunk-presets .detail-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("#chunk-presets .detail-preset").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      chunkMode = btn.dataset.chunk;
+      if (chunkHintEl) chunkHintEl.textContent = CHUNK_HINTS[chunkMode];
+    });
+  });
+
+  // Liefert die Chunk-Größe in Zeichen (0 = kein Chunking).
+  function getChunkSize(textLen) {
+    if (chunkMode === "off") return 0;
+    if (chunkMode === "auto") return textLen > 10000 ? 8000 : 0;
+    return CHUNK_SIZES[chunkMode] || 0;
   }
 
   const fileProgress = root.querySelector("#file-progress");
@@ -507,17 +546,23 @@ export async function render(root, params = {}) {
     const quizName = nameInput.value.trim() || (numQuestions > 0 ? `KI-Quiz (${numQuestions} Fragen)` : "KI-Quiz");
 
     let inputText = text;
-    if (inputText.length > charLimit) {
-      if (!confirm(`Der Text ist ${(inputText.length - charLimit).toLocaleString("de")} Zeichen zu lang für das gewählte Modell. Soll der Text gekürzt werden?`)) return;
+    const chunkSize = getChunkSize(inputText.length);
+    // Ohne Chunking wird der Text auf das Kontextfenster gekürzt. Mit Chunking
+    // bleibt der Volltext erhalten und wird abschnittsweise verarbeitet.
+    if (!chunkSize && inputText.length > charLimit) {
+      if (!confirm(`Der Text ist ${(inputText.length - charLimit).toLocaleString("de")} Zeichen zu lang für das gewählte Modell. Soll der Text gekürzt werden? (Tipp: „Chunking" oben aktivieren, um den ganzen Text zu verarbeiten.)`)) return;
       inputText = inputText.slice(0, charLimit);
     }
 
     hideError();
     genBtn.disabled = true;
-    genBtn.textContent = "⏳ Generiere…";
+    genBtn.textContent = chunkSize ? "⏳ Verarbeite Abschnitte…" : "⏳ Generiere…";
 
     try {
-      const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes });
+      const questions = await generateQuiz(inputText, numQuestions, "de", {
+        model: currentModel, detailLevel, allowedTypes, chunkSize,
+        onProgress: (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; },
+      });
       showReview(root, questions, quizName, currentModel, inputText);
     } catch (err) {
       showError(err.message || "Beim Generieren ist ein Fehler aufgetreten.");
