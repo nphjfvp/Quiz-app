@@ -3,6 +3,7 @@ import { navigate } from "../router.js";
 import { esc, mathEsc } from "../utils.js";
 import { buildPlayable, checkText, checkTextSmart, checkMulti, checkMultiText, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
 import { getGameSkin } from "../shop-catalog.js";
+import { lerp, addFloater, roundRectFill, roundRectClip, roundRectStroke } from "../canvas-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 420;
 const TOWER_Y = CANVAS_H - 36;     // player fortress (bottom)
@@ -392,12 +393,12 @@ function onAnswer(state, correct, root) {
       attackCd: 0, diff,
     });
     state.score += 10 * diff;
-    addFloater(state, CANVAS_W / 2, TOWER_Y - 30, `+Held (Lvl ${diff})`, "#22c55e");
+    addFloater(state, CANVAS_W / 2, TOWER_Y - 30, `+Held (Lvl ${diff})`, "#22c55e", 45);
   }
 
   if (state.mode === "pvc") {
     // In duel mode a wrong answer simply means no new hero this round.
-    if (!correct) addFloater(state, CANVAS_W / 2, TOWER_Y - 30, "✗ Kein Held", "#ef4444");
+    if (!correct) addFloater(state, CANVAS_W / 2, TOWER_Y - 30, "✗ Kein Held", "#ef4444", 45);
     return;
   }
 
@@ -408,7 +409,7 @@ function onAnswer(state, correct, root) {
       enemy.armor = Math.min(0.7, enemy.armor + 0.06);
       enemy.size += 3;
       enemy.maxHp += 8; enemy.hp += 8;
-      addFloater(state, enemy.x, enemy.y - enemy.size - 10, "Gegner verstärkt!", "#ef4444");
+      addFloater(state, enemy.x, enemy.y - enemy.size - 10, "Gegner verstärkt!", "#ef4444", 45);
     }
   } else if (enemy) {
     enemy.level++;
@@ -417,7 +418,7 @@ function onAnswer(state, correct, root) {
     enemy.dmg += 4;
     enemy.maxHp += 10; enemy.hp = Math.min(enemy.maxHp, enemy.hp + 10);
     enemy.hit = 0;
-    addFloater(state, enemy.x, enemy.y - enemy.size - 10, `⬆ Lvl ${enemy.level}`, "#ef4444");
+    addFloater(state, enemy.x, enemy.y - enemy.size - 10, `⬆ Lvl ${enemy.level}`, "#ef4444", 45);
     burst(state, enemy.x, enemy.y, "#ef4444", 10);
     if (state.heroes.length) {
       state.heroes.sort((a, b) => (a.y - b.y));
@@ -427,7 +428,7 @@ function onAnswer(state, correct, root) {
       enemy.dmg += 2;
     } else {
       state.towerHP -= enemy.dmg;
-      addFloater(state, CANVAS_W / 2, TOWER_Y - 20, `-${enemy.dmg}`, "#ef4444");
+      addFloater(state, CANVAS_W / 2, TOWER_Y - 20, `-${enemy.dmg}`, "#ef4444", 45);
     }
   }
 }
@@ -453,7 +454,7 @@ function updateClassic(state, dt) {
       e.y += e.speed * dt * 0.1;
       if (e.y >= TOWER_Y - e.size) {
         state.towerHP -= e.dmg;
-        addFloater(state, CANVAS_W / 2, TOWER_Y - 20, `-${e.dmg}`, "#ef4444");
+        addFloater(state, CANVAS_W / 2, TOWER_Y - 20, `-${e.dmg}`, "#ef4444", 45);
         burst(state, CANVAS_W / 2, TOWER_Y, "#ef4444", 8);
         e.y = ENEMY_START_Y;
       }
@@ -463,7 +464,7 @@ function updateClassic(state, dt) {
       state.score += 25 * e.level;
       state.coins += 3 * e.level;
       burst(state, e.x, e.y, "#fbbf24", 14);
-      addFloater(state, e.x, e.y, `Besiegt! +${3 * e.level}🪙`, "#fbbf24");
+      addFloater(state, e.x, e.y, `Besiegt! +${3 * e.level}🪙`, "#fbbf24", 45);
       state.enemyLevel = e.level + 1;
       spawnEnemy(state);
     }
@@ -475,7 +476,7 @@ function updateClassic(state, dt) {
         h.attackCd = 600;
         const dmg = h.dmg * (1 - e.armor);
         e.hp -= dmg; e.hit = 6;
-        addFloater(state, e.x + (Math.random() - 0.5) * 12, e.y - e.size, `-${Math.round(dmg)}`, "#22d3ee");
+        addFloater(state, e.x + (Math.random(, 45) - 0.5) * 12, e.y - e.size, `-${Math.round(dmg)}`, "#22d3ee");
       }
     } else {
       h.y -= h.speed * dt * 0.1 + h.speed;
@@ -499,14 +500,14 @@ function updatePvc(state, dt) {
       if (h.attackCd <= 0) {
         h.attackCd = 600;
         foe.hp -= h.dmg; foe.hit = 6;
-        addFloater(state, foe.x, foe.y - foe.size, `-${Math.round(h.dmg)}`, "#22d3ee");
+        addFloater(state, foe.x, foe.y - foe.size, `-${Math.round(h.dmg, 45)}`, "#22d3ee");
       }
     } else {
       h.y -= h.speed * dt * 0.1 + h.speed * 0.5;
       if (foe) h.x = lerp(h.x, foe.x, 0.03);
       if (h.y <= CPU_TOWER_Y + 12) {
         state.cpuHP -= 12;
-        addFloater(state, h.x, CPU_TOWER_Y + 20, "-12", "#22d3ee");
+        addFloater(state, h.x, CPU_TOWER_Y + 20, "-12", "#22d3ee", 45);
         burst(state, h.x, CPU_TOWER_Y + 14, "#22d3ee", 8);
         h.hp = 0;
       }
@@ -519,14 +520,14 @@ function updatePvc(state, dt) {
       if (f.attackCd <= 0) {
         f.attackCd = 650;
         hero.hp -= f.dmg; hero.hit = 6;
-        addFloater(state, hero.x, hero.y - hero.size, `-${Math.round(f.dmg)}`, "#ef4444");
+        addFloater(state, hero.x, hero.y - hero.size, `-${Math.round(f.dmg, 45)}`, "#ef4444");
       }
     } else {
       f.y += f.speed * dt * 0.1 + f.speed * 0.5;
       if (hero) f.x = lerp(f.x, hero.x, 0.03);
       if (f.y >= TOWER_Y - 12) {
         state.towerHP -= f.dmg;
-        addFloater(state, f.x, TOWER_Y - 18, `-${f.dmg}`, "#ef4444");
+        addFloater(state, f.x, TOWER_Y - 18, `-${f.dmg}`, "#ef4444", 45);
         burst(state, f.x, TOWER_Y - 6, "#ef4444", 8);
         f.hp = 0;
       }
@@ -817,24 +818,4 @@ function updateHUD(state, root) {
 function burst(state, x, y, color, n) {
   for (let i = 0; i < n; i++)
     state.particles.push({ x, y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4 - 1, life: 25, color, size: 3 + Math.random() * 2 });
-}
-function addFloater(state, x, y, text, color) { state.floaters.push({ x, y, text, color, life: 45 }); }
-function lerp(a, b, t) { return a + (b - a) * t; }
-function roundRectFill(ctx, x, y, w, h, r, fill) {
-  ctx.beginPath(); ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
-}
-function roundRectClip(ctx, x, y, w, h, r) {
-  ctx.beginPath(); ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath(); ctx.clip();
-}
-function roundRectStroke(ctx, x, y, w, h, r) {
-  ctx.beginPath(); ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath(); ctx.stroke();
 }
