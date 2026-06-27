@@ -1,4 +1,4 @@
-import { loadQuizzes, loadProgress, loadDailyState, saveDailyState, loadFsrs } from "../store.js";
+import { loadQuizzes, loadProgress, loadDailyState, saveDailyState, loadFsrs, loadSettings, saveSettings } from "../store.js";
 import { navigate } from "../router.js";
 import { daysUntilDue, retrievability } from "../fsrs.js";
 import { esc } from "../utils.js";
@@ -6,8 +6,23 @@ import { esc } from "../utils.js";
 export async function render(root) {
   const quizzes = await loadQuizzes();
   const progress = await loadProgress();
+  const settings = await loadSettings();
   const today = new Date().toISOString().slice(0, 10);
   let daily = await loadDailyState();
+
+  const learningPhase = settings.learning_phase || "deepen";
+  const disabledTopics = new Set(settings.disabled_topics || []);
+
+  // Collect all topics
+  const allTopics = [];
+  const topicSet = new Set();
+  for (const q of quizzes.flatMap(q => q.questions || [])) {
+    if (q.topic && !topicSet.has(q.topic)) {
+      topicSet.add(q.topic);
+      allTopics.push({ name: q.topic, enabled: !disabledTopics.has(q.topic) });
+    }
+  }
+  allTopics.sort((a, b) => a.name.localeCompare(b.name));
 
   if (!quizzes.length) {
     root.innerHTML = `<button class="back-btn" id="back-btn">‹ Zurück</button>
@@ -19,7 +34,7 @@ export async function render(root) {
   // Create daily plan if needed
   if (!daily || daily.date !== today) {
     const fsrs = await loadFsrs();
-    daily = createDailyPlan(quizzes, progress, today, fsrs);
+    daily = createDailyPlan(quizzes, progress, today, fsrs, disabledTopics);
     await saveDailyState(daily);
   }
 
@@ -42,6 +57,37 @@ export async function render(root) {
         <span class="progress-label">${completed.size}/${totalPlan}</span>
       </div>
     </div>`;
+
+  // ── Lernphase ──
+  const phaseHints = {
+    basics: "Fokus auf Grundlagen und neue Inhalte.",
+    deepen: "Ausgewogene Mischung aus Wiederholung und Vertiefung.",
+    exam: "Prüfungsmodus: mehr Fragen, höherer Anteil Wiederholung.",
+  };
+  html += `<div class="card" style="margin-top:8px">
+    <div style="font-size:0.85rem;font-weight:600;margin-bottom:4px">Lernphase</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">${["basics","deepen","exam"].map(p => {
+      const labels = { basics: "📗 Grundlagen", deepen: "📘 Vertiefen", exam: "📕 Prüfung" };
+      const active = learningPhase === p;
+      return `<label style="display:flex;align-items:center;gap:4px;font-size:0.85rem;cursor:pointer">
+        <input type="radio" name="learning-phase" value="${p}" ${active ? "checked" : ""}> ${labels[p]}
+      </label>`;
+    }).join("")}</div>
+    <div id="phase-hint" style="font-size:0.75rem;color:var(--text-light);margin-top:4px">${phaseHints[learningPhase]}</div>
+  </div>`;
+
+  // ── Topic toggles ──
+  if (allTopics.length > 0) {
+    html += `<div class="card" style="margin-top:8px">
+      <div style="font-size:0.85rem;font-weight:600;margin-bottom:4px">Themen</div>
+      <div style="font-size:0.75rem;color:var(--text-light);margin-bottom:6px">Deaktiviere Themen, die du aktuell nicht lernen möchtest.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">${allTopics.map(t =>
+        `<label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;cursor:pointer">
+          <input type="checkbox" class="topic-toggle" data-topic="${esc(t.name)}" ${t.enabled ? "checked" : ""}> ${esc(t.name)}
+        </label>`
+      ).join("")}</div>
+    </div>`;
+  }
 
   if (remaining.length > 0) {
     html += `<button class="btn btn-primary btn-lg btn-block" id="start-btn">
@@ -105,6 +151,41 @@ export async function render(root) {
 
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
 
+  // Lernphase radios
+  root.querySelectorAll("input[name='learning-phase']").forEach(r => {
+    r.addEventListener("change", async () => {
+      if (!r.checked) return;
+      const s = await loadSettings();
+      s.learning_phase = r.value;
+      await saveSettings(s);
+      // Refresh to rebuild plan with new phase
+      const fsrs = await loadFsrs();
+      const disabled = new Set(s.disabled_topics || []);
+      daily = createDailyPlan(quizzes, progress, today, fsrs, disabled);
+      await saveDailyState(daily);
+      const hintEl = root.querySelector("#phase-hint");
+      if (hintEl) hintEl.textContent = phaseHints[r.value];
+      render(root);
+    });
+  });
+
+  // Topic checkboxes
+  root.querySelectorAll(".topic-toggle").forEach(cb => {
+    cb.addEventListener("change", async () => {
+      const s = await loadSettings();
+      const disabled = new Set(s.disabled_topics || []);
+      if (cb.checked) disabled.delete(cb.dataset.topic);
+      else disabled.add(cb.dataset.topic);
+      s.disabled_topics = [...disabled];
+      await saveSettings(s);
+      // Rebuild plan with new topic filter
+      const fsrs = await loadFsrs();
+      daily = createDailyPlan(quizzes, progress, today, fsrs, disabled);
+      await saveDailyState(daily);
+      render(root);
+    });
+  });
+
   // Deep learn topic buttons
   root.querySelectorAll(".dl-topic-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -126,8 +207,13 @@ export async function render(root) {
   });
 }
 
-function createDailyPlan(quizzes, progress, today, fsrs = {}) {
-  const allQs = quizzes.flatMap(q => q.questions || []);
+function createDailyPlan(quizzes, progress, today, fsrs = {}, disabledTopics = new Set()) {
+  let allQs = quizzes.flatMap(q => q.questions || []);
+
+  // Filter out disabled topics
+  if (disabledTopics.size > 0) {
+    allQs = allQs.filter(q => !q.topic || !disabledTopics.has(q.topic));
+  }
 
   // FSRS-Priorisierung: neue/überfällige Karten zuerst, dann nach geringer Recall-Wahrscheinlichkeit.
   const scored = allQs.map(q => {
