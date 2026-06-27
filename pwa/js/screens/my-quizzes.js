@@ -35,8 +35,6 @@ export async function render(root) {
     }
   }
 
-  root.innerHTML = html;
-
   // Learning tools – accessible from the Lernen tab
   html += `<div class="section-title">Lern-Werkzeuge</div>`;
   html += `<div class="grid-4">
@@ -44,7 +42,7 @@ export async function render(root) {
     <div class="grid-card mini-card" data-nav="editor"><div class="icon">✏️</div><div class="title">Editor</div></div>
     <div class="grid-card mini-card" data-nav="study"><div class="icon">🃏</div><div class="title">Karteikarten</div></div>
     <div class="grid-card mini-card" data-nav="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>
-    <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner</div></div>
+    <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner / Klausuren</div></div>
     <div class="grid-card mini-card" data-nav="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div></div>
     <div class="grid-card mini-card" data-nav="marked"><div class="icon">⭐</div><div class="title">Markiert</div></div>
     <div class="grid-card mini-card" data-nav="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
@@ -52,6 +50,8 @@ export async function render(root) {
     <div class="grid-card mini-card" data-nav="socratic"><div class="icon">🏛️</div><div class="title">Sokrates</div></div>
     <div class="grid-card mini-card" data-nav="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
   </div>`;
+
+  root.innerHTML = html;
 
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
   root.querySelector("#new-quiz-btn").addEventListener("click", () => navigate("editor"));
