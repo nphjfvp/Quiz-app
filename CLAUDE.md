@@ -50,7 +50,10 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - **my-quizzes / quiz-modes / quiz / results** – Quiz-Liste, Modus-Wahl, Spielen, Auswertung.
   - **results** hat bereits **KI-Erklärung** + **KI-Tutor pro falscher Frage**, klickbare Detail-Ansicht.
 - **editor** – manueller Quiz-Editor (alle Fragetypen) inkl. KI-Bearbeitung einzelner Fragen.
-- **ai-generate** – Quiz aus Text / Bild / **PDF-Seiten (Vision)** generieren, Detailgrad wählbar.
+- **ai-generate** – Quiz aus Text / Bild / **PDF** generieren, Detailgrad wählbar.
+  PDF-Modus 3-stufig: **Nur Text** (günstig), **Hybrid** (Volltext + nur Seiten mit
+  wenig Text/Grafik als Bild – pro Seite erkannt via `VISUAL_PAGE_MIN_CHARS`),
+  **Alle als Bild** (Vision). Auto-Empfehlung beim Laden je nach Textanteil.
 - **daily** – täglicher Lernplan, fällige Fragen, falsche zum Wiederholen, Deep-Learn-Themenvorschläge.
 - **stats** – Summary, **13-Wochen-Heatmap**, Leitner-Box-Chart, letzte 14 Tage. *(Heatmap existiert!)*
 - **sr-dashboard** – Spaced-Repetition-Übersicht, Mastery pro Quiz.
