@@ -1,144 +1,59 @@
 <!DOCTYPE html>
-<html lang="de" data-theme="dark">
+<html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lerntrainer – Full App Mockup (Enhanced)</title>
+<title>Lerntrainer – Full App Mockup (Merged)</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <style>
-/* ============================================================
-   DESIGN SYSTEM — synced with app.css tokens
-   Light (green #1cb487 / 3D buttons) / Dark (cyan #22d3ee / glow)
-   ============================================================ */
-
-/* ── LIGHT (default) ── */
-:root, :root[data-theme="light"] {
-  --primary: #1cb487; --primary-dark: #148a68; --primary-light: #7fd9c0;
-  --primary-subtle: #e7f7f1; --accent: #ffd43b;
-  --success: #22c55e; --success-light: #dcfce7;
-  --danger: #ef4444; --danger-light: #fee2e2;
-  --warning: #f59e0b; --warning-light: #fef3c7;
-  --info: #3b82f6;
-  --bg: #f5fbf6; --surface: #ffffff; --surface2: #f1f6f3;
-  --text: #14241a; --text-light: #5a6b62; --text-accent: #148a68;
-  --border: #e3ece6; --input-bg: #f1f6f3;
-  --cta-bg: #1cb487; --cta-shadow: 0 4px 0 #148a68; --cta-text: #ffffff;
-  --on-primary: #ffffff;
-  --opt-bg: #ffffff; --opt-border: #e3ece6; --opt-border-bottom: 4px;
-  --opt-sel-bg: #e7f7f1; --opt-sel-glow: none;
-  --key-bg: #eef4f0; --key-color: #1cb487;
-  --key-bg-active: #1cb487; --key-color-active: #fff;
-  --focus: #1cb487;
-  --box1: #ef4444; --box2: #f59e0b; --box3: #22c55e; --box4: #0ea5e9; --box5: #0f766e;
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --primary: #6c5ce7;
+  --primary-light: #a29bfe;
+  --accent: #00cec9;
+  --success: #00b894;
+  --warning: #fdcb6e;
+  --danger: #e17055;
+  --text: #dfe6e9;
+  --text-light: #b2bec3;
   --radius: 14px;
-  color-scheme: light;
-  --glass-bg: rgba(255,255,255,0.72);
-  --glass-border: rgba(0,0,0,0.06);
-  --glass-shadow: 0 8px 32px rgba(0,0,0,0.08);
 }
-
-/* ── DARK ── */
-:root[data-theme="dark"] {
-  --primary: #22d3ee; --primary-dark: #0e7490; --primary-light: #67e8f9;
-  --primary-subtle: #0e2230; --accent: #818cf8;
-  --success: #4ade80; --success-light: #0e2a18;
-  --danger: #f87171; --danger-light: #3a1414;
-  --warning: #fbbf24; --warning-light: #3a2a08;
-  --info: #60a5fa;
-  --bg: #0b1120; --surface: #131c30; --surface2: #1e293b;
-  --text: #f1f5f9; --text-light: #94a3b8; --text-accent: #22d3ee;
-  --border: #243049; --input-bg: #0f1a2e;
-  --cta-bg: linear-gradient(135deg,#22d3ee,#818cf8); --cta-shadow: none; --cta-text: #06121a;
-  --on-primary: #06121a;
-  --opt-bg: #131c30; --opt-border: #243049; --opt-border-bottom: 1.5px;
-  --opt-sel-bg: #0e2230; --opt-sel-glow: 0 0 20px rgba(34,211,238,0.20);
-  --key-bg: #1e293b; --key-color: #94a3b8;
-  --key-bg-active: linear-gradient(135deg,#22d3ee,#818cf8); --key-color-active: #06121a;
-  --focus: #22d3ee;
-  --box1: #f87171; --box2: #fbbf24; --box3: #4ade80; --box4: #38bdf8; --box5: #22d3ee;
-  --radius: 14px;
-  color-scheme: dark;
-  --glass-bg: rgba(19,28,48,0.72);
-  --glass-border: rgba(255,255,255,0.06);
-  --glass-shadow: 0 8px 32px rgba(0,0,0,0.4);
-}
-
-/* ── AUTO-DARK via System ── */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --primary: #22d3ee; --primary-dark: #0e7490; --primary-light: #67e8f9;
-    --primary-subtle: #0e2230; --accent: #818cf8;
-    --success: #4ade80; --success-light: #0e2a18;
-    --danger: #f87171; --danger-light: #3a1414;
-    --warning: #fbbf24; --warning-light: #3a2a08;
-    --info: #60a5fa;
-    --bg: #0b1120; --surface: #131c30; --surface2: #1e293b;
-    --text: #f1f5f9; --text-light: #94a3b8; --text-accent: #22d3ee;
-    --border: #243049; --input-bg: #0f1a2e;
-    --cta-bg: linear-gradient(135deg,#22d3ee,#818cf8); --cta-shadow: none; --cta-text: #06121a;
-    --on-primary: #06121a;
-    --opt-bg: #131c30; --opt-border: #243049; --opt-border-bottom: 1.5px;
-    --opt-sel-bg: #0e2230; --opt-sel-glow: 0 0 20px rgba(34,211,238,0.20);
-    --key-bg: #1e293b; --key-color: #94a3b8;
-    --key-bg-active: linear-gradient(135deg,#22d3ee,#818cf8); --key-color-active: #06121a;
-    --focus: #22d3ee;
-    --box1: #f87171; --box2: #fbbf24; --box3: #4ade80; --box4: #38bdf8; --box5: #22d3ee;
-    --radius: 14px;
-    color-scheme: dark;
-    --glass-bg: rgba(19,28,48,0.72);
-    --glass-border: rgba(255,255,255,0.06);
-    --glass-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  }
-}
-
-/* ── REDUCED MOTION ── */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-}
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg); color: var(--text);
-  max-width: 430px; margin: 0 auto; min-height: 100vh;
-  position: relative; overflow-x: hidden;
-  -webkit-tap-highlight-color: transparent;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
 }
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-:focus:not(:focus-visible) { outline: none; }
-
 .screen { display: none; padding: 16px; padding-bottom: 80px; min-height: 100vh; }
 .screen.active { display: block; }
 h2 { font-size: 1.3em; margin-bottom: 8px; }
 h3 { font-size: 1.1em; margin-bottom: 6px; }
 p, small { color: var(--text-light); }
 
-/* ── Tab Bar (glass progressive enhancement) ── */
 .tab-bar {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 430px;
-  background: var(--surface); /* solid fallback */
-  background: var(--glass-bg);
+  background: var(--surface);
   display: flex; justify-content: space-around;
   padding: 8px 0 max(8px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
-  border-top: 1px solid var(--glass-border);
+  border-top: 1px solid var(--surface2);
   z-index: 100;
-  box-shadow: 0 -4px 12px rgba(0,0,0,.1);
-  box-shadow: var(--glass-shadow);
-}
-@supports (backdrop-filter: blur(12px)) {
-  .tab-bar { backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
 }
 .tab-bar button {
   background: none; border: none; color: var(--text-light);
   font-size: 10px; display: flex; flex-direction: column;
   align-items: center; gap: 2px; cursor: pointer; padding: 4px 12px;
-  border-radius: 8px; transition: all .15s; font-family: inherit; font-weight: 600;
 }
 .tab-bar button .tab-icon { font-size: 20px; }
-.tab-bar button.active { color: var(--primary); background: var(--opt-sel-bg); }
+.tab-bar button.active { color: var(--primary-light); }
 
 .top-bar {
   display: flex; align-items: center; gap: 10px;
@@ -147,22 +62,24 @@ p, small { color: var(--text-light); }
 .top-bar .back { background: none; border: none; color: var(--text); font-size: 22px; cursor: pointer; padding: 4px 8px 4px 0; }
 .top-bar h2 { margin: 0; flex: 1; }
 
-/* ── Cards ── */
-.card { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; border: 1px solid var(--border); }
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
 .card-accent { border-left: 3px solid var(--primary); }
-.card-success { border-left: 3px solid var(--success); }
-.card-danger { border-left: 3px solid var(--danger); }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
 .grid-card {
-  background: var(--surface); border-radius: var(--radius); border: 2px solid var(--border);
-  border-bottom-width: var(--opt-border-bottom);
-  padding: 16px; text-align: center; cursor: pointer; transition: transform 0.1s, border-color .15s;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px; text-align: center;
+  cursor: pointer; transition: transform 0.1s;
 }
 .grid-card:active { transform: scale(0.97); }
-.grid-card:hover { border-color: var(--primary); }
 .grid-card .icon { font-size: 28px; margin-bottom: 6px; }
 .grid-card .title { font-size: 0.85em; font-weight: 600; }
 .grid-card .desc { font-size: 0.7em; color: var(--text-light); margin-top: 2px; }
@@ -170,188 +87,135 @@ p, small { color: var(--text-light); }
 .mini-card .icon { font-size: 22px; margin-bottom: 4px; }
 .mini-card .title { font-size: 0.72em; }
 
-/* ── Welcome / Hero ── */
-.welcome {
-  background: var(--cta-bg); color: var(--cta-text); border-radius: var(--radius);
-  padding: 20px 18px; margin-bottom: 12px;
-}
-.welcome h2 { color: var(--cta-text); }
-.welcome p { color: var(--cta-text); opacity: .82; }
-
 .daily-card {
-  background: var(--cta-bg); color: var(--cta-text);
-  border-radius: var(--radius); padding: 18px 16px;
+  background: linear-gradient(135deg, var(--primary), #4834d4);
+  border-radius: var(--radius);
+  padding: 18px 16px;
   display: flex; align-items: center; gap: 12px;
   margin-bottom: 16px; cursor: pointer;
-  box-shadow: var(--cta-shadow);
 }
-.daily-card:active { box-shadow: none; transform: translateY(3px); }
 .daily-card .daily-icon { font-size: 32px; }
-.daily-card h3 { color: var(--cta-text); margin: 0; }
-.daily-card p { color: var(--cta-text); opacity: .8; font-size: 0.85em; margin: 0; }
-.daily-card .chev { margin-left: auto; font-size: 22px; color: var(--cta-text); opacity: .6; }
+.daily-card h3 { color: #fff; margin: 0; }
+.daily-card p { color: rgba(255,255,255,.8); font-size: 0.85em; margin: 0; }
+.daily-card .chev { margin-left: auto; font-size: 22px; color: rgba(255,255,255,.6); }
 
 .streak-bar {
   display: flex; align-items: center; gap: 10px;
   background: var(--surface); border-radius: var(--radius);
   padding: 12px 16px; margin-bottom: 12px;
-  border: 2px solid var(--warning);
 }
-.streak-fire { font-size: 28px; animation: pulseFire 2s ease-in-out infinite; }
-@keyframes pulseFire { 0%,100% { transform:scale(1) } 50% { transform:scale(1.15) } }
+.streak-fire { font-size: 28px; }
 
 .quiz-row {
   background: var(--surface); border-radius: var(--radius);
   padding: 14px 16px; display: flex; align-items: center;
   gap: 10px; margin-bottom: 8px; cursor: pointer;
-  border: 2px solid var(--border); border-bottom-width: var(--opt-border-bottom);
-  transition: border-color .15s, background .15s;
+  border-left: 3px solid var(--primary);
 }
-.quiz-row:hover { border-color: var(--primary); background: var(--surface2); }
-.quiz-row:active { transform: scale(.99); }
-.quiz-row .quiz-info { flex: 1; min-width: 0; }
-.quiz-row .quiz-info h4 { font-size: .95rem; font-weight: 700; }
-.quiz-row .quiz-info small { color: var(--text-light); font-size: .78rem; }
 .quiz-row .quiz-boxes { display: flex; gap: 4px; margin-left: auto; }
 .quiz-row .quiz-box { font-size: 0.65em; padding: 2px 5px; border-radius: 4px; background: var(--surface2); }
-.quiz-row .box-1 { background: var(--box1); color: #fff; }
-.quiz-row .box-2 { background: var(--box2); color: #fff; }
-.quiz-row .box-3 { background: var(--box3); color: #fff; }
-.quiz-row .box-4 { background: var(--box4); color: #fff; }
-.quiz-row .box-5 { background: var(--box5); color: #fff; }
+.quiz-row .box-1 { background: var(--danger); color: #fff; }
+.quiz-row .box-5 { background: var(--success); color: #fff; }
 
-/* ── Buttons ── */
 .btn {
   display: inline-block; padding: 12px 24px;
   border-radius: var(--radius); border: none;
   font-weight: 600; cursor: pointer; font-size: 0.95em;
-  text-align: center; width: 100%; font-family: inherit;
-  transition: opacity .15s, transform .1s;
+  text-align: center; width: 100%;
 }
-.btn:active { transform: translateY(1px) scale(.99); }
-.btn-primary { background: var(--cta-bg); color: var(--cta-text); box-shadow: var(--cta-shadow); }
-.btn-primary:active { box-shadow: none; transform: translateY(3px); }
-.btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text-light); }
-.btn-outline:hover { background: var(--surface2); }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary-light); }
 .btn-sm { padding: 8px 16px; font-size: 0.85em; width: auto; }
-.btn-sm:active { transform: scale(.97); }
 
 .input {
   width: 100%; padding: 12px 14px;
-  background: var(--input-bg); border: 2px solid var(--border);
+  background: var(--surface2); border: 1px solid transparent;
   border-radius: 10px; color: var(--text); font-size: 0.95em;
-  outline: none; margin-bottom: 10px; font-family: inherit;
+  outline: none; margin-bottom: 10px;
 }
 .input:focus { border-color: var(--primary); }
 textarea.input { min-height: 100px; resize: vertical; }
 
 .chat-area { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.chat-user { background: var(--primary); color: var(--on-primary); align-self: flex-end; border-radius: 14px; border-bottom-right-radius: 4px; padding: 10px 14px; max-width: 85%; font-size: 0.9em; line-height: 1.4; }
+.chat-user { background: var(--primary); color: #fff; align-self: flex-end; border-radius: 14px; border-bottom-right-radius: 4px; padding: 10px 14px; max-width: 85%; font-size: 0.9em; line-height: 1.4; }
 .chat-ai { background: var(--surface2); align-self: flex-start; border-radius: 14px; border-bottom-left-radius: 4px; padding: 10px 14px; max-width: 85%; font-size: 0.9em; line-height: 1.4; }
 
-.progress { height: 8px; background: var(--input-bg); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+.progress { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin: 8px 0; }
 .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .chip {
   padding: 6px 14px; border-radius: 20px;
-  background: var(--input-bg); color: var(--text-light);
-  font-size: 0.8em; cursor: pointer; border: 1.5px solid transparent;
-  font-weight: 600; transition: all .15s; font-family: inherit;
+  background: var(--surface2); color: var(--text-light);
+  font-size: 0.8em; cursor: pointer; border: 1px solid transparent;
 }
-.chip:hover { border-color: var(--primary); color: var(--text); }
-.chip.active { border-color: var(--primary); color: var(--primary); background: var(--opt-sel-bg); }
+.chip.active { border-color: var(--primary); color: var(--primary-light); }
 
 .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: 600; }
 .badge-success { background: var(--success); color: #fff; }
 .badge-warning { background: var(--warning); color: #000; }
-.badge-danger { background: var(--danger); color: #fff; }
-.badge-primary { background: var(--primary-subtle); color: var(--primary); }
 
 .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; }
 .toggle-track {
   width: 44px; height: 24px; border-radius: 12px;
-  background: var(--border); position: relative; cursor: pointer;
-  transition: background .15s; flex-shrink: 0;
+  background: var(--surface2); position: relative; cursor: pointer;
 }
 .toggle-track.on { background: var(--primary); }
 .toggle-knob {
   width: 20px; height: 20px; border-radius: 50%; background: #fff;
   position: absolute; top: 2px; left: 2px; transition: left .2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
 .toggle-track.on .toggle-knob { left: 22px; }
 
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
-.stat-item { text-align: center; background: var(--surface); border-radius: 10px; padding: 12px 8px; border: 1px solid var(--border); }
-.stat-val { font-size: 1.5em; font-weight: 700; color: var(--primary); }
+.stat-item { text-align: center; background: var(--surface); border-radius: 10px; padding: 12px 8px; }
+.stat-val { font-size: 1.5em; font-weight: 700; color: var(--primary-light); }
 .stat-label { font-size: 0.7em; color: var(--text-light); margin-top: 2px; }
 
-/* ── Option Cards (with option-key badge) ── */
 .option-btn {
-  display: flex; width: 100%; text-align: left;
-  padding: 0; margin-bottom: 8px;
-  background: var(--opt-bg); border: 2px solid var(--opt-border);
-  border-bottom-width: var(--opt-border-bottom);
-  border-radius: 12px; color: var(--text); cursor: pointer; font-size: 0.95em;
-  align-items: center; gap: 12px; font-weight: 600;
-  transition: border-color .12s, background .12s, box-shadow .15s;
-  font-family: inherit; overflow: hidden;
+  display: block; width: 100%; text-align: left;
+  padding: 14px 16px; margin-bottom: 8px;
+  background: var(--surface2); border: 1px solid transparent;
+  border-radius: 10px; color: var(--text); cursor: pointer; font-size: 0.9em;
 }
-.option-key {
-  width: 32px; height: 100%; min-height: 48px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .9em; font-weight: 800;
-  background: var(--key-bg); color: var(--key-color);
-  border-radius: 8px 0 0 8px; margin: -2px;
-  transition: background .12s, color .12s;
-}
-.option-text { flex: 1; padding: 14px 14px 14px 0; }
-.option-btn.selected { border-color: var(--primary); background: var(--opt-sel-bg); box-shadow: var(--opt-sel-glow); }
-.option-btn.selected .option-key { background: var(--key-bg-active); color: var(--key-color-active); }
-.option-btn.correct { border-color: var(--success); background: var(--success-light); }
-.option-btn.correct .option-key { background: var(--success); color: #fff; }
-.option-btn.wrong { border-color: var(--danger); background: var(--danger-light); }
-.option-btn.wrong .option-key { background: var(--danger); color: #fff; }
+.option-btn.selected { border-color: var(--primary); background: rgba(108,92,231,.15); }
+.option-btn.correct { border-color: var(--success); background: rgba(0,184,148,.15); }
+.option-btn.wrong { border-color: var(--danger); background: rgba(225,112,85,.15); }
 
-.ach-card { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; border: 1px solid var(--border); }
+.ach-card { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; }
 .ach-icon { font-size: 32px; }
 .ach-info .ach-title { font-weight: 600; font-size: 0.9em; }
 .ach-info .ach-desc { font-size: 0.75em; color: var(--text-light); }
-.ach-card.locked { opacity: 0.4; filter: grayscale(.4); }
+.ach-card.locked { opacity: 0.4; }
 
 .pom-circle { width: 200px; height: 200px; border-radius: 50%; border: 6px solid var(--primary); display: flex; align-items: center; justify-content: center; margin: 30px auto; font-size: 2.5em; font-weight: 700; }
 .td-board { background: var(--surface2); border-radius: 10px; height: 200px; display: flex; align-items: center; justify-content: center; margin: 12px 0; color: var(--text-light); font-size: 0.9em; }
 .hangman-fig { font-size: 48px; text-align: center; margin: 20px 0; letter-spacing: 8px; }
 .letter-grid { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 12px 0; }
-.letter-btn { width: 36px; height: 36px; border-radius: 8px; background: var(--surface2); border: none; color: var(--text); font-weight: 600; cursor: pointer; font-family: inherit; }
-.letter-btn:active { transform: scale(.95); }
-.money-ladder { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; max-height: 200px; overflow-y: auto; }
+.letter-btn { width: 36px; height: 36px; border-radius: 8px; background: var(--surface2); border: none; color: var(--text); font-weight: 600; cursor: pointer; }
+.money-ladder { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
 .money-step { display: flex; justify-content: space-between; padding: 6px 12px; border-radius: 6px; font-size: 0.8em; }
-.money-step.current { background: var(--primary); color: var(--on-primary); font-weight: 700; }
-.money-step.done { color: var(--success); background: var(--success-light); }
+.money-step.current { background: var(--primary); color: #fff; }
+.money-step.done { color: var(--success); }
 
 .section-title { font-size: 0.8em; color: var(--text-light); text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 8px; font-weight: 600; }
 
-.folder-item { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--surface); border-radius: 10px; margin-bottom: 6px; cursor: pointer; border: 1px solid var(--border); transition: background .15s; }
-.folder-item:hover { background: var(--surface2); }
+.folder-item { display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--surface); border-radius: 10px; margin-bottom: 6px; cursor: pointer; }
 .folder-item .f-icon { font-size: 20px; }
 
-.formula-box { background: var(--surface2); border-radius: 10px; padding: 20px; text-align: center; margin: 12px 0; font-size: 1.2em; font-style: italic; color: var(--primary); border-left: 3px solid var(--primary); }
+.formula-box { background: var(--surface2); border-radius: 10px; padding: 20px; text-align: center; margin: 12px 0; font-size: 1.2em; font-style: italic; color: var(--primary-light); }
 
 .step-chain { display: flex; flex-direction: column; gap: 0; margin: 12px 0; }
 .step-node { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-left: 2px solid var(--surface2); margin-left: 10px; }
 .step-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--surface2); flex-shrink: 0; margin-left: -17px; }
 .step-dot.done { background: var(--success); }
-.step-dot.active { background: var(--primary); box-shadow: 0 0 8px var(--primary); animation: pulseDot 2s ease-in-out infinite; }
-@keyframes pulseDot { 0%,100% { opacity:1 } 50% { opacity:.5 } }
+.step-dot.active { background: var(--primary); }
 
 [data-go] { cursor: pointer; }
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
 
-/* ── Onboarding ── */
+/* === ONBOARDING === */
 .onboarding-overlay {
   position: fixed; inset: 0; background: var(--bg); z-index: 200;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -364,22 +228,22 @@ textarea.input { min-height: 100px; resize: vertical; }
 .onboarding-slide h2 { font-size: 1.4em; }
 .onboarding-slide p { color: var(--text-light); max-width: 300px; line-height: 1.5; }
 .ob-dots { display: flex; gap: 8px; margin: 24px 0; }
-.ob-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--surface2); transition: all .25s; }
-.ob-dot.active { background: var(--primary); width: 24px; border-radius: 4px; }
-.ob-next { padding: 14px 48px; border-radius: var(--radius); background: var(--cta-bg); color: var(--cta-text); border: none; font-weight: 600; font-size: 1em; cursor: pointer; box-shadow: var(--cta-shadow); font-family: inherit; }
-.ob-next:active { box-shadow: none; transform: translateY(3px); }
-.ob-skip { background: none; border: none; color: var(--text-light); font-size: .85em; cursor: pointer; margin-top: 12px; font-family: inherit; }
+.ob-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--surface2); }
+.ob-dot.active { background: var(--primary); }
+.ob-next { padding: 14px 48px; border-radius: var(--radius); background: var(--primary); color: #fff; border: none; font-weight: 600; font-size: 1em; cursor: pointer; }
+.ob-skip { background: none; border: none; color: var(--text-light); font-size: .85em; cursor: pointer; margin-top: 12px; }
 
-/* ── Offline ── */
+/* === OFFLINE INDICATOR === */
 .offline-banner {
   background: var(--warning); color: #000; text-align: center;
   padding: 6px 12px; font-size: .8em; font-weight: 600;
   position: fixed; top: 0; left: 50%; transform: translateX(-50%);
-  max-width: 430px; width: 100%; z-index: 150; display: none;
+  max-width: 430px; width: 100%; z-index: 150;
+  display: none;
 }
 .offline-banner.show { display: block; }
 
-/* ── Bottom Sheet ── */
+/* === BOTTOM SHEET === */
 .bottom-sheet-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 120;
   opacity: 0; pointer-events: none; transition: opacity .25s;
@@ -391,147 +255,44 @@ textarea.input { min-height: 100px; resize: vertical; }
   max-width: 430px; width: 100%; max-height: 85vh;
   background: var(--surface); border-radius: 16px 16px 0 0;
   padding: 12px 16px 24px; z-index: 121;
-  transition: transform .3s cubic-bezier(.32,.72,0,1); overflow-y: auto;
-  border: 1px solid var(--border); border-bottom: none;
+  transition: transform .3s cubic-bezier(.32,.72,0,1);
+  overflow-y: auto;
 }
 .bottom-sheet-overlay.open .bottom-sheet { transform: translateX(-50%) translateY(0); }
-.bottom-sheet .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--surface2); margin: 0 auto 12px; }
+.bottom-sheet .sheet-handle {
+  width: 36px; height: 4px; border-radius: 2px; background: var(--surface2);
+  margin: 0 auto 12px;
+}
 
-/* ── Screen Transitions ── */
+/* === SCREEN TRANSITIONS === */
 .screen { animation: fadeSlideIn .25s ease-out; }
-@keyframes fadeSlideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 
-/* ── Model Selector ── */
+/* === MODEL SELECTOR (KI settings) === */
 .model-select-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .model-option {
-  padding: 10px 12px; background: var(--input-bg); border-radius: 10px;
-  cursor: pointer; border: 2px solid transparent; transition: border-color .15s;
+  padding: 10px 12px; background: var(--surface2); border-radius: 10px;
+  cursor: pointer; border: 1px solid transparent; transition: border-color .15s;
 }
-.model-option.selected { border-color: var(--primary); background: var(--opt-sel-bg); }
+.model-option.selected { border-color: var(--primary); background: rgba(108,92,231,.1); }
 .model-option .model-name { font-weight: 600; font-size: .85em; display: flex; align-items: center; gap: 6px; }
 .model-option .model-icons { font-size: .75em; color: var(--text-light); }
 .model-option .model-meta { font-size: .7em; color: var(--text-light); margin-top: 2px; }
 
-/* ── Browse ── */
+/* === BROWSE MODE === */
 .browse-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
-.browse-nav button { background: var(--surface2); border: none; color: var(--text); padding: 10px 20px; border-radius: 10px; font-size: .9em; cursor: pointer; font-family: inherit; }
+.browse-nav button { background: var(--surface2); border: none; color: var(--text); padding: 10px 20px; border-radius: 10px; font-size: .9em; cursor: pointer; }
 .browse-nav button:disabled { opacity: .3; }
-.browse-answer-btn { background: var(--primary) !important; color: var(--on-primary) !important; }
-
-/* ── Skeleton Loading ── */
-.skeleton {
-  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
-  background-size: 200% 100%; animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: var(--radius);
-}
-@keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
-.skeleton-text { height: 14px; margin-bottom: 8px; border-radius: 8px; }
-.skeleton-text.short { width: 60%; }
-.skeleton-card { height: 64px; margin-bottom: 8px; }
-
-/* ── Empty State ── */
-.empty-state { text-align: center; color: var(--text-light); padding: 40px 0; font-size: .9em; }
-
-/* ═══════════════════════════════════════════════════════
-   SHOP / META-PROGRESSION (Avatar · Haus · Skins)
-   ═══════════════════════════════════════════════════════ */
-
-/* Profile strip on home */
-.profile-strip {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--surface); border-radius: 16px;
-  padding: 10px 14px; margin-bottom: 14px; cursor: pointer;
-  border: 2px solid var(--border); border-bottom-width: var(--opt-border-bottom);
-  transition: border-color .15s;
-}
-.profile-strip:hover { border-color: var(--primary); }
-.profile-strip:active { transform: scale(0.99); }
-.profile-avatar { width: 54px; height: 54px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: var(--primary-subtle); }
-.profile-info { flex: 1; display: flex; flex-direction: column; }
-.profile-info strong { font-size: 0.95rem; }
-.profile-info small { color: var(--text-light); font-size: 0.8rem; }
-.profile-coins { font-weight: 700; color: var(--primary); white-space: nowrap; }
-
-/* Shop coin bar */
-.shop-coinbar {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--primary-subtle); border-radius: 14px;
-  padding: 12px 16px; margin: 8px 0 14px;
-}
-.shop-coinbar .coin-icon { font-size: 1.3rem; }
-.shop-coinbar .coin-amount { font-size: 1.3rem; font-weight: 800; color: var(--primary-dark); }
-.shop-coinhint { color: var(--text-light); font-size: 0.75rem; margin-left: auto; text-align: right; max-width: 45%; }
-
-/* Shop tabs */
-.shop-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
-.shop-tab {
-  flex: 1; padding: 10px 4px; border-radius: 12px; border: 1px solid var(--border);
-  background: var(--surface); color: var(--text); font-weight: 600; font-size: 0.85rem; cursor: pointer;
-  font-family: inherit; transition: all .15s;
-}
-.shop-tab.active { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-
-/* Avatar preview */
-.avatar-preview {
-  display: flex; justify-content: center; align-items: center;
-  background: var(--primary-subtle); border-radius: 18px;
-  padding: 16px; margin-bottom: 8px;
-}
-.avatar-preview svg { border-radius: 16px; }
-
-/* Item rows */
-.shop-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 8px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-.shop-row::-webkit-scrollbar { display: none; }
-.shop-item {
-  flex: 0 0 auto; width: 82px; text-align: center; position: relative;
-  background: var(--surface); border: 2px solid var(--border);
-  border-radius: 12px; padding: 6px 4px 8px;
-}
-.shop-item.equipped { border-color: var(--primary); }
-.shop-item-preview { width: 56px; height: 56px; margin: 0 auto 4px; border-radius: 8px; overflow: hidden; }
-.shop-item-name { font-size: 0.68rem; line-height: 1.1; margin-bottom: 4px; min-height: 1.8em; }
-.shop-item-badge {
-  position: absolute; top: 4px; right: 4px;
-  background: var(--primary); color: var(--on-primary); border-radius: 50%;
-  width: 18px; height: 18px; font-size: 0.7rem; line-height: 18px;
-}
-.shop-mini-btn {
-  width: 100%; padding: 4px 2px; border-radius: 7px; border: none;
-  background: var(--primary-subtle); color: var(--primary-dark);
-  font-size: 0.7rem; font-weight: 700; cursor: pointer; font-family: inherit;
-}
-.shop-mini-btn.buy { background: var(--primary); color: var(--on-primary); }
-
-/* House tab */
-.house-preview { text-align: center; background: var(--primary-subtle); border-radius: 18px; padding: 16px 16px 10px; margin-bottom: 12px; }
-.house-preview svg { margin: 0 auto; }
-.house-name { font-weight: 700; margin-top: 6px; }
-.house-level-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-radius: 12px; margin-bottom: 6px;
-  background: var(--surface); border: 1px solid var(--border);
-}
-.house-level-row.owned { background: var(--opt-sel-bg); border-color: transparent; }
-.house-mini { width: 50px; flex-shrink: 0; text-align: center; }
-
-/* Skins tab */
-.skins-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.skin-card {
-  text-align: center; background: var(--surface);
-  border: 2px solid var(--border); border-radius: 14px; padding: 12px;
-}
-.skin-card.equipped { border-color: var(--primary); }
-.skin-swatch { height: 46px; border-radius: 10px; margin-bottom: 8px; }
-.skin-name { font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; }
-.skin-badge { display: inline-block; color: var(--primary-dark); font-weight: 700; font-size: 0.85rem; }
-
-.hidden { display: none !important; }
+.browse-answer-btn { background: var(--primary) !important; color: #fff !important; }
 </style>
 </head>
 <body>
 
 <!-- ===================== OFFLINE INDICATOR ===================== -->
-<div class="offline-banner" id="offline-banner">📡 Kein Internet — Offline-Modus aktiv</div>
+<div class="offline-banner show" id="offline-banner">📡 Kein Internet — Offline-Modus aktiv</div>
 
 <!-- ===================== ONBOARDING (3 slides, first visit) ===================== -->
 <div class="onboarding-overlay" id="onboarding">
@@ -567,30 +328,8 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 </div>
 
-<!-- ===================== HOME ===================== -->
+<!-- ===================== HOME (Gemini layout: clean, focused) ===================== -->
 <div class="screen active" id="s-home">
-  <!-- Profile Strip (Shop link) -->
-  <div class="profile-strip" data-go="shop">
-    <div class="profile-avatar">
-      <svg viewBox="0 0 100 100" width="54" height="54">
-        <!-- BG layer -->
-        <rect width="100" height="100" rx="14" fill="var(--primary-subtle)"/>
-        <!-- Skin layer (head + body) -->
-        <ellipse cx="50" cy="44" rx="18" ry="18" fill="var(--primary)"/>
-        <ellipse cx="50" cy="92" rx="30" ry="22" fill="var(--primary)"/>
-        <!-- Face (eyes + smile) -->
-        <ellipse cx="43" cy="42" rx="3" ry="3.5" fill="var(--on-primary)"/>
-        <ellipse cx="57" cy="42" rx="3" ry="3.5" fill="var(--on-primary)"/>
-        <path d="M44 50 Q50 55 56 50" fill="none" stroke="var(--on-primary)" stroke-width="1.5" stroke-linecap="round"/>
-        <!-- Top (cap) -->
-        <path d="M28 42 Q30 20 50 18 Q70 20 72 42" fill="var(--accent)"/>
-        <rect x="33" y="38" width="34" height="6" rx="2" fill="var(--accent)"/>
-      </svg>
-    </div>
-    <div class="profile-info"><strong>Lernender</strong><small>Haus Stufe 3 · 247 🪙</small></div>
-    <div class="profile-coins">🛒</div>
-  </div>
-
   <div class="welcome" style="margin-bottom:12px">
     <h2>👋 Willkommen zurück!</h2>
     <p>Bereit zum Lernen?</p>
@@ -622,17 +361,17 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 
   <div class="section-title">Fokus Session</div>
-  <div class="quiz-row" data-go="pomodoro">
+  <div class="quiz-row" data-go="pomodoro" style="border-left-color:var(--warning)">
     <div class="quiz-info"><h4>🍅 Pomodoro Timer</h4><small>Konzentriert lernen</small></div>
     <span style="color:var(--text-light)">›</span>
   </div>
 
   <div class="section-title">Zuletzt gelernt</div>
-  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>25 Fragen</small></div><div class="quiz-boxes"><span class="quiz-box box-1">5</span><span class="quiz-box box-2">8</span><span class="quiz-box box-3">6</span><span class="quiz-box box-4">3</span><span class="quiz-box box-5">3</span></div><span style="color:var(--text-light)">›</span></div>
-  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>18 Fragen</small></div><div class="quiz-boxes"><span class="quiz-box box-1">2</span><span class="quiz-box box-2">4</span><span class="quiz-box box-3">7</span><span class="quiz-box box-4">3</span><span class="quiz-box box-5">2</span></div><span style="color:var(--text-light)">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>25 Fragen</small></div><div class="quiz-boxes"><span class="quiz-box box-1">5</span><span class="quiz-box">8</span><span class="quiz-box">6</span><span class="quiz-box">3</span><span class="quiz-box box-5">3</span></div><span style="color:var(--text-light)">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>18 Fragen</small></div><div class="quiz-boxes"><span class="quiz-box box-1">2</span><span class="quiz-box">4</span><span class="quiz-box">7</span><span class="quiz-box">3</span><span class="quiz-box box-5">2</span></div><span style="color:var(--text-light)">›</span></div>
 </div>
 
-<!-- ===================== LEARN TAB ===================== -->
+<!-- ===================== LEARN TAB (Gemini: dedicated learning methods) ===================== -->
 <div class="screen" id="s-learn-tab">
   <div class="top-bar"><h2>📖 Lernmethoden</h2></div>
 
@@ -657,21 +396,14 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 </div>
 
-<!-- ===================== MY-QUIZZES ===================== -->
+<!-- ===================== MY-QUIZZES (Gemini: banner + create/import + filters) ===================== -->
 <div class="screen" id="s-my-quizzes">
   <div class="top-bar"><h2>📚 Meine Quizze</h2></div>
   <input class="input" placeholder="🔍 Quiz suchen…">
 
-  <!-- Skeleton loading (hidden by default, shown during data fetch) -->
-  <div class="hidden" id="quiz-list-skeleton">
-    <div class="skeleton skeleton-card"></div>
-    <div class="skeleton skeleton-card"></div>
-    <div class="skeleton skeleton-card"></div>
-  </div>
-
-  <div class="daily-card" data-go="marked" style="background:linear-gradient(135deg, var(--warning), #d63031);padding:14px 16px;color:#fff">
+  <div class="daily-card" data-go="marked" style="background:linear-gradient(135deg, var(--warning), #d63031);padding:14px 16px">
     <span class="daily-icon">⭐</span>
-    <div><h3 style="color:#fff">Markierte Fragen</h3><p style="color:rgba(255,255,255,.8)">8 Fragen zur Wiederholung</p></div>
+    <div><h3>Markierte Fragen</h3><p>8 Fragen zur Wiederholung</p></div>
     <span class="chev">›</span>
   </div>
 
@@ -699,7 +431,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>BWL Einführung</h4><small>20 Fragen</small></div><span style="color:var(--text-light)">›</span></div>
 </div>
 
-<!-- ===================== SLIDE-GENERATE ===================== -->
+<!-- ===================== SLIDE-GENERATE (new from Gemini) ===================== -->
 <div class="screen" id="s-slide-generate">
   <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>📊 KI Folien-Konverter</h2></div>
   <div class="card">
@@ -717,7 +449,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <button class="btn btn-primary">🤖 Folien analysieren & generieren</button>
 </div>
 
-<!-- ===================== IMPORT-QUESTIONS ===================== -->
+<!-- ===================== IMPORT-QUESTIONS (new from Gemini) ===================== -->
 <div class="screen" id="s-import-questions">
   <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>📥 Fragen importieren</h2></div>
   <div class="card">
@@ -730,14 +462,14 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 </div>
 
-<!-- ===================== GAMES ===================== -->
+<!-- ===================== GAMES (Tab-level, no back button) ===================== -->
 <div class="screen" id="s-games">
   <div class="top-bar"><h2>🎮 Mini-Games</h2></div>
 
-  <!-- Mix-Game highlight -->
-  <div class="daily-card" data-go="mix-game" style="background:linear-gradient(135deg, #e17055, #d63031);margin-bottom:16px;color:#fff">
+  <!-- Mix-Game Kampagne highlight -->
+  <div class="daily-card" data-go="mix-game" style="background:linear-gradient(135deg, #e17055, #d63031);margin-bottom:16px">
     <span class="daily-icon">🎯</span>
-    <div><h3 style="color:#fff">Mix-Kampagne</h3><p style="color:rgba(255,255,255,.8)">Alle Spiele in einer Runde!</p></div>
+    <div><h3>Mix-Kampagne</h3><p>Alle Spiele in einer Runde!</p></div>
     <span class="chev">›</span>
   </div>
 
@@ -753,7 +485,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   </div>
 </div>
 
-<!-- ===================== SETTINGS ===================== -->
+<!-- ===================== SETTINGS (Gemini: achievements+sync cards at top) ===================== -->
 <div class="screen" id="s-settings">
   <div class="top-bar"><h2>⚙️ Einstellungen</h2></div>
 
@@ -770,7 +502,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="card">
     <h3>Allgemein</h3>
     <div class="toggle-row"><span>🔔 Erinnerungen</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on" id="theme-toggle-track"><div class="toggle-knob"></div></div></div>
+    <div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
     <div class="toggle-row"><span>🔊 Sound-Effekte</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
     <div class="toggle-row"><span>📳 Haptisches Feedback</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
     <div class="toggle-row"><span>∑ LaTeX-Formeln rendern</span><div class="toggle-track on" id="latex-toggle"><div class="toggle-knob"></div></div></div>
@@ -904,13 +636,13 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="top-bar"><button class="back" data-go="quiz-modes">‹</button><h2>Quiz</h2><span class="badge badge-success">3/25</span></div>
   <div class="progress"><div class="progress-fill" style="width:12%"></div></div>
   <div class="card" style="margin-top:12px">
-    <small style="color:var(--primary)">Multiple Choice</small>
+    <small style="color:var(--primary-light)">Multiple Choice</small>
     <h3 style="margin-top:6px">Wie lautet das Ohmsche Gesetz?</h3>
   </div>
-  <button class="option-btn"><span class="option-key">A</span><span class="option-text">P = U × I</span></button>
-  <button class="option-btn selected"><span class="option-key">B</span><span class="option-text">U = R × I</span></button>
-  <button class="option-btn"><span class="option-key">C</span><span class="option-text">R = U × I</span></button>
-  <button class="option-btn"><span class="option-key">D</span><span class="option-text">I = U × R</span></button>
+  <button class="option-btn">A) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
+  <button class="option-btn selected">B) <span class="math" data-tex="U = R \cdot I">U = R × I</span></button>
+  <button class="option-btn">C) <span class="math" data-tex="R = U \cdot I">R = U × I</span></button>
+  <button class="option-btn">D) <span class="math" data-tex="I = U \cdot R">I = U × R</span></button>
   <button class="btn btn-primary" data-go="results" style="margin-top:16px">Antwort prüfen</button>
 </div>
 
@@ -928,8 +660,8 @@ textarea.input { min-height: 100px; resize: vertical; }
     <div class="stat-item"><div class="stat-val">3:42</div><div class="stat-label">Zeit</div></div>
   </div>
   <div class="section-title">Falsche Antworten</div>
-  <div class="quiz-row" style="border-left:3px solid var(--danger)"><div class="quiz-info"><h4>Frage 4</h4><small>Kirchhoffsche Regeln</small></div></div>
-  <div class="quiz-row" style="border-left:3px solid var(--danger)"><div class="quiz-info"><h4>Frage 11</h4><small>Wechselstrom</small></div></div>
+  <div class="quiz-row" style="border-left-color:var(--danger)"><div class="quiz-info"><h4>Frage 4</h4><small>Kirchhoffsche Regeln</small></div></div>
+  <div class="quiz-row" style="border-left-color:var(--danger)"><div class="quiz-info"><h4>Frage 11</h4><small>Wechselstrom</small></div></div>
   <div style="display:flex;gap:8px;margin-top:16px">
     <button class="btn btn-primary" data-go="quiz" style="flex:1">Wiederholen</button>
     <button class="btn btn-outline" data-go="home" style="flex:1">Home</button>
@@ -997,7 +729,7 @@ textarea.input { min-height: 100px; resize: vertical; }
       <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:80%"></div>
       <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:55%"></div>
       <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:90%"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:45%"></div>
+      <div style="flex:1;background:var(--primary-light);border-radius:4px 4px 0 0;height:45%"></div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:.65em;color:var(--text-light);margin-top:4px">
       <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
@@ -1053,23 +785,22 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="quiz-row"><div class="quiz-info"><h4>Berechne <span class="math" data-tex="\int x^2 \, dx">∫ x² dx</span></h4><small>Mathe Klausur 2</small></div><span>⭐</span></div>
   <div class="quiz-row"><div class="quiz-info"><h4>Definiere die Entropie</h4><small>Physik Grundlagen</small></div><span>⭐</span></div>
   <button class="btn btn-primary" data-go="quiz" style="margin-top:12px">Markierte üben</button>
-  <div class="empty-state hidden" id="marked-empty">Keine markierten Fragen. Tippe ⭐ während eines Quiz!</div>
 </div>
 
 <!-- ===================== ERROR-DIARY ===================== -->
 <div class="screen" id="s-error-diary">
   <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>📕 Fehlertagebuch</h2></div>
   <p style="margin-bottom:12px">Häufigste Fehler analysieren</p>
-  <div class="card card-danger">
+  <div class="card card-accent">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <h3>Kirchhoffsche Regeln</h3><span class="badge badge-danger">3× falsch</span>
+      <h3>Kirchhoffsche Regeln</h3><span class="badge" style="background:var(--danger);color:#fff">3× falsch</span>
     </div>
     <p style="margin-top:4px">Verwechslung von Knoten- und Maschenregel</p>
     <small>Letztens: vor 2 Tagen</small>
   </div>
   <div class="card card-accent">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <h3>Partielle Integration</h3><span class="badge badge-warning">2× falsch</span>
+      <h3>Partielle Integration</h3><span class="badge" style="background:var(--warning);color:#000">2× falsch</span>
     </div>
     <p style="margin-top:4px">Falsche Wahl von u und v'</p>
     <small>Letztens: vor 1 Tag</small>
@@ -1154,7 +885,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 <div class="screen" id="s-scaffold">
   <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🔢 Formel-Training</h2></div>
   <div class="card">
-    <small style="color:var(--primary)">Stufe 1 — Gegeben & Gesucht</small>
+    <small style="color:var(--primary-light)">Stufe 1 — Gegeben & Gesucht</small>
     <h3 style="margin:8px 0">Berechne den Strom I</h3>
     <div style="display:flex;gap:12px;margin:12px 0">
       <div style="flex:1;background:var(--surface2);border-radius:10px;padding:12px">
@@ -1199,13 +930,8 @@ textarea.input { min-height: 100px; resize: vertical; }
 <!-- ===================== CLOZE ===================== -->
 <div class="screen" id="s-cloze">
   <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>✂️ Lückentext</h2></div>
-  <!-- Skeleton loading for cloze generation -->
-  <div class="hidden" id="cloze-skeleton">
-    <div class="skeleton skeleton-text" style="height:40px;margin-bottom:12px"></div>
-    <div class="skeleton skeleton-text short" style="height:24px;margin-bottom:12px"></div>
-  </div>
   <div class="card">
-    <p>Das Ohmsche Gesetz lautet <span style="background:var(--primary);color:var(--on-primary);padding:2px 12px;border-radius:4px;margin:0 2px">______</span> = R × I. Der <span style="background:var(--primary);color:var(--on-primary);padding:2px 12px;border-radius:4px;margin:0 2px">______</span> wird in Ohm (Ω) gemessen.</p>
+    <p>Das Ohmsche Gesetz lautet <span style="background:var(--primary);color:#fff;padding:2px 12px;border-radius:4px;margin:0 2px">______</span> = R × I. Der <span style="background:var(--primary);color:#fff;padding:2px 12px;border-radius:4px;margin:0 2px">______</span> wird in Ohm (Ω) gemessen.</p>
   </div>
   <div class="chip-row">
     <span class="chip">U</span>
@@ -1237,11 +963,11 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="card" style="margin-top:12px">
     <h3>Box-Verteilung</h3>
     <div style="display:flex;gap:4px;margin-top:10px;height:80px;align-items:flex-end">
-      <div style="flex:1;background:var(--box1);border-radius:4px 4px 0 0;height:60%"></div>
-      <div style="flex:1;background:var(--box2);border-radius:4px 4px 0 0;height:40%"></div>
-      <div style="flex:1;background:var(--box3);border-radius:4px 4px 0 0;height:70%"></div>
-      <div style="flex:1;background:var(--box4);border-radius:4px 4px 0 0;height:30%"></div>
-      <div style="flex:1;background:var(--box5);border-radius:4px 4px 0 0;height:90%"></div>
+      <div style="flex:1;background:var(--danger);border-radius:4px 4px 0 0;height:60%"></div>
+      <div style="flex:1;background:var(--warning);border-radius:4px 4px 0 0;height:40%"></div>
+      <div style="flex:1;background:#74b9ff;border-radius:4px 4px 0 0;height:70%"></div>
+      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:30%"></div>
+      <div style="flex:1;background:var(--success);border-radius:4px 4px 0 0;height:90%"></div>
     </div>
     <div style="display:flex;justify-content:space-between;font-size:.65em;color:var(--text-light);margin-top:4px">
       <span>Box 1</span><span>Box 2</span><span>Box 3</span><span>Box 4</span><span>Box 5</span>
@@ -1272,7 +998,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 <div class="screen" id="s-study">
   <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>📖 Karteikarten</h2></div>
   <div class="card" style="min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
-    <small style="color:var(--primary);margin-bottom:8px">Frage 3/15</small>
+    <small style="color:var(--primary-light);margin-bottom:8px">Frage 3/15</small>
     <h3>Was ist die SI-Einheit der elektrischen Kapazität?</h3>
     <p style="margin-top:12px;font-size:.85em;color:var(--text-light)">Tippe zum Umdrehen</p>
   </div>
@@ -1300,200 +1026,6 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-primary btn-sm" style="flex:1">🔄 Jetzt synchronisieren</button>
     <button class="btn btn-outline btn-sm" style="flex:1">📱 Anmelden</button>
-  </div>
-</div>
-
-<!-- ===================== SHOP (NEW — from real app shop-catalog.js) ===================== -->
-<div class="screen" id="s-shop">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🛒 Shop</h2></div>
-
-  <!-- Coin bar -->
-  <div class="shop-coinbar">
-    <span class="coin-icon">🪙</span><span class="coin-amount">247</span>
-    <span class="shop-coinhint">+2 pro richtige Antwort</span>
-  </div>
-
-  <!-- Shop tabs -->
-  <div class="shop-tabs">
-    <button class="shop-tab active" data-shop-tab="0">👤 Charakter</button>
-    <button class="shop-tab" data-shop-tab="1">🏠 Haus</button>
-    <button class="shop-tab" data-shop-tab="2">🎨 Skins</button>
-    <button class="shop-tab" data-shop-tab="3">🎮 Games</button>
-  </div>
-
-  <!-- Tab 0: Character (6-layer SVG avatar from shop-catalog.js) -->
-  <div id="shop-tab-0">
-    <div class="avatar-preview">
-      <svg viewBox="0 0 100 100" width="130" height="130">
-        <!-- Layer 1: Background -->
-        <rect width="100" height="100" rx="16" fill="var(--primary-subtle)"/>
-        <!-- Layer 2: Skin (head + body) -->
-        <ellipse cx="50" cy="44" rx="22" ry="22" fill="var(--primary)"/>
-        <ellipse cx="50" cy="95" rx="36" ry="24" fill="var(--primary)"/>
-        <!-- Layer 3: Face (eyes + smile) -->
-        <ellipse cx="42" cy="40" rx="3.5" ry="4" fill="var(--on-primary)"/>
-        <ellipse cx="58" cy="40" rx="3.5" ry="4" fill="var(--on-primary)"/>
-        <circle cx="43.5" cy="39" r="1.5" fill="#fff" opacity=".7"/>
-        <circle cx="59.5" cy="39" r="1.5" fill="#fff" opacity=".7"/>
-        <path d="M43 51 Q50 57 57 51" fill="none" stroke="var(--on-primary)" stroke-width="1.8" stroke-linecap="round"/>
-        <!-- Layer 4: Top (cap/baseball hat) -->
-        <path d="M26 44 Q28 16 50 14 Q72 16 74 44" fill="var(--accent)"/>
-        <rect x="30" y="40" width="40" height="7" rx="3" fill="var(--accent)"/>
-        <!-- Layer 5: Accessory (glasses) -->
-        <circle cx="41" cy="40" r="8" fill="none" stroke="var(--on-primary)" stroke-width="1.2" opacity=".5"/>
-        <circle cx="59" cy="40" r="8" fill="none" stroke="var(--on-primary)" stroke-width="1.2" opacity=".5"/>
-        <line x1="49" y1="40" x2="51" y2="40" stroke="var(--on-primary)" stroke-width="1.2" opacity=".5"/>
-      </svg>
-    </div>
-
-    <div class="section-title">Hüte</div>
-    <div class="shop-row">
-      <div class="shop-item equipped">
-        <div class="shop-item-preview" style="background:var(--primary-subtle);display:flex;align-items:center;justify-content:center;font-size:2rem">🧢</div>
-        <div class="shop-item-name">Basecap</div>
-        <span class="shop-item-badge">✓</span>
-      </div>
-      <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🎩</div>
-        <div class="shop-item-name">Zylinder</div>
-        <button class="shop-mini-btn buy">80🪙</button>
-      </div>
-      <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">👑</div>
-        <div class="shop-item-name">Krone</div>
-        <button class="shop-mini-btn buy">200🪙</button>
-      </div>
-      <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🎓</div>
-        <div class="shop-item-name">Doktorhut</div>
-        <button class="shop-mini-btn buy">150🪙</button>
-      </div>
-    </div>
-
-    <div class="section-title">Accessoires</div>
-    <div class="shop-row">
-      <div class="shop-item equipped">
-        <div class="shop-item-preview" style="background:var(--primary-subtle);display:flex;align-items:center;justify-content:center;font-size:2rem">👓</div>
-        <div class="shop-item-name">Brille</div>
-        <span class="shop-item-badge">✓</span>
-      </div>
-      <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🕶️</div>
-        <div class="shop-item-name">Sonnenbrille</div>
-        <button class="shop-mini-btn buy">60🪙</button>
-      </div>
-      <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🎀</div>
-        <div class="shop-item-name">Schleife</div>
-        <button class="shop-mini-btn buy">40🪙</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tab 1: House -->
-  <div id="shop-tab-1" class="hidden">
-    <div class="house-preview">
-      <svg viewBox="0 0 200 150" width="190" height="140">
-        <!-- House body -->
-        <rect x="50" y="70" width="100" height="80" rx="4" fill="var(--primary)"/>
-        <!-- Roof -->
-        <polygon points="30,70 100,22 170,70" fill="var(--primary-dark)"/>
-        <!-- Door -->
-        <rect x="88" y="105" width="24" height="45" rx="3" fill="var(--surface)"/>
-        <circle cx="106" cy="128" r="2" fill="var(--primary)"/>
-        <!-- Windows -->
-        <rect x="60" y="85" width="22" height="18" rx="2" fill="var(--surface)"/>
-        <rect x="118" y="85" width="22" height="18" rx="2" fill="var(--surface)"/>
-        <!-- Chimney -->
-        <rect x="135" y="32" width="14" height="28" rx="2" fill="var(--primary-dark)"/>
-        <!-- Deco: flowers -->
-        <circle cx="140" cy="132" r="6" fill="var(--accent)" opacity=".7"/>
-        <circle cx="140" cy="132" r="3" fill="var(--danger)" opacity=".5"/>
-        <!-- Grass -->
-        <rect x="0" y="140" width="200" height="10" rx="3" fill="var(--success-light)"/>
-      </svg>
-      <div class="house-name">Hütte (Stufe 2)</div>
-    </div>
-
-    <div class="section-title">Stufen</div>
-    <div class="house-level-row owned">
-      <div class="house-mini" style="font-size:1.8rem">⛺</div>
-      <div style="flex:1"><strong>Zelt</strong><br><small style="font-size:.72rem;color:var(--text-light)">Stufe 1 · Start</small></div>
-      <span class="badge badge-success">✓</span>
-    </div>
-    <div class="house-level-row owned">
-      <div class="house-mini" style="font-size:1.8rem">🏠</div>
-      <div style="flex:1"><strong>Hütte</strong><br><small style="font-size:.72rem;color:var(--text-light)">Stufe 2 · 150 🪙</small></div>
-      <span class="badge badge-success">✓</span>
-    </div>
-    <div class="house-level-row">
-      <div class="house-mini" style="font-size:1.8rem">🏡</div>
-      <div style="flex:1"><strong>Haus</strong><br><small style="font-size:.72rem;color:var(--text-light)">Stufe 3 · 400 🪙</small></div>
-      <button class="btn btn-sm btn-primary" style="width:auto">Kaufen</button>
-    </div>
-    <div class="house-level-row">
-      <div class="house-mini" style="font-size:1.8rem">🏰</div>
-      <div style="flex:1"><strong>Villa</strong><br><small style="font-size:.72rem;color:var(--text-light)">Stufe 4 · 1000 🪙</small></div>
-      <button class="btn btn-sm btn-outline" style="width:auto" disabled>🔒</button>
-    </div>
-    <div class="house-level-row">
-      <div class="house-mini" style="font-size:1.8rem">🏛️</div>
-      <div style="flex:1"><strong>Schloss</strong><br><small style="font-size:.72rem;color:var(--text-light)">Stufe 5 · 2500 🪙</small></div>
-      <button class="btn btn-sm btn-outline" style="width:auto" disabled>🔒</button>
-    </div>
-  </div>
-
-  <!-- Tab 2: Skins -->
-  <div id="shop-tab-2" class="hidden">
-    <div class="skins-grid">
-      <div class="skin-card equipped">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#1cb487,#0d8060)"></div>
-        <div class="skin-name">Standard Grün</div>
-        <span class="skin-badge">Aktiv</span>
-      </div>
-      <div class="skin-card">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#6366f1,#4f46e5)"></div>
-        <div class="skin-name">Indigo Nacht</div>
-        <button class="shop-mini-btn buy">120🪙</button>
-      </div>
-      <div class="skin-card">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#ec4899,#be185d)"></div>
-        <div class="skin-name">Rose</div>
-        <button class="shop-mini-btn buy">120🪙</button>
-      </div>
-      <div class="skin-card">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#f59e0b,#d97706)"></div>
-        <div class="skin-name">Gold</div>
-        <button class="shop-mini-btn buy">200🪙</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tab 3: Games -->
-  <div id="shop-tab-3" class="hidden">
-    <div class="section-title">Tower Defense Paletten</div>
-    <div class="skins-grid">
-      <div class="skin-card equipped">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#1cb487,#0ea5e9,#818cf8)"></div>
-        <div class="skin-name">Standard</div>
-        <span class="skin-badge">Aktiv</span>
-      </div>
-      <div class="skin-card">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#ef4444,#f97316,#eab308)"></div>
-        <div class="skin-name">Inferno</div>
-        <button class="shop-mini-btn buy">80🪙</button>
-      </div>
-      <div class="skin-card">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#8b5cf6,#a855f7,#d946ef)"></div>
-        <div class="skin-name">Neon</div>
-        <button class="shop-mini-btn buy">100🪙</button>
-      </div>
-      <div class="skin-card">
-        <div class="skin-swatch" style="background:linear-gradient(135deg,#0369a1,#0284c7,#38bdf8)"></div>
-        <div class="skin-name">Ozean</div>
-        <button class="shop-mini-btn buy">80🪙</button>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -1527,19 +1059,24 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:.85em">
     <span style="color:var(--danger)">❤️ 3</span>
     <span style="color:var(--warning)">💰 450</span>
-    <span style="color:var(--primary)">Welle 3/10</span>
+    <span style="color:var(--primary-light)">Welle 3/10</span>
   </div>
-  <!-- Canvas placeholder -->
+  <!-- Canvas placeholder styled like the real game -->
   <div style="background:var(--surface2);border-radius:10px;height:240px;position:relative;overflow:hidden;margin-bottom:12px">
+    <!-- Path visualization -->
     <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,.03) 39px,rgba(255,255,255,.03) 40px),repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,.03) 39px,rgba(255,255,255,.03) 40px)"></div>
+    <!-- Path -->
     <div style="position:absolute;top:0;left:0;width:100%;height:40px;background:rgba(108,92,231,.15)"></div>
     <div style="position:absolute;top:40px;right:0;width:40px;height:40px;background:rgba(108,92,231,.15)"></div>
     <div style="position:absolute;top:80px;left:0;width:100%;height:40px;background:rgba(108,92,231,.15)"></div>
+    <!-- Towers -->
     <div style="position:absolute;top:44px;left:80px;width:32px;height:32px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#000">T1</div>
     <div style="position:absolute;top:44px;left:200px;width:32px;height:32px;background:var(--warning);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#000">T2</div>
-    <div style="position:absolute;top:8px;left:120px;width:24px;height:24px;border-radius:50%;background:var(--danger)"></div>
-    <div style="position:absolute;top:8px;left:180px;width:24px;height:24px;border-radius:50%;background:var(--info)"></div>
-    <div style="position:absolute;top:8px;left:250px;width:24px;height:24px;border-radius:50%;background:var(--success)"></div>
+    <!-- Enemies (colored circles like Bloons) -->
+    <div style="position:absolute;top:8px;left:120px;width:24px;height:24px;border-radius:50%;background:#e11d48"></div>
+    <div style="position:absolute;top:8px;left:180px;width:24px;height:24px;border-radius:50%;background:#3b82f6"></div>
+    <div style="position:absolute;top:8px;left:250px;width:24px;height:24px;border-radius:50%;background:#22c55e"></div>
+    <!-- Base -->
     <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:var(--primary);padding:4px 12px;border-radius:6px;font-size:.75em;font-weight:600">DEINE BASIS</div>
   </div>
   <div class="card">
@@ -1556,6 +1093,7 @@ textarea.input { min-height: 100px; resize: vertical; }
 <!-- ===================== QUIZ-BATTLE ===================== -->
 <div class="screen" id="s-quiz-battle">
   <div class="top-bar"><button class="back" data-go="games">‹</button><h2>⚔️ Quiz Battle</h2></div>
+  <!-- Setup -->
   <div class="card">
     <h3>Kämpfe gegen die KI!</h3>
     <p style="margin-bottom:12px">Ziehe die richtige Antwort ins Feld — dein Held greift an. Falsche Antworten machen den Gegner stärker.</p>
@@ -1583,7 +1121,9 @@ textarea.input { min-height: 100px; resize: vertical; }
 </div>
 <div class="screen" id="s-qb-ingame">
   <div class="top-bar"><button class="back" data-go="quiz-battle">‹</button><h2>Quiz Battle</h2></div>
+  <!-- Battle canvas area -->
   <div style="background:var(--surface2);border-radius:10px;height:200px;position:relative;overflow:hidden;margin-bottom:12px">
+    <!-- Player fortress (bottom) -->
     <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%)">
       <div style="width:48px;height:48px;background:var(--primary);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">🛡️</div>
     </div>
@@ -1592,6 +1132,7 @@ textarea.input { min-height: 100px; resize: vertical; }
         <div style="width:75%;height:100%;background:var(--success);border-radius:3px"></div>
       </div>
     </div>
+    <!-- Enemy (top) -->
     <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%)">
       <div style="width:48px;height:48px;background:var(--danger);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">👹</div>
     </div>
@@ -1600,17 +1141,19 @@ textarea.input { min-height: 100px; resize: vertical; }
         <div style="width:60%;height:100%;background:var(--danger);border-radius:3px"></div>
       </div>
     </div>
+    <!-- Projectile -->
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:var(--warning);border-radius:50%;box-shadow:0 0 8px var(--warning)"></div>
+    <!-- HUD -->
     <div style="position:absolute;top:8px;left:8px;font-size:.7em;color:var(--text-light)">Runde 3/5</div>
     <div style="position:absolute;top:8px;right:8px;font-size:.7em;color:var(--warning)">Score: 240</div>
   </div>
   <div class="card">
     <h3>Welche Einheit hat die elektrische Leistung?</h3>
     <div style="margin-top:10px">
-      <button class="option-btn"><span class="option-key">A</span><span class="option-text">Volt (V)</span></button>
-      <button class="option-btn"><span class="option-key">B</span><span class="option-text">Ampere (A)</span></button>
-      <button class="option-btn selected"><span class="option-key">C</span><span class="option-text">Watt (W)</span></button>
-      <button class="option-btn"><span class="option-key">D</span><span class="option-text">Ohm (Ω)</span></button>
+      <button class="option-btn">Volt (V)</button>
+      <button class="option-btn">Ampere (A)</button>
+      <button class="option-btn selected">Watt (W)</button>
+      <button class="option-btn">Ohm (Ω)</button>
     </div>
   </div>
 </div>
@@ -1628,10 +1171,10 @@ textarea.input { min-height: 100px; resize: vertical; }
     <h3>Wie viel ist <span class="math" data-tex="3^2 \cdot 2">3² × 2</span>?</h3>
   </div>
   <div class="grid-2">
-    <button class="option-btn"><span class="option-key">A</span><span class="option-text">12</span></button>
-    <button class="option-btn selected"><span class="option-key">B</span><span class="option-text">18</span></button>
-    <button class="option-btn"><span class="option-key">C</span><span class="option-text">24</span></button>
-    <button class="option-btn"><span class="option-key">D</span><span class="option-text">36</span></button>
+    <button class="option-btn" style="text-align:center">12</button>
+    <button class="option-btn" style="text-align:center;border-color:var(--primary);background:rgba(108,92,231,.15)">18</button>
+    <button class="option-btn" style="text-align:center">24</button>
+    <button class="option-btn" style="text-align:center">36</button>
   </div>
 </div>
 
@@ -1650,10 +1193,10 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="card" style="margin-top:12px">
     <h3>Wie lautet die Formel für die elektrische Leistung?</h3>
   </div>
-  <button class="option-btn"><span class="option-key">A</span><span class="option-text">P = m × g</span></button>
-  <button class="option-btn selected"><span class="option-key">B</span><span class="option-text">P = U × I</span></button>
-  <button class="option-btn"><span class="option-key">C</span><span class="option-text">P = F × v</span></button>
-  <button class="option-btn"><span class="option-key">D</span><span class="option-text">P = ½mv²</span></button>
+  <button class="option-btn">A) <span class="math" data-tex="P = m \cdot g">P = m × g</span></button>
+  <button class="option-btn">B) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
+  <button class="option-btn">C) <span class="math" data-tex="P = F \cdot v">P = F × v</span></button>
+  <button class="option-btn">D) <span class="math" data-tex="P = \tfrac{1}{2}mv^2">P = ½mv²</span></button>
   <div class="chip-row" style="justify-content:center;margin-top:10px">
     <span class="chip">50:50</span>
     <span class="chip">Telefon</span>
@@ -1672,20 +1215,27 @@ textarea.input { min-height: 100px; resize: vertical; }
   <div class="card" style="padding:8px 16px">
     <small style="color:var(--text-light)">Was ist die Einheit des Widerstands?</small>
   </div>
+  <!-- SVG Hangman figure -->
   <div style="text-align:center;margin:12px 0">
     <svg viewBox="0 0 120 140" style="width:140px;height:160px;color:var(--text)">
+      <!-- Gallows -->
       <line x1="20" y1="135" x2="100" y2="135" stroke="currentColor" stroke-width="3"/>
       <line x1="40" y1="135" x2="40" y2="15" stroke="currentColor" stroke-width="3"/>
       <line x1="40" y1="15" x2="80" y2="15" stroke="currentColor" stroke-width="3"/>
       <line x1="80" y1="15" x2="80" y2="30" stroke="currentColor" stroke-width="3"/>
+      <!-- Head -->
       <circle cx="80" cy="40" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+      <!-- Body -->
       <line x1="80" y1="50" x2="80" y2="85" stroke="currentColor" stroke-width="2"/>
+      <!-- Left arm -->
       <line x1="80" y1="58" x2="65" y2="72" stroke="currentColor" stroke-width="2"/>
     </svg>
   </div>
+  <!-- Word display -->
   <div style="text-align:center;font-size:1.8em;letter-spacing:8px;font-weight:700;margin:12px 0;font-family:monospace">
     _ _ _ <span style="color:var(--text)">M</span> &nbsp; _ _ _ _ _
   </div>
+  <!-- Keyboard -->
   <div class="letter-grid">
     <button class="letter-btn">A</button><button class="letter-btn" style="opacity:.3;background:var(--danger)">B</button>
     <button class="letter-btn">C</button><button class="letter-btn">D</button>
@@ -1709,8 +1259,10 @@ textarea.input { min-height: 100px; resize: vertical; }
 <!-- ===================== BOSS-FIGHT ===================== -->
 <div class="screen" id="s-boss-fight">
   <div class="top-bar"><button class="back" data-go="games">‹</button><h2>👹 Boss-Kampf</h2></div>
+  <!-- Arena -->
   <div style="background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:center">
+      <!-- Boss -->
       <div style="text-align:center;flex:1">
         <div style="font-size:42px">👹</div>
         <div style="font-weight:600;font-size:.85em;margin:4px 0">Boss</div>
@@ -1719,7 +1271,9 @@ textarea.input { min-height: 100px; resize: vertical; }
         </div>
         <small style="font-size:.7em">180/400 HP</small>
       </div>
+      <!-- VS -->
       <div style="font-size:1.2em;font-weight:700;padding:0 12px;color:var(--warning)">⚔️</div>
+      <!-- Player -->
       <div style="text-align:center;flex:1">
         <div style="font-size:42px">🧙</div>
         <div style="font-weight:600;font-size:.85em;margin:4px 0">Du</div>
@@ -1731,6 +1285,7 @@ textarea.input { min-height: 100px; resize: vertical; }
     </div>
     <div style="text-align:center;margin-top:8px;font-size:.85em;color:var(--warning)">🔥 3x Combo</div>
   </div>
+  <!-- Question -->
   <div class="card">
     <h3>Berechne: <span class="math" data-tex="\int_0^1 2x \, dx = \;?">∫₀¹ 2x dx = ?</span></h3>
     <input class="input" placeholder="Antwort eingeben…" style="margin-top:8px">
@@ -1749,8 +1304,10 @@ textarea.input { min-height: 100px; resize: vertical; }
     <span>Reihen: <strong style="color:var(--success)">3</strong></span>
     <span>Level: <strong>4</strong></span>
   </div>
+  <!-- Game board 8x8 grid -->
   <div style="background:var(--surface);border-radius:12px;padding:8px;margin-bottom:12px">
     <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:2px">
+      <!-- Row 1-3: some filled blocks -->
       <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
       <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
       <div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
@@ -1761,6 +1318,7 @@ textarea.input { min-height: 100px; resize: vertical; }
       <div style="aspect-ratio:1;background:var(--primary);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--success);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--accent);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div><div style="aspect-ratio:1;background:var(--surface2);border-radius:3px"></div>
     </div>
   </div>
+  <!-- Block pieces (locked until question answered) -->
   <div style="display:flex;justify-content:space-around;margin-bottom:12px">
     <div style="text-align:center">
       <div style="display:grid;grid-template-columns:repeat(3,20px);gap:2px;opacity:.3">
@@ -1785,19 +1343,20 @@ textarea.input { min-height: 100px; resize: vertical; }
       <small style="font-size:.65em;color:var(--text-light)">🔒 Gesperrt</small>
     </div>
   </div>
-  <div class="card card-accent">
+  <!-- Question to unlock block -->
+  <div class="card" style="border-left:3px solid var(--warning)">
     <small style="color:var(--warning)">🔓 Frage beantworten um Block freizuschalten</small>
     <h3 style="margin-top:6px">Was beschreibt das Ohmsche Gesetz?</h3>
     <div style="margin-top:8px">
-      <button class="option-btn"><span class="option-key">A</span><span class="option-text">P = U × I</span></button>
-      <button class="option-btn selected"><span class="option-key">B</span><span class="option-text">U = R × I</span></button>
-      <button class="option-btn"><span class="option-key">C</span><span class="option-text">F = m × a</span></button>
-      <button class="option-btn"><span class="option-key">D</span><span class="option-text">E = mc²</span></button>
+      <button class="option-btn">A) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
+      <button class="option-btn selected">B) <span class="math" data-tex="U = R \cdot I">U = R × I</span></button>
+      <button class="option-btn">C) <span class="math" data-tex="F = m \cdot a">F = m × a</span></button>
+      <button class="option-btn">D) <span class="math" data-tex="E = mc^2">E = mc²</span></button>
     </div>
   </div>
 </div>
 
-<!-- ===================== MATH-SOLVER ===================== -->
+<!-- ===================== MATH-SOLVER GAME ===================== -->
 <div class="screen" id="s-math-solver">
   <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🧮 Mathe-Solver</h2></div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1806,11 +1365,13 @@ textarea.input { min-height: 100px; resize: vertical; }
     <span class="badge badge-success">Score: 340</span>
   </div>
   <div class="progress"><div class="progress-fill" style="width:50%;background:var(--accent)"></div></div>
+  <!-- Task -->
   <div class="card" style="margin-top:12px;border-left:3px solid var(--accent)">
     <small style="color:var(--accent)">Aufgabe</small>
     <h3 style="margin-top:4px">Löse: <span class="math" data-tex="2x^2 + 4x - 6 = 0">2x² + 4x - 6 = 0</span></h3>
     <small>Finde x₁ und x₂</small>
   </div>
+  <!-- Already completed steps -->
   <div class="section-title">Dein Lösungsweg</div>
   <div class="step-chain">
     <div class="step-node">
@@ -1819,16 +1380,17 @@ textarea.input { min-height: 100px; resize: vertical; }
     </div>
     <div class="step-node">
       <div class="step-dot active"></div>
-      <div><strong style="color:var(--primary)">→ Schritt 2:</strong> <span style="font-size:.9em">Werte einsetzen …</span></div>
+      <div><strong style="color:var(--primary-light)">→ Schritt 2:</strong> <span style="font-size:.9em">Werte einsetzen …</span></div>
     </div>
   </div>
+  <!-- Current step: choose the right formula -->
   <div class="card">
     <small style="color:var(--text-light)">Wähle den nächsten richtigen Schritt:</small>
     <div style="margin-top:8px">
-      <button class="option-btn"><span class="option-key">A</span><span class="option-text"><span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+48}}{4}">x = (-4 ± √(16+48)) / 4</span></span></button>
-      <button class="option-btn selected"><span class="option-key">B</span><span class="option-text"><span class="math" data-tex="x = \frac{-4 \pm \sqrt{16 - 4 \cdot 2 \cdot (-6)}}{2 \cdot 2}">x = (-4 ± √(16-4·2·(-6))) / (2·2)</span></span></button>
-      <button class="option-btn"><span class="option-key">C</span><span class="option-text"><span class="math" data-tex="x = \frac{4 \pm \sqrt{16-48}}{4}">x = (4 ± √(16-48)) / 4</span></span></button>
-      <button class="option-btn"><span class="option-key">D</span><span class="option-text"><span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+24}}{2}">x = (-4 ± √(16+24)) / 2</span></span></button>
+      <button class="option-btn">A) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+48}}{4}">x = (-4 ± √(16+48)) / 4</span></button>
+      <button class="option-btn selected" style="border-color:var(--primary);background:rgba(108,92,231,.15)">B) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16 - 4 \cdot 2 \cdot (-6)}}{2 \cdot 2}">x = (-4 ± √(16-4·2·(-6))) / (2·2)</span></button>
+      <button class="option-btn">C) <span class="math" data-tex="x = \frac{4 \pm \sqrt{16-48}}{4}">x = (4 ± √(16-48)) / 4</span></button>
+      <button class="option-btn">D) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+24}}{2}">x = (-4 ± √(16+24)) / 2</span></button>
     </div>
   </div>
   <button class="btn btn-primary" style="margin-top:8px">Bestätigen →</button>
@@ -1863,7 +1425,7 @@ textarea.input { min-height: 100px; resize: vertical; }
     </div>
     <div class="step-node">
       <div class="step-dot"></div>
-      <div><strong>Finale — 💰 Millionär</strong><br><small style="color:var(--primary)">Wiederholung · Falsche Antworten nochmal</small></div>
+      <div><strong>Finale — 💰 Millionär</strong><br><small style="color:var(--primary-light)">Wiederholung · Falsche Antworten nochmal</small></div>
     </div>
   </div>
   <div class="card" style="text-align:center;margin-top:12px">
@@ -1873,7 +1435,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <button class="btn btn-primary" data-go="block-blast" style="margin-top:8px">Kampagne starten!</button>
 </div>
 
-<!-- ===================== TAB BAR ===================== -->
+<!-- ===================== TAB BAR (Gemini: Home, Lernen, Quizze, Games, Settings) ===================== -->
 <div class="tab-bar">
   <button data-go="home" class="active"><span class="tab-icon">🏠</span>Home</button>
   <button data-go="learn-tab"><span class="tab-icon">📖</span>Lernen</button>
@@ -1882,11 +1444,7 @@ textarea.input { min-height: 100px; resize: vertical; }
   <button data-go="settings"><span class="tab-icon">⚙️</span>Settings</button>
 </div>
 
-<!-- ===================== BOTTOM SHEET OVERLAY ===================== -->
-<div class="sheet-overlay" id="sheet-overlay"></div>
-
 <script>
-// === Navigation ===
 function go(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const target = document.getElementById('s-' + id);
@@ -1910,12 +1468,10 @@ document.addEventListener('click', e => {
   }
 });
 
-// === Toggle tracks ===
 document.querySelectorAll('.toggle-track').forEach(t => {
   t.addEventListener('click', () => t.classList.toggle('on'));
 });
 
-// === Option buttons (single-select) ===
 document.querySelectorAll('.option-btn').forEach(b => {
   b.addEventListener('click', () => {
     b.parentElement.querySelectorAll('.option-btn').forEach(o => o.classList.remove('selected'));
@@ -1923,47 +1479,9 @@ document.querySelectorAll('.option-btn').forEach(b => {
   });
 });
 
-// === Chip toggles ===
 document.querySelectorAll('.chip-row .chip').forEach(c => {
   c.addEventListener('click', () => {
     if (!c.dataset.go) c.classList.toggle('active');
-  });
-});
-
-// === Theme toggle ===
-const themeToggle = document.getElementById('theme-toggle-track');
-if (themeToggle) {
-  themeToggle.addEventListener('click', () => {
-    setTimeout(() => {
-      const isDark = themeToggle.classList.contains('on');
-      const theme = isDark ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', theme);
-      updateThemeLabel(theme);
-    }, 0);
-  });
-  // Init: read current theme
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-  if (currentTheme === 'dark') themeToggle.classList.add('on');
-  else themeToggle.classList.remove('on');
-  updateThemeLabel(currentTheme);
-}
-function updateThemeLabel(theme) {
-  const lbl = document.getElementById('theme-label');
-  if (!lbl) return;
-  const map = { light: '☀️ Hell', dark: '🌙 Dunkel', auto: '🔄 Auto' };
-  lbl.textContent = map[theme] || map.auto;
-}
-
-// === Shop tabs ===
-document.querySelectorAll('.shop-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    const idx = parseInt(tab.dataset.shopTab);
-    document.querySelectorAll('.shop-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    for (let i = 0; i < 4; i++) {
-      const panel = document.getElementById('shop-tab-' + i);
-      if (panel) panel.classList.toggle('hidden', i !== idx);
-    }
   });
 });
 
@@ -1971,7 +1489,7 @@ document.querySelectorAll('.shop-tab').forEach(tab => {
 let latexEnabled = true;
 function renderMath() {
   document.querySelectorAll('.math').forEach(el => {
-    if (!el.dataset.plain) el.dataset.plain = el.textContent;
+    if (!el.dataset.plain) el.dataset.plain = el.textContent; // store fallback once
     if (latexEnabled && window.katex) {
       try {
         el.innerHTML = '';
@@ -1982,12 +1500,14 @@ function renderMath() {
     }
   });
 }
+// Render once KaTeX has loaded
 if (window.katex) renderMath();
 else window.addEventListener('load', renderMath);
 
 const latexToggle = document.getElementById('latex-toggle');
 if (latexToggle) {
   latexToggle.addEventListener('click', () => {
+    // toggle-track click handler already flips .on; read resulting state
     setTimeout(() => {
       latexEnabled = latexToggle.classList.contains('on');
       renderMath();
@@ -1995,7 +1515,7 @@ if (latexToggle) {
   });
 }
 
-// === Model selector ===
+// Model selector in settings
 document.querySelectorAll('.model-option').forEach(el => {
   el.addEventListener('click', () => {
     document.querySelectorAll('.model-option').forEach(o => o.classList.remove('selected'));
@@ -2003,7 +1523,7 @@ document.querySelectorAll('.model-option').forEach(el => {
   });
 });
 
-// === More models toggle ===
+// More models toggle
 const moreModelsBtn = document.getElementById('more-models-btn');
 if (moreModelsBtn) {
   moreModelsBtn.addEventListener('click', () => {
@@ -2014,57 +1534,33 @@ if (moreModelsBtn) {
   });
 }
 
-// === Onboarding ===
+// Onboarding
 let obSlide = 0;
 function showSlide(n) {
   document.querySelectorAll('.onboarding-slide').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.ob-dot').forEach(d => d.classList.remove('active'));
-  const slide = document.querySelector('[data-slide="' + n + '"]');
-  const dot = document.querySelector('[data-dot="' + n + '"]');
-  if (slide) slide.classList.add('active');
-  if (dot) dot.classList.add('active');
-  const nextBtn = document.getElementById('ob-next');
-  if (nextBtn) nextBtn.textContent = n === 2 ? 'Los geht\'s!' : 'Weiter';
+  document.querySelector(`[data-slide="${n}"]`).classList.add('active');
+  document.querySelector(`[data-dot="${n}"]`).classList.add('active');
+  document.getElementById('ob-next').textContent = n === 2 ? 'Los geht\'s!' : 'Weiter';
 }
-const obNext = document.getElementById('ob-next');
-if (obNext) {
-  obNext.addEventListener('click', () => {
-    if (obSlide < 2) { obSlide++; showSlide(obSlide); }
-    else { document.getElementById('onboarding').classList.add('hidden'); }
-  });
-}
-const obSkip = document.getElementById('ob-skip');
-if (obSkip) {
-  obSkip.addEventListener('click', () => {
-    document.getElementById('onboarding').classList.add('hidden');
-  });
-}
+document.getElementById('ob-next').addEventListener('click', () => {
+  if (obSlide < 2) { obSlide++; showSlide(obSlide); }
+  else { document.getElementById('onboarding').classList.add('hidden'); }
+});
+document.getElementById('ob-skip').addEventListener('click', () => {
+  document.getElementById('onboarding').classList.add('hidden');
+});
 
-// === Offline banner ===
-const offlineBanner = document.getElementById('offline-banner');
-if (offlineBanner) {
-  offlineBanner.addEventListener('click', () => {
-    offlineBanner.classList.toggle('show');
-  });
-}
+// Offline banner toggle (demo: click to dismiss)
+document.getElementById('offline-banner').addEventListener('click', () => {
+  document.getElementById('offline-banner').classList.toggle('show');
+});
 
-// === Bottom sheet ===
+// Bottom sheet (demo: can be opened programmatically)
 const sheetOverlay = document.getElementById('sheet-overlay');
-if (sheetOverlay) {
-  sheetOverlay.addEventListener('click', e => {
-    if (e.target === sheetOverlay) sheetOverlay.classList.remove('open');
-  });
-}
-
-// === Skeleton loading demo ===
-const quizListSkeleton = document.getElementById('quiz-list-skeleton');
-if (quizListSkeleton) {
-  setTimeout(() => {
-    quizListSkeleton.classList.add('hidden');
-    const quizList = document.getElementById('quiz-list');
-    if (quizList) quizList.classList.remove('hidden');
-  }, 1500);
-}
+sheetOverlay.addEventListener('click', e => {
+  if (e.target === sheetOverlay) sheetOverlay.classList.remove('open');
+});
 </script>
 </body>
 </html>
