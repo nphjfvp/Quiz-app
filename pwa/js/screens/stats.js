@@ -35,6 +35,11 @@ export async function render(root) {
           <div class="stat-label">Antworten (14T)</div>
         </div>
       </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="grid-card mini-card" data-nav="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div></div>
+      <div class="grid-card mini-card" data-nav="achievements"><div class="icon">🏆</div><div class="title">Erfolge</div></div>
     </div>`;
 
   // Heatmap (13 weeks)
@@ -111,4 +116,6 @@ export async function render(root) {
 
   root.innerHTML = html;
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
+  root.querySelectorAll("[data-nav]").forEach((el) =>
+    el.addEventListener("click", () => navigate(el.dataset.nav)));
 }
