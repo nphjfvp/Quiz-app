@@ -28,6 +28,8 @@ export async function render(root) {
           ${[1,2,3,4,5].map(b => `<span class="quiz-box box-${b}">${counts[b]||0}</span>`).join("")}
         </div>
         <button class="btn-icon btn-icon-sm" data-edit-id="${quiz.id}">✏️</button>
+        <button class="btn-icon btn-icon-sm" data-export-id="${quiz.id}" data-format="json" title="Als JSON exportieren">📥</button>
+        <button class="btn-icon btn-icon-sm" data-export-id="${quiz.id}" data-format="html" title="Als HTML exportieren">📄</button>
         <span class="row-chev">›</span>
       </div>`;
     }
@@ -57,6 +59,18 @@ export async function render(root) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       navigate("editor", { quizId: btn.dataset.editId });
+    });
+  });
+  root.querySelectorAll("[data-export-id]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const quizId = btn.dataset.exportId;
+      const format = btn.dataset.format;
+      const quizzes = await loadQuizzes();
+      const quiz = quizzes.find(q => q.id === quizId);
+      if (!quiz) return;
+      const { downloadQuiz } = await import("../html-export.js");
+      await downloadQuiz(quiz, format);
     });
   });
   root.querySelectorAll("[data-quiz-id]").forEach((el) => {
