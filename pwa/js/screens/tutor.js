@@ -20,6 +20,19 @@ export async function render(root, params = {}) {
     </div>`;
   }
 
+  // Quick Actions
+  try {
+    const { loadQuickActions } = await import("../store.js");
+    const qas = await loadQuickActions();
+    if (qas.length) {
+      html += `<div id="tutor-qa" style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0">`;
+      for (const qa of qas) {
+        html += `<button class="btn btn-sm btn-ghost" data-qa-prompt="${escAttr(qa.prompt)}">⚡ ${esc(qa.name)}</button>`;
+      }
+      html += `</div>`;
+    }
+  } catch (_) {}
+
   html += `<div id="tutor-messages" class="tutor-messages"></div>`;
 
   html += `<div class="tutor-input-row">
@@ -103,6 +116,32 @@ export async function render(root, params = {}) {
   sendBtn.addEventListener("click", sendMessage);
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // Quick-Actions buttons
+  root.querySelectorAll("[data-qa-prompt]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const prompt = btn.dataset.qaPrompt;
+      if (!prompt) return;
+      const qaText = `${prompt}\n\nFrage: ${params.question?.text || params.question?.question || ""}`;
+      addMessage("user", `⚡ ${btn.textContent.trim()}`);
+      sendBtn.disabled = true;
+      inputEl.disabled = true;
+      addTypingIndicator();
+      try {
+        const reply = await askTutor(qaText, buildContext(), chatHistory, {}, questionImage);
+        removeTypingIndicator();
+        chatHistory.push({ role: "user", content: qaText });
+        chatHistory.push({ role: "assistant", content: reply });
+        addMessage("assistant", reply);
+      } catch (err) {
+        removeTypingIndicator();
+        addMessage("assistant", `Fehler: ${err.message || "Unbekannter Fehler."}`);
+      } finally {
+        sendBtn.disabled = false;
+        inputEl.disabled = false;
+      }
+    });
   });
 
   inputEl.focus();

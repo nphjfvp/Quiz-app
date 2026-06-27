@@ -1,4 +1,4 @@
-import { loadSettings, saveSettings, loadMemory, saveMemory, loadMemoryEntries, createMemoryEntry, addMemoryEntry, deleteMemoryEntry } from "../store.js";
+import { loadSettings, saveSettings, loadMemory, saveMemory, loadMemoryEntries, createMemoryEntry, addMemoryEntry, deleteMemoryEntry, loadQuickActions, saveQuickActions } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount, setAccount, signIn, signUp, pullAll, pushAll, pullBySyncCode } from "../firebase-sync.js";
 import { MODELS } from "../ai-service.js";
@@ -8,6 +8,7 @@ export async function render(root) {
   const settings = await loadSettings();
   const memoryText = await loadMemory();
   const memoryEntries = await loadMemoryEntries();
+  const quickActions = await loadQuickActions();
   const account = getAccount();
 
   const theme = (() => { try { return localStorage.getItem("theme") || "auto"; } catch { return "auto"; } })();
@@ -176,6 +177,34 @@ export async function render(root) {
       </div>
     </div>`;
 
+  // ── Quick-Actions-Editor ──
+  html += `<div class="section-title">Schnellaktionen</div>
+    <div class="card">
+      <div class="card-desc">KI-Tutor-Schnellaktionen: Benannte Buttons mit KI-generierten Prompts für wiederkehrende Lern-Anfragen.</div>
+      <div id="qa-list" style="margin-top:8px">` + quickActions.map((qa, i) => `
+        <div style="background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <span style="font-weight:600;font-size:0.9rem">${esc(qa.name)}</span>
+            ${qa.user_story ? `<br><span style="font-size:0.75rem;color:var(--text-light)">${esc(qa.user_story).slice(0, 80)}</span>` : ""}
+          </div>
+          <button class="btn-icon btn-icon-sm" data-qa-del="${i}">🗑️</button>
+        </div>`).join("") + (quickActions.length === 0 ? `<span style="color:var(--text-light);font-size:0.8rem">Noch keine Schnellaktionen.</span>` : "") + `</div>
+      ${quickActions.length < 8 ? `
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
+        <div style="font-size:0.8rem;font-weight:600;margin-bottom:4px">Neue Schnellaktion</div>
+        <input id="qa-name" class="btn btn-sm btn-ghost" placeholder="Name (z. B. Eselsbrücken)" style="padding:4px 8px;width:100%;margin-bottom:4px">
+        <textarea id="qa-story" rows="2" class="model-select-list" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border)" placeholder="Beschreibung – die KI erstellt daraus den Prompt. z. B. „Erstelle lustige Eselsbrücken für diese Frage.""></textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span style="font-size:0.75rem">Kreativität:</span>
+          <input type="range" id="qa-temp" min="0" max="1" step="0.1" value="0.7" style="flex:1">
+          <span id="qa-temp-val" style="font-size:0.75rem;width:30px">0.7</span>
+          <label style="font-size:0.7rem;display:flex;align-items:center;gap:2px"><input type="checkbox" id="qa-ai-decides">KI entscheidet</label>
+        </div>
+        <button class="btn btn-sm btn-primary" id="qa-save-btn" style="margin-top:6px">✨ Prompt generieren & speichern</button>
+        <span id="qa-status" style="font-size:0.75rem;color:var(--text-light);margin-left:8px"></span>
+      </div>` : `<div style="color:var(--warning);font-size:0.75rem;margin-top:4px">Max. 8 Schnellaktionen erreicht.</div>`}
+    </div>`;
+
   // JSON Import
   html += `<div class="section-title">JSON Import</div>
     <div class="card">
@@ -280,6 +309,54 @@ export async function render(root) {
     await addMemoryEntry(entry);
     const entries = await loadMemoryEntries();
     renderMemEntries(entries);
+  });
+
+  // ── Quick-Actions Events ──
+  const qaTempSlider = root.querySelector("#qa-temp");
+  const qaTempVal = root.querySelector("#qa-temp-val");
+  if (qaTempSlider && qaTempVal) {
+    qaTempSlider.addEventListener("input", () => { qaTempVal.textContent = qaTempSlider.value; });
+  }
+  root.querySelectorAll("[data-qa-del]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.dataset.qaDel);
+      const acts = await loadQuickActions();
+      if (idx >= 0 && idx < acts.length) acts.splice(idx, 1);
+      await saveQuickActions(acts);
+      render(root);
+    });
+  });
+  root.querySelector("#qa-save-btn")?.addEventListener("click", async () => {
+    const name = root.querySelector("#qa-name")?.value?.trim();
+    const story = root.querySelector("#qa-story")?.value?.trim();
+    if (!name || !story) return;
+    const statusEl = root.querySelector("#qa-status");
+    const btn = root.querySelector("#qa-save-btn");
+    const aiDecides = root.querySelector("#qa-ai-decides")?.checked;
+    const temp = aiDecides ? 0.7 : parseFloat(qaTempSlider?.value || 0.7);
+    btn.disabled = true;
+    if (statusEl) statusEl.textContent = "Generiere Prompt…";
+    try {
+      // Ask AI to generate the prompt
+      const { chatCompletion, getConfig } = await import("../ai-service.js");
+      const { apiKey, model } = await getConfig();
+      const msgs = [
+        { role: "system", content: "Du bist Experte für Prompt Engineering. Erstelle einen optimierten System-Prompt für einen Lern-Tutor-Button. Antworte NUR mit dem fertigen Prompt, ohne Erklärung." },
+        { role: "user", content: `Button-Name: ${name}\nBeschreibung / User Story: ${story}` }
+      ];
+      const raw = await chatCompletion(msgs, { apiKey, model, stream: false });
+      const prompt = raw || story;
+      const action = { name, prompt, temperature: temp, user_story: story };
+      const acts = await loadQuickActions();
+      acts.push(action);
+      await saveQuickActions(acts);
+      if (statusEl) statusEl.textContent = "Gespeichert!";
+      btn.disabled = false;
+      render(root);
+    } catch (err) {
+      if (statusEl) statusEl.textContent = "Fehler: " + (err.message || "Generierung fehlgeschlagen");
+      btn.disabled = false;
+    }
   });
 
   // Auth
