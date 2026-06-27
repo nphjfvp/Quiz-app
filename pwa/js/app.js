@@ -53,6 +53,7 @@ route("deep-learn", async (root, params) => { const m = await import("./screens/
 route("shop", async (root) => { const m = await import("./screens/shop.js"); return m.render(root); });
 route("random", async (root) => { const m = await import("./screens/random-mode.js"); return m.render(root); });
 route("formula-sheets", async (root, params) => { const m = await import("./screens/formula-sheets.js"); return m.render(root, params); });
+route("image-editor", async (root) => { const m = await import("./screens/image-editor.js"); return m.render(root); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -77,6 +78,7 @@ setScreenTab("marked", "lernen");
 setScreenTab("random", "lernen");
 setScreenTab("formula-sheets", "lernen");
 setScreenTab("pomodoro", "lernen");
+setScreenTab("image-editor", "lernen");
 
 // 🎮 Games
 setScreenTab("games", "games");

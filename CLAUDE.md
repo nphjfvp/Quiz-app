@@ -86,6 +86,10 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   (synthetisches Quiz → normale quiz-Engine; Fortschritt landet pro Frage-ID bei den Quellfragen).
 - **formula-sheets** – Formelsammlung-Manager (Store-Key `formula_sheets`): Sammlungen pro Fach
   anlegen/ansehen/bearbeiten, LaTeX-Body via `mathEsc` gerendert (Desktop-Parität zu `fosa`).
+- **image-editor** – eigenständiger Bild-Editor: Bild laden, mit Pinsel übermalen
+  (Schwärzen/Weißen/Farben), Pinselgröße, Rückgängig, als PNG speichern (verallgemeinert `blackout.js`).
+- **ai-generate** hat zusätzlich einen **Import-Modus** (`importQuiz`): übernimmt vorhandene
+  Fragen aus Dokumenten 1:1 (Altklausur/Übungsblatt) statt neue zu generieren – inkl. Chunking.
 - **settings** – Theme (auto/hell/dunkel), Account, Sync-Code, **API-Key + Modell-Selektor mit
   Kostensperre** (Free-Modelle direkt, kostenpflichtige hinter „Weitere Modelle anzeigen",
   pro Modell 🔒-Sperre via `disabledModels`, Bestätigung bei Paid-Modellen),
@@ -173,5 +177,3 @@ robustes **parseJSON** (repariert ungültige LaTeX-Escapes wie `\(`/`\sqrt`).
 - **Echtes Rolling-Summary** für Chunking (statt nur Themen-Liste als Kontext) –
   der Bild-/Hybrid-PDF-Pfad chunkt zudem noch nicht (nur der Text-Pfad).
 - Mockup-Spiele noch nicht in echter PWA: **Block Blast, Math-Solver, Mix-Kampagne**.
-- Desktop-Parität offen: **Bild-Editor** (eigenständig; PWA hat Schwärzen nur in Fragen via `blackout.js`)
-  und **KI-Import** (Fragen aus Übungs-/Lösungsdokumenten 1:1 importieren statt neu generieren).

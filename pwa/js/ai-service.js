@@ -342,6 +342,87 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
   return finalList.map(normalizeQuizQuestion);
 }
 
+// Importiert BEREITS vorhandene Fragen 1:1 aus einem Dokument (Altklausur,
+// Übungsblatt, Skript) – im Gegensatz zu generateQuiz, das neue Fragen erfindet.
+// Unterstützt Chunking (config.chunkSize) + onProgress wie generateQuiz.
+export async function importQuiz(text, language = "de", config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
+
+  const systemPrompt = `Du bist ein Experte für das Importieren von Prüfungsfragen aus Dokumenten.
+Das Dokument enthält BEREITS fertige Fragen (z.B. aus Übungsskripten, Altklausuren, Arbeitsblättern).
+Extrahiere ALLE vorhandenen Fragen und konvertiere sie 1:1 in das JSON-Format. ERFINDE KEINE neuen Fragen.
+
+Regeln:
+- Importiere ABSOLUT JEDE einzelne Frage – überspringe KEINE.
+- Erkenne den Fragetyp automatisch: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula".
+- Behalte den originalen Fragentext möglichst bei.
+- Rechenaufgaben → "free_text" mit Lösung in "correct_text" (oder "math_formula" mit "correct_formula").
+- Wenn Antwortoptionen gegeben sind, markiere die richtigen via "is_correct".
+- Bei fill_blank: Lücken mit ___ markieren, Lösungswörter in "blanks".
+- Bei mehreren unabhängigen Gleichungen/Teilaufgaben (a, b, c …): JEDE wird eine EIGENE, eigenständig lösbare Frage.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array (kein Markdown):
+[
+  {
+    "question_type": "single_choice",
+    "question_text": "Originaler Fragetext",
+    "title": "Kurztitel",
+    "topic": "Themengebiet",
+    "points": 1,
+    "options": [{"text": "Antwort", "is_correct": true}],
+    "correct_text": "",
+    "blanks": [],
+    "drag_drop_pairs": [{"source": "Begriff", "target": "Ziel"}],
+    "correct_formula": "",
+    "explanation": "Erklärung falls im Dokument vorhanden"
+  }
+]`;
+
+  const runChunk = async (chunkStr, prefix) => {
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `${prefix}\n\n${chunkStr}` },
+    ];
+    const body = await chatCompletion(messages, { apiKey, model, stream: true });
+    const raw = await readStream(body);
+    const parsed = parseJSON(raw);
+    if (!Array.isArray(parsed)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+    return parsed;
+  };
+
+  const chunkSize = Number(config.chunkSize) || 0;
+  const useChunking = chunkSize > 0 && text.length > chunkSize;
+
+  let collected = [];
+  if (useChunking) {
+    const chunks = chunkText(text, chunkSize);
+    for (let i = 0; i < chunks.length; i++) {
+      if (onProgress) onProgress(i + 1, chunks.length);
+      const prefix = `Importiere ALLE Fragen aus Abschnitt ${i + 1}/${chunks.length} dieses Dokuments:`;
+      try {
+        collected.push(...await runChunk(chunks[i], prefix));
+      } catch (err) {
+        if (chunks.length === 1) throw err;
+      }
+    }
+  } else {
+    collected = await runChunk(text, "Importiere ALLE Fragen aus diesem Dokument:");
+  }
+
+  // Dedupe über normalisierten Fragetext (Chunking-Überschneidungen)
+  const seen = new Set();
+  const deduped = [];
+  for (const q of collected) {
+    const key = (q.question_text || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    deduped.push(q);
+  }
+  return deduped.map(normalizeQuizQuestion);
+}
+
 // Generiert Fragen direkt aus einem Bild (Screenshot, Foto, Diagramm) via Vision-Modell.
 // imageUrl: data:-URL oder http-URL. Nutzt immer ein Vision-Modell.
 export async function generateQuizFromImage(imageUrl, numQuestions = 3, language = "de", config = {}) {
