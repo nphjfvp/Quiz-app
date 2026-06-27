@@ -128,6 +128,17 @@ export async function render(root, params = {}) {
           </div>
         </div>
 
+        <div class="input-group">
+          <label>Fragetypen (welche erlaubt sind)</label>
+          <div id="qtype-select" class="qtype-select">
+            ${Q_TYPES.map(t => `<label class="qtype-chip">
+              <input type="checkbox" class="qtype-cb" value="${t.id}" checked>
+              <span>${esc(t.label)}</span>
+            </label>`).join("")}
+          </div>
+          <small class="file-hint">Abgewählte Typen werden nicht generiert. Bei Bild/PDF stehen nur Single/Multiple Choice, Freitext &amp; Lückentext zur Verfügung.</small>
+        </div>
+
         <div id="ai-error" class="error-box"></div>
 
         <button id="ai-generate" class="btn btn-primary btn-lg btn-block">
@@ -195,6 +206,12 @@ export async function render(root, params = {}) {
     const n = parseInt(numInput.value, 10);
     if (!Number.isFinite(n) || n < 1) return 10;
     return Math.min(500, n);
+  }
+
+  // Vom Nutzer erlaubte Fragetypen. Leer = alle (Fallback im ai-service).
+  function getAllowedTypes() {
+    const ids = [...root.querySelectorAll(".qtype-cb:checked")].map(cb => cb.value);
+    return ids.length ? ids : undefined;
   }
 
   const fileProgress = root.querySelector("#file-progress");
@@ -432,6 +449,7 @@ export async function render(root, params = {}) {
   genBtn.addEventListener("click", async () => {
     const text = textArea.value.trim();
     const numQuestions = getNumQuestions();
+    const allowedTypes = getAllowedTypes();
 
     // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild)
     if (uploadedImageData && !text) {
@@ -440,7 +458,7 @@ export async function render(root, params = {}) {
       genBtn.disabled = true;
       genBtn.textContent = "⏳ Analysiere Bild…";
       try {
-        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel, detailLevel });
+        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes });
         showReview(root, questions, quizName, currentModel, "");
       } catch (err) {
         showError(err.message || "Bild konnte nicht ausgewertet werden.");
@@ -465,7 +483,7 @@ export async function render(root, params = {}) {
           // Hybrid: Volltext als Zusatzkontext. Images: Text optional (oft leer).
           let ctxText = pdfMode === "hybrid" ? text : (text || undefined);
           if (ctxText && ctxText.length > charLimit) ctxText = ctxText.slice(0, charLimit);
-          const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel }, ctxText);
+          const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes }, ctxText);
           showReview(root, questions, quizName, currentModel, text || "");
         } catch (err) {
           showError(err.message || "PDF konnte nicht ausgewertet werden.");
@@ -499,7 +517,7 @@ export async function render(root, params = {}) {
     genBtn.textContent = "⏳ Generiere…";
 
     try {
-      const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel });
+      const questions = await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes });
       showReview(root, questions, quizName, currentModel, inputText);
     } catch (err) {
       showError(err.message || "Beim Generieren ist ein Fehler aufgetreten.");

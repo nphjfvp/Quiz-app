@@ -116,19 +116,38 @@ async function readStream(body) {
   return result;
 }
 
+// JSON nur erlaubt \" \\ \/ \b \f \n \r \t \uXXXX. KI-Modelle schreiben aber oft
+// LaTeX direkt in Strings (z. B. \( \frac \sqrt \\), was "Bad escaped character"
+// auslöst. Wir verdoppeln jeden Backslash, der KEINE gültige JSON-Escape startet.
+function sanitizeJSONEscapes(s) {
+  return s.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, "\\\\");
+}
+
 function parseJSON(text) {
   if (!text || !text.trim()) throw new SyntaxError("Empty AI response");
   let t = text.trim();
   if (t.includes("```json")) t = t.split("```json")[1].split("```")[0];
   else if (t.startsWith("```")) t = t.replace(/^```\w*\s*\n?/, "").replace(/\n?```\s*$/, "");
   t = t.trim();
-  try { return JSON.parse(t); } catch { /* fall through to repair */ }
-  for (const [open, close] of [["{", "}"], ["[", "]"]]) {
-    const s = t.indexOf(open), e = t.lastIndexOf(close);
-    if (s !== -1 && e > s) {
-      let chunk = t.slice(s, e + 1).replace(/,\s*([}\]])/g, "$1");
-      try { return JSON.parse(chunk); } catch { /* try next */ }
+
+  // Kandidaten in steigender Reparatur-Aggressivität durchprobieren.
+  const candidates = [];
+  const addBlock = (str) => {
+    candidates.push(str);
+    candidates.push(sanitizeJSONEscapes(str));
+    for (const [open, close] of [["{", "}"], ["[", "]"]]) {
+      const a = str.indexOf(open), b = str.lastIndexOf(close);
+      if (a !== -1 && b > a) {
+        const chunk = str.slice(a, b + 1).replace(/,\s*([}\]])/g, "$1");
+        candidates.push(chunk);
+        candidates.push(sanitizeJSONEscapes(chunk));
+      }
     }
+  };
+  addBlock(t);
+
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch { /* try next */ }
   }
   throw new SyntaxError("KI-Antwort enthält kein gültiges JSON. Bitte erneut versuchen.");
 }
@@ -152,12 +171,18 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
     ? "So viele Prüfungsfragen wie sinnvoll"
     : `${numQuestions} Prüfungsfragen`;
 
+  const ALL_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula"];
+  const allowed = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
+    ? ALL_TYPES.filter(t => config.allowedTypes.includes(t))
+    : ALL_TYPES;
+  const typesList = (allowed.length ? allowed : ALL_TYPES).map(t => `"${t}"`).join(", ");
+
   const systemPrompt = `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
 WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
 - ${countRule}
-- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula".
+- Verwende AUSSCHLIESSLICH diese Fragetypen: ${typesList}. Andere Typen sind NICHT erlaubt.
 - Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
 - Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.
 - Bei multiple_choice: mindestens 2 Optionen sind korrekt, mindestens 4 Optionen.
@@ -197,7 +222,13 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
 
   if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
 
-  return questions.map((q) => ({
+  let filtered = questions;
+  if (allowed.length && allowed.length < ALL_TYPES.length) {
+    const kept = questions.filter(q => allowed.includes(q.question_type));
+    if (kept.length) filtered = kept; // nur filtern, wenn etwas übrig bleibt
+  }
+
+  return filtered.map((q) => ({
     id: uid(),
     question_type: q.question_type,
     question_text: q.question_text,
@@ -223,11 +254,17 @@ export async function generateQuizFromImage(imageUrl, numQuestions = 3, language
   const chosen = MODELS.find((m) => m.id === model);
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
+  const IMG_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "diagram_label"];
+  const allowedImg = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
+    ? IMG_TYPES.filter(t => config.allowedTypes.includes(t))
+    : IMG_TYPES;
+  const imgTypesList = (allowedImg.length ? allowedImg : IMG_TYPES).map(t => `"${t}"`).join(", ");
+
   const systemPrompt = `Du bist ein erfahrener Pädagoge. Analysiere das gezeigte Bild (Diagramm, Skizze, Screenshot, Tafelbild o.ä.) und erstelle daraus hochwertige Lernfragen.
 
 Regeln:
 - Erstelle bis zu ${numQuestions} Fragen, die sich auf den Bildinhalt beziehen.
-- Verwende sinnvolle Typen aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Verwende AUSSCHLIESSLICH diese Fragetypen: ${imgTypesList}. Andere Typen sind NICHT erlaubt.
 - Wenn das Bild ein beschriftbares Diagramm ist, kannst du eine "diagram_label"-Frage erstellen: liste die zu beschriftenden Punkte in "diagram_labels" mit Name und relativer Position x/y (0-1) auf.
 - Jede Frage braucht eine klare Erklärung.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
@@ -265,7 +302,13 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
   const questions = parseJSON(raw);
   if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
 
-  return questions.map((q) => ({
+  let filteredImg = questions;
+  if (allowedImg.length && allowedImg.length < IMG_TYPES.length) {
+    const kept = questions.filter(q => allowedImg.includes(q.question_type));
+    if (kept.length) filteredImg = kept;
+  }
+
+  return filteredImg.map((q) => ({
     id: uid(),
     question_type: q.question_type,
     question_text: q.question_text,
@@ -305,12 +348,18 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
     : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
   const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
 
+  const IMGS_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank"];
+  const allowedImgs = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
+    ? IMGS_TYPES.filter(t => config.allowedTypes.includes(t))
+    : IMGS_TYPES;
+  const imgsTypesList = (allowedImgs.length ? allowedImgs : IMGS_TYPES).map(t => `"${t}"`).join(", ");
+
   const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
 WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf ALLEN Seiten – jedes Konzept, jede Definition, jeder Fakt, jede Formel soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
 - ${countRuleImg}
-- Verwende eine sinnvolle Mischung aus: "single_choice", "multiple_choice", "free_text", "fill_blank".
+- Verwende AUSSCHLIESSLICH diese Fragetypen: ${imgsTypesList}. Andere Typen sind NICHT erlaubt.
 - Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
 - Jede Frage muss eine klare Erklärung enthalten.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
@@ -346,7 +395,13 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
   const questions = parseJSON(raw);
   if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
 
-  return questions.map((q) => ({
+  let filteredImgs = questions;
+  if (allowedImgs.length && allowedImgs.length < IMGS_TYPES.length) {
+    const kept = questions.filter(q => allowedImgs.includes(q.question_type));
+    if (kept.length) filteredImgs = kept;
+  }
+
+  return filteredImgs.map((q) => ({
     id: uid(),
     question_type: q.question_type,
     question_text: q.question_text,
