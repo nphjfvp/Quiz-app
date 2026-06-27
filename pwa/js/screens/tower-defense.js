@@ -3,6 +3,7 @@ import { navigate } from "../router.js";
 import { esc, mathEsc } from "../utils.js";
 import { buildPlayable, checkText, checkTextSmart, checkMulti, checkMultiText, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
 import { getGameSkin } from "../shop-catalog.js";
+import { lerp, addFloater, roundRectPath, roundRectFill, roundRectStroke, strokePath, burst } from "../canvas-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -25,8 +26,6 @@ function buildPath() {
   }
   return p;
 }
-
-function lerp(a, b, t) { return a + (b - a) * t; }
 
 const DIFF_LABEL = { 1: "Leicht", 2: "Mittel", 3: "Schwer" };
 const DIFF_COLOR = { 1: "#22c55e", 2: "#f59e0b", 3: "#ef4444" };
@@ -688,10 +687,10 @@ function drawArena(ctx, isDark, now) {
   // Inner arena floor (inset sand pit)
   const floor1 = isDark ? "#3a3024" : "#cdb288";
   const floor2 = isDark ? "#332b20" : "#c2a679";
-  drawRoundRect(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14, floor1);
+  roundRectFill(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14, floor1);
   // sand grid texture
   ctx.save();
-  drawRoundRect(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14, floor1);
+  roundRectPath(ctx, pad, pad, CANVAS_W - pad * 2, CANVAS_H - pad * 2, 14);
   ctx.clip();
   ctx.fillStyle = floor2;
   for (let r = 0; r < ROWS; r++)
@@ -742,13 +741,13 @@ function drawBase(ctx, x, y, state, now) {
   ctx.beginPath(); ctx.ellipse(x, y + 15, 20, 6, 0, 0, Math.PI * 2); ctx.fill();
   // keep walls
   const wallC = hpPct > 0.5 ? "#94a3b8" : hpPct > 0.25 ? "#cbb38a" : "#d98a8a";
-  drawRoundRect(ctx, x - 17, y - 13, 34, 28, 4, wallC);
+  roundRectFill(ctx, x - 17, y - 13, 34, 28, 4, wallC);
   // battlements
   ctx.fillStyle = "#64748b";
   for (let i = 0; i < 4; i++) ctx.fillRect(x - 17 + i * 9, y - 18, 5, 6);
   // gate
   ctx.fillStyle = "#475569";
-  drawRoundRect(ctx, x - 6, y - 2, 12, 17, 4, "#475569");
+  roundRectFill(ctx, x - 6, y - 2, 12, 17, 4, "#475569");
   // banner (waves with hp)
   const sway = Math.sin(now / 300) * 2;
   ctx.fillStyle = hpPct > 0.25 ? "#0d9488" : "#ef4444";
@@ -759,33 +758,12 @@ function drawBase(ctx, x, y, state, now) {
   ctx.beginPath(); ctx.moveTo(x, y - 24); ctx.lineTo(x, y - 8); ctx.stroke();
 }
 
-function roundRectPath(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
 
 function strokePath(ctx, pts) {
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   ctx.stroke();
-}
-
-function drawRoundRect(ctx, x, y, w, h, r, fill) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
 }
 
 function burst(state, x, y, color, n) {
@@ -796,10 +774,6 @@ function burst(state, x, y, color, n) {
       life: 25, color, size: 3 + Math.random() * 2,
     });
   }
-}
-
-function addFloater(state, x, y, text, color) {
-  state.floaters.push({ x, y, text, color, life: 40 });
 }
 
 function updateHUD(state, root) {
