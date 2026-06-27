@@ -253,6 +253,14 @@ textarea.input { min-height: 100px; resize: vertical; }
 .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s; }
 
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+
+/* Math formula fill-in inputs */
+.math-input {
+  background: var(--surface); color: var(--primary); border: 2px solid var(--primary);
+  border-radius: 6px; padding: 2px 4px; font-size: inherit; font-family: inherit;
+  text-align: center; outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.math-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,212,59,0.2); }
 .chip {
   padding: 6px 14px; border-radius: 20px;
   background: var(--input-bg); color: var(--text-light);
@@ -488,7 +496,8 @@ textarea.input { min-height: 100px; resize: vertical; }
   border-radius: 12px; padding: 6px 4px 8px;
 }
 .shop-item.equipped { border-color: var(--primary); }
-.shop-item-preview { width: 56px; height: 56px; margin: 0 auto 4px; border-radius: 8px; overflow: hidden; }
+.shop-item-preview { width: 56px; height: 56px; margin: 0 auto 4px; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.shop-item-preview svg { display: block; }
 .shop-item-name { font-size: 0.68rem; line-height: 1.1; margin-bottom: 4px; min-height: 1.8em; }
 .shop-item-badge {
   position: absolute; top: 4px; right: 4px;
@@ -572,20 +581,44 @@ textarea.input { min-height: 100px; resize: vertical; }
   <!-- Profile Strip (Shop link) -->
   <div class="profile-strip" data-go="shop">
     <div class="profile-avatar">
-      <svg viewBox="0 0 100 100" width="54" height="54">
-        <!-- BG layer -->
-        <rect width="100" height="100" rx="14" fill="var(--primary-subtle)"/>
-        <!-- Skin layer (head + body) -->
-        <ellipse cx="50" cy="44" rx="18" ry="18" fill="var(--primary)"/>
-        <ellipse cx="50" cy="92" rx="30" ry="22" fill="var(--primary)"/>
-        <!-- Face (eyes + smile) -->
-        <ellipse cx="43" cy="42" rx="3" ry="3.5" fill="var(--on-primary)"/>
-        <ellipse cx="57" cy="42" rx="3" ry="3.5" fill="var(--on-primary)"/>
-        <path d="M44 50 Q50 55 56 50" fill="none" stroke="var(--on-primary)" stroke-width="1.5" stroke-linecap="round"/>
-        <!-- Top (cap) -->
-        <path d="M28 42 Q30 20 50 18 Q70 20 72 42" fill="var(--accent)"/>
-        <rect x="33" y="38" width="34" height="6" rx="2" fill="var(--accent)"/>
-      </svg>
+	      <svg viewBox="0 0 100 100" width="54" height="54">
+	        <!-- Background -->
+	        <circle cx="50" cy="50" r="48" fill="var(--primary-subtle)"/>
+	        <!-- Body/shoulders -->
+	        <ellipse cx="50" cy="92" rx="40" ry="22" fill="var(--primary)"/>
+	        <!-- Neck -->
+	        <rect x="44" y="52" width="12" height="12" rx="3" fill="var(--primary)"/>
+	        <!-- Head -->
+	        <ellipse cx="50" cy="37" rx="19" ry="21" fill="var(--primary)"/>
+	        <!-- Hair (back) -->
+	        <path d="M31 37 Q29 14 50 13 Q71 14 69 37 Q68 20 50 15 Q32 20 31 37Z" fill="var(--primary-dark)"/>
+	        <!-- Hair top volume -->
+	        <path d="M33 32 Q30 16 50 13 Q70 16 67 32 Q65 20 50 17 Q35 20 33 32Z" fill="var(--primary-dark)" opacity=".6"/>
+	        <!-- Eyebrows -->
+	        <path d="M38 32 Q43 29 47 32" fill="none" stroke="var(--on-primary)" stroke-width="1.8" stroke-linecap="round"/>
+	        <path d="M53 32 Q57 29 62 32" fill="none" stroke="var(--on-primary)" stroke-width="1.8" stroke-linecap="round"/>
+	        <!-- Eyes -->
+	        <ellipse cx="42" cy="37" rx="5" ry="5.5" fill="#fff"/>
+	        <ellipse cx="58" cy="37" rx="5" ry="5.5" fill="#fff"/>
+	        <circle cx="43" cy="37" r="3" fill="var(--primary-dark)"/>
+	        <circle cx="59" cy="37" r="3" fill="var(--primary-dark)"/>
+	        <circle cx="43" cy="37" r="1.8" fill="#111827"/>
+	        <circle cx="59" cy="37" r="1.8" fill="#111827"/>
+	        <circle cx="44.5" cy="35.5" r="1" fill="#fff"/>
+	        <circle cx="60.5" cy="35.5" r="1" fill="#fff"/>
+	        <!-- Nose -->
+	        <path d="M49 43 Q50 41 51 43" fill="none" stroke="var(--on-primary)" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
+	        <!-- Smile -->
+	        <path d="M43 48 Q50 54 57 48" fill="none" stroke="var(--on-primary)" stroke-width="2" stroke-linecap="round"/>
+	        <!-- Cheeks -->
+	        <ellipse cx="37" cy="45" rx="5" ry="3.5" fill="var(--accent)" opacity=".12"/>
+	        <ellipse cx="63" cy="45" rx="5" ry="3.5" fill="var(--accent)" opacity=".12"/>
+	        <!-- Hat -->
+	        <path d="M26 43 Q27 13 50 11 Q73 13 74 43" fill="var(--accent)"/>
+	        <rect x="28" y="39" width="44" height="8" rx="4" fill="var(--accent)"/>
+	        <path d="M28 39 Q27 43 26 43" fill="none" stroke="var(--accent)" stroke-width="3"/>
+	        <circle cx="50" cy="12" r="2" fill="var(--accent)" opacity=".8"/>
+	      </svg>
     </div>
     <div class="profile-info"><strong>Lernender</strong><small>Haus Stufe 3 · 247 🪙</small></div>
     <div class="profile-coins">🛒</div>
@@ -1324,47 +1357,69 @@ textarea.input { min-height: 100px; resize: vertical; }
   <!-- Tab 0: Character (6-layer SVG avatar from shop-catalog.js) -->
   <div id="shop-tab-0">
     <div class="avatar-preview">
-      <svg viewBox="0 0 100 100" width="130" height="130">
-        <!-- Layer 1: Background -->
-        <rect width="100" height="100" rx="16" fill="var(--primary-subtle)"/>
-        <!-- Layer 2: Skin (head + body) -->
-        <ellipse cx="50" cy="44" rx="22" ry="22" fill="var(--primary)"/>
-        <ellipse cx="50" cy="95" rx="36" ry="24" fill="var(--primary)"/>
-        <!-- Layer 3: Face (eyes + smile) -->
-        <ellipse cx="42" cy="40" rx="3.5" ry="4" fill="var(--on-primary)"/>
-        <ellipse cx="58" cy="40" rx="3.5" ry="4" fill="var(--on-primary)"/>
-        <circle cx="43.5" cy="39" r="1.5" fill="#fff" opacity=".7"/>
-        <circle cx="59.5" cy="39" r="1.5" fill="#fff" opacity=".7"/>
-        <path d="M43 51 Q50 57 57 51" fill="none" stroke="var(--on-primary)" stroke-width="1.8" stroke-linecap="round"/>
-        <!-- Layer 4: Top (cap/baseball hat) -->
-        <path d="M26 44 Q28 16 50 14 Q72 16 74 44" fill="var(--accent)"/>
-        <rect x="30" y="40" width="40" height="7" rx="3" fill="var(--accent)"/>
-        <!-- Layer 5: Accessory (glasses) -->
-        <circle cx="41" cy="40" r="8" fill="none" stroke="var(--on-primary)" stroke-width="1.2" opacity=".5"/>
-        <circle cx="59" cy="40" r="8" fill="none" stroke="var(--on-primary)" stroke-width="1.2" opacity=".5"/>
-        <line x1="49" y1="40" x2="51" y2="40" stroke="var(--on-primary)" stroke-width="1.2" opacity=".5"/>
-      </svg>
+	      <svg viewBox="0 0 100 100" width="130" height="130">
+	        <!-- Background circle -->
+	        <circle cx="50" cy="50" r="48" fill="var(--primary-subtle)"/>
+	        <!-- Body/shoulders -->
+	        <ellipse cx="50" cy="92" rx="40" ry="22" fill="var(--primary)"/>
+	        <!-- Neck -->
+	        <rect x="44" y="52" width="12" height="12" rx="3" fill="var(--primary)"/>
+	        <!-- Head -->
+	        <ellipse cx="50" cy="37" rx="19" ry="21" fill="var(--primary)"/>
+	        <!-- Hair (back) -->
+	        <path d="M31 37 Q29 14 50 13 Q71 14 69 37 Q68 20 50 15 Q32 20 31 37Z" fill="var(--primary-dark)"/>
+	        <!-- Hair top volume -->
+	        <path d="M33 32 Q30 16 50 13 Q70 16 67 32 Q65 20 50 17 Q35 20 33 32Z" fill="var(--primary-dark)" opacity=".6"/>
+	        <!-- Eyebrows -->
+	        <path d="M38 32 Q43 29 47 32" fill="none" stroke="var(--on-primary)" stroke-width="1.8" stroke-linecap="round"/>
+	        <path d="M53 32 Q57 29 62 32" fill="none" stroke="var(--on-primary)" stroke-width="1.8" stroke-linecap="round"/>
+	        <!-- Eyes (white) -->
+	        <ellipse cx="42" cy="37" rx="5" ry="5.5" fill="#fff"/>
+	        <ellipse cx="58" cy="37" rx="5" ry="5.5" fill="#fff"/>
+	        <!-- Irises -->
+	        <circle cx="43" cy="37" r="3" fill="var(--primary-dark)"/>
+	        <circle cx="59" cy="37" r="3" fill="var(--primary-dark)"/>
+	        <!-- Pupils -->
+	        <circle cx="43" cy="37" r="1.8" fill="#111827"/>
+	        <circle cx="59" cy="37" r="1.8" fill="#111827"/>
+	        <!-- Eye highlights -->
+	        <circle cx="44.5" cy="35.5" r="1" fill="#fff"/>
+	        <circle cx="60.5" cy="35.5" r="1" fill="#fff"/>
+	        <!-- Nose -->
+	        <path d="M49 43 Q50 41 51 43" fill="none" stroke="var(--on-primary)" stroke-width="1.2" stroke-linecap="round" opacity=".4"/>
+	        <!-- Smile -->
+	        <path d="M43 48 Q50 54 57 48" fill="none" stroke="var(--on-primary)" stroke-width="2" stroke-linecap="round"/>
+	        <!-- Cheeks -->
+	        <ellipse cx="37" cy="45" rx="5" ry="3.5" fill="var(--accent)" opacity=".12"/>
+	        <ellipse cx="63" cy="45" rx="5" ry="3.5" fill="var(--accent)" opacity=".12"/>
+	        <!-- Hat (baseball cap) -->
+	        <path d="M26 43 Q27 13 50 11 Q73 13 74 43" fill="var(--accent)"/>
+	        <rect x="28" y="39" width="44" height="8" rx="4" fill="var(--accent)"/>
+	        <path d="M28 39 Q27 43 26 43" fill="none" stroke="var(--accent)" stroke-width="3"/>
+	        <!-- Hat button on top -->
+	        <circle cx="50" cy="12" r="2" fill="var(--accent)" opacity=".8"/>
+	      </svg>
     </div>
 
     <div class="section-title">Hüte</div>
     <div class="shop-row">
       <div class="shop-item equipped">
-        <div class="shop-item-preview" style="background:var(--primary-subtle);display:flex;align-items:center;justify-content:center;font-size:2rem">🧢</div>
+        <div class="shop-item-preview" style="background:var(--primary-subtle);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 56 56" width="40" height="40"><path d="M10 36 Q10 12 28 10 Q46 12 46 36Z" fill="var(--primary)"/><rect x="12" y="32" width="32" height="5" rx="2" fill="var(--primary-dark)"/><circle cx="28" cy="12" r="2" fill="var(--primary-dark)"/></svg></div>
         <div class="shop-item-name">Basecap</div>
         <span class="shop-item-badge">✓</span>
       </div>
       <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🎩</div>
+        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 56 56" width="40" height="40"><rect x="12" y="10" width="32" height="28" rx="2" fill="var(--primary)"/><rect x="8" y="34" width="40" height="5" rx="3" fill="var(--primary-dark)"/></svg></div>
         <div class="shop-item-name">Zylinder</div>
         <button class="shop-mini-btn buy">80🪙</button>
       </div>
       <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">👑</div>
+        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 56 56" width="40" height="40"><rect x="10" y="30" width="36" height="8" rx="2" fill="var(--accent)"/><polygon points="14,30 8,10 18,22 22,6 28,18 34,6 38,22 48,10 42,30" fill="var(--accent)"/><circle cx="28" cy="14" r="2" fill="var(--danger)"/></svg></div>
         <div class="shop-item-name">Krone</div>
         <button class="shop-mini-btn buy">200🪙</button>
       </div>
       <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🎓</div>
+        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 56 56" width="40" height="40"><polygon points="10,24 28,12 46,24 28,30Z" fill="var(--primary)"/><rect x="34" y="30" width="12" height="3" rx="1" fill="var(--primary-dark)"/><rect x="26" y="24" width="4" height="12" rx="1" fill="var(--primary-dark)"/></svg></div>
         <div class="shop-item-name">Doktorhut</div>
         <button class="shop-mini-btn buy">150🪙</button>
       </div>
@@ -1373,17 +1428,17 @@ textarea.input { min-height: 100px; resize: vertical; }
     <div class="section-title">Accessoires</div>
     <div class="shop-row">
       <div class="shop-item equipped">
-        <div class="shop-item-preview" style="background:var(--primary-subtle);display:flex;align-items:center;justify-content:center;font-size:2rem">👓</div>
+        <div class="shop-item-preview" style="background:var(--primary-subtle);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 56 56" width="40" height="40"><circle cx="18" cy="24" r="10" fill="none" stroke="var(--primary)" stroke-width="2.5"/><circle cx="38" cy="24" r="10" fill="none" stroke="var(--primary)" stroke-width="2.5"/><line x1="24" y1="24" x2="32" y2="24" stroke="var(--primary)" stroke-width="2.5"/><line x1="4" y1="24" x2="10" y2="24" stroke="var(--primary)" stroke-width="2"/><line x1="48" y1="22" x2="48" y2="22" stroke="var(--primary)" stroke-width="2"/></svg></div>
         <div class="shop-item-name">Brille</div>
         <span class="shop-item-badge">✓</span>
       </div>
       <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🕶️</div>
+        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 56 56" width="40" height="40"><rect x="10" y="18" width="16" height="12" rx="3" fill="var(--primary-dark)"/><rect x="30" y="18" width="16" height="12" rx="3" fill="var(--primary-dark)"/><rect x="24" y="21" width="8" height="6" fill="var(--primary-dark)"/><line x1="4" y1="24" x2="10" y2="24" stroke="var(--primary-dark)" stroke-width="2"/><line x1="46" y1="22" x2="48" y2="22" stroke="var(--primary-dark)" stroke-width="2"/></svg></div>
         <div class="shop-item-name">Sonnenbrille</div>
         <button class="shop-mini-btn buy">60🪙</button>
       </div>
       <div class="shop-item">
-        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center;font-size:2rem">🎀</div>
+        <div class="shop-item-preview" style="background:var(--input-bg);display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 56 56" width="40" height="40"><polygon points="28,28 8,14 8,42Z" fill="var(--danger)"/><polygon points="28,28 48,14 48,42Z" fill="var(--danger)"/><circle cx="28" cy="28" r="5" fill="var(--danger)"/></svg></div>
         <div class="shop-item-name">Schleife</div>
         <button class="shop-mini-btn buy">40🪙</button>
       </div>
@@ -1393,25 +1448,81 @@ textarea.input { min-height: 100px; resize: vertical; }
   <!-- Tab 1: House -->
   <div id="shop-tab-1" class="hidden">
     <div class="house-preview">
-      <svg viewBox="0 0 200 150" width="190" height="140">
-        <!-- House body -->
-        <rect x="50" y="70" width="100" height="80" rx="4" fill="var(--primary)"/>
-        <!-- Roof -->
-        <polygon points="30,70 100,22 170,70" fill="var(--primary-dark)"/>
-        <!-- Door -->
-        <rect x="88" y="105" width="24" height="45" rx="3" fill="var(--surface)"/>
-        <circle cx="106" cy="128" r="2" fill="var(--primary)"/>
-        <!-- Windows -->
-        <rect x="60" y="85" width="22" height="18" rx="2" fill="var(--surface)"/>
-        <rect x="118" y="85" width="22" height="18" rx="2" fill="var(--surface)"/>
-        <!-- Chimney -->
-        <rect x="135" y="32" width="14" height="28" rx="2" fill="var(--primary-dark)"/>
-        <!-- Deco: flowers -->
-        <circle cx="140" cy="132" r="6" fill="var(--accent)" opacity=".7"/>
-        <circle cx="140" cy="132" r="3" fill="var(--danger)" opacity=".5"/>
-        <!-- Grass -->
-        <rect x="0" y="140" width="200" height="10" rx="3" fill="var(--success-light)"/>
-      </svg>
+	      <svg viewBox="0 0 200 160" width="190" height="150">
+	        <!-- Sky background -->
+	        <rect width="200" height="160" rx="14" fill="var(--primary-subtle)"/>
+	        <!-- Sun -->
+	        <circle cx="32" cy="24" r="10" fill="var(--accent)" opacity=".25"/>
+	        <circle cx="32" cy="24" r="6" fill="var(--accent)" opacity=".35"/>
+	        <!-- Clouds -->
+	        <ellipse cx="155" cy="22" rx="18" ry="7" fill="#fff" opacity=".15"/>
+	        <ellipse cx="165" cy="18" rx="12" ry="6" fill="#fff" opacity=".12"/>
+	        <!-- Ground -->
+	        <rect x="0" y="130" width="200" height="30" rx="4" fill="var(--success-light)"/>
+	        <!-- House body -->
+	        <rect x="50" y="68" width="100" height="72" rx="4" fill="var(--primary)"/>
+	        <!-- Siding lines -->
+	        <line x1="50" y1="80" x2="150" y2="80" stroke="var(--primary-dark)" stroke-width="0.6" opacity=".3"/>
+	        <line x1="50" y1="92" x2="150" y2="92" stroke="var(--primary-dark)" stroke-width="0.6" opacity=".3"/>
+	        <line x1="50" y1="104" x2="150" y2="104" stroke="var(--primary-dark)" stroke-width="0.6" opacity=".3"/>
+	        <line x1="50" y1="116" x2="150" y2="116" stroke="var(--primary-dark)" stroke-width="0.6" opacity=".3"/>
+	        <!-- Roof -->
+	        <polygon points="40,70 100,18 160,70" fill="var(--primary-dark)"/>
+	        <!-- Roof ridge highlight -->
+	        <line x1="100" y1="18" x2="40" y2="70" stroke="var(--accent)" stroke-width="0.8" opacity=".2"/>
+	        <line x1="100" y1="18" x2="160" y2="70" stroke="var(--accent)" stroke-width="0.8" opacity=".2"/>
+	        <!-- Chimney -->
+	        <rect x="128" y="26" width="15" height="32" rx="2" fill="var(--primary-dark)"/>
+	        <!-- Chimney brick lines -->
+	        <line x1="128" y1="35" x2="143" y2="35" stroke="var(--primary)" stroke-width="0.5" opacity=".3"/>
+	        <line x1="128" y1="44" x2="143" y2="44" stroke="var(--primary)" stroke-width="0.5" opacity=".3"/>
+	        <!-- Smoke -->
+	        <circle cx="135" cy="18" r="5" fill="var(--text-light)" opacity=".1"/>
+	        <circle cx="140" cy="10" r="4" fill="var(--text-light)" opacity=".08"/>
+	        <circle cx="138" cy="4" r="3" fill="var(--text-light)" opacity=".06"/>
+	        <!-- Left window -->
+	        <rect x="58" y="80" width="22" height="20" rx="3" fill="var(--surface)"/>
+	        <line x1="69" y1="80" x2="69" y2="100" stroke="var(--primary)" stroke-width="1.6" opacity=".5"/>
+	        <line x1="58" y1="90" x2="80" y2="90" stroke="var(--primary)" stroke-width="1.6" opacity=".5"/>
+	        <!-- Window glow -->
+	        <rect x="59" y="81" width="20" height="18" rx="2" fill="var(--accent)" opacity=".08"/>
+	        <!-- Right window -->
+	        <rect x="120" y="80" width="22" height="20" rx="3" fill="var(--surface)"/>
+	        <line x1="131" y1="80" x2="131" y2="100" stroke="var(--primary)" stroke-width="1.6" opacity=".5"/>
+	        <line x1="120" y1="90" x2="142" y2="90" stroke="var(--primary)" stroke-width="1.6" opacity=".5"/>
+	        <rect x="121" y="81" width="20" height="18" rx="2" fill="var(--accent)" opacity=".08"/>
+	        <!-- Door -->
+	        <rect x="88" y="100" width="24" height="40" rx="5" fill="var(--surface)"/>
+	        <!-- Door panels -->
+	        <rect x="92" y="105" width="16" height="12" rx="2" fill="var(--text-light)" opacity=".08"/>
+	        <rect x="92" y="121" width="16" height="12" rx="2" fill="var(--text-light)" opacity=".08"/>
+	        <!-- Door handle -->
+	        <circle cx="106" cy="122" r="2.5" fill="var(--primary)"/>
+	        <!-- Door step -->
+	        <rect x="84" y="138" width="32" height="4" rx="2" fill="var(--primary-dark)" opacity=".4"/>
+	        <!-- Path -->
+	        <path d="M100 140 Q100 144 100 142" stroke="var(--text-light)" stroke-width="16" stroke-linecap="round" opacity=".1"/>
+	        <path d="M100 142 Q100 150 100 152" stroke="var(--text-light)" stroke-width="14" stroke-linecap="round" opacity=".08"/>
+	        <!-- Left bush -->
+	        <ellipse cx="40" cy="135" rx="14" ry="9" fill="var(--success)" opacity=".25"/>
+	        <ellipse cx="38" cy="133" rx="10" ry="7" fill="var(--success)" opacity=".2"/>
+	        <!-- Right bush -->
+	        <ellipse cx="162" cy="136" rx="13" ry="8" fill="var(--success)" opacity=".25"/>
+	        <ellipse cx="160" cy="134" rx="9" ry="6" fill="var(--success)" opacity=".2"/>
+	        <!-- Left flowers -->
+	        <circle cx="34" cy="130" r="3" fill="var(--accent)" opacity=".5"/>
+	        <circle cx="36" cy="127" r="2.5" fill="var(--danger)" opacity=".4"/>
+	        <circle cx="30" cy="128" r="2.5" fill="var(--danger)" opacity=".4"/>
+	        <!-- Right flowers -->
+	        <circle cx="168" cy="132" r="3" fill="var(--accent)" opacity=".5"/>
+	        <circle cx="170" cy="129" r="2.5" fill="var(--danger)" opacity=".4"/>
+	        <circle cx="165" cy="129" r="2.5" fill="var(--danger)" opacity=".4"/>
+	        <!-- Fence posts -->
+	        <rect x="16" y="118" width="4" height="18" rx="1" fill="var(--surface2)"/>
+	        <rect x="24" y="120" width="4" height="16" rx="1" fill="var(--surface2)"/>
+	        <rect x="172" y="118" width="4" height="18" rx="1" fill="var(--surface2)"/>
+	        <rect x="180" y="120" width="4" height="16" rx="1" fill="var(--surface2)"/>
+	      </svg>
       <div class="house-name">Hütte (Stufe 2)</div>
     </div>
 
@@ -1822,15 +1933,33 @@ textarea.input { min-height: 100px; resize: vertical; }
       <div><strong style="color:var(--primary)">→ Schritt 2:</strong> <span style="font-size:.9em">Werte einsetzen …</span></div>
     </div>
   </div>
-  <div class="card">
-    <small style="color:var(--text-light)">Wähle den nächsten richtigen Schritt:</small>
-    <div style="margin-top:8px">
-      <button class="option-btn"><span class="option-key">A</span><span class="option-text"><span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+48}}{4}">x = (-4 ± √(16+48)) / 4</span></span></button>
-      <button class="option-btn selected"><span class="option-key">B</span><span class="option-text"><span class="math" data-tex="x = \frac{-4 \pm \sqrt{16 - 4 \cdot 2 \cdot (-6)}}{2 \cdot 2}">x = (-4 ± √(16-4·2·(-6))) / (2·2)</span></span></button>
-      <button class="option-btn"><span class="option-key">C</span><span class="option-text"><span class="math" data-tex="x = \frac{4 \pm \sqrt{16-48}}{4}">x = (4 ± √(16-48)) / 4</span></span></button>
-      <button class="option-btn"><span class="option-key">D</span><span class="option-text"><span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+24}}{2}">x = (-4 ± √(16+24)) / 2</span></span></button>
-    </div>
-  </div>
+	  <div class="card">
+	    <small style="color:var(--text-light)">Setze die Werte in die Formel ein:</small>
+	    <div style="background:var(--surface2);border-radius:12px;padding:16px;margin-top:10px;text-align:center;overflow-x:auto">
+	      <div style="display:inline-flex;align-items:center;gap:2px;font-size:1.15em;font-family:Georgia,serif;white-space:nowrap">
+	        <span style="font-style:italic">x</span>
+	        <span>=</span>
+	        <span style="display:inline-flex;flex-direction:column;align-items:center;line-height:1.4">
+	          <span style="border-bottom:2px solid var(--text);padding:0 6px 2px">−<input class="math-input" type="text" value="4" style="width:28px" data-var="b"> ± √(<input class="math-input" type="text" value="4" style="width:28px" data-var="b2">² − 4·<input class="math-input" type="text" value="2" style="width:28px" data-var="a">·<input class="math-input" type="text" value="-6" style="width:32px" data-var="c">)</span>
+	          <span style="padding:0 6px;margin-top:2px">2·<input class="math-input" type="text" value="2" style="width:28px" data-var="a2"></span>
+	        </span>
+	      </div>
+	    </div>
+	    <div style="display:flex;gap:8px;margin-top:10px">
+	      <div style="flex:1;background:var(--surface2);border-radius:8px;padding:8px 10px;text-align:center">
+	        <small style="color:var(--text-light)">a = 2x²</small>
+	        <input class="math-input" type="text" value="2" style="width:40px;text-align:center;font-weight:600;display:block;margin:4px auto 0" data-var="a-root">
+	      </div>
+	      <div style="flex:1;background:var(--surface2);border-radius:8px;padding:8px 10px;text-align:center">
+	        <small style="color:var(--text-light)">b = 4x</small>
+	        <input class="math-input" type="text" value="4" style="width:40px;text-align:center;font-weight:600;display:block;margin:4px auto 0" data-var="b-root">
+	      </div>
+	      <div style="flex:1;background:var(--surface2);border-radius:8px;padding:8px 10px;text-align:center">
+	        <small style="color:var(--text-light)">c = −6</small>
+	        <input class="math-input" type="text" value="-6" style="width:40px;text-align:center;font-weight:600;display:block;margin:4px auto 0" data-var="c-root">
+	      </div>
+	    </div>
+	  </div>
   <button class="btn btn-primary" style="margin-top:8px">Bestätigen →</button>
 </div>
 
