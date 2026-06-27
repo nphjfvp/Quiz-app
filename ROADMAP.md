@@ -20,8 +20,7 @@
   - `src/i18n.py` – DE/EN Übersetzungen (immer BEIDE Sprachen pflegen!)
   - `src/theme.py` – COLORS, apply_theme, is_dark
   - `src/cloud_sync.py` – Firebase Firestore Sync via **Sync-Code** (KEIN Auth)
-- **Mobile**: Expo SDK 54 / React Native 0.81.5 / React 19.1.0 (`mobile/`)
-- **Builds**: PyInstaller (`Lerntrainer.spec`, `python -m PyInstaller`), EAS (`mobile/eas.json`, preview=apk)
+- **Builds**: PyInstaller (`Lerntrainer.spec`, `python -m PyInstaller`)
 
 ### Wichtige Konventionen
 - i18n: jede neue UI-Zeichenkette als Key in DE **und** EN in `src/i18n.py`.
@@ -50,7 +49,7 @@
 
 ### Phase 1 – Fundament
 1. **Account/Login-System** – Firebase Auth, echter Login, Basis für alles Weitere.
-   - Sync zwischen Desktop + Mobile über Account ODER weiterhin Sync-Code/Export.
+   - Sync zwischen Desktop + PWA über Account ODER weiterhin Sync-Code/Export.
    - Wichtig: Apps bleiben **standalone** nutzbar, Account ist optional (siehe Phase 7).
 2. **KI-Memory-System** – Lernprofil (Schwächen, Lernstil, bevorzugte Erklärtiefe).
    - Als strukturierter Text/JSON gespeichert, NICHT im Modell → **modell-übergreifend**
@@ -106,10 +105,10 @@
 19. **Notizen pro Frage** – eigene Anmerkungen, beim nächsten Mal angezeigt.
 20. **Multi-Quiz-Vergleich** – zwei Versuche nebeneinander, Fortschritt sichtbar.
 21. **Druckmodus** – Quiz als PDF für handschriftliches Üben.
-22. **Karteikarten-Modus** – Flashcard-Swipe auf Mobile.
+22. **Karteikarten-Modus** – Flashcard-Swipe in der PWA.
 
 ### Phase 7 – Standalone Apps (übergreifendes Prinzip)
-23. **Zwei unabhängige, aber synchronisierbare Apps** – Desktop + Mobile jeweils
+23. **Zwei unabhängige, aber synchronisierbare Apps** – Desktop + PWA jeweils
     vollständig **standalone** nutzbar. Verbindung über Account ODER Export möglich,
     aber **kein Muss**. Jede App funktioniert komplett ohne die andere.
 

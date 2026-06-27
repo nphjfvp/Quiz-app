@@ -2,13 +2,19 @@ const DB_NAME = "lerntrainer";
 const DB_VERSION = 1;
 const STORE = "kv";
 
+let _dbPromise = null;
+
 function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
+  if (!_dbPromise) {
+    _dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => reject(new Error("IndexedDB blocked"));
+    });
+  }
+  return _dbPromise;
 }
 
 async function get(key) {

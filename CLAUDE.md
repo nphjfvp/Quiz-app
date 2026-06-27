@@ -7,13 +7,12 @@
 >
 > Ergänzend: `ROADMAP.md` (Zukunftsplan, primär Desktop) und `README.md`.
 
-## Drei Plattformen / Codebases
+## Zwei Plattformen / Codebases
 
 | Ordner    | Stack                                   | Status / Rolle |
 |-----------|-----------------------------------------|----------------|
 | `pwa/`    | Vanilla-JS SPA, ES-Module, IndexedDB, Service Worker | **Aktive Hauptcodebase.** Hier passiert die Entwicklung. |
 | `src/`    | Python 3.11 + CustomTkinter (Desktop)   | Älterer Desktop-Client (~5200 Z. in `app.py`). |
-| `mobile/` | Expo SDK 54 / React Native              | Eigene Mobile-App (eigene `CLAUDE.md`/`AGENTS.md`). |
 
 KI läuft überall über **OpenRouter** (API-Key in Settings). Cloud-Sync über
 Firebase (Account **oder** Sync-Code, beides standalone-fähig).

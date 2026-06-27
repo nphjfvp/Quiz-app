@@ -1,6 +1,6 @@
 # Lerntrainer – Quiz App
 
-Eine Desktop- und Mobile-Quiz-App für Klausurvorbereitung mit KI-gestützter Fragengenerierung und Cloud-Sync zwischen allen Geräten.
+Eine Desktop- und Web-Quiz-App für Klausurvorbereitung mit KI-gestützter Fragengenerierung und Cloud-Sync zwischen Geräten.
 
 ## Features
 
@@ -42,9 +42,9 @@ Spaced Repetition mit 5 Boxen – schwache Fragen werden häufiger wiederholt.
 ## PWA / Web-App (aktive Hauptcodebase)
 
 > **Hinweis:** Die aktive Entwicklung findet in `pwa/` statt (Vanilla-JS SPA,
-> IndexedDB, Service Worker). Desktop (Python) und Mobile (Expo) bestehen
+> IndexedDB, Service Worker). Der Desktop-Client (Python) besteht
 > weiterhin, die PWA ist aber das aktuelle Hauptziel. Feature-Stand siehe
-> `pwa/CLAUDE.md` (Projekt-Gedächtnis).
+> `CLAUDE.md` (Projekt-Gedächtnis).
 
 Lokal starten (statische Dateien):
 
@@ -87,40 +87,9 @@ python main.py
 - JSON-basierte Datenspeicherung
 - Firestore REST-API für Cloud-Sync
 
----
-
-## Mobile-App (Expo / React Native)
-
-Die Mobile-App bietet Quiz spielen, Daily Learning, KI-Chat und Cloud-Sync auf iPhone, iPad und Android.
-
-### Voraussetzungen
-
-- [Node.js](https://nodejs.org/) (v18+)
-- [Expo Go](https://expo.dev/go) auf dem Handy/Tablet (aus App Store / Play Store)
-- Handy und PC im selben WLAN
-
-### Installation & Start
-
-```bash
-cd mobile
-npm install --legacy-peer-deps
-npx expo start
-```
-
-QR-Code mit Expo Go (Android) oder der Kamera-App (iOS) scannen.
-
-### Features
-
-- **Quiz spielen** – Alle Fragetypen (SC, MC, Freitext, Lückentext, Mathe)
-- **Daily Learning** – Täglicher Lernplan mit Klausur-Countdown
-- **KI-Chat** – Fragen stellen, Hilfe und Erklärungen bekommen
-- **Cloud-Sync** – Sync-Code eingeben → Daten mit Desktop teilen
-
----
-
 ## Cloud-Sync einrichten
 
-1. Auf jedem Gerät (Desktop + Mobile) **Einstellungen** öffnen
+1. Auf jedem Gerät (Desktop + PWA) **Einstellungen** öffnen
 2. Unter **Cloud-Sync** denselben Code eingeben (z.B. `mein-geheimer-code-2026`)
 3. Auf dem Hauptgerät: **"In Cloud hochladen"**
 4. Auf den anderen Geräten: **"Aus Cloud laden"**
