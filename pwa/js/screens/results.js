@@ -60,6 +60,40 @@ export async function render(root, params) {
           await saveDailyState(daily);
         }
       } catch (_) {}
+
+      // Auto-Memory: detect weak topics
+      try {
+        const settings = await loadSettings();
+        if (settings.use_memory) {
+          const { loadMemoryEntries, addMemoryEntry } = await import("../store.js");
+          const existing = await loadMemoryEntries();
+          const topicCounts = {};
+          const topicWrong = {};
+          for (const q of session.questions) {
+            const t = q.topic;
+            if (!t) continue;
+            topicCounts[t] = (topicCounts[t] || 0) + 1;
+            const r = session.answers[q.id];
+            if (r && !r.is_correct) topicWrong[t] = (topicWrong[t] || 0) + 1;
+          }
+          for (const [t, total] of Object.entries(topicCounts)) {
+            const w = topicWrong[t] || 0;
+            if (total >= 2 && w / total > 0.3) {
+              const already = existing.some(e => e.category === "weakness" && e.topic === t && e.source === "auto");
+              if (!already) {
+                await addMemoryEntry({
+                  id: crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+                  category: "weakness",
+                  text: `${w}/${total} Fragen falsch in "${t}"`,
+                  source: "auto",
+                  topic: t,
+                  created: new Date().toISOString(),
+                });
+              }
+            }
+          }
+        }
+      } catch (_) {}
     }
   }
   const bonusCoins = session.awardedBonus || 0;
