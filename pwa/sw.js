@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v80";
+const CACHE = "lerntrainer-v81";
 // Relative Pfade – werden relativ zum SW-Standort aufgelöst (funktioniert unter / und /Quiz-app/)
 const ASSETS = [
   "./",
@@ -47,6 +47,9 @@ const ASSETS = [
   "js/editable-formula.js",
   "js/games-util.js",
   "js/blackout.js",
+  "js/canvas-util.js",
+  "js/diagram.js",
+  "js/html-export.js",
   "manifest.json",
   "lib/katex/katex.min.css",
   "lib/katex/katex.min.js",

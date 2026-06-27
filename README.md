@@ -7,11 +7,13 @@ Eine Desktop- und Web-Quiz-App für Klausurvorbereitung mit KI-gestützter Frage
 ### Fragetypen
 - **Single Choice** – Eine richtige Antwort aus mehreren Optionen
 - **Multiple Choice** – Mehrere richtige Antworten
-- **Freitext** – Freie Texteingabe
+- **Freitext** – Freie Texteingabe (Tippfehler-Toleranz + optionale KI-Prüfung)
 - **Lückentext** – Fehlende Begriffe ergänzen
 - **Mathe-Formel** – Formeleingabe mit Taschenrechner-Keypad, LaTeX-Vorschau und intelligentem Vergleich
-- **Drag & Drop** – Begriffe zuordnen
+- **Drag & Drop** – Begriffe 1:1 zuordnen
+- **Kategorie-Zuordnung** – Begriffe in Kategorien einsortieren
 - **Diagramm beschriften** – Labels auf Diagramme zuordnen
+- **Bildregion markieren** – Bereich im Bild anklicken
 
 ### 3 Wege Fragen hinzuzufügen
 1. **Manuell** – Alle Fragetypen einzeln erstellen
@@ -56,6 +58,33 @@ python3 -m http.server 8080
 
 Die PWA ist installierbar (manifest + service worker) und offline-fähig.
 KI-Features benötigen einen OpenRouter-API-Key (in den Einstellungen).
+KaTeX ist self-hosted (`pwa/lib/katex/`) und im Service Worker vorgecacht.
+
+### PWA-Funktionsumfang
+
+**Lernen & Wiederholen**
+- Alle 9 Fragetypen, Klausur-/Einzel-/Schwächen-/Themen-Modus, Daily Learning
+- FSRS-4.5 Spaced Repetition (abschaltbar) + Leitner-Box-Übersicht
+- Daily mit **Lernphasen** (Grundlagen/Vertiefen) und **Themen ausblenden**
+- Karteikarten, Pomodoro, Fehler-Tagebuch, markierte Fragen, Ordner/Klausuren
+- Statistik mit 13-Wochen-Heatmap, 17 Achievements + Streaks
+
+**KI (über OpenRouter)**
+- Quiz-Generierung aus Text, Bild und **PDF** – PDF 3-stufig:
+  **Nur Text** · **Hybrid** (Volltext + nur Bildseiten als Vision) · **Alle als Bild**
+- KI-Tutor, Deep-Learn, Sokrates, Formel-Training (Scaffolding)
+- Pro Frage: KI-Erklärung, „Einfacher erklären", gestufte Hinweise;
+  pro Quiz: KI-Zusammenfassung
+- **KI-Memory**: personalisiert Prompts, erfasst Schwächen automatisch
+- **Modell-Kostensperre** (Free direkt, kostenpflichtige sperrbar) + Feature-Toggles
+
+**Gamification**
+- 6 Mini-Games (Tower Defense, Quiz Battle, Speed-Quiz, Millionär, Hangman, Boss-Fight)
+- **Coin-Economy** + **Shop**: Avatar-Designer, ausbaubares Haus, App-/Game-Skins, Deko
+
+**Sonstiges**
+- Export pro Quiz als **HTML** (mit eingebetteten Bildern) oder **JSON**
+- Untere Tab-Bar-Navigation, Light/Dark-Theme, Cloud-Sync (Account oder Sync-Code)
 
 ---
 

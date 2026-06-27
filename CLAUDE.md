@@ -27,16 +27,27 @@ Commit-Messages mit `Co-Authored-By`. NIE das Modell-ID in Commits/Code schreibe
 ### Architektur
 - `js/app.js` – Router-Registrierung + Init (SW, Account-Restore).
 - `js/router.js` – Hash-Routing, Cleanup-Hooks, Screen-Einblende-Animation (`screen-enter`).
-- `js/store.js` – IndexedDB-KV-Store. Persistiert: quizzes, progress, settings,
-  daily, marked, stats, error_diary, folders, fsrs, **coins** (Economy),
-  **game_scores** (Highscores), achievements, math_tasks, materials.
+- `js/store.js` – IndexedDB-KV-Store (**Singleton-DB-Promise**, kein Mehrfach-Open).
+  Persistiert: quizzes, progress, settings, daily, marked, stats, error_diary,
+  folders, fsrs, **coins** (Economy), **game_scores** (Highscores), achievements,
+  math_tasks, materials, **profile** (Shop), **memory_text** + **memory_entries**
+  (KI-Memory), **quick_actions** (Quick-Actions-Editor).
 - `js/quiz-engine.js` – `checkAnswer` für ALLE Fragetypen, Leitner-`updateProgress`, `QuizSession`.
 - `js/ai-service.js` – komplette OpenRouter-Anbindung (s.u.), `MODELS`-Liste mit tier/price/context/vision.
 - `js/fsrs.js` – vollständiger FSRS-4.5-Scheduler (Anki-artig).
 - `js/firebase-sync.js` – Auth + Sync (push/pull/Sync-Code).
 - Utils: `games-util.js` (Quiz-Quelle-Picker für Games), `math-keyboard.js`,
-  `editable-formula.js`, `blackout.js` (Bild-Schwärzung zum Abfragen), `utils.js` (esc, mathEsc).
-- KaTeX wird in `index.html` bereits eingebunden → **LaTeX-Rendering existiert produktiv** (`mathEsc`).
+  `editable-formula.js`, `blackout.js` (Bild-Schwärzung zum Abfragen),
+  `canvas-util.js` (geteilte Canvas-Helfer: lerp, addFloater, roundRect …),
+  `diagram.js` (Diagramm-Label-Setup, geteilt quiz/editor),
+  `html-export.js` (quizToHtml/downloadQuiz – Export als HTML/JSON),
+  `utils.js` (esc, escAttr, uid, CHIP_COLORS, getBoxCounts, loadPdfJs, renderMath/mathEsc).
+- **KaTeX self-hosted** unter `pwa/lib/katex/` (kein CDN) + im SW vorgecacht.
+  LaTeX-Rendering produktiv (`mathEsc`), per Setting **abschaltbar** (`latexEnabled`).
+- **Navigation:** untere **Tab-Bar** (`#tab-bar` in `index.html`, gesteuert in
+  `app.js`/`router.js`) für Haupt-Screens; restliche Screens per Hash-Routing.
+- CSS: Token-System in `css/app.css` inkl. **Glass-Morphism** (`--glass-*`,
+  `.card-glass`) und Light/Dark.
 - PWA-Härtung: automatische Cache/SW-Recovery + Boot-Wächter in `index.html`.
 
 ### Fragetypen (alle in quiz-engine implementiert)
@@ -48,13 +59,20 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 ### Screens (`js/screens/`) – alle vorhanden
 - **home** – Welcome, Streak-Bar, Daily-Card, 4 Hauptkacheln, "Weitere Tools"-Grid, markiert/Fehler-Rows, zuletzt gelernt.
 - **my-quizzes / quiz-modes / quiz / results** – Quiz-Liste, Modus-Wahl, Spielen, Auswertung.
-  - **results** hat bereits **KI-Erklärung** + **KI-Tutor pro falscher Frage**, klickbare Detail-Ansicht.
+  - **my-quizzes** bietet **Export** pro Quiz (HTML mit eingebetteten Bildern / JSON) via `html-export.js`.
+  - **quiz** hat **„💡 Tipp"** (gestufte Hinweise via generateHints); KI-Freitext-Prüfung
+    und FSRS-Aufzeichnung respektieren die Settings (`aiValidation`, `useFsrs`).
+  - **results** hat **KI-Erklärung** + **KI-Tutor pro falscher Frage** + **„🔁 Einfacher erklären"**
+    (simplifyExplanation) in der Detail-Ansicht, sowie **„🤖 Zusammenfassung"** (generateSummary)
+    der gesamten Quiz-Runde. Vergibt Münz-Boni (idempotent via `session.coinsAwarded`)
+    und sammelt bei Daily-Quizzes automatisch Schwächen ins KI-Memory.
 - **editor** – manueller Quiz-Editor (alle Fragetypen) inkl. KI-Bearbeitung einzelner Fragen.
 - **ai-generate** – Quiz aus Text / Bild / **PDF** generieren, Detailgrad wählbar.
   PDF-Modus 3-stufig: **Nur Text** (günstig), **Hybrid** (Volltext + nur Seiten mit
   wenig Text/Grafik als Bild – pro Seite erkannt via `VISUAL_PAGE_MIN_CHARS`),
   **Alle als Bild** (Vision). Auto-Empfehlung beim Laden je nach Textanteil.
 - **daily** – täglicher Lernplan, fällige Fragen, falsche zum Wiederholen, Deep-Learn-Themenvorschläge.
+  **Lernphasen-Wähler** (`learning_phase`: basics/deepen/…) und **Themen ausblenden** (`disabled_topics`).
 - **stats** – Summary, **13-Wochen-Heatmap**, Leitner-Box-Chart, letzte 14 Tage. *(Heatmap existiert!)*
 - **sr-dashboard** – Spaced-Repetition-Übersicht, Mastery pro Quiz.
 - **achievements** – 17 Erfolge (Antworten-Meilensteine, Streaks 3/7/14/30, Perfekt, Box-5, Nachteule/Frühaufsteher …).
@@ -64,7 +82,13 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - **socratic** – sokratischer Frage-Modus. **scaffold** – Formel-Training (PDF→KI extrahiert Teilaufgaben→löst Schritt für Schritt).
 - **cloze** – Lückentext-Generator (KI-Zusammenfassung + Keywords). **study** – Karteikarten-Modus.
 - **pomodoro** – Fokus-Timer.
-- **settings** – Theme (auto/hell/dunkel), Account, Sync-Code, **API-Key + voller Modell-Selektor**, JSON-Import, Reset.
+- **settings** – Theme (auto/hell/dunkel), Account, Sync-Code, **API-Key + Modell-Selektor mit
+  Kostensperre** (Free-Modelle direkt, kostenpflichtige hinter „Weitere Modelle anzeigen",
+  pro Modell 🔒-Sperre via `disabledModels`, Bestätigung bei Paid-Modellen),
+  **KI-Feature-Toggles** (`aiValidation`, `detailedAnswers`, `enableImages`),
+  **FSRS-Schalter** (`useFsrs`), **LaTeX-Toggle** (`latexEnabled`),
+  **KI-Memory** (`use_memory` + Memory-Manager), **Quick-Actions-Editor**,
+  JSON-Import, Reset.
 
 ### Mini-Games (`js/screens/`, alle echt implementiert, Canvas/SVG)
 - **tower-defense** – Bloons-artig, Gegner per richtiger Antwort bekämpfen.
@@ -96,7 +120,19 @@ generateQuiz (Text), generateQuizFromImage(s) (Vision/PDF-Seiten),
 explainAnswer, askTutor, generateHints (3 gestufte Hinweise),
 simplifyExplanation, analyzeClozeKeywords, aiValidateAnswer (Freitext),
 editQuestionWithAI, checkFreeTextAI + quickExplain (schnelles Free-Modell für Games),
+**generateHints** (im Quiz aktiv), **simplifyExplanation** + **generateSummary** (in results aktiv),
 Mathe-Pipeline: extractMathTasks → solveMathTasks (calc_chain) → generateSimilarTasks (+Verify).
+
+### KI-Memory (Personalisierung)
+- Store-Keys `memory_text` (Freitext) + `memory_entries` (strukturierte Einträge).
+- `getFullMemoryPrompt()` baut einen Memory-Block, der bei aktivem `use_memory` in KI-Prompts
+  injiziert wird. Schwächen werden nach Daily-Quizzes **automatisch** erfasst (results.js).
+- Verwaltung über Memory-Manager in **settings**.
+
+### Konfigurierbarkeit (Settings-Gates) – beim Bauen beachten
+- KI-Aufrufe respektieren `aiValidation`, `detailedAnswers`, `enableImages`, `disabledModels`.
+- Spaced Repetition: `useFsrs` (Default an) – gilt einheitlich für quiz UND scaffold.
+- `latexEnabled` steuert `renderMath`; Wert wird beim Boot in `utils.js` gesetzt (synchron).
 
 ---
 
@@ -108,4 +144,15 @@ App.** Für Feature-Status immer den echten Code unter `pwa/js/` ansehen, nicht 
 ## Vor "neue Ideen": erst hier + im Code prüfen
 Schon erledigt und NICHT als neu verkaufen: Heatmap, Achievements/Streaks,
 KI-Erklärung bei Fehlern, Bild-/Diagramm-/Formel-Fragen, Fehler-Tagebuch,
-Karteikarten, FSRS, Pomodoro, Deep-Learn/Sokrates, PDF→Quiz, Cloud-Sync.
+Karteikarten, FSRS, Pomodoro, Deep-Learn/Sokrates, PDF→Quiz, Cloud-Sync,
+**Shop/Coin-Economy** (Avatar/Haus/Skins/Game-Skins/Deko + Münz-Boni),
+**Modell-Kostensperre** + KI-Feature-Toggles, **KI-Memory** (auto-Schwächen),
+**Quick-Actions-Editor**, **HTML/JSON-Export**, **Lernphasen + Themen ausblenden**,
+**Hybrid-PDF** (Text+Bildseiten), **untere Tab-Bar**, **gestufte Hinweise**,
+**KI-Zusammenfassung**, **„Einfacher erklären"**, **LaTeX-Toggle**, KaTeX self-hosted.
+
+## Offen / noch NICHT umgesetzt (echte neue Ideen)
+- **i18n / Mehrsprachigkeit** (PWA nur Deutsch; Desktop hat DE/EN via `i18n.py`).
+- **Chunking mit Rolling-Summary** für sehr große PDFs (über das Kontextfenster hinaus) –
+  aktuell wird Text in EINEM Call gesendet; Desktop (`src/ai_service.py`) hat Sliding-Window.
+- Mockup-Spiele noch nicht in echter PWA: **Block Blast, Math-Solver, Mix-Kampagne**.
