@@ -3,20 +3,30 @@ import { generateQuiz, generateQuizFromImage, generateQuizFromImages, getModelCo
 import { navigate } from "../router.js";
 import { esc, loadPdfJs, uid } from "../utils.js";
 
-const Q_TYPES = [
-  { id: "single_choice", label: "Single Choice" },
-  { id: "multiple_choice", label: "Multiple Choice" },
-  { id: "free_text", label: "Freitext" },
-  { id: "fill_blank", label: "Lückentext" },
-  { id: "drag_drop", label: "Drag & Drop" },
-  { id: "drag_category", label: "Kategorie-Zuordnung" },
-  { id: "math_formula", label: "Mathe-Formel" },
-];
+function getQTypes(enableImages) {
+  const types = [
+    { id: "single_choice", label: "Single Choice" },
+    { id: "multiple_choice", label: "Multiple Choice" },
+    { id: "free_text", label: "Freitext" },
+    { id: "fill_blank", label: "Lückentext" },
+    { id: "drag_drop", label: "Drag & Drop" },
+    { id: "drag_category", label: "Kategorie-Zuordnung" },
+    { id: "math_formula", label: "Mathe-Formel" },
+  ];
+  if (enableImages) {
+    types.push({ id: "diagram_label", label: "Diagramm beschriften" });
+    types.push({ id: "mark_image", label: "Bild markieren" });
+  }
+  return types;
+}
 
 export async function render(root, params = {}) {
   const prefillText = params.text ?? "";
   const prefillName = params.name ?? "";
   const settings = await loadSettings();
+  const enableImages = settings.enableImages !== false;
+  const disabledModels = settings.disabledModels || [];
+  const Q_TYPES = getQTypes(enableImages);
   let currentModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
   let charLimit = getModelContextLimit(currentModel);
   let uploadedFileType = null;
@@ -74,7 +84,7 @@ export async function render(root, params = {}) {
         <div class="input-group">
           <label>KI-Modell</label>
           <div id="gen-model-list" class="model-select-list">
-            ${MODELS.map(m => {
+            ${MODELS.filter(m => !disabledModels.includes(m.id)).map(m => {
               const sel = currentModel === m.id;
               const icons = m.vision ? "👁 Bilder" : "📝 Text";
               const ctxLabel = m.context >= 1000000 ? "1M" : Math.floor(m.context/1000) + "k";

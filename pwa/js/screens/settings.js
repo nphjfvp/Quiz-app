@@ -83,22 +83,64 @@ export async function render(root) {
       </div>
       <div class="input-group">
         <label>KI-Modell</label>
-        <div id="model-list" class="model-select-list">
-          ${MODELS.map(m => {
-            const sel = (settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free") === m.id;
+        ${(() => {
+          const disabled = settings.disabledModels || [];
+          const curModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
+          const freeModels = MODELS.filter(m => m.price === "$0");
+          const paidModels = MODELS.filter(m => m.price !== "$0");
+          const renderModel = (m) => {
+            const sel = curModel === m.id;
+            const locked = disabled.includes(m.id);
             const icons = m.vision ? "👁 Bilder" : "📝 Text";
             const ctxLabel = m.context >= 1000000 ? "1M" : Math.floor(m.context/1000) + "k";
-            return `<div class="model-option ${sel ? "selected" : ""}" data-model="${m.id}">
+            return `<div class="model-option ${sel ? "selected" : ""} ${locked ? "model-locked" : ""}" data-model="${m.id}">
               <div class="model-name">${esc(m.name)} <span class="model-icons">${icons}</span></div>
               <div class="model-meta">${m.tier} · ${m.price} · ${ctxLabel} ctx</div>
+              <button class="btn btn-ghost btn-icon-sm model-lock-btn" data-lock="${m.id}" title="${locked ? "Entsperren" : "Sperren"}">${locked ? "🔒" : "🔓"}</button>
             </div>`;
-          }).join("")}
-        </div>
-        <input type="hidden" id="ai-model" value="${esc(settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free")}">
-        <div class="gen-model-hint">👁 = kann Bilder sehen · 📝 = nur Text. Bei Bild-Aufgaben wird automatisch ein Bild-Modell genutzt.</div>
+          };
+          let h = `<div id="model-list" class="model-select-list">`;
+          h += freeModels.map(renderModel).join("");
+          h += `<div id="paid-models-section" style="display:none">${paidModels.map(renderModel).join("")}</div>`;
+          h += `</div>`;
+          h += `<button class="btn btn-ghost btn-sm" id="show-paid-models" style="margin-top:6px">▼ Weitere Modelle anzeigen (kostenpflichtig)</button>`;
+          h += `<input type="hidden" id="ai-model" value="${esc(curModel)}">`;
+          return h;
+        })()}
+        <div class="gen-model-hint">👁 = kann Bilder sehen · 📝 = nur Text. Bei Bild-Aufgaben wird automatisch ein Bild-Modell genutzt.<br>🔒 = gesperrte Modelle werden nirgends angeboten.</div>
       </div>
       <button class="btn btn-primary btn-sm" id="save-ai">Speichern</button>
       <div id="ai-status" class="status-line"></div>
+    </div>`;
+
+  // KI-Funktionen
+  const aiValidation = settings.aiValidation !== false;
+  const detailedAnswers = settings.detailedAnswers === true;
+  const enableImages = settings.enableImages !== false;
+  const useFsrs = settings.useFsrs !== false;
+  html += `<div class="section-title">KI-Funktionen</div>
+    <div class="card">
+      <div class="card-desc">Steuere, welche KI-Hilfen beim Lernen aktiv sind.</div>
+      <div class="toggle-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+        <span>🤖 KI-Freitext-Prüfung</span>
+        <button class="btn btn-sm ${aiValidation ? "btn-primary" : "btn-ghost"}" id="toggle-aiValidation">${aiValidation ? "✅ Ein" : "⬜ Aus"}</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-light);margin-bottom:8px">Prüft Freitext-Antworten per KI auf inhaltliche Richtigkeit.</div>
+      <div class="toggle-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+        <span>📝 Ausführliche KI-Antworten</span>
+        <button class="btn btn-sm ${detailedAnswers ? "btn-primary" : "btn-ghost"}" id="toggle-detailedAnswers">${detailedAnswers ? "✅ Ein" : "⬜ Aus"}</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-light);margin-bottom:8px">KI-Erklärungen und Tutor-Antworten werden detailreicher und länger.</div>
+      <div class="toggle-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+        <span>🖼️ Bild-Fragetypen erlauben</span>
+        <button class="btn btn-sm ${enableImages ? "btn-primary" : "btn-ghost"}" id="toggle-enableImages">${enableImages ? "✅ Ein" : "⬜ Aus"}</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-light);margin-bottom:8px">Wenn aus, erzeugt der KI-Generator keine diagram_label / mark_image Fragen.</div>
+      <div class="toggle-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+        <span>🧠 Spaced Repetition (FSRS)</span>
+        <button class="btn btn-sm ${useFsrs ? "btn-primary" : "btn-ghost"}" id="toggle-useFsrs">${useFsrs ? "✅ Ein" : "⬜ Aus"}</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-light)">Plant Wiederholungen nach dem Vergessenskurve-Algorithmus (FSRS-4.5).</div>
     </div>`;
 
   // JSON Import
@@ -145,6 +187,21 @@ export async function render(root) {
     const btn = root.querySelector("#latex-toggle");
     btn.textContent = next ? "✅ LaTeX aktiv" : "⬜ LaTeX deaktiviert";
   });
+
+  // KI-Funktionen toggles
+  for (const key of ["aiValidation", "detailedAnswers", "enableImages", "useFsrs"]) {
+    const btn = root.querySelector(`#toggle-${key}`);
+    if (!btn) continue;
+    btn.addEventListener("click", async () => {
+      const s = await loadSettings();
+      const cur = key === "detailedAnswers" ? s[key] === true : s[key] !== false;
+      const next = !cur;
+      s[key] = next;
+      await saveSettings(s);
+      btn.textContent = next ? "✅ Ein" : "⬜ Aus";
+      btn.className = `btn btn-sm ${next ? "btn-primary" : "btn-ghost"}`;
+    });
+  }
 
   // Auth
   if (!account) {
@@ -205,20 +262,76 @@ export async function render(root) {
   });
 
   // AI settings
-  // Model selection clicks
+  // Model selection clicks (skip locked, confirm paid)
   root.querySelectorAll(".model-option").forEach(el => {
-    el.addEventListener("click", () => {
+    el.addEventListener("click", async (e) => {
+      if (e.target.closest(".model-lock-btn")) return; // lock button handles itself
+      const modelId = el.dataset.model;
+      const s = await loadSettings();
+      const disabled = s.disabledModels || [];
+      if (disabled.includes(modelId)) return; // locked
+      const model = MODELS.find(m => m.id === modelId);
+      if (model && model.price !== "$0") {
+        if (!confirm(`Dieses Modell kostet Geld (${model.price}/M Tokens) – trotzdem nutzen?`)) return;
+      }
       root.querySelectorAll(".model-option").forEach(o => o.classList.remove("selected"));
       el.classList.add("selected");
-      root.querySelector("#ai-model").value = el.dataset.model;
+      root.querySelector("#ai-model").value = modelId;
     });
+  });
+
+  // Lock/unlock model buttons
+  root.querySelectorAll(".model-lock-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const modelId = btn.dataset.lock;
+      const s = await loadSettings();
+      let disabled = s.disabledModels || [];
+      if (disabled.includes(modelId)) {
+        disabled = disabled.filter(id => id !== modelId);
+      } else {
+        disabled.push(modelId);
+        // If currently selected model is now locked, deselect it
+        if (s.aiModel === modelId) {
+          root.querySelector("#ai-model").value = "";
+          root.querySelectorAll(".model-option").forEach(o => o.classList.remove("selected"));
+        }
+      }
+      s.disabledModels = disabled;
+      await saveSettings(s);
+      btn.textContent = disabled.includes(modelId) ? "🔒" : "🔓";
+      btn.title = disabled.includes(modelId) ? "Entsperren" : "Sperren";
+      const row = btn.closest(".model-option");
+      if (row) row.classList.toggle("model-locked", disabled.includes(modelId));
+    });
+  });
+
+  // Show/hide paid models
+  root.querySelector("#show-paid-models")?.addEventListener("click", () => {
+    const sec = root.querySelector("#paid-models-section");
+    const btn = root.querySelector("#show-paid-models");
+    if (sec.style.display === "none") {
+      sec.style.display = "";
+      btn.textContent = "▲ Weniger Modelle anzeigen";
+    } else {
+      sec.style.display = "none";
+      btn.textContent = "▼ Weitere Modelle anzeigen (kostenpflichtig)";
+    }
   });
 
   root.querySelector("#save-ai")?.addEventListener("click", async () => {
     const key = root.querySelector("#api-key").value.trim();
     const model = root.querySelector("#ai-model").value;
     const st = root.querySelector("#ai-status");
-    await saveSettings({ ...await loadSettings(), apiKey: key, aiModel: model });
+    const s = await loadSettings();
+    const disabled = s.disabledModels || [];
+    if (disabled.includes(model)) {
+      st.textContent = "⚠️ Das gewählte Modell ist gesperrt. Bitte entsperren oder anderes wählen.";
+      return;
+    }
+    s.apiKey = key;
+    s.aiModel = model;
+    await saveSettings(s);
     st.textContent = "✓ Gespeichert!";
     setTimeout(() => { st.textContent = ""; }, 2000);
   });

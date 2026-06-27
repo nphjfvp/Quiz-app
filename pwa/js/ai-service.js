@@ -367,7 +367,7 @@ export async function explainAnswer(question, userAnswer, correctAnswer, config 
     {
       role: "system",
       content:
-        "Du bist ein geduldiger Lerntutor. Erkläre dem Lernenden verständlich und ermutigend, warum eine Antwort richtig oder falsch ist. Antworte auf Deutsch." + (useVision ? " Dir wird auch ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""),
+        "Du bist ein geduldiger Lerntutor. Erkläre dem Lernenden verständlich und ermutigend, warum eine Antwort richtig oder falsch ist." + (config.detailed ? " Gib eine AUSFÜHRLICHE Erklärung mit Hintergrundwissen und Beispielen." : " Antworte kompakt.") + " Antworte auf Deutsch." + (useVision ? " Dir wird auch ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""),
     },
     { role: "user", content: userContent },
   ];
@@ -381,7 +381,7 @@ export async function askTutor(question, context = "", chatHistory = [], config 
   const useVision = !!imageUrl && chatHistory.length === 0;
   const effectiveModel = useVision ? VISION_MODEL : model;
 
-  const systemContent = `Du bist ein freundlicher und kompetenter Lerntutor. Hilf dem Lernenden, den Stoff zu verstehen. Antworte auf Deutsch, klar und verständlich.${useVision ? " Dir wird ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""}${context ? `\n\nKontext:\n${context}` : ""}`;
+  const systemContent = `Du bist ein freundlicher und kompetenter Lerntutor. Hilf dem Lernenden, den Stoff zu verstehen.${config.detailed ? " Gib AUSFÜHRLICHE Antworten mit Hintergrundwissen, Beispielen und Eselsbrücken." : " Antworte kompakt."} Antworte auf Deutsch, klar und verständlich.${useVision ? " Dir wird ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""}${context ? `\n\nKontext:\n${context}` : ""}`;
 
   const userContent = useVision
     ? [{ type: "text", text: question }, { type: "image_url", image_url: { url: imageUrl } }]

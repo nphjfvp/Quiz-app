@@ -1,5 +1,5 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
-import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, addCoins } from "../store.js";
+import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, addCoins, loadSettings } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
@@ -286,12 +286,15 @@ function showQuestion(root, quiz, session) {
 
     // FSRS-Planung aktualisieren (Spaced Repetition)
     try {
-      const fsrs = await loadFsrs();
-      const card = fsrs[q.id] || newCard(q.id);
-      const answerTimeMs = Date.now() - questionStart;
-      const rating = ratingFromResult(result.is_correct, 3);
-      fsrs[q.id] = fsrsReview(card, rating, answerTimeMs, 0.5);
-      await saveFsrs(fsrs);
+      const settings = await loadSettings();
+      if (settings.useFsrs !== false) {
+        const fsrs = await loadFsrs();
+        const card = fsrs[q.id] || newCard(q.id);
+        const answerTimeMs = Date.now() - questionStart;
+        const rating = ratingFromResult(result.is_correct, 3);
+        fsrs[q.id] = fsrsReview(card, rating, answerTimeMs, 0.5);
+        await saveFsrs(fsrs);
+      }
     } catch (_) { /* FSRS optional */ }
 
     if (session.mode === "single") {
@@ -333,14 +336,18 @@ function showQuestion(root, quiz, session) {
       const textTypes = ["free_text", "fill_blank", "math_formula"];
       const userAns = Array.isArray(result.user_answer) ? result.user_answer.join("; ") : (result.user_answer || "");
       if (!result.is_correct && textTypes.includes(q.question_type) && userAns.trim()) {
-        const kiBox = document.createElement("div");
-        kiBox.className = "ki-validate";
-        kiBox.innerHTML = `<div class="ki-validate-status">🤖 KI prüft, ob deine Antwort inhaltlich richtig ist…</div>`;
-        fb.appendChild(kiBox);
         (async () => {
           try {
+            const settings = await loadSettings();
+            if (settings.aiValidation === false) return; // user disabled AI checking
+            if (!settings.apiKey) return; // no key → skip silently (avoid noise)
+          } catch (_) { return; }
+          const kiBox = document.createElement("div");
+          kiBox.className = "ki-validate";
+          kiBox.innerHTML = `<div class="ki-validate-status">🤖 KI prüft, ob deine Antwort inhaltlich richtig ist…</div>`;
+          fb.appendChild(kiBox);
+          try {
             const { checkFreeTextAI } = await import("../ai-service.js");
-            const { loadSettings } = await import("../store.js");
             const settings = await loadSettings();
             if (!settings.apiKey) {
               kiBox.innerHTML = `<div class="ki-validate-no">🤖 KI-Prüfung nicht verfügbar – bitte API-Key in den <a href="#settings">Einstellungen</a> hinterlegen.</div>`;

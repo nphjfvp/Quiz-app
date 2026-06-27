@@ -1,7 +1,7 @@
 import { navigate } from "../router.js";
 import { explainAnswer, simplifyExplanation } from "../ai-service.js";
 import { esc, mathEsc } from "../utils.js";
-import { addCoins, loadDailyState, saveDailyState } from "../store.js";
+import { addCoins, loadDailyState, saveDailyState, loadSettings } from "../store.js";
 
 export async function render(root, params) {
   const { session, quiz } = params;
@@ -164,7 +164,8 @@ function showDetail(root, q, result, session, quiz) {
     try {
       const questionText = q.question_text || q.text || q.title || "";
       const qImage = q.diagram_image_path || q.diagram_image || q.image_path || q.image || null;
-      const explanation = await explainAnswer(questionText, result?.user_answer || "", result?.correct_answer || "", {}, qImage);
+      const settings = await loadSettings();
+      const explanation = await explainAnswer(questionText, result?.user_answer || "", result?.correct_answer || "", { detailed: settings.detailedAnswers === true }, qImage);
       textEl.innerHTML = mathEsc(explanation);
       const simplifyBtn = root.querySelector("#ai-simplify");
       if (simplifyBtn) simplifyBtn.style.display = "";
