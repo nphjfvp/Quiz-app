@@ -4,6 +4,7 @@ import { navigate } from "../router.js";
 import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
+import { drawDiagram, createDragGhost, moveDragGhost, removeDragGhost, bindChipDrag, drawLabeledPoint, createDiagramChip } from "../diagram.js";
 
 // Registry für document-Listener (Diagram-Label-Drag). Werden pro Frage neu
 // angelegt und müssen beim Weiter-/Screen-Wechsel entfernt werden, da sie auf
@@ -513,15 +514,14 @@ function setupDragCategory(root, q, assignments) {
   }
   renderDC();
 }
-
 function setupDiagramLabel(root, q, placements) {
-  const container = root.querySelector("#diagram-container");
   const canvas = root.querySelector("#diagram-canvas");
   const chipsEl = root.querySelector("#diagram-chips");
   const ctx = canvas.getContext("2d");
   const labels = q.diagram_labels || [];
   let img = null;
   const SNAP_RADIUS = 0.10;
+  let dragLabel = null;
 
   function draw() {
     const rect = canvas.getBoundingClientRect();
@@ -549,39 +549,12 @@ function setupDiagramLabel(root, q, placements) {
       ctx.setLineDash([]);
     }
 
-    // Draw placed labels
+    // Draw placed labels using shared utility
     for (const [label, pos] of Object.entries(placements)) {
       const idx = labels.findIndex(l => l.label === label);
       const color = CHIP_COLORS[idx % CHIP_COLORS.length];
-      const px = pos.x * w, py = pos.y * h;
-      ctx.beginPath(); ctx.arc(px, py, 16, 0, Math.PI * 2);
-      ctx.fillStyle = color + "dd"; ctx.fill();
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(label.slice(0, 5), px, py);
+      drawLabeledPoint(ctx, pos.x, pos.y, w, h, color, label);
     }
-  }
-
-  // Floating drag ghost element
-  let dragGhost = null;
-  let dragLabel = null;
-
-  function createGhost(label, color, x, y) {
-    dragGhost = document.createElement("div");
-    dragGhost.className = "drag-ghost";
-    dragGhost.textContent = label;
-    dragGhost.style.cssText = `position:fixed;left:${x-30}px;top:${y-18}px;z-index:9999;pointer-events:none;
-      background:${color}dd;color:#fff;font-size:0.8rem;font-weight:700;padding:6px 14px;border-radius:20px;
-      box-shadow:0 4px 16px rgba(0,0,0,0.3);transform:scale(1.1);transition:transform 0.1s`;
-    document.body.appendChild(dragGhost);
-  }
-
-  function moveGhost(x, y) {
-    if (dragGhost) { dragGhost.style.left = (x - 30) + "px"; dragGhost.style.top = (y - 18) + "px"; }
-  }
-
-  function removeGhost() {
-    if (dragGhost) { dragGhost.remove(); dragGhost = null; }
   }
 
   function trySnap(clientX, clientY) {
@@ -602,24 +575,29 @@ function setupDiagramLabel(root, q, placements) {
     return bestIdx;
   }
 
+  function onDrop(label, clientX, clientY) {
+    if (!dragLabel) return;
+    const snapIdx = trySnap(clientX, clientY);
+    if (snapIdx >= 0) {
+      placements[dragLabel] = { x: labels[snapIdx].x, y: labels[snapIdx].y };
+    }
+    dragLabel = null;
+    draw(); renderChips();
+  }
+
   function renderChips() {
     const placed = new Set(Object.keys(placements));
     chipsEl.innerHTML = "";
     labels.forEach((l, i) => {
       if (placed.has(l.label)) return;
       const color = CHIP_COLORS[i % CHIP_COLORS.length];
-      const chip = document.createElement("div");
-      chip.className = "dnd-chip";
-      chip.textContent = l.label;
-      chip.dataset.label = l.label;
-      chip.dataset.idx = i;
-      chip.style.cssText = `background:${color}20;border:2px solid ${color};color:var(--text);cursor:grab;user-select:none;touch-action:none`;
+      const chip = createDiagramChip(l.label, color, false);
+      chip.style.cursor = "grab";
       chipsEl.appendChild(chip);
-      bindChipDrag(chip, l.label, color);
+      bindChipDrag(chip, l.label, color, onDrop, _docCleanups, true);
     });
     // Show placed chips as removable
     for (const label of Object.keys(placements)) {
-      const idx = labels.findIndex(l => l.label === label);
       const chip = document.createElement("div");
       chip.className = "dnd-chip placed";
       chip.textContent = label + " ✕";
@@ -627,61 +605,6 @@ function setupDiagramLabel(root, q, placements) {
       chip.addEventListener("click", () => { delete placements[label]; draw(); renderChips(); });
       chipsEl.appendChild(chip);
     }
-  }
-
-  function bindChipDrag(chip, label, color) {
-    // Touch drag
-    chip.addEventListener("touchstart", e => {
-      e.preventDefault();
-      dragLabel = label;
-      const t = e.touches[0];
-      createGhost(label, color, t.clientX, t.clientY);
-    }, { passive: false });
-    chip.addEventListener("touchmove", e => {
-      e.preventDefault();
-      moveGhost(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: false });
-    chip.addEventListener("touchend", e => {
-      e.preventDefault();
-      if (!dragLabel) return;
-      const t = e.changedTouches[0];
-      const snapIdx = trySnap(t.clientX, t.clientY);
-      if (snapIdx >= 0) {
-        placements[dragLabel] = { x: labels[snapIdx].x, y: labels[snapIdx].y };
-      }
-      dragLabel = null;
-      removeGhost();
-      draw(); renderChips();
-    });
-
-    // Mouse drag
-    let mouseDown = false;
-    chip.addEventListener("mousedown", e => {
-      mouseDown = true;
-      dragLabel = label;
-      createGhost(label, color, e.clientX, e.clientY);
-      e.preventDefault();
-    });
-    const onMouseMove = e => { if (mouseDown) moveGhost(e.clientX, e.clientY); };
-    const onMouseUp = e => {
-      if (!mouseDown) return;
-      mouseDown = false;
-      if (dragLabel) {
-        const snapIdx = trySnap(e.clientX, e.clientY);
-        if (snapIdx >= 0) {
-          placements[dragLabel] = { x: labels[snapIdx].x, y: labels[snapIdx].y };
-        }
-        dragLabel = null;
-      }
-      removeGhost();
-      draw(); renderChips();
-    };
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-    _docCleanups.push(() => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    });
   }
 
   const imgSrc = q.diagram_image_path || q.diagram_image;

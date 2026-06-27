@@ -2,6 +2,7 @@ import { loadQuizzes, saveQuizzes } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, uid, CHIP_COLORS } from "../utils.js";
 import { openBlackoutEditor } from "../blackout.js";
+import { drawDiagram, createDragGhost, moveDragGhost, removeDragGhost, bindChipDrag, drawLabeledPoint, createDiagramChip } from "../diagram.js";
 
 // Registry für document-Listener (Diagram-Label-Drag im Editor). renderChips
 // wird pro Neuzeichnen mehrfach aufgerufen; ohne Entfernung lecken die
@@ -505,7 +506,6 @@ function initDiagramPlacement(root, q, quizzes) {
   const ctx = canvas.getContext("2d");
   const labels = q.diagram_labels || [];
   let img = null;
-  let dragGhost = null;
   let dragIdx = -1;
 
   function draw() {
@@ -522,29 +522,14 @@ function initDiagramPlacement(root, q, quizzes) {
       ctx.fillStyle = "#94a3b8"; ctx.font = "14px sans-serif"; ctx.textAlign = "center";
       ctx.fillText("Lade zuerst ein Bild hoch", w / 2, h / 2);
     }
+    // Draw placed labels using shared utility
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
       if (!l._placed || l.x === undefined) continue;
       const color = CHIP_COLORS[i % CHIP_COLORS.length];
-      const px = l.x * w, py = l.y * h;
-      ctx.beginPath(); ctx.arc(px, py, 16, 0, Math.PI * 2);
-      ctx.fillStyle = color + "dd"; ctx.fill();
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText((l.label || "?").slice(0, 5), px, py);
+      drawLabeledPoint(ctx, l.x, l.y, w, h, color, l.label || "?");
     }
   }
-
-  function createGhost(text, color, x, y) {
-    dragGhost = document.createElement("div");
-    dragGhost.textContent = text;
-    dragGhost.style.cssText = `position:fixed;left:${x-30}px;top:${y-18}px;z-index:9999;pointer-events:none;
-      background:${color}dd;color:#fff;font-size:0.8rem;font-weight:700;padding:6px 14px;border-radius:20px;
-      box-shadow:0 4px 16px rgba(0,0,0,0.3);transform:scale(1.1)`;
-    document.body.appendChild(dragGhost);
-  }
-  function moveGhost(x, y) { if (dragGhost) { dragGhost.style.left = (x-30)+"px"; dragGhost.style.top = (y-18)+"px"; } }
-  function removeGhost() { if (dragGhost) { dragGhost.remove(); dragGhost = null; } }
 
   function dropAt(clientX, clientY) {
     if (dragIdx < 0) return;
@@ -558,7 +543,6 @@ function initDiagramPlacement(root, q, quizzes) {
       updateStatusBadges();
     }
     dragIdx = -1;
-    removeGhost();
     draw(); renderChips();
   }
 
@@ -569,6 +553,11 @@ function initDiagramPlacement(root, q, quizzes) {
     });
   }
 
+  function onDrop(idx, clientX, clientY) {
+    dragIdx = idx;
+    dropAt(clientX, clientY);
+  }
+
   function renderChips() {
     chipsEl.innerHTML = "";
     // document-Listener des vorherigen Redraws entfernen (sonst Leck pro Neuzeichnen).
@@ -576,32 +565,13 @@ function initDiagramPlacement(root, q, quizzes) {
     labels.forEach((l, i) => {
       const color = CHIP_COLORS[i % CHIP_COLORS.length];
       const name = l.label || `Label ${i + 1}`;
-      const chip = document.createElement("div");
-      chip.className = "dnd-chip" + (l._placed ? " placed" : "");
-      chip.textContent = name + (l._placed ? " ✓" : "");
-      chip.style.cssText = `background:${color}20;border:2px solid ${color};color:var(--text);
-        ${l._placed ? "opacity:0.5;" : "cursor:grab;"}touch-action:none;user-select:none`;
+      const chip = createDiagramChip(name, color, l._placed);
 
       if (l._placed) {
         chip.style.cursor = "pointer";
         chip.addEventListener("click", () => { l._placed = false; l.x = 0.5; l.y = 0.5; draw(); renderChips(); updateStatusBadges(); });
       } else {
-        // Touch drag
-        chip.addEventListener("touchstart", e => {
-          e.preventDefault(); dragIdx = i;
-          createGhost(name, color, e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: false });
-        chip.addEventListener("touchmove", e => { e.preventDefault(); moveGhost(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
-        chip.addEventListener("touchend", e => { e.preventDefault(); dropAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY); });
-
-        // Mouse drag
-        let mouseDown = false;
-        chip.addEventListener("mousedown", e => { mouseDown = true; dragIdx = i; createGhost(name, color, e.clientX, e.clientY); e.preventDefault(); });
-        const onMove = e => { if (mouseDown) moveGhost(e.clientX, e.clientY); };
-        const onUp = e => { if (mouseDown) { mouseDown = false; dropAt(e.clientX, e.clientY); } };
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
-        _docCleanups.push(() => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); });
+        bindChipDrag(chip, name, color, onDrop.bind(null, i), _docCleanups, true);
       }
       chipsEl.appendChild(chip);
     });
