@@ -154,30 +154,28 @@ function parseJSON(text) {
 
 // ─── Public API ──────────────────────────────────────────────────────
 
-export async function generateQuiz(text, numQuestions = 5, language = "de", config = {}) {
-  const { apiKey, model } = await getConfig(config);
+const QUIZ_ALL_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula"];
 
-  const auto = !(numQuestions > 0);
-  const detail = config.detailLevel || "normal";
-  const detailHint = detail === "thorough"
-    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt und jeder Formel mindestens eine Frage. Lieber zu viele Fragen als zu wenige!"
-    : detail === "compact"
-    ? " Konzentriere dich auf die wichtigsten Kernkonzepte und erstelle nur die wesentlichsten Fragen."
-    : "";
-  const countRule = auto
-    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele.${detailHint}`
-    : `Erstelle exakt ${numQuestions} Fragen.`;
-  const countAsk = auto
-    ? "So viele Prüfungsfragen wie sinnvoll"
-    : `${numQuestions} Prüfungsfragen`;
+function normalizeQuizQuestion(q) {
+  return {
+    id: uid(),
+    question_type: q.question_type,
+    question_text: q.question_text,
+    title: q.title ?? "",
+    topic: q.topic ?? "",
+    points: q.points ?? 1,
+    options: q.options ?? [],
+    correct_text: q.correct_text ?? "",
+    blanks: q.blanks ?? [],
+    drag_drop_pairs: q.drag_drop_pairs ?? [],
+    correct_formula: q.correct_formula ?? "",
+    tolerance: q.tolerance ?? 0.001,
+    explanation: q.explanation ?? "",
+  };
+}
 
-  const ALL_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula"];
-  const allowed = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
-    ? ALL_TYPES.filter(t => config.allowedTypes.includes(t))
-    : ALL_TYPES;
-  const typesList = (allowed.length ? allowed : ALL_TYPES).map(t => `"${t}"`).join(", ");
-
-  const systemPrompt = `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
+function buildQuizSystemPrompt(countRule, typesList, language) {
+  return `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
 WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
@@ -210,39 +208,101 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
     "explanation": "Erklärung"
   }
 ]`;
+}
 
-  const messages = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: `Erstelle ${countAsk} auf Basis dieses Textes:\n\n${text}` },
-  ];
+export async function generateQuiz(text, numQuestions = 5, language = "de", config = {}) {
+  const { apiKey, model } = await getConfig(config);
 
-  const body = await chatCompletion(messages, { apiKey, model, stream: true });
-  const raw = await readStream(body);
-  const questions = parseJSON(raw);
+  const auto = !(numQuestions > 0);
+  const detail = config.detailLevel || "normal";
+  const detailHint = detail === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt und jeder Formel mindestens eine Frage. Lieber zu viele Fragen als zu wenige!"
+    : detail === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte und erstelle nur die wesentlichsten Fragen."
+    : "";
 
-  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+  const allowed = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
+    ? QUIZ_ALL_TYPES.filter(t => config.allowedTypes.includes(t))
+    : QUIZ_ALL_TYPES;
+  const typesList = (allowed.length ? allowed : QUIZ_ALL_TYPES).map(t => `"${t}"`).join(", ");
+  const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
 
-  let filtered = questions;
-  if (allowed.length && allowed.length < ALL_TYPES.length) {
-    const kept = questions.filter(q => allowed.includes(q.question_type));
-    if (kept.length) filtered = kept; // nur filtern, wenn etwas übrig bleibt
+  // Wenn eine Chunk-Größe gesetzt ist und der Text größer ist als ein Chunk,
+  // verarbeiten wir den Text abschnittsweise (kein Abschneiden bei großen PDFs).
+  // Ein „Rolling Context" mit bereits abgedeckten Themen vermeidet Dopplungen.
+  const chunkSize = Number(config.chunkSize) || 0;
+  const useChunking = chunkSize > 0 && text.length > chunkSize;
+
+  const runChunk = async (chunkText, perChunkRule, userPrefix) => {
+    const systemPrompt = buildQuizSystemPrompt(perChunkRule, typesList, language);
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `${userPrefix}\n\n${chunkText}` },
+    ];
+    const body = await chatCompletion(messages, { apiKey, model, stream: true });
+    const raw = await readStream(body);
+    const parsed = parseJSON(raw);
+    if (!Array.isArray(parsed)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+    return parsed;
+  };
+
+  let collected;
+  if (useChunking) {
+    const chunks = chunkText(text, chunkSize);
+    const perChunkCount = auto ? 0 : Math.max(1, Math.round(numQuestions / chunks.length));
+    const covered = []; // Titel/Themen bereits erzeugter Fragen (Rolling Context)
+    collected = [];
+    for (let i = 0; i < chunks.length; i++) {
+      if (onProgress) onProgress(i + 1, chunks.length);
+      const perChunkRule = auto
+        ? `Erstelle zu diesem Abschnitt so viele sinnvolle Fragen wie nötig, um seinen Inhalt abzudecken.${detailHint}`
+        : `Erstelle etwa ${perChunkCount} Fragen zu diesem Abschnitt.`;
+      const contextHint = covered.length
+        ? `Bereits abgedeckte Themen (NICHT wiederholen): ${covered.slice(-40).join("; ")}.\n\n`
+        : "";
+      const prefix = `${contextHint}Abschnitt ${i + 1}/${chunks.length} des Lernmaterials:`;
+      try {
+        const part = await runChunk(chunks[i], perChunkRule, prefix);
+        for (const q of part) {
+          collected.push(q);
+          if (q.title || q.topic || q.question_text) covered.push(q.title || q.topic || (q.question_text || "").slice(0, 50));
+        }
+      } catch (err) {
+        // Ein fehlerhafter Abschnitt darf den Gesamtlauf nicht abbrechen.
+        if (chunks.length === 1) throw err;
+      }
+    }
+  } else {
+    const countRule = auto
+      ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Stoff abzudecken (etwa eine Frage pro wichtigem Konzept). Erzeuge weder zu wenige noch unnötig viele.${detailHint}`
+      : `Erstelle exakt ${numQuestions} Fragen.`;
+    const countAsk = auto ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
+    collected = await runChunk(text, countRule, `Erstelle ${countAsk} auf Basis dieses Textes:`);
   }
 
-  return filtered.map((q) => ({
-    id: uid(),
-    question_type: q.question_type,
-    question_text: q.question_text,
-    title: q.title ?? "",
-    topic: q.topic ?? "",
-    points: q.points ?? 1,
-    options: q.options ?? [],
-    correct_text: q.correct_text ?? "",
-    blanks: q.blanks ?? [],
-    drag_drop_pairs: q.drag_drop_pairs ?? [],
-    correct_formula: q.correct_formula ?? "",
-    tolerance: q.tolerance ?? 0.001,
-    explanation: q.explanation ?? "",
-  }));
+  // Typen filtern (Fallback, falls das Modell verbotene Typen liefert)
+  let filtered = collected;
+  if (allowed.length && allowed.length < QUIZ_ALL_TYPES.length) {
+    const kept = collected.filter(q => allowed.includes(q.question_type));
+    if (kept.length) filtered = kept;
+  }
+
+  // Dedupe über normalisierten Fragetext (wichtig bei Chunking-Überschneidungen)
+  const seen = new Set();
+  const deduped = [];
+  for (const q of filtered) {
+    const key = (q.question_text || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    deduped.push(q);
+  }
+
+  // Bei fester Anzahl + Chunking nicht über das Ziel hinausschießen
+  const finalList = (useChunking && !auto && deduped.length > numQuestions)
+    ? deduped.slice(0, numQuestions)
+    : deduped;
+
+  return finalList.map(normalizeQuizQuestion);
 }
 
 // Generiert Fragen direkt aus einem Bild (Screenshot, Foto, Diagramm) via Vision-Modell.
