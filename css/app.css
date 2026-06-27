@@ -1554,6 +1554,41 @@ a:focus-visible, [tabindex]:focus-visible {
 .study-suggest-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
 .study-suggest-btn { font-size:0.85rem !important; white-space:nowrap; }
 
+/* ════════════════════════════════════════════════════════════════════
+   TAB BAR (Glass-Morphism, fixed bottom)
+   ════════════════════════════════════════════════════════════════════ */
+
+body { padding-bottom: 72px; } /* space for fixed tab bar */
+
+.tab-bar {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 430px;
+  background: var(--card); /* solid fallback */
+  background: var(--glass-bg);
+  display: flex; justify-content: space-around;
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--glass-border);
+  z-index: 100;
+  box-shadow: 0 -4px 12px rgba(0,0,0,.1);
+  box-shadow: var(--glass-shadow);
+}
+@supports (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)) {
+  .tab-bar {
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+}
+.tab-bar button {
+  background: none; border: none; color: var(--text-light);
+  font-size: 10px; display: flex; flex-direction: column;
+  align-items: center; gap: 2px; cursor: pointer; padding: 4px 12px;
+  border-radius: 8px; transition: all .15s; font-family: inherit; font-weight: 600;
+}
+.tab-bar button .tab-icon { font-size: 20px; }
+.tab-bar button.active { color: var(--primary); background: var(--primary-subtle); }
+.tab-bar button:active { transform: scale(0.95); }
+
 @media (prefers-reduced-motion: reduce) {
   .screen-enter { animation: none; }
   *, *::before, *::after {
@@ -1562,6 +1597,10 @@ a:focus-visible, [tabindex]:focus-visible {
     transition-duration: 0.01ms !important;
   }
   .card-glass {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .tab-bar {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }

@@ -86,27 +86,6 @@ export async function render(root) {
     </div>
   </div>`;
 
-  html += `<div class="more-toggle"><button id="more-btn">▼ Weitere Tools</button></div>`;
-  html += `<div class="grid-4 hidden" id="more-grid">
-    <div class="grid-card mini-card" data-nav="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
-    <div class="grid-card mini-card" data-nav="pomodoro"><div class="icon">🍅</div><div class="title">Pomodoro</div></div>
-    <div class="grid-card mini-card" data-nav="marked"><div class="icon">⭐</div><div class="title">Markiert</div></div>
-    <div class="grid-card mini-card" data-nav="error-diary"><div class="icon">📕</div><div class="title">Fehler</div></div>
-  </div>
-  <div class="grid-4 hidden" id="more-grid-2" style="margin-top:-6px">
-    <div class="grid-card mini-card" data-nav="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learning</div></div>
-    <div class="grid-card mini-card" data-nav="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
-    <div class="grid-card mini-card" data-nav="games"><div class="icon">🎮</div><div class="title">Mini-Games</div></div>
-    <div class="grid-card mini-card" data-nav="shop"><div class="icon">🛍️</div><div class="title">Shop</div></div>
-    <div class="grid-card mini-card" data-nav="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>
-    <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner</div></div>
-    <div class="grid-card mini-card" data-nav="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div></div>
-    <div class="grid-card mini-card" data-nav="socratic"><div class="icon">🏛️</div><div class="title">Sokrates</div></div>
-    <div class="grid-card mini-card" data-nav="achievements"><div class="icon">🏅</div><div class="title">Erfolge</div></div>
-    <div class="grid-card mini-card" data-nav="sync"><div class="icon">☁️</div><div class="title">Sync</div></div>
-    <div class="grid-card mini-card" data-nav="settings"><div class="icon">⚙️</div><div class="title">Settings</div></div>
-  </div>`;
-
   if (marked.length > 0) {
     html += `<div class="quiz-row" data-nav="marked" style="border-left:3px solid var(--warning)">
       <div class="quiz-accent" style="background:var(--warning)"></div>
@@ -146,16 +125,6 @@ export async function render(root) {
   root.innerHTML = html;
 
   root.querySelector("#daily-btn")?.addEventListener("click", () => navigate("daily"));
-  root.querySelector("#more-btn")?.addEventListener("click", () => {
-    const grid = root.querySelector("#more-grid");
-    const grid2 = root.querySelector("#more-grid-2");
-    const btn = root.querySelector("#more-btn");
-    const hidden = grid.classList.contains("hidden");
-    grid.classList.toggle("hidden");
-    grid2.classList.toggle("hidden");
-    btn.textContent = hidden ? "▲ Weniger anzeigen" : "▼ Weitere Tools";
-  });
-
   root.querySelectorAll("[data-nav]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.nav));
   });

@@ -2,8 +2,32 @@ const _routes = {};
 let _currentCleanup = null;
 let _currentScreen = null;
 
+// Screen → Tab mapping: determines which tab is highlighted for each screen
+const _screenTabMap = {};
+
+// Tab → default screen: where each tab navigates to
+const _tabDefaults = {
+  home: "home",
+  lernen: "my-quizzes",
+  games: "games",
+  stats: "stats",
+  settings: "settings",
+};
+
 export function route(name, handler) {
   _routes[name] = handler;
+}
+
+/** Register which screens belong to which tab (for highlighting). */
+export function setScreenTab(screen, tab) {
+  _screenTabMap[screen] = tab;
+}
+
+/** Update tab bar active button */
+export function setActiveTab(tab) {
+  const bar = document.getElementById("tab-bar");
+  if (!bar) return;
+  bar.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
 }
 
 export async function navigate(name, params = {}) {
@@ -13,6 +37,14 @@ export async function navigate(name, params = {}) {
   root.innerHTML = "";
   const handler = _routes[name];
   if (!handler) { root.textContent = `Screen "${name}" not found`; return; }
+
+  // Highlight correct tab
+  const tab = _screenTabMap[name] || name;
+  setActiveTab(tab);
+
+  // Scroll to top on navigation
+  if (root.parentElement) root.parentElement.scrollTop = 0;
+
   let cleanup;
   try {
     cleanup = await handler(root, params);
@@ -29,6 +61,12 @@ export async function navigate(name, params = {}) {
   root.classList.remove("screen-enter");
   void root.offsetWidth; // Reflow erzwingen, damit die Animation neu startet
   root.classList.add("screen-enter");
+}
+
+/** Click handler for tab bar buttons — wired in app.js */
+export function handleTabClick(tab) {
+  const target = _tabDefaults[tab] || tab;
+  navigate(target);
 }
 
 window.addEventListener("popstate", (e) => {
