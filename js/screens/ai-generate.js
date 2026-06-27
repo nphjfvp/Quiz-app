@@ -1,5 +1,5 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, generateQuizFromImage, generateQuizFromImages, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
+import { generateQuiz, generateQuizFromImage, generateQuizFromImages, importQuiz, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
 import { navigate } from "../router.js";
 import { esc, loadPdfJs, uid } from "../utils.js";
 
@@ -55,6 +55,15 @@ export async function render(root, params = {}) {
 
     <div class="card mt-section">
       <div class="editor-form">
+        <div class="input-group">
+          <label>Modus</label>
+          <div class="detail-presets" id="gen-mode-presets">
+            <button type="button" class="detail-preset active" data-genmode="generate">🤖 Neu generieren</button>
+            <button type="button" class="detail-preset" data-genmode="import">📄 Importieren (1:1)</button>
+          </div>
+          <small class="file-hint" id="gen-mode-hint">Neu generieren: KI erstellt neue Fragen aus dem Stoff. Importieren: übernimmt bereits vorhandene Fragen (Altklausur, Übungsblatt) 1:1.</small>
+        </div>
+
         <div class="input-group">
           <label>Quiz-Name (optional)</label>
           <input type="text" id="ai-quiz-name" class="input" value="${esc(prefillName)}" placeholder="z.B. Biologie Kapitel 5">
@@ -243,6 +252,20 @@ export async function render(root, params = {}) {
       btn.classList.add("active");
       chunkMode = btn.dataset.chunk;
       if (chunkHintEl) chunkHintEl.textContent = CHUNK_HINTS[chunkMode];
+    });
+  });
+
+  // --- Modus: generieren vs. importieren ---
+  let genMode = "generate";
+  const numGroup = numInput.closest(".input-group");
+  root.querySelectorAll("#gen-mode-presets .detail-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("#gen-mode-presets .detail-preset").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      genMode = btn.dataset.genmode;
+      // Beim Import bestimmt das Dokument die Anzahl → Anzahl-Auswahl ausblenden.
+      if (numGroup) numGroup.style.display = genMode === "import" ? "none" : "";
+      genBtn.textContent = genMode === "import" ? "Fragen importieren" : "Quiz generieren";
     });
   });
 
@@ -490,8 +513,9 @@ export async function render(root, params = {}) {
     const numQuestions = getNumQuestions();
     const allowedTypes = getAllowedTypes();
 
-    // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild)
-    if (uploadedImageData && !text) {
+    // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild). Im Import-Modus
+    // immer den extrahierten Text nutzen (kein Vision-Pfad).
+    if (genMode !== "import" && uploadedImageData && !text) {
       const quizName = nameInput.value.trim() || `KI-Quiz (Bild)`;
       hideError();
       genBtn.disabled = true;
@@ -508,7 +532,7 @@ export async function render(root, params = {}) {
     }
 
     // PDF visuell (alle Seiten) oder hybrid (Volltext + Bildseiten)
-    if (uploadedFileType === "pdf" && (pdfMode === "images" || pdfMode === "hybrid")) {
+    if (genMode !== "import" && uploadedFileType === "pdf" && (pdfMode === "images" || pdfMode === "hybrid")) {
       const haveImages = pdfPageImages && pdfPageImages.length > 0;
       // Images-Modus braucht Bilder; Hybrid ohne Bildseiten fällt in den Textpfad.
       if (pdfMode === "images" || (pdfMode === "hybrid" && haveImages)) {
@@ -556,18 +580,19 @@ export async function render(root, params = {}) {
 
     hideError();
     genBtn.disabled = true;
-    genBtn.textContent = chunkSize ? "⏳ Verarbeite Abschnitte…" : "⏳ Generiere…";
+    genBtn.textContent = chunkSize ? "⏳ Verarbeite Abschnitte…" : (genMode === "import" ? "⏳ Importiere…" : "⏳ Generiere…");
 
     try {
-      const questions = await generateQuiz(inputText, numQuestions, "de", {
-        model: currentModel, detailLevel, allowedTypes, chunkSize,
-        onProgress: (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; },
-      });
-      showReview(root, questions, quizName, currentModel, inputText);
+      const onProgress = (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; };
+      const questions = genMode === "import"
+        ? await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress })
+        : await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize, onProgress });
+      const importName = nameInput.value.trim() || "Importiertes Quiz";
+      showReview(root, questions, genMode === "import" ? importName : quizName, currentModel, inputText);
     } catch (err) {
-      showError(err.message || "Beim Generieren ist ein Fehler aufgetreten.");
+      showError(err.message || (genMode === "import" ? "Beim Importieren ist ein Fehler aufgetreten." : "Beim Generieren ist ein Fehler aufgetreten."));
       genBtn.disabled = false;
-      genBtn.textContent = "Quiz generieren";
+      genBtn.textContent = genMode === "import" ? "Fragen importieren" : "Quiz generieren";
     }
   });
 
