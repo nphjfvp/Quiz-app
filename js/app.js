@@ -1,4 +1,5 @@
 import { route, navigate, setScreenTab, handleTabClick } from "./router.js";
+import { setLatexEnabled } from "./utils.js";
 import { render as homeScreen } from "./screens/home.js";
 import { render as quizScreen } from "./screens/quiz.js";
 import { render as resultsScreen } from "./screens/results.js";
@@ -95,6 +96,9 @@ setScreenTab("pomodoro", "settings");
 
 async function init() {
   const settings = await loadSettings();
+
+  // LaTeX toggle – once at boot so renderMath runs sync.
+  setLatexEnabled(settings.latexEnabled ?? true);
 
   // Apply the player's chosen theme-skin accent (Shop) before first render.
   try {

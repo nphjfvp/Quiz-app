@@ -4,6 +4,7 @@ import { navigate } from "../router.js";
 import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
+import { generateHints } from "../ai-service.js";
 import { drawDiagram, createDragGhost, moveDragGhost, removeDragGhost, bindChipDrag, drawLabeledPoint, createDiagramChip } from "../diagram.js";
 
 // Registry für document-Listener (Diagram-Label-Drag). Werden pro Frage neu
@@ -144,6 +145,7 @@ function showQuestion(root, quiz, session) {
   }
 
   html += `</div>
+    <div id="hint-area" style="margin-top:8px;text-align:center"></div>
     <div id="feedback-area"></div>
     <div class="btn-row" id="nav-btns">
       ${session.currentIndex > 0 ? `<button class="btn btn-ghost btn-sm" id="prev-btn">‹ Zurück</button>` : ""}
@@ -380,6 +382,48 @@ function showQuestion(root, quiz, session) {
       root.querySelector("#submit-btn").textContent = "Nächste Frage ›";
     } else {
       showQuestion(root, quiz, session);
+    }
+  });
+
+  // ── Hinweis-Button (KI gestufte Tipps) ──
+  let hintLevel = 0;
+  let hints = [];
+  let hintsLoading = false;
+  const hintArea = root.querySelector("#hint-area");
+  const hintBtn = document.createElement("button");
+  hintBtn.className = "btn btn-ghost btn-sm";
+  hintBtn.textContent = "💡 Tipp";
+  hintBtn.style.marginTop = "4px";
+  hintArea.appendChild(hintBtn);
+
+  hintBtn.addEventListener("click", async () => {
+    if (feedbackShown || hintsLoading) return;
+    if (hintLevel === 0) {
+      hintsLoading = true;
+      hintBtn.textContent = "⏳ Lade Tipps…";
+      hintBtn.disabled = true;
+      try {
+        const qText = q.question_text || q.text || "";
+        const qOpts = q.options?.map(o => o.text).filter(Boolean) || [];
+        const full = qText + (qOpts.length ? "\nAntwortmöglichkeiten: " + qOpts.join(", ") : "");
+        hints = await generateHints(full);
+      } catch (_) {
+        hints = ["Tipp nicht verfügbar."];
+      }
+      hintsLoading = false;
+    }
+    if (hintLevel < hints.length) {
+      const hintDiv = document.createElement("div");
+      hintDiv.style.cssText = "margin-top:8px;padding:8px 12px;background:var(--card-glass-bg,var(--card-bg));border-radius:var(--radius-md);font-size:0.9rem;color:var(--text-light)";
+      hintDiv.textContent = `💡 ${hints[hintLevel]}`;
+      hintArea.appendChild(hintDiv);
+      hintLevel++;
+    }
+    if (hintLevel >= hints.length) {
+      hintBtn.textContent = "💡 Keine weiteren Tipps";
+      hintBtn.disabled = true;
+    } else {
+      hintBtn.textContent = `💡 Mehr Hilfe (${hintLevel}/${hints.length})`;
     }
   });
 

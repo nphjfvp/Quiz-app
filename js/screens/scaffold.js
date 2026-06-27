@@ -5,7 +5,7 @@
 import { navigate } from "../router.js";
 import { esc, mathEsc, loadPdfJs } from "../utils.js";
 import { loadMathTasks, saveMathTasks, logAnswer,
-         loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, loadSettings } from "../store.js";
+         loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs } from "../store.js";
 import { extractMathTasks, solveMathTasks, generateSimilarTasks } from "../ai-service.js";
 import { newCard, review as fsrsReview } from "../fsrs.js";
 
@@ -94,8 +94,6 @@ async function recordResult(task, correct, setName) {
     } catch {}
   }
   try {
-    const settings = await loadSettings();
-    if (!settings.use_fsrs && !settings.useFsrs) return;
     const fsrs = await loadFsrs();
     const uid = taskUid(task);
     fsrs[uid] = fsrsReview(fsrs[uid] || newCard(uid), correct ? 3 : 1, 0, 0.5);

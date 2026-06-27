@@ -1,5 +1,5 @@
 import { navigate } from "../router.js";
-import { explainAnswer } from "../ai-service.js";
+import { explainAnswer, simplifyExplanation } from "../ai-service.js";
 import { esc, mathEsc } from "../utils.js";
 import { addCoins, loadDailyState, saveDailyState } from "../store.js";
 
@@ -147,6 +147,7 @@ function showDetail(root, q, result, session, quiz) {
   <div id="ai-explanation" style="display:none" class="card" style="margin-top:8px">
     <div style="font-size:0.8rem;color:var(--text-light);margin-bottom:4px">🤖 KI-Erklärung</div>
     <div id="ai-explain-text" style="font-size:0.9rem;white-space:pre-wrap"></div>
+    <button class="btn btn-ghost btn-sm" id="ai-simplify" style="display:none;margin-top:8px">🔁 Einfacher erklären</button>
   </div>`;
 
   root.innerHTML = html;
@@ -165,10 +166,28 @@ function showDetail(root, q, result, session, quiz) {
       const qImage = q.diagram_image_path || q.diagram_image || q.image_path || q.image || null;
       const explanation = await explainAnswer(questionText, result?.user_answer || "", result?.correct_answer || "", {}, qImage);
       textEl.innerHTML = mathEsc(explanation);
+      const simplifyBtn = root.querySelector("#ai-simplify");
+      if (simplifyBtn) simplifyBtn.style.display = "";
     } catch (err) {
       textEl.textContent = "Fehler: " + (err.message || "KI-Erklärung konnte nicht geladen werden.");
     }
     btn.textContent = "🤖 KI-Erklärung";
+    btn.disabled = false;
+  });
+
+  root.querySelector("#ai-simplify")?.addEventListener("click", async () => {
+    const btn = root.querySelector("#ai-simplify");
+    const textEl = root.querySelector("#ai-explain-text");
+    if (!textEl?.textContent?.trim()) return;
+    btn.disabled = true;
+    btn.textContent = "⏳ Vereinfache…";
+    try {
+      const simplified = await simplifyExplanation(textEl.textContent);
+      textEl.innerHTML = mathEsc(simplified);
+      btn.textContent = "🔁 Einfacher erklären";
+    } catch (err) {
+      btn.textContent = "❌ Fehler";
+    }
     btn.disabled = false;
   });
 
