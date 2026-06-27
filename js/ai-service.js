@@ -117,9 +117,20 @@ async function readStream(body) {
 }
 
 function parseJSON(text) {
-  // Strip markdown code fences if present
-  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
-  return JSON.parse(cleaned);
+  if (!text || !text.trim()) throw new SyntaxError("Empty AI response");
+  let t = text.trim();
+  if (t.includes("```json")) t = t.split("```json")[1].split("```")[0];
+  else if (t.startsWith("```")) t = t.replace(/^```\w*\s*\n?/, "").replace(/\n?```\s*$/, "");
+  t = t.trim();
+  try { return JSON.parse(t); } catch { /* fall through to repair */ }
+  for (const [open, close] of [["{", "}"], ["[", "]"]]) {
+    const s = t.indexOf(open), e = t.lastIndexOf(close);
+    if (s !== -1 && e > s) {
+      let chunk = t.slice(s, e + 1).replace(/,\s*([}\]])/g, "$1");
+      try { return JSON.parse(chunk); } catch { /* try next */ }
+    }
+  }
+  throw new SyntaxError("KI-Antwort enthält kein gültiges JSON. Bitte erneut versuchen.");
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
