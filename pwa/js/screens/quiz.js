@@ -5,6 +5,11 @@ import { esc, mathEsc, escAttr } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
 
+// Registry für document-Listener (Diagram-Label-Drag). Werden pro Frage neu
+// angelegt und müssen beim Weiter-/Screen-Wechsel entfernt werden, da sie auf
+// `document` liegen und sonst über Fragen hinweg lecken.
+let _docCleanups = [];
+
 export async function render(root, params) {
   const { quiz, mode } = params;
   if (!quiz) { navigate("home"); return; }
@@ -13,10 +18,16 @@ export async function render(root, params) {
 
   const session = new QuizSession(questions, mode || "single");
   showQuestion(root, quiz, session);
+
+  // Beim Verlassen des Screens alle offenen document-Listener entfernen.
+  return () => { _docCleanups.forEach(fn => fn()); _docCleanups = []; };
 }
 
 function showQuestion(root, quiz, session) {
   if (session.finished) { navigate("results", { session, quiz }); return; }
+
+  // document-Listener der vorherigen Diagram-Frage entfernen.
+  _docCleanups.forEach(fn => fn()); _docCleanups = [];
 
   const q = session.current;
   const total = session.questions.length;
@@ -669,6 +680,10 @@ function setupDiagramLabel(root, q, placements) {
     };
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
+    _docCleanups.push(() => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    });
   }
 
   const imgSrc = q.diagram_image_path || q.diagram_image;

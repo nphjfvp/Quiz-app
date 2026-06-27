@@ -6,6 +6,7 @@ import { mathEsc } from "../utils.js";
 export async function render(root) {
   const chosen = await pickQuizSource(root, { title: "👹 Boss-Kampf", subtitle: "Welches Quiz möchtest du bekämpfen?" });
   if (!chosen) return;
+  if (!root.isConnected) return;
   const progress = await loadProgress();
   const allQs = chosen;
 
@@ -39,6 +40,7 @@ export async function render(root) {
   let totalScore = 0;
   let combo = 0;
   const log = [];
+  let pendingTimer = null;
 
   function renderBattle() {
     if (bossHp <= 0) { victory(); return; }
@@ -154,7 +156,7 @@ export async function render(root) {
     msgEl.className = `boss-hit-msg ${playerAttacks ? "player-hit" : "boss-hit"}`;
     msgEl.textContent = msg;
     root.appendChild(msgEl);
-    setTimeout(() => { msgEl.remove(); renderBattle(); }, 1000);
+    pendingTimer = setTimeout(() => { if (!root.isConnected) return; msgEl.remove(); renderBattle(); }, 1000);
   }
 
   function victory() {
@@ -206,4 +208,8 @@ export async function render(root) {
   }
 
   renderBattle();
+
+  // Cleanup bei Screen-Wechsel: laufenden Hit-Timer stoppen, sonst feuert er
+  // renderBattle() auf einem entfernten root.
+  return () => clearTimeout(pendingTimer);
 }
