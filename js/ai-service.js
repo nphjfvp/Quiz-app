@@ -367,7 +367,7 @@ export async function explainAnswer(question, userAnswer, correctAnswer, config 
     {
       role: "system",
       content:
-        "Du bist ein geduldiger Lerntutor. Erkläre dem Lernenden verständlich und ermutigend, warum eine Antwort richtig oder falsch ist. Antworte auf Deutsch." + (useVision ? " Dir wird auch ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""),
+        "Du bist ein geduldiger Lerntutor. Erkläre dem Lernenden verständlich und ermutigend, warum eine Antwort richtig oder falsch ist." + (config.detailed ? " Gib eine AUSFÜHRLICHE Erklärung mit Hintergrundwissen und Beispielen." : " Antworte kompakt.") + " Antworte auf Deutsch." + (useVision ? " Dir wird auch ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""),
     },
     { role: "user", content: userContent },
   ];
@@ -381,7 +381,7 @@ export async function askTutor(question, context = "", chatHistory = [], config 
   const useVision = !!imageUrl && chatHistory.length === 0;
   const effectiveModel = useVision ? VISION_MODEL : model;
 
-  const systemContent = `Du bist ein freundlicher und kompetenter Lerntutor. Hilf dem Lernenden, den Stoff zu verstehen. Antworte auf Deutsch, klar und verständlich.${useVision ? " Dir wird ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""}${context ? `\n\nKontext:\n${context}` : ""}`;
+  const systemContent = `Du bist ein freundlicher und kompetenter Lerntutor. Hilf dem Lernenden, den Stoff zu verstehen.${config.detailed ? " Gib AUSFÜHRLICHE Antworten mit Hintergrundwissen, Beispielen und Eselsbrücken." : " Antworte kompakt."} Antworte auf Deutsch, klar und verständlich.${useVision ? " Dir wird ein Bild der Aufgabe gezeigt — beziehe dich darauf." : ""}${context ? `\n\nKontext:\n${context}` : ""}`;
 
   const userContent = useVision
     ? [{ type: "text", text: question }, { type: "image_url", image_url: { url: imageUrl } }]
@@ -425,6 +425,27 @@ export async function simplifyExplanation(explanation, config = {}) {
         "Du bist ein Lerntutor. Vereinfache die folgende Erklärung so, dass sie auch Anfänger verstehen. Verwende einfache Sprache, kurze Sätze und ggf. ein Beispiel. Antworte auf Deutsch.",
     },
     { role: "user", content: `Vereinfache diese Erklärung:\n\n${explanation}` },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  return readStream(body);
+}
+
+export async function generateSummary(session, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+
+  const resultsText = session.questions.map((q, i) => {
+    const r = session.answers[q.id];
+    return `- Frage: ${q.question_text || q.text || ""}\n  Deine Antwort: ${r?.user_answer || "–"}\n  Richtig: ${r?.correct_answer || "–"}\n  Korrekt: ${r?.is_correct ? "Ja" : "Nein"}`;
+  }).join("\n");
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein hilfreicher Lernberater. Analysiere die Quiz-Ergebnisse und erstelle eine Zusammenfassung auf Deutsch mit drei Abschnitten:\n1. **Stärken** – Was der Student gut kann\n2. **Schwächen** – Wo Verbesserungsbedarf besteht\n3. **Lernempfehlungen** – Konkrete Tipps zum Verbessern",
+    },
+    { role: "user", content: `Hier sind meine Quiz-Ergebnisse:\n\n${resultsText}\n\nErstelle bitte eine Lernzusammenfassung.` },
   ];
 
   const body = await chatCompletion(messages, { apiKey, model, stream: true });
