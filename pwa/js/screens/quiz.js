@@ -1,7 +1,7 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
 import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, addCoins } from "../store.js";
 import { navigate } from "../router.js";
-import { esc, mathEsc } from "../utils.js";
+import { esc, mathEsc, escAttr } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
 
@@ -38,7 +38,7 @@ function showQuestion(root, quiz, session) {
       ${useCloze ? `<div class="question-hint">Fülle die Lücken im Satz aus.</div>` : `<div class="question-text">${mathEsc(q.question_text || q.text)}</div>`}
       ${q.question_type === "multiple_choice" ? `<div class="mc-badge">☑️ Mehrere Antworten richtig</div>` : ""}
       ${q.question_type === "single_choice" ? `<div class="mc-badge sc">🔘 Genau eine Antwort richtig</div>` : ""}
-      ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${q.image || q.image_path}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
+      ${(q.image || q.image_path) && !["diagram_label", "mark_image"].includes(q.question_type) ? `<div class="img-wrap" id="q-img-wrap"><img src="${escAttr(q.image || q.image_path)}" alt="Fragebild"><button class="blackout-trigger" id="q-blackout-btn">✏️ Schwärzen</button></div>` : ""}
     </div>
     <div class="card" id="answer-area">`;
 

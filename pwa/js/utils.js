@@ -1,10 +1,23 @@
 // Gemeinsame Hilfsfunktionen für alle Screens
 
 // HTML-escapen, um XSS bei String-Interpolation in Templates zu vermeiden
+// (Text-Kontext – escaped &, <, >; KEINE Anführungszeichen, daher für
+// Attribut-Werte escAttr nutzen).
 export function esc(s) {
   const d = document.createElement("div");
   d.textContent = s ?? "";
   return d.innerHTML;
+}
+
+// Attribut-sicher escapen (z. B. für value="...", src="...", data-*="...").
+// esc() allein reicht hier nicht, da innerHTML keine Anführungszeichen escaped.
+export function escAttr(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 const LATEX_RE = /(\$\$[\s\S]+?\$\$|\$(?!\s)[^$\n]+?\$)/g;

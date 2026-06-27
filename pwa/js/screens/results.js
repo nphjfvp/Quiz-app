@@ -19,43 +19,50 @@ export async function render(root, params) {
   else if (pct >= 40) { bgColor = "var(--warning)"; emoji = "💪"; }
   else { bgColor = "var(--danger)"; emoji = "📚"; }
 
-  // Award completion bonus coins
-  let bonusCoins = 0;
-  if (answered >= 3) {
-    bonusCoins += 10;
-    if (pct >= 80) bonusCoins += 10;
-    else if (pct >= 60) bonusCoins += 5;
-    if (pct === 100) bonusCoins += 5;
-    try { await addCoins(bonusCoins, "quiz-abschluss"); } catch (_) {}
-  }
+  // Award completion bonus coins – idempotent: ein erneutes Rendern (z. B.
+  // Detail → Zurück) darf keine weiteren Münzen vergeben. Flags liegen auf der
+  // In-Memory-Session, so dass wiederholtes render() denselben Betrag anzeigt.
+  if (!session.coinsAwarded) {
+    session.coinsAwarded = true;
+    session.awardedBonus = 0;
+    if (answered >= 3) {
+      let b = 10;
+      if (pct >= 80) b += 10;
+      else if (pct >= 60) b += 5;
+      if (pct === 100) b += 5;
+      try { await addCoins(b, "quiz-abschluss"); } catch (_) {}
+      session.awardedBonus += b;
+    }
 
-  // Update daily state if this was a daily quiz
-  const isDailyQuiz = quiz?.id === "daily" || quiz?.id === "daily-retry";
-  if (isDailyQuiz) {
-    try {
-      const daily = await loadDailyState();
-      if (daily) {
-        const completed = new Set(daily.completed || []);
-        const wrong = new Set(daily.wrong || []);
-        for (const q of session.questions) {
-          const r = session.answers[q.id];
-          if (r) {
-            completed.add(q.id);
-            if (!r.is_correct) wrong.add(q.id);
+    // Update daily state if this was a daily quiz
+    const isDailyQuiz = quiz?.id === "daily" || quiz?.id === "daily-retry";
+    if (isDailyQuiz) {
+      try {
+        const daily = await loadDailyState();
+        if (daily) {
+          const completed = new Set(daily.completed || []);
+          const wrong = new Set(daily.wrong || []);
+          for (const q of session.questions) {
+            const r = session.answers[q.id];
+            if (r) {
+              completed.add(q.id);
+              if (!r.is_correct) wrong.add(q.id);
+            }
           }
+          daily.completed = [...completed];
+          daily.wrong = [...wrong];
+          const allDone = daily.plan?.length > 0 && daily.plan.every(id => completed.has(id));
+          if (allDone && !daily.bonus_awarded) {
+            daily.bonus_awarded = true;
+            try { await addCoins(15, "daily-abschluss"); } catch (_) {}
+            session.awardedBonus += 15;
+          }
+          await saveDailyState(daily);
         }
-        daily.completed = [...completed];
-        daily.wrong = [...wrong];
-        const allDone = daily.plan?.length > 0 && daily.plan.every(id => completed.has(id));
-        if (allDone && !daily.bonus_awarded) {
-          daily.bonus_awarded = true;
-          bonusCoins += 15;
-          try { await addCoins(15, "daily-abschluss"); } catch (_) {}
-        }
-        await saveDailyState(daily);
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
   }
+  const bonusCoins = session.awardedBonus || 0;
 
   let html = `
     <div class="result-hero" style="background:${bgColor}">
