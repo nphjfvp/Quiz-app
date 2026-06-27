@@ -12,10 +12,17 @@ const skinColor = { skin_light: ["#f1c27d", "#d9a866"], skin_pale: ["#ffe0bd", "
 function baseBody(skinId) {
   const [c, d] = skinColor[skinId] || skinColor.skin_light;
   return `
-    <ellipse cx="22" cy="48" rx="5" ry="6.5" fill="${c}"/>
-    <ellipse cx="78" cy="48" rx="5" ry="6.5" fill="${c}"/>
-    <rect x="43" y="62" width="14" height="20" rx="6" fill="${d}"/>
-    <circle cx="50" cy="44" r="27" fill="${c}"/>`;
+    <!-- Hair (back) -->
+    <path d="M25 44 Q22 16 50 13 Q78 16 75 44 Q72 26 50 19 Q28 26 25 44Z" fill="${d}"/>
+    <!-- Shoulders / body -->
+    <ellipse cx="50" cy="88" rx="38" ry="22" fill="${c}"/>
+    <!-- Neck -->
+    <rect x="44" y="60" width="12" height="14" rx="4" fill="${d}"/>
+    <!-- Head -->
+    <ellipse cx="50" cy="42" rx="25" ry="27" fill="${c}"/>
+    <!-- Eyebrows (subtle, beneath face items) -->
+    <path d="M36 39 Q41 36 45 39" fill="none" stroke="${d}" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M55 39 Q59 36 64 39" fill="none" stroke="${d}" stroke-width="1.6" stroke-linecap="round"/>`;
 }
 
 export const CATALOG = {
@@ -156,40 +163,139 @@ export const HOUSE_LEVELS = [
 ];
 
 export function renderHouseSVG(level, size = 160, decos = []) {
-  const ground = `<rect x="0" y="86" width="120" height="14" fill="#86b85a"/>`;
+  const ground = `<rect x="0" y="82" width="120" height="18" rx="3" fill="#7cb84a"/>
+            <rect x="0" y="84" width="120" height="16" fill="#6daa3c"/>`;
+  const path = `<path d="M60 84 Q60 90 60 94" stroke="#5a9030" stroke-width="8" stroke-linecap="round" fill="none" opacity=".4"/>`;
+  const bushes = `<ellipse cx="18" cy="84" rx="10" ry="6" fill="#5a9030" opacity=".5"/><ellipse cx="102" cy="84" rx="10" ry="6" fill="#5a9030" opacity=".5"/>`;
   let body = "";
   if (level <= 0) { // Zelt
-    body = `<polygon points="60,28 96,86 24,86" fill="#d97706"/>
-            <polygon points="60,28 60,86 38,86" fill="#b45309"/>
-            <polygon points="60,50 72,86 48,86" fill="#78350f"/>`;
+    body = `${bushes}
+            <!-- Tent -->
+            <polygon points="60,26 96,82 24,82" fill="#e8943a"/>
+            <polygon points="60,26 60,82 38,82" fill="#d4772a"/>
+            <polygon points="60,46 72,82 48,82" fill="#b85a1a"/>
+            <!-- Campfire -->
+            <rect x="56" y="78" width="8" height="10" rx="1" fill="#78350f"/>
+            <circle cx="60" cy="70" r="4" fill="#f59e0b" opacity=".8"/>
+            <circle cx="60" cy="70" r="2.5" fill="#fbbf24"/>`;
   } else if (level === 1) { // Hütte
-    body = `<rect x="36" y="56" width="48" height="30" fill="#b07d4f"/>
-            <polygon points="30,56 90,56 60,34" fill="#7c4a24"/>
-            <rect x="54" y="68" width="14" height="18" fill="#5b3a1a"/>
-            <rect x="42" y="62" width="9" height="9" fill="#cfe8ff"/>`;
+    body = `${path}${bushes}
+            <!-- House body -->
+            <rect x="34" y="52" width="52" height="30" fill="#c8965c"/>
+            <!-- Siding lines -->
+            <line x1="34" y1="60" x2="86" y2="60" stroke="#b07d4f" stroke-width=".6" opacity=".4"/>
+            <line x1="34" y1="68" x2="86" y2="68" stroke="#b07d4f" stroke-width=".6" opacity=".4"/>
+            <!-- Roof -->
+            <polygon points="28,54 60,28 92,54" fill="#8b4513"/>
+            <line x1="60" y1="28" x2="28" y2="54" stroke="#7a3b0f" stroke-width=".8" opacity=".3"/>
+            <line x1="60" y1="28" x2="92" y2="54" stroke="#7a3b0f" stroke-width=".8" opacity=".3"/>
+            <!-- Chimney -->
+            <rect x="74" y="32" width="10" height="18" rx="2" fill="#7a3b0f"/>
+            <!-- Smoke -->
+            <circle cx="79" cy="24" r="4" fill="#94a3b8" opacity=".15"/>
+            <circle cx="83" cy="16" r="3" fill="#94a3b8" opacity=".1"/>
+            <!-- Window -->
+            <rect x="40" y="60" width="12" height="12" rx="2" fill="#cfe8ff"/>
+            <line x1="46" y1="60" x2="46" y2="72" stroke="#8b4513" stroke-width="1.2" opacity=".5"/>
+            <line x1="40" y1="66" x2="52" y2="66" stroke="#8b4513" stroke-width="1.2" opacity=".5"/>
+            <!-- Door -->
+            <rect x="62" y="66" width="14" height="16" rx="3" fill="#6b3a1a"/>
+            <rect x="65" y="70" width="8" height="5" rx="1.5" fill="#5b2a0a" opacity=".4"/>
+            <circle cx="72" cy="75" r="1.5" fill="#fbbf24"/>`;
   } else if (level === 2) { // Haus
-    body = `<rect x="32" y="52" width="56" height="34" fill="#e8c39e"/>
-            <polygon points="26,52 94,52 60,28" fill="#c0392b"/>
-            <rect x="54" y="66" width="14" height="20" fill="#6b4423"/>
-            <rect x="38" y="60" width="10" height="10" fill="#cfe8ff"/><rect x="72" y="60" width="10" height="10" fill="#cfe8ff"/>
-            <rect x="74" y="32" width="8" height="14" fill="#8b5a2b"/>`;
+    body = `${path}${bushes}
+            <!-- House body -->
+            <rect x="28" y="48" width="64" height="36" rx="3" fill="#f0d4a8"/>
+            <!-- Siding lines -->
+            <line x1="28" y1="56" x2="92" y2="56" stroke="#d4b088" stroke-width=".6" opacity=".4"/>
+            <line x1="28" y1="64" x2="92" y2="64" stroke="#d4b088" stroke-width=".6" opacity=".4"/>
+            <!-- Roof -->
+            <polygon points="22,50 60,22 98,50" fill="#b8422a"/>
+            <line x1="60" y1="22" x2="22" y2="50" stroke="#9a3522" stroke-width=".8" opacity=".3"/>
+            <line x1="60" y1="22" x2="98" y2="50" stroke="#9a3522" stroke-width=".8" opacity=".3"/>
+            <!-- Chimney -->
+            <rect x="76" y="28" width="10" height="18" rx="2" fill="#8b5a2b"/>
+            <!-- Smoke -->
+            <circle cx="81" cy="20" r="4" fill="#94a3b8" opacity=".15"/>
+            <circle cx="85" cy="12" r="3" fill="#94a3b8" opacity=".1"/>
+            <!-- Left window -->
+            <rect x="36" y="56" width="14" height="14" rx="2" fill="#cfe8ff"/>
+            <line x1="43" y1="56" x2="43" y2="70" stroke="#8b4513" stroke-width="1.2" opacity=".5"/>
+            <line x1="36" y1="63" x2="50" y2="63" stroke="#8b4513" stroke-width="1.2" opacity=".5"/>
+            <!-- Right window -->
+            <rect x="72" y="56" width="14" height="14" rx="2" fill="#cfe8ff"/>
+            <line x1="79" y1="56" x2="79" y2="70" stroke="#8b4513" stroke-width="1.2" opacity=".5"/>
+            <line x1="72" y1="63" x2="86" y2="63" stroke="#8b4513" stroke-width="1.2" opacity=".5"/>
+            <!-- Door -->
+            <rect x="56" y="66" width="16" height="18" rx="3" fill="#6b3a1a"/>
+            <rect x="59" y="70" width="10" height="6" rx="1.5" fill="#5b2a0a" opacity=".4"/>
+            <rect x="59" y="78" width="10" height="6" rx="1.5" fill="#5b2a0a" opacity=".4"/>
+            <circle cx="67" cy="76" r="1.5" fill="#fbbf24"/>`;
   } else if (level === 3) { // Villa
-    body = `<rect x="22" y="44" width="76" height="42" fill="#f3e2c7"/>
-            <polygon points="18,44 102,44 60,22" fill="#9b59b6"/>
-            <rect x="52" y="64" width="16" height="22" fill="#6b4423"/>
-            <rect x="30" y="52" width="11" height="11" fill="#cfe8ff"/><rect x="79" y="52" width="11" height="11" fill="#cfe8ff"/>
-            <rect x="30" y="70" width="11" height="11" fill="#cfe8ff"/><rect x="79" y="70" width="11" height="11" fill="#cfe8ff"/>
-            <rect x="48" y="86" width="24" height="0"/>`;
+    body = `${path}${bushes}
+            <rect x="18" y="42" width="84" height="42" rx="3" fill="#f5e6d0"/>
+            <polygon points="14,44 60,18 106,44" fill="#8b5cf6"/>
+            <line x1="60" y1="18" x2="14" y2="44" stroke="#7c3aed" stroke-width=".8" opacity=".3"/>
+            <line x1="60" y1="18" x2="106" y2="44" stroke="#7c3aed" stroke-width=".8" opacity=".3"/>
+            <!-- Chimney -->
+            <rect x="82" y="24" width="10" height="18" rx="2" fill="#7c3aed"/>
+            <circle cx="87" cy="16" r="4" fill="#94a3b8" opacity=".15"/>
+            <circle cx="91" cy="8" r="3" fill="#94a3b8" opacity=".1"/>
+            <!-- Windows -->
+            <rect x="28" y="50" width="14" height="14" rx="2" fill="#cfe8ff"/>
+            <line x1="35" y1="50" x2="35" y2="64" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <line x1="28" y1="57" x2="42" y2="57" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <rect x="78" y="50" width="14" height="14" rx="2" fill="#cfe8ff"/>
+            <line x1="85" y1="50" x2="85" y2="64" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <line x1="78" y1="57" x2="92" y2="57" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <rect x="28" y="70" width="14" height="14" rx="2" fill="#cfe8ff"/>
+            <line x1="35" y1="70" x2="35" y2="84" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <line x1="28" y1="77" x2="42" y2="77" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <rect x="78" y="70" width="14" height="14" rx="2" fill="#cfe8ff"/>
+            <line x1="85" y1="70" x2="85" y2="84" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <line x1="78" y1="77" x2="92" y2="77" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <!-- Door -->
+            <rect x="54" y="64" width="18" height="20" rx="4" fill="#6b4423"/>
+            <rect x="57" y="68" width="12" height="7" rx="2" fill="#5b3a1a" opacity=".4"/>
+            <rect x="57" y="77" width="12" height="7" rx="2" fill="#5b3a1a" opacity=".4"/>
+            <circle cx="68" cy="75" r="1.5" fill="#fbbf24"/>`;
   } else { // Schloss
-    body = `<rect x="24" y="46" width="72" height="40" fill="#cbd5e1"/>
-            <rect x="18" y="36" width="16" height="50" fill="#94a3b8"/>
-            <rect x="86" y="36" width="16" height="50" fill="#94a3b8"/>
-            <polygon points="18,36 34,36 26,22" fill="#7c3aed"/>
-            <polygon points="86,36 102,36 94,22" fill="#7c3aed"/>
-            <rect x="94" y="14" width="14" height="9" fill="#ef4444"/>
-            <rect x="52" y="62" width="16" height="24" fill="#5b3a1a"/>
-            <rect x="40" y="52" width="10" height="10" fill="#cfe8ff"/><rect x="70" y="52" width="10" height="10" fill="#cfe8ff"/>
-            <path d="M24 46 h72 v4 h-6 v-4 h-6 v4 h-6 v-4 h-6 v4 h-6 v-4 h-6 v4 h-6 v-4 h-6 v4 h-6 z" fill="#94a3b8"/>`;
+    body = `${path}${bushes}
+            <!-- Castle body -->
+            <rect x="22" y="44" width="76" height="40" rx="2" fill="#d1d5db"/>
+            <!-- Left tower -->
+            <rect x="16" y="32" width="18" height="52" fill="#a8b4c0"/>
+            <rect x="14" y="30" width="22" height="6" rx="1" fill="#9ca3af"/>
+            <polygon points="16,32 34,32 25,18" fill="#7c3aed"/>
+            <rect x="22" y="6" width="8" height="6" fill="#ef4444"/>
+            <line x1="26" y1="6" x2="26" y2="2" stroke="#6b7280" stroke-width="1.5"/>
+            <polygon points="26,2 22,6 30,6" fill="#ef4444"/>
+            <!-- Right tower -->
+            <rect x="86" y="32" width="18" height="52" fill="#a8b4c0"/>
+            <rect x="84" y="30" width="22" height="6" rx="1" fill="#9ca3af"/>
+            <polygon points="86,32 104,32 95,18" fill="#7c3aed"/>
+            <rect x="92" y="4" width="8" height="8" fill="#ef4444"/>
+            <line x1="96" y1="4" x2="96" y2="0" stroke="#6b7280" stroke-width="1.5"/>
+            <polygon points="96,0 92,6 100,6" fill="#ef4444"/>
+            <!-- Battlements (top edge) -->
+            <rect x="22" y="40" width="10" height="6" fill="#a8b4c0"/>
+            <rect x="36" y="40" width="10" height="6" fill="#a8b4c0"/>
+            <rect x="50" y="40" width="10" height="6" fill="#a8b4c0"/>
+            <rect x="64" y="40" width="10" height="6" fill="#a8b4c0"/>
+            <rect x="78" y="40" width="10" height="6" fill="#a8b4c0"/>
+            <rect x="92" y="40" width="10" height="6" fill="#a8b4c0"/>
+            <!-- Windows -->
+            <rect x="38" y="50" width="10" height="10" rx="2" fill="#cfe8ff"/>
+            <line x1="43" y1="50" x2="43" y2="60" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <line x1="38" y1="55" x2="48" y2="55" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <rect x="72" y="50" width="10" height="10" rx="2" fill="#cfe8ff"/>
+            <line x1="77" y1="50" x2="77" y2="60" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <line x1="72" y1="55" x2="82" y2="55" stroke="#7c3aed" stroke-width="1" opacity=".4"/>
+            <!-- Door (portcullis style) -->
+            <rect x="52" y="60" width="16" height="24" rx="3" fill="#5b3a1a"/>
+            <rect x="55" y="63" width="10" height="6" rx="1.5" fill="#4a2a0a" opacity=".4"/>
+            <rect x="55" y="71" width="10" height="6" rx="1.5" fill="#4a2a0a" opacity=".4"/>
+            <circle cx="63" cy="74" r="1.5" fill="#fbbf24"/>`;
   }
   const decoSvg = decos.map(id => HOUSE_DECOS.find(d => d.id === id)?.svg || "").join("");
   return `<svg viewBox="0 0 120 100" width="${size}" height="${size * 0.83}" xmlns="http://www.w3.org/2000/svg" style="display:block">${ground}${body}${decoSvg}</svg>`;
