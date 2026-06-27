@@ -89,8 +89,13 @@ export async function render(root, params) {
     </div>`;
   }
 
-  html += `<div class="btn-row">
+  html += `<div id="summary-area" style="display:none" class="card" style="margin-top:8px">
+    <div style="font-size:0.8rem;color:var(--text-light);margin-bottom:4px">🤖 KI-Zusammenfassung</div>
+    <div id="summary-text" style="font-size:0.9rem;white-space:pre-wrap"></div>
+  </div>
+  <div class="btn-row">
     <button class="btn btn-warning" id="retry-btn">Nochmal</button>
+    <button class="btn btn-ghost btn-sm" id="summary-btn">🤖 Zusammenfassung</button>
     <button class="btn btn-primary" id="home-btn" style="flex:1">Zurück</button>
   </div>`;
 
@@ -100,6 +105,26 @@ export async function render(root, params) {
     navigate("quiz", { quiz, mode: session.mode });
   });
   root.querySelector("#home-btn")?.addEventListener("click", () => navigate("home"));
+
+  root.querySelector("#summary-btn")?.addEventListener("click", async () => {
+    const btn = root.querySelector("#summary-btn");
+    const area = root.querySelector("#summary-area");
+    const textEl = root.querySelector("#summary-text");
+    btn.disabled = true;
+    btn.textContent = "⏳ Analysiere…";
+    area.style.display = "block";
+    textEl.textContent = "Erstelle Zusammenfassung…";
+    try {
+      const { generateSummary } = await import("../ai-service.js");
+      const summary = await generateSummary(session);
+      textEl.innerHTML = mathEsc(summary);
+      btn.textContent = "🤖 Zusammenfassung";
+    } catch (err) {
+      textEl.textContent = "Fehler: " + (err.message || "Zusammenfassung konnte nicht erstellt werden.");
+      btn.textContent = "❌ Fehler";
+    }
+    btn.disabled = false;
+  });
 
   // Detail rows
   root.querySelectorAll(".result-row").forEach((el) => {

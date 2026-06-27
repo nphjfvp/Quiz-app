@@ -431,6 +431,27 @@ export async function simplifyExplanation(explanation, config = {}) {
   return readStream(body);
 }
 
+export async function generateSummary(session, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+
+  const resultsText = session.questions.map((q, i) => {
+    const r = session.answers[q.id];
+    return `- Frage: ${q.question_text || q.text || ""}\n  Deine Antwort: ${r?.user_answer || "–"}\n  Richtig: ${r?.correct_answer || "–"}\n  Korrekt: ${r?.is_correct ? "Ja" : "Nein"}`;
+  }).join("\n");
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein hilfreicher Lernberater. Analysiere die Quiz-Ergebnisse und erstelle eine Zusammenfassung auf Deutsch mit drei Abschnitten:\n1. **Stärken** – Was der Student gut kann\n2. **Schwächen** – Wo Verbesserungsbedarf besteht\n3. **Lernempfehlungen** – Konkrete Tipps zum Verbessern",
+    },
+    { role: "user", content: `Hier sind meine Quiz-Ergebnisse:\n\n${resultsText}\n\nErstelle bitte eine Lernzusammenfassung.` },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  return readStream(body);
+}
+
 export async function analyzeClozeKeywords(text, minChars = 1200, maxChars = 2500, config = {}) {
   const { apiKey, model } = await getConfig(config);
   const lengthHint = `Der Text soll zwischen ${minChars} und ${maxChars} Zeichen lang sein. `;
