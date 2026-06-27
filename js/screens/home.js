@@ -86,22 +86,6 @@ export async function render(root) {
     </div>
   </div>`;
 
-  html += `<div class="section-title">Weitere Tools</div>
-  <div class="grid-4">
-    <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner / Klausuren</div></div>
-    <div class="grid-card mini-card" data-nav="random"><div class="icon">🎲</div><div class="title">Zufalls-Modus</div></div>
-    <div class="grid-card mini-card" data-nav="formula-sheets"><div class="icon">📋</div><div class="title">Formelsammlung</div></div>
-    <div class="grid-card mini-card" data-nav="study"><div class="icon">🃏</div><div class="title">Karteikarten</div></div>
-    <div class="grid-card mini-card" data-nav="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
-    <div class="grid-card mini-card" data-nav="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learn</div></div>
-    <div class="grid-card mini-card" data-nav="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
-    <div class="grid-card mini-card" data-nav="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div></div>
-    <div class="grid-card mini-card" data-nav="games"><div class="icon">🎮</div><div class="title">Spiele</div></div>
-    <div class="grid-card mini-card" data-nav="pomodoro"><div class="icon">🍅</div><div class="title">Pomodoro</div></div>
-    <div class="grid-card mini-card" data-nav="achievements"><div class="icon">🏆</div><div class="title">Erfolge</div></div>
-    <div class="grid-card mini-card" data-nav="shop"><div class="icon">🛒</div><div class="title">Shop</div></div>
-  </div>`;
-
   if (marked.length > 0) {
     html += `<div class="quiz-row" data-nav="marked" style="border-left:3px solid var(--warning)">
       <div class="quiz-accent" style="background:var(--warning)"></div>

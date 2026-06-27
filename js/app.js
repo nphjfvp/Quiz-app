@@ -58,7 +58,6 @@ route("formula-sheets", async (root, params) => { const m = await import("./scre
 // 🏠 Home
 setScreenTab("home", "home");
 setScreenTab("daily", "home");
-setScreenTab("shop", "home");
 
 // 📚 Lernen
 setScreenTab("my-quizzes", "lernen");
@@ -68,7 +67,6 @@ setScreenTab("results", "lernen");
 setScreenTab("editor", "lernen");
 setScreenTab("ai-generate", "lernen");
 setScreenTab("folders", "lernen");
-setScreenTab("sr-dashboard", "lernen");
 setScreenTab("study", "lernen");
 setScreenTab("cloze", "lernen");
 setScreenTab("scaffold", "lernen");
@@ -78,9 +76,11 @@ setScreenTab("tutor", "lernen");
 setScreenTab("marked", "lernen");
 setScreenTab("random", "lernen");
 setScreenTab("formula-sheets", "lernen");
+setScreenTab("pomodoro", "lernen");
 
 // 🎮 Games
 setScreenTab("games", "games");
+setScreenTab("shop", "games");
 setScreenTab("tower-defense", "games");
 setScreenTab("quiz-battle", "games");
 setScreenTab("speed-quiz", "games");
@@ -92,11 +92,11 @@ setScreenTab("boss-fight", "games");
 setScreenTab("stats", "stats");
 setScreenTab("achievements", "stats");
 setScreenTab("error-diary", "stats");
+setScreenTab("sr-dashboard", "stats");
 
 // ⚙️ Settings
 setScreenTab("settings", "settings");
 setScreenTab("sync", "settings");
-setScreenTab("pomodoro", "settings");
 
 async function init() {
   const settings = await loadSettings();
