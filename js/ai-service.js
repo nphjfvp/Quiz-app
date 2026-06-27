@@ -62,7 +62,7 @@ async function chatCompletion(messages, { apiKey, model, stream = false } = {}) 
       "HTTP-Referer": globalThis.location?.origin ?? "https://lerntrainer.app",
       "X-Title": "Lerntrainer PWA",
     },
-    body: JSON.stringify({ model, messages, stream, temperature: 0.7 }),
+    body: JSON.stringify({ model, messages, stream, temperature: 0.7, max_tokens: 8000 }),
   });
 
   if (!res.ok) {
@@ -149,7 +149,44 @@ function parseJSON(text) {
   for (const c of candidates) {
     try { return JSON.parse(c); } catch { /* try next */ }
   }
+
+  // Letzte Rettung: abgeschnittene Antworten (Token-Limit erreicht). Wir sammeln
+  // alle VOLLSTÄNDIGEN {...}-Objekte aus dem Text; das letzte, unfertige fällt weg.
+  const objs = extractCompleteObjects(t);
+  if (objs.length) {
+    const out = [];
+    for (const o of objs) {
+      for (const variant of [o, sanitizeJSONEscapes(o)]) {
+        try { out.push(JSON.parse(variant)); break; } catch { /* next */ }
+      }
+    }
+    if (out.length) {
+      // Einzelobjekt-Antworten (z. B. editQuestionWithAI) nicht in ein Array zwingen.
+      return (out.length === 1 && t.trimStart().startsWith("{")) ? out[0] : out;
+    }
+  }
+
   throw new SyntaxError("KI-Antwort enthält kein gültiges JSON. Bitte erneut versuchen.");
+}
+
+// Extrahiert alle vollständigen Top-Level-{...}-Objekte und respektiert dabei
+// Strings/Escapes. Robust gegen abgeschnittene JSON-Arrays (Token-Limit).
+function extractCompleteObjects(s) {
+  const objs = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === "{") { if (depth === 0) start = i; depth++; }
+    else if (c === "}") { if (depth > 0 && --depth === 0 && start !== -1) { objs.push(s.slice(start, i + 1)); start = -1; } }
+  }
+  return objs;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────
