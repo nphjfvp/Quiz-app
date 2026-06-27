@@ -521,7 +521,9 @@ export async function render(root, params = {}) {
 
 // ─── Review Screen ──────────────────────────────────────────────────
 
-function showReview(root, questions, quizName, modelId, sourceText = "") {
+async function showReview(root, questions, quizName, modelId, sourceText = "") {
+  const settings = await loadSettings();
+  const Q_TYPES = getQTypes(settings.enableImages !== false);
   let qs = [...questions];
   const _sourceText = sourceText;
 
