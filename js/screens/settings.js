@@ -1,4 +1,4 @@
-import { loadSettings, saveSettings } from "../store.js";
+import { loadSettings, saveSettings, loadMemory, saveMemory, loadMemoryEntries, createMemoryEntry, addMemoryEntry, deleteMemoryEntry } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount, setAccount, signIn, signUp, pullAll, pushAll, pullBySyncCode } from "../firebase-sync.js";
 import { MODELS } from "../ai-service.js";
@@ -6,6 +6,8 @@ import { esc, setLatexEnabled } from "../utils.js";
 
 export async function render(root) {
   const settings = await loadSettings();
+  const memoryText = await loadMemory();
+  const memoryEntries = await loadMemoryEntries();
   const account = getAccount();
 
   const theme = (() => { try { return localStorage.getItem("theme") || "auto"; } catch { return "auto"; } })();
@@ -141,6 +143,37 @@ export async function render(root) {
         <button class="btn btn-sm ${useFsrs ? "btn-primary" : "btn-ghost"}" id="toggle-useFsrs">${useFsrs ? "✅ Ein" : "⬜ Aus"}</button>
       </div>
       <div style="font-size:0.75rem;color:var(--text-light)">Plant Wiederholungen nach dem Vergessenskurve-Algorithmus (FSRS-4.5).</div>
+      <div class="toggle-row" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+        <span>🧠 KI-Gedächtnis</span>
+        <button class="btn btn-sm ${settings.use_memory ? "btn-primary" : "btn-ghost"}" id="toggle-use_memory">${settings.use_memory ? "✅ Ein" : "⬜ Aus"}</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--text-light)">Merkt sich deine Stärken/Schwächen und personalisiert KI-Antworten.</div>
+    </div>`;
+
+  // ── Memory-Manager ──
+  html += `<div class="section-title">KI-Gedächtnis</div>
+    <div class="card" id="memory-manager" style="display:${settings.use_memory ? "" : "none"}">
+      <div class="card-desc">Persönliche Informationen, die in KI-Antworten einfließen. Diese Daten bleiben lokal.</div>
+      <div style="margin-top:8px">
+        <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px">Freitext-Profil</label>
+        <textarea id="memory-text" rows="2" class="model-select-list" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border)">${esc(memoryText)}</textarea>
+        <div style="font-size:0.7rem;color:var(--text-light);margin-top:2px">z. B. „Ich tue mich schwer mit Mathe-Formeln. Ich lerne am besten mit Eselsbrücken."</div>
+      </div>
+      <div style="margin-top:10px">
+        <span style="font-size:0.8rem;font-weight:600">Einträge (${memoryEntries.length})</span>
+        <div id="mem-entry-list" style="margin-top:6px"></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <select id="mem-category" class="btn btn-sm btn-ghost" style="padding:4px 8px">
+          <option value="weakness">Schwäche</option>
+          <option value="strength">Stärke</option>
+          <option value="preference">Vorliebe</option>
+          <option value="fact">Fakt</option>
+          <option value="custom">Notiz</option>
+        </select>
+        <input id="mem-topic" class="btn btn-sm btn-ghost" placeholder="Thema (optional)" style="padding:4px 8px;flex:1;min-width:100px">
+        <button class="btn btn-sm btn-primary" id="mem-add-btn">+ Hinzufügen</button>
+      </div>
     </div>`;
 
   // JSON Import
@@ -189,19 +222,65 @@ export async function render(root) {
   });
 
   // KI-Funktionen toggles
-  for (const key of ["aiValidation", "detailedAnswers", "enableImages", "useFsrs"]) {
+  for (const key of ["aiValidation", "detailedAnswers", "enableImages", "useFsrs", "use_memory"]) {
     const btn = root.querySelector(`#toggle-${key}`);
     if (!btn) continue;
     btn.addEventListener("click", async () => {
       const s = await loadSettings();
-      const cur = key === "detailedAnswers" ? s[key] === true : s[key] !== false;
+      const cur = key === "detailedAnswers" ? s[key] === true : key === "use_memory" ? s[key] === true : s[key] !== false;
       const next = !cur;
       s[key] = next;
       await saveSettings(s);
       btn.textContent = next ? "✅ Ein" : "⬜ Aus";
       btn.className = `btn btn-sm ${next ? "btn-primary" : "btn-ghost"}`;
+      if (key === "use_memory") {
+        const mgr = root.querySelector("#memory-manager");
+        if (mgr) mgr.style.display = next ? "" : "none";
+      }
     });
   }
+
+  // ── Memory-Manager Events ──
+  const memTextarea = root.querySelector("#memory-text");
+  if (memTextarea) {
+    memTextarea.addEventListener("blur", async () => {
+      await saveMemory(memTextarea.value);
+    });
+  }
+
+  const memEntryList = root.querySelector("#mem-entry-list");
+  function renderMemEntries(entries) {
+    if (!memEntryList) return;
+    if (!entries.length) { memEntryList.innerHTML = `<span style="color:var(--text-light);font-size:0.8rem">Noch keine Einträge.</span>`; return; }
+    memEntryList.innerHTML = entries.map(e => {
+      const catLabels = { weakness: "Schwäche", strength: "Stärke", preference: "Vorliebe", fact: "Fakt", custom: "Notiz" };
+      return `<div style="background:var(--bg);border-radius:6px;padding:6px 8px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+        <span><span style="font-size:0.7rem;color:var(--text-light)">${catLabels[e.category] || e.category}</span>${e.topic ? ` <span style="font-size:0.7rem;color:var(--text-light)">(${esc(e.topic)})</span>` : ""}<br><span style="font-size:0.85rem">${esc(e.text)}</span></span>
+        <button class="btn-icon btn-icon-sm" data-mem-del="${e.id}">🗑️</button>
+      </div>`;
+    }).join("");
+    memEntryList.querySelectorAll("[data-mem-del]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await deleteMemoryEntry(btn.dataset.memDel);
+        const e = await loadMemoryEntries();
+        renderMemEntries(e);
+      });
+    });
+  }
+  if (memEntryList) renderMemEntries(memoryEntries);
+
+  root.querySelector("#mem-add-btn")?.addEventListener("click", async () => {
+    const cat = root.querySelector("#mem-category")?.value || "custom";
+    const topic = root.querySelector("#mem-topic")?.value?.trim() || "";
+    const entry = createMemoryEntry(cat, "", topic, "manual");
+    // Prompt user for text inline — use a simple prompt dialog
+    const text = prompt("Text für den Eintrag:");
+    if (!text || !text.trim()) return;
+    entry.text = text.trim();
+    await addMemoryEntry(entry);
+    const entries = await loadMemoryEntries();
+    renderMemEntries(entries);
+  });
 
   // Auth
   if (!account) {

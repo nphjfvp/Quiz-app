@@ -236,3 +236,64 @@ export async function getMaterial(quizId) {
   const m = await loadMaterials();
   return m[quizId] ?? null;
 }
+
+// ── KI-Memory ──
+export async function loadMemory() {
+  return (await get("memory_text")) ?? "";
+}
+export async function saveMemory(text) {
+  await set("memory_text", String(text ?? ""));
+}
+export async function loadMemoryEntries() {
+  return (await get("memory_entries")) ?? [];
+}
+export async function saveMemoryEntries(entries) {
+  await set("memory_entries", entries);
+}
+export function createMemoryEntry(category, text, topic = "", source = "auto") {
+  return {
+    id: crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+    category,
+    text,
+    source,
+    topic,
+    created: new Date().toISOString(),
+  };
+}
+export async function addMemoryEntry(entry) {
+  const entries = await loadMemoryEntries();
+  entries.push(entry);
+  if (entries.length > 200) entries.splice(0, entries.length - 200);
+  await saveMemoryEntries(entries);
+}
+export async function deleteMemoryEntry(entryId) {
+  let entries = await loadMemoryEntries();
+  entries = entries.filter(e => e.id !== entryId);
+  await saveMemoryEntries(entries);
+}
+export async function getFullMemoryPrompt() {
+  const parts = [];
+  const freetext = await loadMemory();
+  if (freetext.trim()) parts.push(freetext.trim());
+  const entries = await loadMemoryEntries();
+  if (entries.length) {
+    const byCat = {};
+    for (const e of entries) {
+      if (!byCat[e.category]) byCat[e.category] = [];
+      byCat[e.category].push(e.topic ? `${e.text} (Thema: ${e.topic})` : e.text);
+    }
+    const labels = { weakness: "Schwächen", strength: "Stärken", preference: "Vorlieben", fact: "Fakten", custom: "Notizen" };
+    for (const [cat, items] of Object.entries(byCat)) {
+      parts.push(`${labels[cat] || cat}: ${items.join("; ")}`);
+    }
+  }
+  return parts.length ? `[Persönliches Benutzerprofil]\n${parts.join("\n")}\n[/Profil]` : "";
+}
+
+// ── Quick Actions ──
+export async function loadQuickActions() {
+  return (await get("quick_actions")) ?? [];
+}
+export async function saveQuickActions(actions) {
+  await set("quick_actions", actions);
+}
