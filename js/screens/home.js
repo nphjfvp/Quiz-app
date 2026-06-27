@@ -2,7 +2,7 @@ import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorD
 import { navigate } from "../router.js";
 import { getAccount } from "../firebase-sync.js";
 import { esc, getBoxCounts } from "../utils.js";
-import { renderAvatarSVG } from "../shop-catalog.js";
+import { renderAvatarSVG, HOUSE_LEVELS } from "../shop-catalog.js";
 
 export async function render(root) {
   const [quizzes, stats, progress, account, marked, diary, profile, coins] = await Promise.all([
@@ -31,13 +31,14 @@ export async function render(root) {
 
   let html = "";
 
+  const house = HOUSE_LEVELS[profile.house.level] || HOUSE_LEVELS[0];
   html += `<div class="profile-strip" data-nav="shop">
     <div class="profile-avatar">${renderAvatarSVG(profile.equipped, 54)}</div>
     <div class="profile-info">
       <strong>👋 Willkommen zurück!</strong>
-      ${account ? `<small>${esc(account.email)}</small>` : `<small>Bereit zum Lernen?</small>`}
+      <small>${esc(house.name)} · 🪙 ${coins.balance}</small>
     </div>
-    <div class="profile-coins">🪙 ${coins.balance}</div>
+    <div class="profile-coins">🛒</div>
   </div>`;
 
   if (streak > 0 || maxStreak > 0) {
