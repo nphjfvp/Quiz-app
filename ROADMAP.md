@@ -4,6 +4,12 @@
 > Session-Resets (die Umgebung ist ephemeral – nur committeter Code bleibt).
 > Jede neue Session kann hier direkt weitermachen.
 
+> **Achtung – PWA-Vorsprung:** Diese Roadmap ist primär auf den Python-Desktop
+> bezogen. Viele Punkte (Streak/Heatmap, Fehler-Tagebuch, Karteikarten, FSRS,
+> KI-Erklärung bei Fehlern, Cloud-Sync per Account, Shop/Economy, Mini-Games)
+> sind in der PWA (`pwa/`) bereits umgesetzt – siehe `pwa/CLAUDE.md`. Offene
+> PWA-Punkte stattdessen dort priorisieren.
+
 ## Architektur-Überblick (Ist-Zustand)
 
 - **Desktop**: Python 3.10 + CustomTkinter (`src/app.py`, ~5200 Zeilen)

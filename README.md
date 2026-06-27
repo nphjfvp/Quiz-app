@@ -39,6 +39,26 @@ Spaced Repetition mit 5 Boxen – schwache Fragen werden häufiger wiederholt.
 
 ---
 
+## PWA / Web-App (aktive Hauptcodebase)
+
+> **Hinweis:** Die aktive Entwicklung findet in `pwa/` statt (Vanilla-JS SPA,
+> IndexedDB, Service Worker). Desktop (Python) und Mobile (Expo) bestehen
+> weiterhin, die PWA ist aber das aktuelle Hauptziel. Feature-Stand siehe
+> `pwa/CLAUDE.md` (Projekt-Gedächtnis).
+
+Lokal starten (statische Dateien):
+
+```bash
+cd pwa
+python3 -m http.server 8080
+# dann http://localhost:8080 öffnen
+```
+
+Die PWA ist installierbar (manifest + service worker) und offline-fähig.
+KI-Features benötigen einen OpenRouter-API-Key (in den Einstellungen).
+
+---
+
 ## Desktop-App
 
 ### Installation
