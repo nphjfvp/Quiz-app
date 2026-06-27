@@ -1,2095 +1,1036 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lerntrainer – Design Vision 2.0</title>
+<title>Lerntrainer – Design Vision 2.0 (app.css sync)</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <style>
 /* ============================================================
-   DESIGN SYSTEM 2.0 — LERN TRAINER
-   Principles: Depth through glass, breathable spacing,
-   purposeful micro-animation, accessible by default.
+   DESIGN SYSTEM — 1:1 sync mit app.css Token-System
+   Light (Grün/Gelb, 3D-Buttons) / Dark (Cyan→Violett, Glow)
+   Theme via [data-theme]; auto folgt prefers-color-scheme.
    ============================================================ */
 
-/* ---- TOKENS ---- */
-:root {
-  /* Palette — deeper, more saturated than v1 */
-  --bg:            #090b10;
-  --bg-elevated:   #11141d;
-  --surface-0:     #181b26;
-  --surface-1:     #1e2230;
-  --surface-2:     #262b3a;
-  --surface-3:     #2f3548;
-  --glass-bg:      rgba(24, 27, 38, 0.65);
-  --glass-border:  rgba(255, 255, 255, 0.06);
-
-  --primary:       #7c6ff7;
-  --primary-glow:  rgba(124, 111, 247, 0.25);
-  --primary-soft:  rgba(124, 111, 247, 0.12);
-  --accent:        #00d4cf;
-  --accent-glow:   rgba(0, 212, 207, 0.2);
-  --success:       #22c55e;
-  --success-soft:  rgba(34, 197, 94, 0.15);
-  --warning:       #f59e0b;
-  --warning-soft:  rgba(245, 158, 11, 0.15);
-  --danger:        #ef4444;
-  --danger-soft:   rgba(239, 68, 68, 0.15);
-
-  --text:          #e9ecf2;
-  --text-secondary:#9ca3af;
-  --text-muted:    #6b7280;
-
-  /* Typography Scale (7 steps) */
-  --fs-xs: 0.7rem;    --fs-sm: 0.8rem;    --fs-base: 0.925rem;
-  --fs-md: 1.05rem;   --fs-lg: 1.2rem;    --fs-xl: 1.4rem;
-  --fs-2xl: 1.7rem;   --fs-3xl: 2rem;
-
-  /* Spacing Scale */
-  --space-xs: 4px;  --space-sm: 8px;  --space-md: 12px;
-  --space-lg: 16px; --space-xl: 20px; --space-2xl: 28px;
-  --space-3xl: 40px;
-
-  /* Elevation — layered shadows for depth */
-  --shadow-sm:  0 1px 2px rgba(0,0,0,.3);
-  --shadow-md:  0 4px 12px rgba(0,0,0,.4);
-  --shadow-lg:  0 8px 30px rgba(0,0,0,.5);
-  --shadow-glow: 0 0 20px var(--primary-glow);
-  --shadow-glow-sm: 0 0 10px var(--primary-glow);
-
-  /* Radii */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
-
-  /* Transitions */
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --dur-fast: 150ms;
-  --dur-base: 250ms;
-  --dur-slow: 400ms;
+/* ── LIGHT (default) ── */
+:root, :root[data-theme="light"] {
+  --primary: #1cb487; --primary-dark: #148a68; --primary-light: #7fd9c0;
+  --primary-subtle: #e7f7f1; --accent: #ffd43b;
+  --success: #22c55e; --success-light: #dcfce7;
+  --danger: #ef4444; --danger-light: #fee2e2;
+  --warning: #f59e0b; --warning-light: #fef3c7;
+  --info: #3b82f6;
+  --bg: #f5fbf6; --card: #ffffff; --card-hover: #eef7f2;
+  --text: #14241a; --text-light: #5a6b62; --text-accent: #148a68;
+  --border: #e3ece6; --input-bg: #f1f6f3;
+  --row-ok: #e7f7f1; --row-bad: #fee2e2; --row-neutral: #f1f6f3;
+  --streak: #f59e0b;
+  --header-bg: #1cb487; --header-text: #ffffff; --header-sub: #c8f0e4;
+  --progress-track: rgba(255,255,255,0.30); --progress-fill: #ffd43b;
+  --cta-bg: #1cb487; --cta-shadow: 0 4px 0 #148a68; --cta-text: #ffffff;
+  --on-primary: #ffffff;
+  --key-bg: #eef4f0; --key-color: #1cb487;
+  --key-bg-active: #1cb487; --key-color-active: #ffffff;
+  --opt-bg: #ffffff; --opt-border: #e3ece6; --opt-border-bottom: 4px;
+  --opt-sel-bg: #e7f7f1; --opt-sel-glow: none;
+  --focus: #1cb487;
+  --box1: #ef4444; --box2: #f59e0b; --box3: #22c55e; --box4: #0ea5e9; --box5: #0f766e;
+  color-scheme: light;
+  /* Glass fallback: solid in light mode */
+  --glass-bg: rgba(255,255,255,0.72);
+  --glass-border: rgba(0,0,0,0.06);
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.08);
 }
 
-/* ---- RESET & BASE ---- */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  max-width: 430px;
-  margin: 0 auto;
-  min-height: 100vh;
-  position: relative;
-  overflow-x: hidden;
-  font-size: var(--fs-base);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ── DARK ── */
+:root[data-theme="dark"] {
+  --primary: #22d3ee; --primary-dark: #0e7490; --primary-light: #67e8f9;
+  --primary-subtle: #0e2230; --accent: #818cf8;
+  --success: #4ade80; --success-light: #0e2a18;
+  --danger: #f87171; --danger-light: #3a1414;
+  --warning: #fbbf24; --warning-light: #3a2a08;
+  --info: #60a5fa;
+  --bg: #0b1120; --card: #131c30; --card-hover: #1a2540;
+  --text: #f1f5f9; --text-light: #94a3b8; --text-accent: #22d3ee;
+  --border: #243049; --input-bg: #0f1a2e;
+  --row-ok: #0e2a18; --row-bad: #3a1414; --row-neutral: #1a2540;
+  --streak: #fbbf24;
+  --header-bg: #0b1120; --header-text: #f1f5f9; --header-sub: #64748b;
+  --progress-track: #1e293b; --progress-fill: linear-gradient(90deg,#22d3ee,#818cf8);
+  --cta-bg: linear-gradient(135deg,#22d3ee,#818cf8); --cta-shadow: none; --cta-text: #06121a;
+  --on-primary: #06121a;
+  --key-bg: #1e293b; --key-color: #94a3b8;
+  --key-bg-active: linear-gradient(135deg,#22d3ee,#818cf8); --key-color-active: #06121a;
+  --opt-bg: #131c30; --opt-border: #243049; --opt-border-bottom: 1.5px;
+  --opt-sel-bg: #0e2230; --opt-sel-glow: 0 0 20px rgba(34,211,238,0.20);
+  --focus: #22d3ee;
+  --box1: #f87171; --box2: #fbbf24; --box3: #4ade80; --box4: #38bdf8; --box5: #22d3ee;
+  color-scheme: dark;
+  /* Glass progressive enhancement */
+  --glass-bg: rgba(19,28,48,0.72);
+  --glass-border: rgba(255,255,255,0.06);
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
-/* Subtle background texture — radial gradient vignette */
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  max-width: 430px; margin: 0 auto;
-  background: radial-gradient(ellipse at 50% 0%, rgba(124,111,247,0.04) 0%, transparent 70%);
-  pointer-events: none; z-index: 0;
-}
-
-.screen {
-  display: none; padding: var(--space-lg); padding-bottom: 90px;
-  min-height: 100vh; position: relative; z-index: 1;
-}
-.screen.active { display: block; }
-
-/* ---- TYPOGRAPHY ---- */
-h1 { font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
-h2 { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -0.01em; margin-bottom: var(--space-sm); }
-h3 { font-size: var(--fs-md); font-weight: 600; margin-bottom: var(--space-xs); }
-h4 { font-size: var(--fs-base); font-weight: 600; }
-p, small { color: var(--text-secondary); }
-small { font-size: var(--fs-xs); }
-.text-gradient {
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* ---- SCROLLBAR ---- */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 2px; }
-
-/* ---- FOCUS-VISIBLE (a11y) ---- */
-:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-:focus:not(:focus-visible) { outline: none; }
-
-/* ---- REDUCED MOTION (a11y) ---- */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+/* ── AUTO-DARK via System ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary: #22d3ee; --primary-dark: #0e7490; --primary-light: #67e8f9;
+    --primary-subtle: #0e2230; --accent: #818cf8;
+    --success: #4ade80; --success-light: #0e2a18;
+    --danger: #f87171; --danger-light: #3a1414;
+    --warning: #fbbf24; --warning-light: #3a2a08;
+    --info: #60a5fa;
+    --bg: #0b1120; --card: #131c30; --card-hover: #1a2540;
+    --text: #f1f5f9; --text-light: #94a3b8; --text-accent: #22d3ee;
+    --border: #243049; --input-bg: #0f1a2e;
+    --row-ok: #0e2a18; --row-bad: #3a1414; --row-neutral: #1a2540;
+    --streak: #fbbf24;
+    --header-bg: #0b1120; --header-text: #f1f5f9; --header-sub: #64748b;
+    --progress-track: #1e293b; --progress-fill: linear-gradient(90deg,#22d3ee,#818cf8);
+    --cta-bg: linear-gradient(135deg,#22d3ee,#818cf8); --cta-shadow: none; --cta-text: #06121a;
+    --on-primary: #06121a;
+    --key-bg: #1e293b; --key-color: #94a3b8;
+    --key-bg-active: linear-gradient(135deg,#22d3ee,#818cf8); --key-color-active: #06121a;
+    --opt-bg: #131c30; --opt-border: #243049; --opt-border-bottom: 1.5px;
+    --opt-sel-bg: #0e2230; --opt-sel-glow: 0 0 20px rgba(34,211,238,0.20);
+    --focus: #22d3ee;
+    --box1: #f87171; --box2: #fbbf24; --box3: #4ade80; --box4: #38bdf8; --box5: #22d3ee;
+    color-scheme: dark;
+    --glass-bg: rgba(19,28,48,0.72);
+    --glass-border: rgba(255,255,255,0.06);
+    --glass-shadow: 0 8px 32px rgba(0,0,0,0.4);
   }
 }
 
-/* ---- SCREEN TRANSITIONS ---- */
-.screen {
-  animation: screenEnter var(--dur-slow) var(--ease-out-expo);
+/* ── Spacing & Radius ── */
+:root {
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 20px; --space-2xl: 28px; --space-3xl: 40px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 20px;
 }
-@keyframes screenEnter {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+
+/* ── RESET ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  background:var(--bg); color:var(--text); min-height:100dvh;
+  max-width:600px; margin:0 auto;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-font-smoothing:antialiased;
 }
+#app{padding:16px;padding-bottom:90px;position:relative;z-index:1}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── FOCUS (a11y) ── */
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+:focus:not(:focus-visible){outline:none}
+
+/* ── REDUCED MOTION ── */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important}
+}
+
+/* ── SCREEN TRANSITION ── */
+.screen{display:none;animation:screenEnter .18s ease-out}
+.screen.active{display:block}
+@keyframes screenEnter{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
 /* ============================================================
-   COMPONENTS
+   KOMPONENTEN — 1:1 aus app.css
    ============================================================ */
 
-/* ---- Tab Bar (improved: pill indicator, glass) ---- */
-.tab-bar {
-  position: fixed; bottom: var(--space-md); left: 50%; transform: translateX(-50%);
-  width: calc(100% - 32px); max-width: calc(430px - 32px);
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--glass-border);
-  display: flex; justify-content: space-around;
-  padding: 6px;
-  border-radius: var(--radius-lg);
-  z-index: 100;
-  box-shadow: var(--shadow-lg);
+/* ── Card ── */
+.card{
+  background:var(--card); border-radius:var(--radius-lg);
+  border:1px solid var(--border); padding:16px; margin-bottom:12px;
 }
-.tab-bar button {
-  background: none; border: none; color: var(--text-muted);
-  font-size: var(--fs-xs); display: flex; flex-direction: column;
-  align-items: center; gap: 3px; cursor: pointer; padding: 8px 14px;
-  border-radius: var(--radius-md); transition: all var(--dur-fast) var(--ease-out-expo);
-  position: relative;
-}
-.tab-bar button .tab-icon { font-size: 1.3rem; transition: transform var(--dur-fast) var(--ease-out-expo); }
-.tab-bar button.active {
-  color: var(--text);
-  background: rgba(124, 111, 247, 0.15);
-}
-.tab-bar button.active .tab-icon { transform: scale(1.1); }
-.tab-bar button:focus-visible { outline-offset: -2px; }
-/* Badge on tab */
-.tab-bar button .tab-badge {
-  position: absolute; top: 4px; right: 4px;
-  min-width: 16px; height: 16px; border-radius: 8px;
-  background: var(--danger); color: #fff; font-size: 0.6rem;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; padding: 0 4px;
-}
+.card-accent-left{border-left:4px solid var(--primary)}
+.card-success-left{border-left:4px solid var(--success)}
+.card-danger-left{border-left:4px solid var(--danger)}
+.card-warning-left{border-left:4px solid var(--warning)}
+.card-clickable{cursor:pointer;transition:border-color .15s,transform .1s}
+.card-clickable:hover{border-color:var(--primary)}
+.card-clickable:active{transform:scale(.98)}
 
-/* ---- Top Bar ---- */
-.top-bar {
-  display: flex; align-items: center; gap: var(--space-md);
-  margin-bottom: var(--space-xl); padding: var(--space-xs) 0;
+/* ── Welcome / Hero ── */
+.welcome{
+  background:var(--cta-bg); color:var(--cta-text);
+  border-radius:var(--radius-xl); padding:22px; margin-bottom:14px;
 }
-.top-bar .back {
-  background: var(--surface-1); border: 1px solid var(--glass-border);
-  color: var(--text); font-size: 1.3rem; cursor: pointer;
-  width: 36px; height: 36px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  transition: all var(--dur-fast);
-  flex-shrink: 0;
-}
-.top-bar .back:hover { background: var(--surface-2); }
-.top-bar h2 { margin: 0; flex: 1; font-size: var(--fs-lg); }
+.welcome h2{font-size:1.35rem;font-weight:800}
+.welcome p{color:var(--cta-text);opacity:.82;font-size:.88rem;margin-top:4px}
 
-/* ---- Cards (layered elevation system) ---- */
-.card {
-  background: var(--surface-0);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  margin-bottom: var(--space-md);
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+/* ── Daily Card ── */
+.daily-card{
+  background:var(--card); border:2px solid var(--primary);
+  border-bottom-width:var(--opt-border-bottom);
+  color:var(--text); border-radius:var(--radius-xl);
+  padding:16px 18px; margin-bottom:14px;
+  display:flex;align-items:center;gap:14px;cursor:pointer;
+  transition:background .15s,box-shadow .15s;
 }
-.card-elevated {
-  background: var(--surface-1);
-  border-color: rgba(255,255,255,0.08);
-  box-shadow: var(--shadow-md);
+.daily-card:hover{background:var(--opt-sel-bg)}
+.daily-card:active{transform:scale(.99)}
+.daily-icon{
+  font-size:1.4rem;width:48px;height:48px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--opt-sel-bg);border-radius:14px;
 }
-.card-glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-}
-.card-accent-left { border-left: 3px solid var(--primary); }
-.card-success-left { border-left: 3px solid var(--success); }
-.card-danger-left { border-left: 3px solid var(--danger); }
-.card-warning-left { border-left: 3px solid var(--warning); }
-.card-accent-top {
-  border-top: 3px solid var(--primary);
-  background: linear-gradient(180deg, var(--primary-soft) 0%, var(--surface-0) 40%);
-}
+.daily-info{flex:1}
+.daily-info h3{font-size:1.02rem;font-weight:800}
+.daily-info p{color:var(--text-light);font-size:.8rem;margin-top:2px}
+.daily-card .chev{font-size:1.3rem;color:var(--primary)}
 
-/* Clickable card lift */
-.card[data-go], .grid-card[data-go], .quiz-row[data-go] {
-  cursor: pointer;
+/* ── Streak Bar ── */
+.streak-bar{
+  background:var(--card); border:2px solid var(--streak);
+  border-radius:var(--radius-lg); padding:12px 16px;
+  display:flex;align-items:center;gap:12px;margin-bottom:12px;
 }
-.card[data-go]:hover, .grid-card[data-go]:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-.card[data-go]:active, .grid-card[data-go]:active {
-  transform: scale(0.985);
-}
+.streak-fire{font-size:1.8rem;animation:pulseFire 2s ease-in-out infinite}
+@keyframes pulseFire{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.streak-info strong{color:var(--streak);font-size:1rem}
+.streak-info small{color:var(--text-light);font-size:.75rem;display:block}
 
-/* ---- Daily / Hero Card ---- */
-.hero-card {
-  background: linear-gradient(135deg, #7c6ff7 0%, #5b4fcf 40%, #3d3599 100%);
-  border-radius: var(--radius-lg);
-  padding: var(--space-xl) var(--space-lg);
-  display: flex; align-items: center; gap: var(--space-md);
-  margin-bottom: var(--space-xl); cursor: pointer;
-  position: relative; overflow: hidden;
-  box-shadow: var(--shadow-glow);
-  border: 1px solid rgba(255,255,255,0.1);
+/* ── Grid ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.grid-card{
+  background:var(--card); border-radius:var(--radius-lg);
+  border:2px solid var(--border); border-bottom-width:var(--opt-border-bottom);
+  padding:16px 10px; text-align:center; cursor:pointer;
+  transition:border-color .15s,transform .1s,background .15s;
 }
-.hero-card::after {
-  content: ''; position: absolute;
-  top: -40%; right: -20%;
-  width: 140px; height: 140px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 50%;
-  pointer-events: none;
-}
-.hero-card .hero-icon { font-size: 2.2rem; position: relative; z-index: 1; }
-.hero-card h3 { color: #fff; margin: 0; font-size: var(--fs-lg); position: relative; z-index: 1; }
-.hero-card p { color: rgba(255,255,255,.75); font-size: var(--fs-sm); margin: 0; position: relative; z-index: 1; }
-.hero-card .chev { margin-left: auto; font-size: 1.5rem; color: rgba(255,255,255,.5); position: relative; z-index: 1; }
-.hero-card-warning {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #b45309 100%);
-  box-shadow: 0 0 20px rgba(245,158,11,0.2);
-}
+.grid-card:hover{border-color:var(--primary);background:var(--card-hover)}
+.grid-card:active{transform:scale(.96)}
+.grid-card .icon{font-size:1.7rem;margin-bottom:6px}
+.grid-card .title{font-size:.85rem;font-weight:800;color:var(--text)}
+.grid-card .desc{font-size:.7rem;color:var(--text-light);margin-top:3px}
+.mini-card .icon{font-size:1.2rem;margin-bottom:4px}
+.mini-card .title{font-size:.72rem}
 
-/* ---- Streak Bar ---- */
-.streak-bar {
-  display: flex; align-items: center; gap: var(--space-md);
-  background: var(--surface-0); border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg);
-  margin-bottom: var(--space-lg);
-  box-shadow: var(--shadow-sm);
+/* ── Buttons ── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:10px 20px;border:none;border-radius:var(--radius-md);
+  font-size:.9rem;font-weight:600;cursor:pointer;font-family:inherit;
+  text-decoration:none;transition:opacity .15s,transform .1s;
 }
-.streak-fire { font-size: 2rem; animation: pulseFire 2s ease-in-out infinite; }
-@keyframes pulseFire {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.15); }
+.btn:active{transform:translateY(1px) scale(.99)}
+.btn-primary{background:var(--cta-bg);color:var(--cta-text);box-shadow:var(--cta-shadow)}
+.btn-primary:hover{filter:brightness(1.03)}
+.btn-primary:active{box-shadow:none;transform:translateY(3px)}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text-light)}
+.btn-outline:hover{background:var(--card-hover)}
+.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text-light)}
+.btn-ghost:hover{background:var(--card-hover)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-sm{padding:6px 14px;font-size:.8rem;box-shadow:none}
+.btn-sm:active{transform:scale(.97)}
+.btn-block{width:100%}
+.btn-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+
+/* ── Quiz Row ── */
+.quiz-row{
+  background:var(--card); border-radius:var(--radius-lg);
+  border:2px solid var(--border); border-bottom-width:var(--opt-border-bottom);
+  padding:13px 16px; margin-bottom:9px;
+  display:flex;align-items:center;gap:12px;cursor:pointer;
+  transition:border-color .15s,background .15s,transform .1s;
 }
+.quiz-row:hover{border-color:var(--primary);background:var(--card-hover)}
+.quiz-row:active{transform:scale(.99)}
+.quiz-info{flex:1;min-width:0}
+.quiz-info h4{font-size:.95rem;font-weight:800}
+.quiz-info small{color:var(--text-light);font-size:.76rem}
+.quiz-boxes{display:flex;gap:3px}
+.quiz-box{width:24px;height:24px;border-radius:12px;font-size:.68rem;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center}
+.box-1{background:var(--box1)}.box-2{background:var(--box2)}.box-3{background:var(--box3)}.box-4{background:var(--box4)}.box-5{background:var(--box5)}
+.row-chev{color:var(--text-light);font-size:1.2rem}
 
-/* ---- Grid Cards ---- */
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-lg); }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); margin-bottom: var(--space-lg); }
-.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-sm); margin-bottom: var(--space-lg); }
-.grid-card {
-  background: var(--surface-0);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg) var(--space-md); text-align: center;
-  cursor: pointer;
-  transition: transform var(--dur-fast), box-shadow var(--dur-fast), border-color var(--dur-fast);
+/* ── Option Cards (Quiz answers) ── */
+.option-card{
+  background:var(--opt-bg); border:2px solid var(--opt-border);
+  border-bottom-width:var(--opt-border-bottom);
+  border-radius:var(--radius-lg); padding:15px 16px; margin-bottom:11px;
+  cursor:pointer; display:flex;align-items:center;gap:12px;
+  font-weight:700; transition:border-color .12s,background .12s,box-shadow .15s;
+  user-select:none;
 }
-.grid-card:hover { border-color: rgba(255,255,255,0.1); }
-.grid-card .icon { font-size: 2rem; margin-bottom: var(--space-sm); display: block; }
-.grid-card .title { font-size: var(--fs-sm); font-weight: 600; }
-.grid-card .desc { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
-.mini-card { padding: var(--space-md) var(--space-sm); }
-.mini-card .icon { font-size: 1.5rem; margin-bottom: var(--space-xs); }
-.mini-card .title { font-size: var(--fs-xs); }
-
-/* ---- Quiz Row ---- */
-.quiz-row {
-  background: var(--surface-0); border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm); padding: var(--space-md) var(--space-lg);
-  display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-sm);
-  cursor: pointer; transition: all var(--dur-fast);
+.option-card:active{transform:scale(.99)}
+.option-card:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.option-card.selected{border-color:var(--primary);background:var(--opt-sel-bg);box-shadow:var(--opt-sel-glow)}
+.option-card.correct{border-color:var(--success);background:var(--success-light)}
+.option-card.wrong{border-color:var(--danger);background:var(--danger-light)}
+.option-key{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:800;
+  background:var(--key-bg);color:var(--key-color);
+  transition:background .12s,color .12s;
 }
-.quiz-row:hover { background: var(--surface-1); }
-.quiz-row .quiz-boxes { display: flex; gap: 3px; margin-left: auto; }
-.quiz-row .quiz-box { font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; background: var(--surface-2); }
-.quiz-row .box-1 { background: var(--danger); color: #fff; }
-.quiz-row .box-5 { background: var(--success); color: #fff; }
+.option-card.selected .option-key{background:var(--key-bg-active);color:var(--key-color-active)}
+.option-card.correct .option-key{background:var(--success);color:#fff}
+.option-card.wrong .option-key{background:var(--danger);color:#fff}
+.option-text{font-size:.98rem;flex:1}
 
-/* ---- Buttons ---- */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm);
-  padding: var(--space-md) var(--space-xl);
-  border-radius: var(--radius-sm); border: none;
-  font-weight: 600; cursor: pointer; font-size: var(--fs-base);
-  width: 100%; font-family: inherit;
-  transition: all var(--dur-fast) var(--ease-out-expo);
-  position: relative; overflow: hidden;
+/* ── Inputs ── */
+input[type="text"],input[type="email"],input[type="password"],input[type="number"]{
+  width:100%; padding:12px 14px;
+  background:var(--input-bg); border:2px solid var(--border);
+  border-radius:var(--radius-md); color:var(--text); font-size:.9rem;
+  font-family:inherit; outline:none; transition:border-color .15s;
 }
-.btn:active { transform: scale(0.97); }
-.btn-primary {
-  background: linear-gradient(135deg, var(--primary), #5b4fcf);
-  color: #fff; box-shadow: 0 4px 15px var(--primary-glow);
+input:focus{border-color:var(--primary)}
+.input-group{margin-bottom:12px}
+.input-group label{display:block;font-size:.8rem;color:var(--text-light);margin-bottom:4px;font-weight:600}
+textarea.input{min-height:100px;resize:vertical}
+select.input{width:100%;padding:10px 12px;border-radius:var(--radius-md);border:2px solid var(--border);background:var(--input-bg);color:var(--text);font-size:.9rem;font-family:inherit;outline:none}
+select.input:focus{border-color:var(--primary)}
+
+/* ── Progress ── */
+.progress-row{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.progress-bar{flex:1;height:12px;background:var(--progress-track);border-radius:99px;overflow:hidden}
+.progress-fill{height:100%;background:var(--progress-fill);border-radius:99px;transition:width .3s}
+.progress-label{font-size:.8rem;color:var(--text-light);font-weight:700;white-space:nowrap}
+
+/* ── Chips ── */
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{
+  padding:6px 14px;border-radius:20px;background:var(--input-bg);
+  color:var(--text-light);font-size:.8rem;cursor:pointer;
+  border:1.5px solid transparent;transition:all .15s;font-weight:600;
 }
-.btn-primary:hover { box-shadow: 0 6px 25px var(--primary-glow); }
-.btn-outline {
-  background: transparent; border: 1px solid var(--surface-3); color: var(--text-secondary);
+.chip:hover{border-color:var(--primary);color:var(--text)}
+.chip.active{border-color:var(--primary);color:var(--primary);background:var(--opt-sel-bg)}
+
+/* ── Badge ── */
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:10px;font-size:.72rem;font-weight:700}
+.badge-success{background:var(--success-light);color:var(--success)}
+.badge-warning{background:var(--warning-light);color:var(--warning)}
+.badge-danger{background:var(--danger-light);color:var(--danger)}
+.badge-primary{background:var(--primary-subtle);color:var(--primary)}
+.badge-muted{background:var(--row-neutral);color:var(--text-light)}
+
+/* ── Toggle ── */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0}
+.toggle-track{
+  width:48px;height:28px;border-radius:14px;background:var(--border);
+  position:relative;cursor:pointer;transition:background .15s;
 }
-.btn-outline:hover { border-color: var(--primary); color: var(--text); }
-.btn-sm { padding: var(--space-sm) var(--space-lg); font-size: var(--fs-sm); width: auto; }
-.btn-xs { padding: var(--space-xs) var(--space-md); font-size: var(--fs-xs); width: auto; border-radius: var(--radius-sm); }
-.btn-ghost { background: transparent; color: var(--text-secondary); width: auto; padding: var(--space-sm) var(--space-md); }
-.btn-ghost:hover { background: var(--surface-1); color: var(--text); }
-.btn-danger { background: var(--danger); color: #fff; }
-
-/* ---- Inputs ---- */
-.input-group { margin-bottom: var(--space-md); }
-.input-group label { display: block; font-size: var(--fs-sm); color: var(--text-secondary); margin-bottom: var(--space-xs); font-weight: 500; }
-.input {
-  width: 100%; padding: var(--space-md) 14px;
-  background: var(--surface-1); border: 1px solid var(--surface-3);
-  border-radius: var(--radius-sm); color: var(--text); font-size: var(--fs-base);
-  outline: none; margin-bottom: var(--space-sm); font-family: inherit;
-  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+.toggle-track.on{background:var(--primary)}
+.toggle-knob{
+  width:22px;height:22px;border-radius:50%;background:#fff;
+  position:absolute;top:3px;left:3px;transition:left .2s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 1px 3px rgba(0,0,0,.2);
 }
-.input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
-.input::placeholder { color: var(--text-muted); }
-textarea.input { min-height: 100px; resize: vertical; }
+.toggle-track.on .toggle-knob{left:23px}
 
-/* ---- Chat ---- */
-.chat-area { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-lg); }
-.chat-bubble { padding: var(--space-md) 16px; max-width: 85%; font-size: var(--fs-sm); line-height: 1.5; animation: bubbleIn var(--dur-slow) var(--ease-out-expo); }
-.chat-user {
-  background: var(--primary); color: #fff; align-self: flex-end;
-  border-radius: var(--radius-md) 4px var(--radius-md) var(--radius-md);
+/* ── Stat Grid ── */
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.stat-item{text-align:center;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 8px}
+.stat-val{font-size:1.5rem;font-weight:800;color:var(--primary)}
+.stat-label{font-size:.72rem;color:var(--text-light);margin-top:2px}
+
+/* ── Section Title ── */
+.section-title{font-size:.8rem;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin:18px 0 10px;font-weight:700;display:flex;align-items:center;gap:8px}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── Step Chain ── */
+.step-chain{display:flex;flex-direction:column;gap:0;margin:12px 0}
+.step-node{display:flex;align-items:center;gap:10px;padding:10px 14px;border-left:2px solid var(--border);margin-left:10px;font-size:.88rem}
+.step-dot{width:12px;height:12px;border-radius:50%;background:var(--border);flex-shrink:0;margin-left:-17px;transition:all .2s}
+.step-dot.done{background:var(--success);box-shadow:0 0 6px var(--success)}
+.step-dot.active{background:var(--primary);box-shadow:0 0 10px var(--primary);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* ── Achievement ── */
+.ach-card{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:6px}
+.ach-card.locked{opacity:.4;filter:grayscale(.4)}
+.ach-icon{font-size:2rem;width:44px;text-align:center;flex-shrink:0}
+.ach-info{flex:1;min-width:0}
+.ach-name{font-weight:700;font-size:.9rem}
+.ach-desc{font-size:.8rem;color:var(--text-light)}
+
+/* ── Folder ── */
+.folder-item{display:flex;align-items:center;gap:10px;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;transition:all .15s}
+.folder-item:hover{background:var(--card-hover)}
+.folder-item .f-icon{font-size:1.2rem;width:40px;height:40px;background:var(--input-bg);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* ── Divider ── */
+.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
+
+/* ── Model Selector ── */
+.model-select-list{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.model-option{padding:10px 12px;border:2px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color .15s}
+.model-option:hover{border-color:var(--primary-light)}
+.model-option.selected{border-color:var(--primary);background:var(--primary-subtle)}
+.model-name{font-weight:600;font-size:.85rem;display:flex;align-items:center;gap:6px}
+.model-icons{font-size:.75rem;color:var(--text-light)}
+.model-meta{font-size:.7rem;color:var(--text-light);margin-top:2px}
+
+/* ── Formula Box ── */
+.formula-box{background:var(--input-bg);border-left:3px solid var(--primary);border-radius:var(--radius-sm);padding:10px 16px;margin:8px 0;text-align:center;font-size:1.15rem;overflow-x:auto}
+
+/* ── Pomodoro ── */
+.pomo-card{text-align:center;padding:24px 16px}
+.pomo-ring{position:relative;width:180px;height:180px;margin:0 auto 20px}
+.pomo-time{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.4rem;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* ── Money Ladder ── */
+.money-ladder{display:flex;flex-direction:column-reverse;gap:2px;margin:12px 0;font-size:.75rem;max-height:200px;overflow-y:auto}
+.money-step{padding:3px 10px;border-radius:4px;background:var(--input-bg);color:var(--text-light)}
+.money-step.current{background:var(--warning);color:#fff;font-weight:700}
+.money-step.done{background:var(--success-light);color:var(--success)}
+
+/* ── Tutor Chat ── */
+.chat-area{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.chat-bubble{max-width:82%;padding:10px 14px;border-radius:12px;line-height:1.4;word-wrap:break-word;white-space:pre-wrap;font-size:.9rem;animation:bubbleIn .25s ease-out}
+@keyframes bubbleIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.chat-bubble.user{align-self:flex-end;background:var(--primary);color:var(--on-primary);border-bottom-right-radius:4px}
+.chat-bubble.assistant{align-self:flex-start;background:var(--card);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chat-input-row{display:flex;gap:8px;padding:8px 0}
+
+/* ── Tab Bar (glass with solid fallback) ── */
+.tab-bar{
+  position:fixed;bottom:12px;left:50%;transform:translateX(-50%);
+  width:calc(100% - 24px);max-width:576px;
+  background:var(--card); /* solid fallback */
+  background:var(--glass-bg);
+  border:1px solid var(--border);
+  border:1px solid var(--glass-border);
+  display:flex;justify-content:space-around;padding:6px;
+  border-radius:var(--radius-lg);
+  z-index:100;
+  box-shadow:0 4px 12px rgba(0,0,0,.15);
+  box-shadow:var(--glass-shadow);
 }
-.chat-ai {
-  background: var(--surface-1); align-self: flex-start;
-  border-radius: 4px var(--radius-md) var(--radius-md) var(--radius-md);
-  border: 1px solid var(--glass-border);
+/* Glass progressive enhancement */
+@supports(backdrop-filter:blur(12px)){
+  .tab-bar{backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%)}
 }
-@keyframes bubbleIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-/* ---- Progress ---- */
-.progress { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin: var(--space-sm) 0; }
-.progress-fill { height: 100%; border-radius: 3px; transition: width 0.6s var(--ease-out-expo); }
-.progress-fill.primary { background: linear-gradient(90deg, var(--primary), var(--accent)); }
-.progress-fill.success { background: var(--success); }
-.progress-fill.warning { background: var(--warning); }
-.progress-fill.danger { background: var(--danger); }
-
-/* ---- Chips ---- */
-.chip-row { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin: var(--space-sm) 0; }
-.chip {
-  padding: var(--space-xs) 14px; border-radius: 20px;
-  background: var(--surface-1); color: var(--text-secondary);
-  font-size: var(--fs-xs); cursor: pointer; border: 1px solid transparent;
-  transition: all var(--dur-fast); font-weight: 500;
+.tab-bar button{
+  background:none;border:none;color:var(--text-light);
+  font-size:.7rem;display:flex;flex-direction:column;align-items:center;
+  gap:3px;cursor:pointer;padding:8px 14px;border-radius:var(--radius-md);
+  transition:all .15s;font-family:inherit;font-weight:600;
 }
-.chip:hover { border-color: var(--surface-3); color: var(--text); }
-.chip.active { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.tab-bar button .tab-icon{font-size:1.3rem;transition:transform .15s}
+.tab-bar button.active{color:var(--text);background:var(--opt-sel-bg)}
+.tab-bar button.active .tab-icon{transform:scale(1.1)}
 
-/* ---- Badge ---- */
-.badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 10px; font-size: var(--fs-xs); font-weight: 600; }
-.badge-success { background: var(--success-soft); color: var(--success); }
-.badge-warning { background: var(--warning-soft); color: var(--warning); }
-.badge-danger { background: var(--danger-soft); color: var(--danger); }
-.badge-primary { background: var(--primary-soft); color: var(--primary); }
-.badge-muted { background: var(--surface-2); color: var(--text-muted); }
-
-/* ---- Toggle ---- */
-.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: var(--space-sm) 0; }
-.toggle-track {
-  width: 48px; height: 28px; border-radius: 14px;
-  background: var(--surface-2); position: relative; cursor: pointer;
-  transition: background var(--dur-fast);
+/* ── Top Bar ── */
+.top-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:4px 0}
+.top-bar h2{margin:0;flex:1;font-size:1.15rem;font-weight:800}
+.back-btn{
+  display:inline-flex;align-items:center;gap:4px;background:none;
+  border:none;color:var(--text-light);font-size:.85rem;cursor:pointer;
+  padding:8px 4px;font-family:inherit;font-weight:600;
 }
-.toggle-track.on { background: var(--primary); }
-.toggle-knob {
-  width: 22px; height: 22px; border-radius: 50%; background: #fff;
-  position: absolute; top: 3px; left: 3px;
-  transition: left 0.2s var(--ease-out-expo);
-  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+.back-btn:hover{color:var(--text)}
+
+/* ── Onboarding ── */
+.onboarding-overlay{
+  position:fixed;inset:0;background:var(--bg);z-index:200;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  max-width:600px;margin:0 auto;padding:40px 24px;text-align:center;
 }
-.toggle-track.on .toggle-knob { left: 23px; }
+.onboarding-overlay.hidden{display:none}
+.onboarding-slide{display:none;flex-direction:column;align-items:center;gap:16px;animation:screenEnter .25s ease-out}
+.onboarding-slide.active{display:flex}
+.onboarding-slide .ob-icon{font-size:4rem;margin-bottom:8px}
+.onboarding-slide h2{font-size:1.5rem;font-weight:800}
+.onboarding-slide p{color:var(--text-light);max-width:300px;line-height:1.6;font-size:.9rem}
+.ob-dots{display:flex;gap:8px;margin:24px 0}
+.ob-dot{width:10px;height:10px;border-radius:50%;background:var(--border);transition:all .25s cubic-bezier(.34,1.56,.64,1)}
+.ob-dot.active{background:var(--primary);width:28px;border-radius:5px}
+.ob-next{padding:14px 56px;border-radius:var(--radius-md);background:var(--cta-bg);color:var(--cta-text);border:none;font-weight:700;font-size:1rem;cursor:pointer;box-shadow:var(--cta-shadow)}
+.ob-skip{background:none;border:none;color:var(--text-light);font-size:.85rem;cursor:pointer;margin-top:12px}
 
-/* ---- Stat Grid ---- */
-.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); margin: var(--space-md) 0; }
-.stat-item {
-  text-align: center; background: var(--surface-0); border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm); padding: var(--space-lg) var(--space-sm);
-}
-.stat-val { font-size: var(--fs-2xl); font-weight: 800; color: var(--primary); letter-spacing: -0.01em; }
-.stat-label { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
+/* ── Offline Banner ── */
+.offline-banner{background:var(--warning);color:#000;text-align:center;padding:6px 12px;font-size:.8rem;font-weight:600;display:none}
+.offline-banner.show{display:block}
 
-/* ---- Option Buttons (quiz answers) ---- */
-.option-btn {
-  display: block; width: 100%; text-align: left;
-  padding: var(--space-md) var(--space-lg); margin-bottom: var(--space-sm);
-  background: var(--surface-0); border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm); color: var(--text); cursor: pointer;
-  font-size: var(--fs-base); font-family: inherit;
-  transition: all var(--dur-fast);
-}
-.option-btn:hover { border-color: var(--surface-3); background: var(--surface-1); }
-.option-btn.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: var(--shadow-glow-sm); }
-.option-btn.correct { border-color: var(--success); background: var(--success-soft); }
-.option-btn.wrong { border-color: var(--danger); background: var(--danger-soft); }
+/* ── Bottom Sheet ── */
+.bottom-sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:120;opacity:0;pointer-events:none;transition:opacity .25s;max-width:600px;margin:0 auto}
+.bottom-sheet-overlay.open{opacity:1;pointer-events:auto}
+.bottom-sheet{position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);max-width:600px;width:100%;max-height:85vh;background:var(--card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:12px 16px 24px;z-index:121;transition:transform .35s cubic-bezier(.32,.72,0,1);overflow-y:auto;border:1px solid var(--border);border-bottom:none}
+.bottom-sheet-overlay.open .bottom-sheet{transform:translateX(-50%) translateY(0)}
+.sheet-handle{width:40px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 12px}
 
-/* ---- Section Title ---- */
-.section-title {
-  font-size: var(--fs-xs); color: var(--text-muted); text-transform: uppercase;
-  letter-spacing: 1.5px; margin: var(--space-xl) 0 var(--space-md);
-  font-weight: 700; display: flex; align-items: center; gap: var(--space-sm);
-}
-.section-title::after {
-  content: ''; flex: 1; height: 1px; background: var(--surface-2);
-}
+/* ── Skeleton Loading ── */
+.skeleton{background:linear-gradient(90deg,var(--card) 25%,var(--card-hover) 50%,var(--card) 75%);background-size:200% 100%;animation:shimmer 1.5s ease-in-out infinite;border-radius:var(--radius-sm)}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skeleton-text{height:14px;margin-bottom:8px;width:100%}
+.skeleton-text.short{width:60%}
+.skeleton-card{height:72px;margin-bottom:10px}
+.skeleton-avatar{width:48px;height:48px;border-radius:50%;flex-shrink:0}
 
-/* ---- Step Chain ---- */
-.step-chain { display: flex; flex-direction: column; gap: 0; margin: var(--space-md) 0; }
-.step-node { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md) 14px; border-left: 2px solid var(--surface-2); margin-left: 12px; }
-.step-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--surface-2); flex-shrink: 0; margin-left: -20px; transition: all var(--dur-base); }
-.step-dot.done { background: var(--success); box-shadow: 0 0 8px var(--success-soft); }
-.step-dot.active { background: var(--primary); box-shadow: var(--shadow-glow-sm); animation: pulse 2s ease-in-out infinite; }
+/* ── Empty State ── */
+.empty{text-align:center;color:var(--text-light);padding:40px 0;font-size:.9rem}
 
-/* ---- Achievement Card ---- */
-.ach-card { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); background: var(--surface-0); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); margin-bottom: var(--space-sm); transition: all var(--dur-fast); }
-.ach-card:hover { background: var(--surface-1); }
-.ach-icon { font-size: 2rem; width: 48px; text-align: center; }
-.ach-info .ach-title { font-weight: 600; font-size: var(--fs-sm); }
-.ach-info .ach-desc { font-size: var(--fs-xs); color: var(--text-muted); }
-.ach-card.locked { opacity: 0.35; filter: grayscale(0.5); }
+/* ── Hidden ── */
+.hidden{display:none!important}
 
-/* ---- Folder Item ---- */
-.folder-item { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-md); background: var(--surface-0); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); margin-bottom: var(--space-sm); cursor: pointer; transition: all var(--dur-fast); }
-.folder-item:hover { background: var(--surface-1); }
-.folder-item .f-icon { font-size: 1.3rem; width: 40px; height: 40px; background: var(--surface-2); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+/* ── Scroll-x ── */
+.scroll-x{display:flex;gap:8px;overflow-x:auto;padding:4px 2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.scroll-x::-webkit-scrollbar{display:none}
 
-/* ---- Pomodoro Circle ---- */
-.pom-circle {
-  width: 220px; height: 220px; border-radius: 50%;
-  background: var(--surface-0); border: 4px solid var(--primary);
-  display: flex; align-items: center; justify-content: center;
-  margin: var(--space-2xl) auto; font-size: var(--fs-3xl); font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  box-shadow: var(--shadow-glow);
-  position: relative;
-}
-.pom-circle::before {
-  content: ''; position: absolute; inset: -8px; border-radius: 50%;
-  border: 2px solid rgba(124,111,247,0.15);
-}
-
-/* ---- Money Ladder ---- */
-.money-ladder { display: flex; flex-direction: column-reverse; gap: 2px; margin: var(--space-md) 0; }
-.money-step { display: flex; justify-content: space-between; padding: var(--space-xs) var(--space-md); border-radius: 6px; font-size: var(--fs-xs); color: var(--text-muted); }
-.money-step.current { background: var(--primary); color: #fff; font-weight: 700; box-shadow: var(--shadow-glow-sm); }
-.money-step.done { color: var(--success); }
-
-/* ---- Formula Box ---- */
-.formula-box {
-  background: var(--surface-1); border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm); padding: var(--space-xl); text-align: center;
-  margin: var(--space-md) 0; font-size: var(--fs-lg); font-style: italic;
-  color: var(--primary); letter-spacing: 0.02em;
-}
-
-/* ---- Model Selector ---- */
-.model-select-list { display: flex; flex-direction: column; gap: var(--space-sm); margin: var(--space-sm) 0; }
-.model-option {
-  padding: var(--space-md); background: var(--surface-1); border-radius: var(--radius-sm);
-  cursor: pointer; border: 1px solid transparent; transition: all var(--dur-fast);
-}
-.model-option:hover { border-color: var(--surface-3); }
-.model-option.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: var(--shadow-glow-sm); }
-.model-option .model-name { font-weight: 600; font-size: var(--fs-sm); display: flex; align-items: center; gap: var(--space-sm); }
-.model-option .model-icons { font-size: var(--fs-xs); color: var(--text-muted); }
-.model-option .model-meta { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
-
-/* ---- Onboarding ---- */
-.onboarding-overlay {
-  position: fixed; inset: 0; background: var(--bg); z-index: 200;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  max-width: 430px; margin: 0 auto; padding: var(--space-3xl) var(--space-xl); text-align: center;
-}
-.onboarding-overlay.hidden { display: none; }
-.onboarding-slide { display: none; flex-direction: column; align-items: center; gap: var(--space-lg); animation: screenEnter var(--dur-slow) var(--ease-out-expo); }
-.onboarding-slide.active { display: flex; }
-.onboarding-slide .ob-icon { font-size: 4rem; margin-bottom: var(--space-sm); }
-.onboarding-slide h2 { font-size: var(--fs-2xl); }
-.onboarding-slide p { color: var(--text-secondary); max-width: 300px; line-height: 1.6; }
-.ob-dots { display: flex; gap: var(--space-sm); margin: var(--space-xl) 0; }
-.ob-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--surface-2); transition: all var(--dur-base) var(--ease-out-expo); }
-.ob-dot.active { background: var(--primary); width: 28px; border-radius: 5px; box-shadow: var(--shadow-glow-sm); }
-.ob-next { padding: 14px 56px; border-radius: var(--radius-sm); background: var(--primary); color: #fff; border: none; font-weight: 600; font-size: var(--fs-base); cursor: pointer; box-shadow: var(--shadow-glow); transition: all var(--dur-fast); }
-.ob-next:hover { box-shadow: 0 0 30px var(--primary-glow); }
-.ob-skip { background: none; border: none; color: var(--text-muted); font-size: var(--fs-sm); cursor: pointer; margin-top: var(--space-md); }
-.ob-skip:hover { color: var(--text-secondary); }
-
-/* ---- Offline Banner ---- */
-.offline-banner {
-  background: var(--warning); color: #000; text-align: center;
-  padding: var(--space-sm) var(--space-md); font-size: var(--fs-xs); font-weight: 600;
-  position: fixed; top: 0; left: 50%; transform: translateX(-50%);
-  max-width: 430px; width: 100%; z-index: 150;
-  display: none;
-}
-.offline-banner.show { display: block; }
-
-/* ---- Bottom Sheet ---- */
-.bottom-sheet-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 120;
-  backdrop-filter: blur(4px);
-  opacity: 0; pointer-events: none; transition: opacity var(--dur-base);
-  max-width: 430px; margin: 0 auto;
-}
-.bottom-sheet-overlay.open { opacity: 1; pointer-events: auto; }
-.bottom-sheet {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%) translateY(100%);
-  max-width: 430px; width: 100%; max-height: 85vh;
-  background: var(--surface-0); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  padding: var(--space-md) var(--space-lg) var(--space-xl); z-index: 121;
-  transition: transform 0.35s var(--ease-out-expo);
-  overflow-y: auto; border: 1px solid var(--glass-border); border-bottom: none;
-}
-.bottom-sheet-overlay.open .bottom-sheet { transform: translateX(-50%) translateY(0); }
-.bottom-sheet .sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--surface-3); margin: 0 auto var(--space-lg); }
-
-/* ---- Skeleton Loading ---- */
-.skeleton {
-  background: linear-gradient(90deg, var(--surface-1) 25%, var(--surface-2) 50%, var(--surface-1) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: var(--radius-sm);
-}
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.skeleton-text { height: 14px; margin-bottom: var(--space-sm); width: 100%; }
-.skeleton-text.short { width: 60%; }
-.skeleton-card { height: 80px; margin-bottom: var(--space-md); }
-.skeleton-circle { width: 48px; height: 48px; border-radius: 50%; }
-
-/* ---- Empty State ---- */
-.empty-state {
-  text-align: center; padding: var(--space-3xl) var(--space-xl);
-  color: var(--text-muted);
-}
-.empty-state .empty-icon { font-size: 3rem; margin-bottom: var(--space-lg); opacity: 0.6; }
-.empty-state h3 { color: var(--text-secondary); margin-bottom: var(--space-sm); }
-.empty-state p { font-size: var(--fs-sm); max-width: 280px; margin: 0 auto var(--space-xl); line-height: 1.6; }
-
-/* ---- Pulse animation for live indicators ---- */
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-.pulse { animation: pulse 2s ease-in-out infinite; }
-
-/* ---- Tower Defense board ---- */
-.td-board {
-  background: var(--surface-1); border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md); height: 200px;
-  display: flex; align-items: center; justify-content: center;
-  margin: var(--space-md) 0; color: var(--text-muted); font-size: var(--fs-sm);
-}
-
-/* ---- Letter Grid (hangman keyboard) ---- */
-.letter-grid { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin: var(--space-md) 0; }
-.letter-btn {
-  width: 38px; height: 38px; border-radius: 8px;
-  background: var(--surface-1); border: 1px solid var(--glass-border);
-  color: var(--text); font-weight: 600; cursor: pointer; font-size: var(--fs-sm);
-  transition: all var(--dur-fast);
-}
-.letter-btn:hover:not(:disabled) { background: var(--surface-2); }
-.letter-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-/* ---- Hangman SVG area ---- */
-.hangman-fig { font-size: 3rem; text-align: center; margin: var(--space-xl) 0; letter-spacing: 10px; font-family: 'SF Mono', 'Fira Code', monospace; }
-
-/* ---- Browse Mode ---- */
-.browse-nav { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-md); }
-.browse-nav button {
-  background: var(--surface-2); border: none; color: var(--text);
-  padding: var(--space-md) var(--space-xl); border-radius: var(--radius-sm);
-  font-size: var(--fs-sm); cursor: pointer; transition: all var(--dur-fast);
-}
-.browse-nav button:hover:not(:disabled) { background: var(--surface-3); }
-.browse-nav button:disabled { opacity: .3; cursor: not-allowed; }
-
-/* ---- Touch-friendly scrolling ---- */
-.scroll-x { display: flex; gap: var(--space-sm); overflow-x: auto; padding: var(--space-xs); -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-.scroll-x::-webkit-scrollbar { display: none; }
-
-/* ---- Dividers ---- */
-.divider { height: 1px; background: var(--surface-2); margin: var(--space-lg) 0; }
-
-/* ---- Fix overflow on small safe areas ---- */
-@supports (padding-top: env(safe-area-inset-top)) {
-  body { padding-top: env(safe-area-inset-top); }
-}
-
-/* ---- Tooltip / info hover ---- */
-.info-dot { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; background: var(--surface-3); font-size: 10px; align-items: center; justify-content: center; cursor: help; color: var(--text-muted); vertical-align: middle; }
+/* ── Safe areas ── */
+@supports(padding:env(safe-area-inset-bottom)){#app{padding-bottom:calc(90px + env(safe-area-inset-bottom))}}
 </style>
 </head>
 <body>
+<div id="app">
 
-<!-- ===================== OFFLINE INDICATOR ===================== -->
-<div class="offline-banner show" id="offline-banner" role="alert">📡 Kein Internet — Offline-Modus aktiv</div>
+<!-- ═══════════════════════════════════════════════════════
+   SCREENS — Layouts nach realer App-Struktur
+   ═══════════════════════════════════════════════════════ -->
 
-<!-- ===================== ONBOARDING ===================== -->
-<div class="onboarding-overlay" id="onboarding" role="dialog" aria-modal="true" aria-label="Willkommen">
-  <div class="onboarding-slide active" data-slide="0">
-    <div class="ob-icon">📚</div>
-    <h2>Willkommen beim <span class="text-gradient">Lerntrainer</span></h2>
-    <p>Dein persönlicher Lernbegleiter – mit KI, Karteikarten und spielerischen Mini-Games.</p>
-  </div>
-  <div class="onboarding-slide" data-slide="1">
-    <div class="ob-icon">🧠</div>
-    <h2>Intelligent wiederholen</h2>
-    <p>Spaced Repetition sorgt dafür, dass du genau das übst, was du noch nicht kannst. Automatisch und wissenschaftlich fundiert.</p>
-  </div>
-  <div class="onboarding-slide" data-slide="2">
-    <div class="ob-icon">🚀</div>
-    <h2>Loslegen!</h2>
-    <p>Erstelle dein erstes Quiz – manuell oder per KI aus deinen Unterlagen. Dein Lernfortschritt wird automatisch gespeichert.</p>
-  </div>
-  <div class="ob-dots">
-    <div class="ob-dot active" data-dot="0"></div>
-    <div class="ob-dot" data-dot="1"></div>
-    <div class="ob-dot" data-dot="2"></div>
-  </div>
-  <button class="ob-next" id="ob-next">Weiter</button>
+<!-- ── Onboarding (first-visit) ── -->
+<div class="onboarding-overlay" id="ob-overlay">
+  <div class="onboarding-slide active"><div class="ob-icon">🧠</div><h2>Willkommen</h2><p>Lerne smarter mit KI — eigene Quizze, Diagramme, Formeln, Spaced Repetition.</p></div>
+  <div class="onboarding-slide"><div class="ob-icon">🎯</div><h2>Tägliches Lernen</h2><p>Daily-Streaks, Achievement-Badges und ein personalisierter Lernplan.</p></div>
+  <div class="onboarding-slide"><div class="ob-icon">🤖</div><h2>KI-Power</h2><p>Quiz-Generierung, Erklärungen, Tutor-Chat.</p></div>
+  <div class="ob-dots" id="ob-dots"><span class="ob-dot active"></span><span class="ob-dot"></span><span class="ob-dot"></span></div>
+  <button class="ob-next" id="ob-next" aria-label="Weiter">Weiter</button>
   <button class="ob-skip" id="ob-skip">Überspringen</button>
 </div>
 
-<!-- ===================== BOTTOM SHEET ===================== -->
-<div class="bottom-sheet-overlay" id="sheet-overlay">
-  <div class="bottom-sheet" id="sheet-content">
-    <div class="sheet-handle"></div>
-    <div id="sheet-body"></div>
-  </div>
-</div>
-
-<!-- ===================== HOME ===================== -->
-<div class="screen active" id="s-home">
-  <!-- Profile strip -->
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:var(--space-xl)">
-    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">🧑‍🎓</div>
-    <div style="flex:1">
-      <h2 style="margin:0;font-size:var(--fs-lg)">👋 Moin, Pius!</h2>
-      <p style="font-size:var(--fs-xs);margin:0">Bereit für heute?</p>
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;background:var(--surface-0);border:1px solid var(--glass-border);border-radius:20px;padding:6px 14px;font-size:var(--fs-sm);font-weight:600;cursor:pointer" data-go="shop" title="Zum Shop">
-      <span>🪙</span> 1.240
-    </div>
-  </div>
-
-  <!-- Streak + today -->
-  <div style="display:flex;gap:var(--space-md);margin-bottom:var(--space-xl)">
-    <div class="streak-bar" style="flex:1;margin-bottom:0">
-      <span class="streak-fire">🔥</span>
-      <div><strong style="font-size:var(--fs-lg)">7</strong> <small>Tage Streak</small><br><small style="font-size:0.65rem;color:var(--text-muted)">Bester: 14</small></div>
-    </div>
-    <div class="card" style="flex:1;margin-bottom:0;text-align:center;padding:var(--space-md)">
-      <div style="font-size:1.3rem">⏱️</div>
-      <div style="font-weight:700;font-size:var(--fs-md);color:var(--success)">45 min</div>
-      <small style="font-size:0.65rem">12 Fragen</small>
-    </div>
-  </div>
-
-  <!-- Daily hero -->
-  <div class="hero-card" data-go="daily">
-    <span class="hero-icon">📅</span>
-    <div><h3>Tägliches Lernen</h3><p>12 Fragen aus 3 Quizzen fällig</p></div>
-    <span class="chev">›</span>
-  </div>
-
-  <!-- Main grid -->
+<!-- ── HOME ── -->
+<div class="screen active" id="scr-home">
+  <div class="top-bar"><h2>Lerntrainer</h2><span style="font-size:.8rem;color:var(--text-light)">Di</span></div>
+  <!-- Profile Strip (real app: shop link) -->
+  <div class="profile-strip" data-go="shop"><div class="profile-avatar"><svg viewBox="0 0 100 100" width="54" height="54"><rect width="100" height="100" rx="14" fill="var(--primary-subtle)"/><ellipse cx="50" cy="42" rx="18" ry="18" fill="var(--primary)"/><ellipse cx="50" cy="90" rx="28" ry="20" fill="var(--primary)"/></svg></div><div class="profile-info"><strong>Lernender</strong><small>Haus Stufe 3</small></div><div class="profile-coins">🪙 247</div></div>
+  <!-- Streak -->
+  <div class="streak-bar"><span class="streak-fire">🔥</span><div class="streak-info"><strong>7-Tage-Streak</strong><small>Heutiges Ziel: +2 Fragen</small></div></div>
+  <!-- Welcome / Hero -->
+  <div class="welcome"><h2>Weiterlernen!</h2><p>Dir fehlen noch 5 Fragen zum Tagesziel. Mathe-Vektoren wartet.</p></div>
+  <!-- Daily Card -->
+  <div class="daily-card" data-go="daily"><div class="daily-icon">📅</div><div class="daily-info"><h3>Tägliche Lerneinheit</h3><p>12 fällig · 3 falsch · 1 Deep-Learn-Thema</p></div><span class="chev">→</span></div>
+  <!-- Grid (4 Haupt-Kacheln, real app pattern) -->
   <div class="grid-2">
-    <div class="grid-card" data-go="sr-dashboard">
-      <span class="icon">🧠</span><div class="title">SR-Board</div><div class="desc">Box-Übersicht</div>
-    </div>
-    <div class="grid-card" data-go="tutor">
-      <span class="icon">💬</span><div class="title">KI-Tutor</div><div class="desc">Fragen stellen</div>
-    </div>
-    <div class="grid-card" data-go="folders">
-      <span class="icon">📁</span><div class="title">Prüfungen</div><div class="desc">3 Ordner</div>
-    </div>
-    <div class="grid-card" data-go="my-quizzes">
-      <span class="icon">📚</span><div class="title">Quizze</div><div class="desc">12 Stück</div>
-    </div>
+    <div class="grid-card" data-go="my-quizzes"><div class="icon">📚</div><div class="title">Meine Quizze</div><div class="desc">8 aktiv</div></div>
+    <div class="grid-card" data-go="editor"><div class="icon">✏️</div><div class="title">Neues Quiz</div><div class="desc">Manuell / KI</div></div>
+    <div class="grid-card" data-go="stats"><div class="icon">📊</div><div class="title">Statistiken</div><div class="desc">13-Wochen-Heatmap</div></div>
+    <div class="grid-card" data-go="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div><div class="desc">Spaced Rep.</div></div>
   </div>
-
-  <!-- Quick actions -->
-  <div class="scroll-x" style="margin-bottom:var(--space-xl)">
-    <div class="chip active" data-go="daily">📅 Tägliches Training</div>
-    <div class="chip" data-go="pomodoro">🍅 Pomodoro</div>
-    <div class="chip" data-go="error-diary">📕 Fehlertagebuch</div>
-    <div class="chip" data-go="marked">⭐ Markierte</div>
-  </div>
-
-  <div class="section-title">Zuletzt gelernt</div>
-  <div class="quiz-row card-accent-left" data-go="quiz-modes">
-    <div class="quiz-info"><h4>Elektrotechnik 1</h4><small>25 Fragen · 85%</small></div>
-    <div class="quiz-boxes"><span class="quiz-box box-1">5</span><span class="quiz-box">8</span><span class="quiz-box">6</span><span class="quiz-box">3</span><span class="quiz-box box-5">3</span></div>
-    <span style="color:var(--text-muted)">›</span>
-  </div>
-  <div class="quiz-row card-accent-left" data-go="quiz-modes">
-    <div class="quiz-info"><h4>Mathe Klausur 2</h4><small>18 Fragen · 72%</small></div>
-    <div class="quiz-boxes"><span class="quiz-box box-1">2</span><span class="quiz-box">4</span><span class="quiz-box">7</span><span class="quiz-box">3</span><span class="quiz-box box-5">2</span></div>
-    <span style="color:var(--text-muted)">›</span>
-  </div>
-
-  <!-- Empty state example (shown when no quizzes exist) -->
-  <!--
-  <div class="empty-state">
-    <div class="empty-icon">📚</div>
-    <h3>Noch keine Quizze</h3>
-    <p>Erstelle dein erstes Quiz oder lass die KI eines aus deinen Unterlagen generieren.</p>
-    <button class="btn btn-primary" style="width:auto;display:inline-flex">+ Erstes Quiz erstellen</button>
-  </div>
-  -->
-</div>
-
-<!-- ===================== LEARN TAB ===================== -->
-<div class="screen" id="s-learn-tab">
-  <div class="top-bar"><h2>📖 Lernmethoden</h2></div>
-
-  <div class="hero-card" data-go="ai-generate" style="margin-bottom:var(--space-xl)">
-    <span class="hero-icon">🤖</span>
-    <div><h3>KI-Generator</h3><p>Quiz aus Text, Bild oder PDF</p></div>
-    <span class="chev">›</span>
-  </div>
-
-  <div class="grid-2">
-    <div class="grid-card" data-go="deep-learn"><span class="icon">🔬</span><div class="title">Deep Learn</div><div class="desc">Verstehen</div></div>
-    <div class="grid-card" data-go="socratic"><span class="icon">🏛️</span><div class="title">Sokrates</div><div class="desc">Hinterfragen</div></div>
-    <div class="grid-card" data-go="cloze"><span class="icon">✂️</span><div class="title">Lückentext</div><div class="desc">Ausfüllen</div></div>
-    <div class="grid-card" data-go="scaffold"><span class="icon">🔢</span><div class="title">Formeln</div><div class="desc">Schrittweise</div></div>
-    <div class="grid-card" data-go="study"><span class="icon">📖</span><div class="title">Karteikarten</div><div class="desc">Klassisch</div></div>
-    <div class="grid-card" data-go="marked"><span class="icon">⭐</span><div class="title">Markierte</div><div class="desc">8 Fragen</div></div>
-  </div>
-
-  <div class="section-title">Tools & Analyse</div>
+  <!-- Section: Weitere Tools (real app grid) -->
+  <div class="section-title">Weitere Tools</div>
   <div class="grid-3">
-    <div class="grid-card mini-card" data-go="error-diary"><span class="icon">📕</span><div class="title">Fehler</div></div>
-    <div class="grid-card mini-card" data-go="stats"><span class="icon">📊</span><div class="title">Statistik</div></div>
-    <div class="grid-card mini-card" data-go="pomodoro"><span class="icon">🍅</span><div class="title">Fokus</div></div>
+    <div class="grid-card mini-card" data-go="tutor"><div class="icon">💬</div><div class="title">Tutor</div></div>
+    <div class="grid-card mini-card" data-go="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learn</div></div>
+    <div class="grid-card mini-card" data-go="games"><div class="icon">🎮</div><div class="title">Games</div></div>
+    <div class="grid-card mini-card" data-go="shop"><div class="icon">🛒</div><div class="title">Shop</div></div>
+    <div class="grid-card mini-card" data-go="error-diary"><div class="icon">📝</div><div class="title">Fehler</div></div>
+    <div class="grid-card mini-card" data-go="marked"><div class="icon">⭐</div><div class="title">Markiert</div></div>
+  </div>
+  <!-- Section: Markierte/Falsch Reihen -->
+  <div class="section-title">Kurzlinks</div>
+  <div class="quiz-row" data-go="marked"><div class="quiz-info"><h4>⭐ Markierte Fragen</h4><small>7 Fragen</small></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="error-diary"><div class="quiz-info"><h4>📝 Fehlertagebuch</h4><small>Letzte 7 Tage · 23 Einträge</small></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="daily"><div class="quiz-info"><h4>🔄 Zuletzt gelernt</h4><small>Mathe-Vektoren · vor 3h</small></div><span class="row-chev">›</span></div>
+</div>
+
+<!-- ── MY QUIZZES ── -->
+<div class="screen" id="scr-my-quizzes">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Meine Quizze</h2></div>
+  <div class="btn-row"><button class="btn btn-primary btn-sm">+ Neu</button><button class="btn btn-ghost btn-sm">📁 Ordner</button></div>
+  <div class="section-title">Alle Quizze</div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Mathe Vektorrechnung</h4><small>12 Fragen · Box 2/3/3/1/0</small></div><div class="quiz-boxes"><span class="quiz-box box-1">1</span><span class="quiz-box box-2">2</span><span class="quiz-box box-3">3</span></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Deutsch Grammatik</h4><small>20 Fragen · Box 4/3/2/5/6</small></div><div class="quiz-boxes"><span class="quiz-box box-3">3</span><span class="quiz-box box-4">4</span><span class="quiz-box box-5">5</span></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Biologie Zellteilung</h4><small>8 Fragen · Box 5/2/0/1/0</small></div><div class="quiz-boxes"><span class="quiz-box box-1">1</span><span class="quiz-box box-2">2</span></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="quiz-modes"><div class="quiz-info"><h4>Geschichte Weimarer Republik</h4><small>15 Fragen · Box 3/4/3/3/2</small></div><div class="quiz-boxes"><span class="quiz-box box-3">3</span><span class="quiz-box box-4">4</span></div><span class="row-chev">›</span></div>
+  <!-- Skeleton loading demo (shown on slow load) -->
+  <div class="hidden" id="quiz-skeleton">
+    <div class="skeleton skeleton-card" style="margin-bottom:9px"></div>
+    <div class="skeleton skeleton-card" style="margin-bottom:9px"></div>
+    <div class="skeleton skeleton-card" style="margin-bottom:9px"></div>
   </div>
 </div>
 
-<!-- ===================== MY-QUIZZES ===================== -->
-<div class="screen" id="s-my-quizzes">
-  <div class="top-bar"><h2>📚 Meine Quizze</h2></div>
-
-  <div style="position:relative;margin-bottom:var(--space-lg)">
-    <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);z-index:1">🔍</span>
-    <input class="input" placeholder="Quiz suchen…" style="padding-left:40px;margin-bottom:0">
-  </div>
-
-  <!-- Create & Import row -->
-  <div class="scroll-x" style="margin-bottom:var(--space-lg)">
-    <div class="chip active" data-go="editor">✏️ Manuell erstellen</div>
-    <div class="chip" data-go="ai-generate">🤖 KI generieren</div>
-    <div class="chip" data-go="slide-generate">📊 Aus Folien</div>
-    <div class="chip" data-go="import-questions">📥 Importieren</div>
-  </div>
-
-  <div class="hero-card hero-card-warning" data-go="marked" style="padding:14px var(--space-lg)">
-    <span class="hero-icon">⭐</span>
-    <div><h3>Markierte Fragen</h3><p>8 Fragen zur Wiederholung</p></div>
-    <span class="chev">›</span>
-  </div>
-
-  <div class="section-title">Alle Quizze (12)</div>
-  <div class="quiz-row card-accent-left" data-go="quiz-modes"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>25 Fragen · 3 markiert</small></div><span style="color:var(--text-muted)">›</span></div>
-  <div class="quiz-row card-accent-left" data-go="quiz-modes"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>18 Fragen</small></div><span style="color:var(--text-muted)">›</span></div>
-  <div class="quiz-row card-accent-left" data-go="quiz-modes"><div class="quiz-info"><h4>Physik Grundlagen</h4><small>30 Fragen</small></div><span style="color:var(--text-muted)">›</span></div>
-  <div class="quiz-row card-accent-left" data-go="quiz-modes"><div class="quiz-info"><h4>Informatik Basics</h4><small>15 Fragen</small></div><span style="color:var(--text-muted)">›</span></div>
-  <div class="quiz-row card-accent-left" data-go="quiz-modes"><div class="quiz-info"><h4>BWL Einführung</h4><small>20 Fragen</small></div><span style="color:var(--text-muted)">›</span></div>
+<!-- ── QUIZ MODES ── -->
+<div class="screen" id="scr-quiz-modes">
+  <div class="top-bar"><button class="back-btn" data-go="my-quizzes">← Zurück</button><h2>Modi</h2></div>
+  <div class="welcome" style="background:var(--card);color:var(--text);border:2px solid var(--primary);box-shadow:none"><h2 style="color:var(--text)">Mathe Vektorrechnung</h2><p style="color:var(--text-light)">12 Fragen · 5 Fällig · Mastery 62%</p></div>
+  <div class="section-title">Lern-Modi</div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>🎯 Standard</h4><small>Fällige + Zufall aus Box 1-3</small></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>🔄 Karteikarten</h4><small>Nur fällige Fragen</small></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>🔁 Wiederholen</h4><small>Alle Fragen gemischt</small></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>❌ Nur Falsche</h4><small>3 falsche Fragen</small></div><span class="row-chev">›</span></div>
 </div>
 
-<!-- ===================== QUIZ-MODES ===================== -->
-<div class="screen" id="s-quiz-modes">
-  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>Elektrotechnik 1</h2></div>
-  <div class="card card-accent-top">
-    <h3 style="margin-bottom:var(--space-sm)">25 Fragen</h3>
-    <div class="progress"><div class="progress-fill success" style="width:40%"></div></div>
-    <small>40% gemeistert · Box 1–5 verteilt</small>
-  </div>
+<!-- ── QUIZ (in-game) ── -->
+<div class="screen" id="scr-quiz">
+  <div class="top-bar"><button class="back-btn" data-go="quiz-modes">← Verlassen</button><h2>Frage 3/5</h2></div>
+  <div class="progress-row"><div class="progress-bar"><div class="progress-fill" style="width:60%"></div></div><span class="progress-label">3/5</span></div>
+  <div class="quiz-hero" style="font-size:1.1rem;font-weight:700;line-height:1.6;margin:0 0 18px;padding:16px;background:var(--card);border-radius:var(--radius-lg)">Welche der folgenden Aussagen zur Mitose ist <strong>korrekt</strong>?</div>
+  <div class="option-card selected"><span class="option-key">A</span><span class="option-text">Die Chromosomen werden in der Metaphase getrennt.</span></div>
+  <div class="option-card correct"><span class="option-key">B</span><span class="option-text">In der Anaphase werden Schwesterchromatiden getrennt.</span></div>
+  <div class="option-card"><span class="option-key">C</span><span class="option-text">Die Mitose findet im Cytoplasma der Zelle statt.</span></div>
+  <div class="option-card"><span class="option-key">D</span><span class="option-text">Die Telophase kommt vor der Prophase.</span></div>
+  <div class="btn-row"><button class="btn btn-primary btn-block">Bestätigen</button></div>
+</div>
 
-  <div class="section-title">Lernmodus wählen</div>
+<!-- ── RESULTS ── -->
+<div class="screen" id="scr-results">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Home</button><h2>Ergebnis</h2></div>
+  <div class="card" style="text-align:center;padding:24px 16px">
+    <div style="font-size:3rem;margin-bottom:8px">🏆</div>
+    <h2 style="font-size:1.3rem">80% (4/5 richtig)</h2>
+    <p style="color:var(--text-light);margin-top:4px">+18 Münzen (8 Antw. + 10 Bonus)</p>
+  </div>
+  <div class="stat-grid"><div class="stat-item"><div class="stat-val">4✓</div><div class="stat-label">Richtig</div></div><div class="stat-item"><div class="stat-val">1✗</div><div class="stat-label">Falsch</div></div><div class="stat-item"><div class="stat-val">+18🪙</div><div class="stat-label">Münzen</div></div></div>
+  <!-- AI Explanation (real app has this) -->
+  <div class="card card-accent-left" style="margin-top:12px">
+    <h3 style="font-size:.9rem;margin-bottom:6px">🤖 KI-Erklärung</h3>
+    <p style="font-size:.85rem;color:var(--text-light);line-height:1.5">Gute Leistung! Die Anaphase ist korrekt — in dieser Phase werden die Schwesterchromatiden durch den Spindelapparat zu den entgegengesetzten Polen der Zelle gezogen. Die Metaphase (Option A) ordnet die Chromosomen nur in der Äquatorialebene an, trennt sie aber nicht.</p>
+    <div class="btn-row"><button class="btn btn-sm btn-outline">Detail-Ansicht</button><button class="btn btn-sm btn-ghost">Tutor fragen</button></div>
+  </div>
+  <!-- Wrong question detail -->
+  <div class="card card-danger-left" style="margin-top:8px">
+    <h4 style="font-size:.85rem">❌ Fehler: Metaphase vs. Anaphase</h4>
+    <p style="font-size:.8rem;color:var(--text-light);margin-top:4px;line-height:1.5">Du hast "Metaphase" gewählt. In der Metaphase ordnen sich die Chromosomen lediglich in der Äquatorialebene an — die Trennung erfolgt erst in der Anaphase. Tipp: "Meta" = Mitte, "Ana" = Auseinander.</p>
+    <button class="btn btn-sm btn-ghost" style="margin-top:8px">🔬 Deep Learn zu diesem Thema</button>
+  </div>
+  <div class="btn-row"><button class="btn btn-primary" data-go="quiz">Erneut</button><button class="btn btn-outline" data-go="daily">Zum Daily</button></div>
+</div>
+
+<!-- ── TUTOR ── -->
+<div class="screen" id="scr-tutor">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>KI-Tutor</h2></div>
+  <div class="chat-area" id="tutor-chat">
+    <div class="chat-bubble assistant">Hallo! 👋 Frag mich einfach — ich helfe dir bei schwierigen Konzepten, erkläre Fehler, oder gebe dir Lern-Tipps.</div>
+  </div>
+  <div class="chat-input-row"><input type="text" placeholder="Frage stellen…" style="flex:1" id="tutor-input"><button class="btn btn-primary btn-sm" id="tutor-send">Senden</button></div>
+</div>
+
+<!-- ── DEEP LEARN ── -->
+<div class="screen" id="scr-deep-learn">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Deep Learn</h2></div>
+  <div class="empty">Wähle ein Thema aus deinen Fehlern oder lass dir eins von der KI vorschlagen.</div>
+  <div class="btn-row" style="justify-content:center"><button class="btn btn-primary">Thema generieren</button></div>
+</div>
+
+<!-- ── ACHIEVEMENTS ── -->
+<div class="screen" id="scr-achievements">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Erfolge</h2></div>
+  <div class="ach-card unlocked"><div class="ach-icon">🎯</div><div class="ach-info"><div class="ach-name">Erste Schritte</div><div class="ach-desc">10 Fragen beantwortet</div></div><small>12.06.</small></div>
+  <div class="ach-card unlocked"><div class="ach-icon">🔥</div><div class="ach-info"><div class="ach-name">3-Tage-Streak</div><div class="ach-desc">Drei Tage in Folge gelernt</div></div><small>15.06.</small></div>
+  <div class="ach-card"><div class="ach-icon">💯</div><div class="ach-info"><div class="ach-name">Perfektionist</div><div class="ach-desc">Ein Quiz mit 100% abschließen</div></div></div>
+  <div class="ach-card locked"><div class="ach-icon">🏆</div><div class="ach-info"><div class="ach-name">30-Tage-Streak</div><div class="ach-desc">30 Tage in Folge gelernt</div></div></div>
+  <div class="ach-card locked"><div class="ach-icon">🌙</div><div class="ach-info"><div class="ach-name">Nachteule</div><div class="ach-desc">Lerne nach Mitternacht</div></div></div>
+</div>
+
+<!-- ── STATS ── -->
+<div class="screen" id="scr-stats">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Statistiken</h2><button class="btn btn-sm btn-ghost">Export</button></div>
+  <div class="card" style="text-align:center"><h3 style="font-size:.9rem;margin-bottom:8px">📊 13-Wochen-Heatmap</h3><div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;padding:12px 0"><!-- heatmap placeholder --><span style="padding:4px 10px;border-radius:4px;background:var(--primary-subtle);font-size:.7rem">Mo</span><span style="padding:4px 10px;border-radius:4px;background:var(--primary);color:#fff;font-size:.7rem">Di</span><span style="padding:4px 10px;border-radius:4px;background:var(--primary-subtle);font-size:.7rem">Mi</span>…</div></div>
+  <div class="card"><h3 style="font-size:.9rem;margin-bottom:8px">📦 Leitner-Boxen</h3><div class="progress-row" style="margin-bottom:6px"><span style="font-size:.75rem;min-width:36px">Box 1</span><div class="progress-bar"><div class="progress-fill" style="width:40%;background:var(--box1)"></div></div><span style="font-size:.7rem">12</span></div><div class="progress-row" style="margin-bottom:6px"><span style="font-size:.75rem;min-width:36px">Box 2</span><div class="progress-bar"><div class="progress-fill" style="width:30%;background:var(--box2)"></div></div><span style="font-size:.7rem">9</span></div><div class="progress-row" style="margin-bottom:6px"><span style="font-size:.75rem;min-width:36px">Box 3</span><div class="progress-bar"><div class="progress-fill" style="width:25%;background:var(--box3)"></div></div><span style="font-size:.7rem">7</span></div><div class="progress-row"><span style="font-size:.75rem;min-width:36px">Box 4</span><div class="progress-bar"><div class="progress-fill" style="width:15%;background:var(--box4)"></div></div><span style="font-size:.7rem">4</span></div></div>
+</div>
+
+<!-- ── EDITOR ── -->
+<div class="screen" id="scr-editor">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Quiz-Editor</h2><button class="btn btn-sm btn-primary">Speichern</button></div>
+  <div class="input-group"><label>Quiz-Titel</label><input type="text" value="Mathe Vektorrechnung"></div>
+  <div class="section-title">Fragen</div>
+  <div class="card card-clickable" style="display:flex;align-items:center;gap:10px"><span style="font-size:1.3rem">1.</span><div style="flex:1"><strong style="font-size:.85rem">Berechne das Skalarprodukt.</strong><p style="font-size:.75rem;color:var(--text-light)">single_choice · Box 2</p></div><span style="color:var(--text-light)">✎</span></div>
+  <div class="card card-clickable" style="display:flex;align-items:center;gap:10px"><span style="font-size:1.3rem">2.</span><div style="flex:1"><strong style="font-size:.85rem">Beschrifte die Zellorganellen.</strong><p style="font-size:.75rem;color:var(--text-light)">diagram_label · Box 1</p></div><span style="color:var(--text-light)">✎</span></div>
+  <div class="btn-row"><button class="btn btn-outline btn-block">+ Frage hinzufügen</button></div>
+</div>
+
+<!-- ── AI GENERATE ── -->
+<div class="screen" id="scr-ai-generate">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>KI-Generierung</h2></div>
+  <div class="card">
+    <div class="input-group"><label>Thema / Text</label><textarea class="input" rows="4" placeholder="Füge deinen Lernstoff ein…"></textarea></div>
+    <div class="input-group"><label>Anzahl Fragen</label><input type="number" value="5" min="1" max="20"></div>
+    <div class="input-group"><label>Detaillierungsgrad</label><div class="chip-row"><span class="chip active">Standard</span><span class="chip">Ausführlich</span><span class="chip">Stichpunkte</span></div></div>
+    <div class="btn-row"><button class="btn btn-primary btn-block">🤖 Quiz generieren</button></div>
+  </div>
+  <div class="card card-accent-left"><h4 style="font-size:.85rem">🖼️ Aus Bild generieren</h4><p style="font-size:.8rem;color:var(--text-light);margin:4px 0">Unterstützt: Screenshots, PDF-Seiten (OCR + Vision)</p><button class="btn btn-outline btn-sm" style="margin-top:8px">Bild auswählen</button></div>
+</div>
+
+<!-- ── DAILY ── -->
+<div class="screen" id="scr-daily">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Tägliches Lernen</h2></div>
+  <div class="card" style="text-align:center"><div style="font-size:2rem">🎯</div><h3 style="margin:8px 0">12 Fragen fällig</h3><p style="color:var(--text-light);font-size:.85rem">3 Quizze haben fällige Karten</p></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>Mathe Vektoren</h4><small>5 fällig · Box 1-3</small></div><span class="badge badge-warning">fällig</span></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>Deutsch Grammatik</h4><small>4 fällig · Box 1-2</small></div><span class="badge badge-warning">fällig</span></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>Biologie Zellteilung</h4><small>3 fällig · Box 1-2</small></div><span class="badge badge-warning">fällig</span></div>
+  <div class="section-title">Falsche zum Wiederholen</div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>❌ Metaphase vs. Anaphase</h4><small>Biologie · vor 2h</small></div><span class="badge badge-danger">falsch</span></div>
+  <div class="section-title">Deep Learn Vorschlag</div>
+  <div class="card card-accent-left"><strong>Empfohlen: Zellzyklus</strong><p style="font-size:.8rem;color:var(--text-light);margin:4px 0">Basierend auf deinem Fehler zur Mitose</p><button class="btn btn-sm btn-outline" style="margin-top:6px">Starten</button></div>
+</div>
+
+<!-- ── SHOP ── -->
+<div class="screen" id="scr-shop">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Shop</h2></div>
+  <div class="shop-coinbar"><span class="coin-icon">🪙</span><span class="coin-amount">247</span><span class="shop-coinhint">+2 pro richtige Antwort</span></div>
+  <div class="shop-tabs">
+    <button class="shop-tab active" data-shop-tab="0">Charakter</button>
+    <button class="shop-tab" data-shop-tab="1">Haus</button>
+    <button class="shop-tab" data-shop-tab="2">Skins</button>
+    <button class="shop-tab" data-shop-tab="3">Games</button>
+  </div>
+  <!-- Charakter-Tab -->
+  <div class="shop-panel" id="shop-panel-0">
+    <div class="avatar-preview"><svg viewBox="0 0 100 100" width="120" height="120"><rect width="100" height="100" rx="16" fill="var(--primary-subtle)"/><ellipse cx="50" cy="42" rx="22" ry="22" fill="var(--primary)"/><ellipse cx="50" cy="90" rx="34" ry="22" fill="var(--primary)"/><ellipse cx="42" cy="38" rx="4" ry="4" fill="var(--on-primary)"/><ellipse cx="58" cy="38" rx="4" ry="4" fill="var(--on-primary)"/></svg></div>
+    <div class="section-title">Hüte</div>
+    <div class="scroll-x">
+      <div class="shop-item equipped"><div class="shop-item-preview" style="background:var(--primary-subtle);font-size:2rem;line-height:56px">🧢</div><div class="shop-item-name">Basecap</div><span class="badge badge-primary" style="font-size:.6rem">An</span></div>
+      <div class="shop-item"><div class="shop-item-preview" style="background:var(--input-bg);font-size:2rem;line-height:56px">🎩</div><div class="shop-item-name">Zylinder</div><button class="shop-mini-btn buy">80🪙</button></div>
+      <div class="shop-item"><div class="shop-item-preview" style="background:var(--input-bg);font-size:2rem;line-height:56px">👑</div><div class="shop-item-name">Krone</div><button class="shop-mini-btn buy">200🪙</button></div>
+    </div>
+  </div>
+  <!-- Haus-Tab -->
+  <div class="shop-panel hidden" id="shop-panel-1">
+    <div class="house-preview"><svg viewBox="0 0 200 150" width="180" height="135"><rect x="60" y="80" width="80" height="70" fill="var(--primary)" rx="4"/><polygon points="40,80 100,30 160,80" fill="var(--primary-dark)"/><rect x="90" y="110" width="22" height="40" fill="var(--card)" rx="3"/></svg><div class="house-name">Hütte (Stufe 2)</div></div>
+    <div class="house-level-row owned"><div class="house-mini" style="text-align:center;font-size:1.5rem">⛺</div><div style="flex:1"><strong style="font-size:.85rem">Zelt</strong><p style="font-size:.7rem;color:var(--text-light)">Stufe 1 · Start</p></div><span class="badge badge-success">✓</span></div>
+    <div class="house-level-row owned"><div class="house-mini" style="text-align:center;font-size:1.5rem">🏠</div><div style="flex:1"><strong style="font-size:.85rem">Hütte</strong><p style="font-size:.7rem;color:var(--text-light)">Stufe 2 · 150🪙</p></div><span class="badge badge-success">✓</span></div>
+    <div class="house-level-row"><div class="house-mini" style="text-align:center;font-size:1.5rem">🏡</div><div style="flex:1"><strong style="font-size:.85rem">Haus</strong><p style="font-size:.7rem;color:var(--text-light)">Stufe 3 · 400🪙</p></div><button class="btn btn-sm btn-primary">Kaufen</button></div>
+  </div>
+  <!-- Skins-Tab -->
+  <div class="shop-panel hidden" id="shop-panel-2"><div class="skins-grid"><div class="skin-card equipped"><div class="skin-swatch" style="background:linear-gradient(135deg,#1cb487,#0d8060)"></div><div class="skin-name">Standard Grün</div><span class="skin-badge">Aktiv</span></div><div class="skin-card"><div class="skin-swatch" style="background:linear-gradient(135deg,#6366f1,#4f46e5)"></div><div class="skin-name">Indigo Nacht</div><button class="shop-mini-btn buy">120🪙</button></div><div class="skin-card"><div class="skin-swatch" style="background:linear-gradient(135deg,#ec4899,#be185d)"></div><div class="skin-name">Rose</div><button class="shop-mini-btn buy">120🪙</button></div></div></div>
+  <!-- Games-Tab -->
+  <div class="shop-panel hidden" id="shop-panel-3"><div class="empty">Game-Skins hier. Spiele mehr Games, um Skins freizuschalten!</div></div>
+</div>
+
+<!-- ── GAMES ── -->
+<div class="screen" id="scr-games">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Games</h2></div>
   <div class="grid-2">
-    <div class="grid-card" data-go="quiz"><span class="icon">🎯</span><div class="title">Karteikarten</div><div class="desc">Klassisch abfragen</div></div>
-    <div class="grid-card" data-go="quiz"><span class="icon">📝</span><div class="title">Schriftlich</div><div class="desc">Freitext-Antwort</div></div>
-    <div class="grid-card" data-go="speed-quiz"><span class="icon">⚡</span><div class="title">Speed Quiz</div><div class="desc">Unter Zeitdruck</div></div>
-    <div class="grid-card" data-go="quiz"><span class="icon">🔄</span><div class="title">Nur Falsche</div><div class="desc">Box 1–2</div></div>
-    <div class="grid-card" data-go="browse"><span class="icon">👀</span><div class="title">Browse</div><div class="desc">Durchblättern</div></div>
-    <div class="grid-card" data-go="socratic"><span class="icon">🏛️</span><div class="title">Sokratisch</div><div class="desc">Hinterfragen</div></div>
-  </div>
-
-  <button class="btn btn-outline" data-go="editor" style="margin-top:var(--space-sm)">✏️ Quiz bearbeiten</button>
-</div>
-
-
-<!-- ===================== SHOP (new screen — previously missing) ===================== -->
-<div class="screen" id="s-shop">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🛒 Shop</h2></div>
-
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:var(--space-xl);background:var(--surface-0);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:var(--space-md) var(--space-lg)">
-    <span style="font-size:1.8rem">🪙</span>
-    <div style="flex:1"><strong style="font-size:var(--fs-lg)">1.240 Münzen</strong><br><small>+2 pro richtiger Antwort</small></div>
-  </div>
-
-  <div class="section-title">Charakter</div>
-  <div class="card card-elevated" style="text-align:center">
-    <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent));display:inline-flex;align-items:center;justify-content:center;font-size:2.5rem;margin-bottom:var(--space-md)">🧑‍🎓</div>
-    <h3>Dein Avatar</h3>
-    <p>Hut · Brille · Accessoires</p>
-    <button class="btn btn-outline btn-sm" style="width:auto;margin-top:var(--space-sm)">Anpassen (ab 50 🪙)</button>
-  </div>
-
-  <div class="section-title">Haus</div>
-  <div class="card card-elevated" style="text-align:center">
-    <div style="font-size:3rem;margin-bottom:var(--space-sm)">🏠</div>
-    <h3>Stufe 3 — Holzhaus</h3>
-    <small>Nächstes Upgrade: Villa (500 🪙)</small>
-    <div class="progress" style="margin:var(--space-md) 0"><div class="progress-fill primary" style="width:60%"></div></div>
-    <button class="btn btn-outline btn-sm" style="width:auto">Aufwerten</button>
-  </div>
-
-  <div class="section-title">Theme-Skins</div>
-  <div style="display:flex;gap:var(--space-sm);margin-bottom:var(--space-md)">
-    <div class="chip active" style="border-color:var(--primary);background:var(--primary-soft)">🟣 Lila (aktiv)</div>
-    <div class="chip">🔵 Blau</div>
-    <div class="chip">🟢 Grün</div>
-    <div class="chip">🟠 Orange</div>
+    <div class="grid-card" data-go="tower-defense"><div class="icon">🗼</div><div class="title">Tower Defense</div><div class="desc">Bloons-artig</div></div>
+    <div class="grid-card" data-go="quiz-battle"><div class="icon">⚔️</div><div class="title">Quiz Battle</div><div class="desc">PvP &amp; PvC</div></div>
+    <div class="grid-card" data-go="speed-quiz"><div class="icon">⚡</div><div class="title">Speed Quiz</div><div class="desc">Zeitdruck</div></div>
+    <div class="grid-card" data-go="millionaire"><div class="icon">💶</div><div class="title">Millionär</div><div class="desc">Mit Jokern</div></div>
+    <div class="grid-card" data-go="hangman"><div class="icon">💀</div><div class="title">Galgen</div><div class="desc">Hangman</div></div>
+    <div class="grid-card" data-go="boss-fight"><div class="icon">👹</div><div class="title">Boss Fight</div><div class="desc">Endgegner</div></div>
   </div>
 </div>
 
-<!-- ===================== QUIZ (active question) ===================== -->
-<div class="screen" id="s-quiz">
-  <div class="top-bar"><button class="back" data-go="quiz-modes">‹</button><h2>Quiz</h2><span class="badge badge-primary">3/25</span></div>
-  <div class="progress"><div class="progress-fill primary" style="width:12%"></div></div>
-  <div class="card card-accent-top" style="margin-top:var(--space-lg)">
-    <span class="badge badge-primary" style="margin-bottom:var(--space-sm)">Multiple Choice</span>
-    <h3>Wie lautet das Ohmsche Gesetz?</h3>
-  </div>
-  <button class="option-btn">A) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
-  <button class="option-btn selected">B) <span class="math" data-tex="U = R \cdot I">U = R × I</span></button>
-  <button class="option-btn">C) <span class="math" data-tex="R = U \cdot I">R = U × I</span></button>
-  <button class="option-btn">D) <span class="math" data-tex="I = U \cdot R">I = U × R</span></button>
-  <button class="btn btn-primary" data-go="results" style="margin-top:var(--space-xl)">Antwort prüfen →</button>
+<!-- ── TOWER DEFENSE ── -->
+<div class="screen" id="scr-tower-defense">
+  <div class="top-bar"><button class="back-btn" data-go="games">← Zurück</button><h2>Tower Defense</h2><span class="badge badge-primary">Welle 3</span></div>
+  <div style="background:var(--card);border-radius:var(--radius-lg);padding:16px;text-align:center;margin-bottom:12px;min-height:200px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border)"><div style="color:var(--text-light)">🗼 🎯 🦠 🦠<br><span style="font-size:.8rem">Canvas-Game Area</span></div></div>
+  <div class="option-card"><span class="option-key">A</span><span class="option-text">Richtige Antwort → Schuss!</span></div>
+  <div class="option-card"><span class="option-key">B</span><span class="option-text">Falsche Antwort</span></div>
+  <div class="option-card"><span class="option-key">C</span><span class="option-text">Falsche Antwort</span></div>
 </div>
 
-<!-- ===================== RESULTS ===================== -->
-<div class="screen" id="s-results">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>Ergebnis</h2></div>
-
-  <div class="card card-elevated" style="text-align:center">
-    <div style="font-size:3.5rem;margin:var(--space-md) 0">🎉</div>
-    <h2 style="color:var(--success);font-size:var(--fs-2xl)">80% richtig!</h2>
-    <p>20 von 25 korrekt · <span style="color:var(--warning)">+15 🪙</span></p>
+<!-- ── QUIZ BATTLE ── -->
+<div class="screen" id="scr-quiz-battle">
+  <div class="top-bar"><button class="back-btn" data-go="games">← Zurück</button><h2>Quiz Battle</h2></div>
+  <div class="boss-arena">
+    <div class="boss-sprite"><div class="boss-icon">🧑</div><div class="boss-name">Du</div><div class="boss-bar player-bar"><div class="boss-bar-fill" style="width:80%"></div></div></div>
+    <div class="boss-vs">⚡</div>
+    <div class="boss-sprite"><div class="boss-icon">🤖</div><div class="boss-name">CPU</div><div class="boss-bar"><div class="boss-bar-fill" style="width:45%"></div></div></div>
   </div>
+  <div class="option-card"><span class="option-key">A</span><span class="option-text">Antwortmöglichkeit 1</span></div>
+  <div class="option-card"><span class="option-key">B</span><span class="option-text">Antwortmöglichkeit 2</span></div>
+  <div class="option-card"><span class="option-key">C</span><span class="option-text">Antwortmöglichkeit 3</span></div>
+  <div class="option-card"><span class="option-key">D</span><span class="option-text">Antwortmöglichkeit 4</span></div>
+</div>
 
-  <div class="stat-grid">
-    <div class="stat-item"><div class="stat-val" style="color:var(--success)">20</div><div class="stat-label">Richtig</div></div>
-    <div class="stat-item"><div class="stat-val" style="color:var(--danger)">5</div><div class="stat-label">Falsch</div></div>
-    <div class="stat-item"><div class="stat-val" style="color:var(--accent)">3:42</div><div class="stat-label">Zeit</div></div>
-  </div>
+<!-- ── SPEED QUIZ ── -->
+<div class="screen" id="scr-speed-quiz">
+  <div class="top-bar"><button class="back-btn" data-go="games">← Zurück</button><h2>Speed Quiz</h2></div>
+  <div class="speed-hud"><span class="speed-timer">⏱ 18s</span><span class="speed-score">Punkte: 240</span></div>
+  <div class="speed-progress"><div class="speed-bar" style="width:45%"></div></div>
+  <div class="option-card"><span class="option-key">A</span><span class="option-text">Schnelle Antwort</span></div>
+  <div class="option-card"><span class="option-key">B</span><span class="option-text">Langsame Antwort</span></div>
+</div>
 
-  <div class="section-title">Falsche Antworten — KI-Erklärung</div>
-  <div class="card card-danger-left">
-    <div style="display:flex;justify-content:space-between;align-items:start">
-      <div><h4>Frage 4 — Wechselstrom</h4><small>Kirchhoffsche Regeln</small></div>
-      <span class="badge badge-danger">✗ falsch</span>
-    </div>
-    <div class="divider"></div>
-    <p style="font-size:var(--fs-sm)"><strong>🤖 KI:</strong> Die Maschenregel besagt, dass die Summe aller Spannungen in einer Masche null ist. Achte darauf, Spannungsquellen und Widerstände getrennt zu betrachten.</p>
-    <button class="btn btn-ghost btn-xs">Mehr erfahren →</button>
-  </div>
-  <div class="card card-danger-left">
-    <div style="display:flex;justify-content:space-between;align-items:start">
-      <div><h4>Frage 11 — Induktion</h4><small>Elektromagnetismus</small></div>
-      <span class="badge badge-danger">✗ falsch</span>
-    </div>
-    <div class="divider"></div>
-    <p style="font-size:var(--fs-sm)"><strong>🤖 KI:</strong> Die induzierte Spannung ist proportional zur Änderungsrate des magnetischen Flusses — nicht zum absoluten Wert.</p>
-    <button class="btn btn-ghost btn-xs">Mehr erfahren →</button>
-  </div>
+<!-- ── MILLIONAIRE ── -->
+<div class="screen" id="scr-millionaire">
+  <div class="top-bar"><button class="back-btn" data-go="games">← Zurück</button><h2>Wer wird Millionär</h2></div>
+  <div class="mill-header"><span class="mill-prize">500 €</span><span class="mill-level">Stufe 5/15</span></div>
+  <div class="money-ladder"><div class="money-step done">50 €</div><div class="money-step done">100 €</div><div class="money-step done">200 €</div><div class="money-step current">500 €</div><div class="money-step">1.000 €</div><div class="money-step safe">16.000 €</div></div>
+  <div class="mill-question">Welche ist die richtige Antwort?</div>
+  <div class="mill-options"><div class="mill-opt"><span class="mill-letter">A</span> Option A</div><div class="mill-opt eliminated"><span class="mill-letter">B</span> Option B</div><div class="mill-opt"><span class="mill-letter">C</span> Option C</div><div class="mill-opt"><span class="mill-letter">D</span> Option D</div></div>
+  <div class="mill-jokers"><button class="mill-joker">50:50</button><button class="mill-joker used">📞</button><button class="mill-joker">👥</button></div>
+</div>
 
-  <div style="display:flex;gap:var(--space-md);margin-top:var(--space-xl)">
-    <button class="btn btn-primary" data-go="quiz" style="flex:1">Nochmal</button>
-    <button class="btn btn-outline" data-go="home" style="flex:1">Home</button>
+<!-- ── HANGMAN ── -->
+<div class="screen" id="scr-hangman">
+  <div class="top-bar"><button class="back-btn" data-go="games">← Zurück</button><h2>Galgenmännchen</h2><span class="badge badge-warning">3/6</span></div>
+  <div class="hm-prompt">Hauptstadt von Frankreich?</div>
+  <div class="hm-figure"><svg class="hangman-svg" viewBox="0 0 120 140"><line x1="30" y1="130" x2="90" y2="130" stroke="currentColor" stroke-width="3"/><line x1="50" y1="20" x2="50" y2="130" stroke="currentColor" stroke-width="3"/><line x1="50" y1="20" x2="80" y2="20" stroke="currentColor" stroke-width="3"/><line x1="80" y1="20" x2="80" y2="35" stroke="currentColor" stroke-width="2"/><circle cx="80" cy="45" r="10" stroke="currentColor" stroke-width="2" fill="none"/><line x1="80" y1="55" x2="80" y2="85" stroke="currentColor" stroke-width="2"/></svg></div>
+  <div class="hm-word">P _ R _ S</div>
+  <div class="hm-keyboard">
+    <button class="hm-key correct">P</button><button class="hm-key">A</button><button class="hm-key wrong">B</button><button class="hm-key">R</button><button class="hm-key">I</button><button class="hm-key correct">S</button>
   </div>
 </div>
 
-<!-- ===================== AI-GENERATE ===================== -->
-<div class="screen" id="s-ai-generate">
-  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🤖 KI-Generator</h2></div>
-
-  <div class="card">
-    <h3>Quiz aus Text generieren</h3>
-    <p style="margin-bottom:var(--space-md)">Füge einen Text ein oder lade eine Datei hoch</p>
-    <textarea class="input" placeholder="Text hier einfügen…"></textarea>
-    <div style="display:flex;gap:var(--space-sm)">
-      <button class="btn btn-outline btn-sm" style="flex:1">📄 Datei laden</button>
-      <button class="btn btn-outline btn-sm" style="flex:1">📋 Einfügen</button>
-    </div>
+<!-- ── BOSS FIGHT ── -->
+<div class="screen" id="scr-boss-fight">
+  <div class="top-bar"><button class="back-btn" data-go="games">← Zurück</button><h2>Boss Fight</h2></div>
+  <div class="boss-arena">
+    <div class="boss-sprite"><div class="boss-icon">🧑‍🎓</div><div class="boss-name">Du</div><div class="boss-bar player-bar"><div class="boss-bar-fill player-fill" style="width:75%"></div></div></div>
+    <div class="boss-vs">⚔️</div>
+    <div class="boss-sprite"><div class="boss-icon">🐉</div><div class="boss-name">Prüfungs-Drache</div><div class="boss-bar"><div class="boss-bar-fill" style="width:40%"></div></div></div>
   </div>
-
-  <div class="card">
-    <h3>Generierungs-Fokus</h3>
-    <div class="toggle-row"><span>🎯 Multiple Choice</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>📝 Freitext-Fragen</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>✂️ Lückentext</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
-    <div class="input-group" style="margin-top:var(--space-md)">
-      <label>Anzahl Fragen</label>
-      <input class="input" type="number" value="10" style="margin-bottom:0">
-    </div>
-    <div class="input-group">
-      <label>Detailgrad</label>
-      <div class="chip-row" style="margin:0">
-        <span class="chip active">🎓 Detailliert</span>
-        <span class="chip">📋 Standard</span>
-        <span class="chip">⚡ Oberflächlich</span>
-      </div>
-    </div>
-  </div>
-
-  <button class="btn btn-primary">🤖 Quiz generieren</button>
+  <div class="boss-combo">🔥 3er Combo!</div>
+  <div class="option-card"><span class="option-key">A</span><span class="option-text">Antwort A</span></div>
+  <div class="option-card"><span class="option-key">B</span><span class="option-text">Antwort B</span></div>
 </div>
 
-<!-- ===================== EDITOR ===================== -->
-<div class="screen" id="s-editor">
-  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>✏️ Quiz erstellen</h2></div>
-  <div class="input-group"><label>Quiz-Name</label><input class="input" placeholder="z.B. Elektrotechnik 1"></div>
-
-  <div class="card card-accent-left">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
-      <h3 style="margin:0">Frage 1</h3>
-      <button class="btn btn-ghost btn-xs" style="color:var(--danger)">🗑️</button>
-    </div>
-    <input class="input" placeholder="Fragetext eingeben">
-    <div class="chip-row">
-      <span class="chip active">Multiple Choice</span>
-      <span class="chip">Freitext</span>
-      <span class="chip">Lückentext</span>
-      <span class="chip">Wahr/Falsch</span>
-    </div>
-    <input class="input" placeholder="Antwort A (korrekt)" style="border-left:3px solid var(--success)">
-    <input class="input" placeholder="Antwort B">
-    <input class="input" placeholder="Antwort C">
-    <input class="input" placeholder="Antwort D">
-    <button class="btn btn-ghost btn-sm" style="width:auto;font-size:var(--fs-xs)">🤖 Mit KI bearbeiten</button>
-  </div>
-
-  <button class="btn btn-outline" style="margin-bottom:var(--space-md)">+ Frage hinzufügen</button>
-  <button class="btn btn-primary">💾 Quiz speichern</button>
+<!-- ── ERROR DIARY ── -->
+<div class="screen" id="scr-error-diary">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Fehlertagebuch</h2></div>
+  <div class="card card-danger-left"><strong style="font-size:.9rem">Metaphase vs. Anaphase</strong><p style="font-size:.8rem;color:var(--text-light);margin-top:3px">Biologie · vor 2h · Gewählt: "Metaphase"</p></div>
+  <div class="card card-danger-left"><strong style="font-size:.9rem">Skalarprodukt falsch</strong><p style="font-size:.8rem;color:var(--text-light);margin-top:3px">Mathe · gestern · Rechenfehler</p></div>
+  <div class="card card-danger-left"><strong style="font-size:.9rem">Komma vor "dass"</strong><p style="font-size:.8rem;color:var(--text-light);margin-top:3px">Deutsch · vor 3 Tagen</p></div>
 </div>
 
-<!-- ===================== STATS ===================== -->
-<div class="screen" id="s-stats">
-  <div class="top-bar"><button class="back" data-go="settings">‹</button><h2>📊 Statistik</h2></div>
-
-  <div class="stat-grid">
-    <div class="stat-item"><div class="stat-val">342</div><div class="stat-label">Fragen beantwortet</div></div>
-    <div class="stat-item"><div class="stat-val" style="color:var(--success)">78%</div><div class="stat-label">Richtig</div></div>
-    <div class="stat-item"><div class="stat-val">7</div><div class="stat-label">Tage Streak</div></div>
-  </div>
-
-  <div class="card" style="margin-top:var(--space-md)">
-    <h3>Letzte 7 Tage</h3>
-    <div style="display:flex;align-items:flex-end;gap:8px;height:100px;margin-top:var(--space-md);padding:0 4px">
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:40%;min-height:4px;transition:height 0.5s var(--ease-out-expo)"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:60%;min-height:4px"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:30%;min-height:4px"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:80%;min-height:4px;background:linear-gradient(180deg,var(--accent),var(--primary))"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:55%;min-height:4px"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:90%;min-height:4px;background:linear-gradient(180deg,var(--accent),var(--primary))"></div>
-      <div style="flex:1;background:var(--primary);border-radius:4px 4px 0 0;height:45%;min-height:4px"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-muted);margin-top:6px;padding:0 4px">
-      <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
-    </div>
-  </div>
-
-  <div class="section-title">Pro Quiz</div>
-  <div class="quiz-row"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>85% richtig</small></div><span class="badge badge-success">+12 🪙</span></div>
-  <div class="quiz-row"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>72% richtig</small></div><span class="badge badge-warning">+8 🪙</span></div>
+<!-- ── MARKED ── -->
+<div class="screen" id="scr-marked">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Markierte Fragen</h2></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>⭐ Matrix-Determinante</h4><small>Mathe · Box 3</small></div><span class="row-chev">›</span></div>
+  <div class="quiz-row" data-go="quiz"><div class="quiz-info"><h4>⭐ DNA-Replikation</h4><small>Biologie · Box 2</small></div><span class="row-chev">›</span></div>
+  <div class="empty hidden" id="marked-empty">Keine markierten Fragen. Tippe ⭐ während eines Quiz!</div>
 </div>
 
-<!-- ===================== TUTOR ===================== -->
-<div class="screen" id="s-tutor">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>💬 KI-Tutor</h2></div>
-  <div class="chat-area">
-    <div class="chat-bubble chat-ai">Hallo! Ich bin dein KI-Tutor. Welches Thema möchtest du verstehen?</div>
-    <div class="chat-bubble chat-user">Kannst du mir das Ohmsche Gesetz erklären?</div>
-    <div class="chat-bubble chat-ai">Natürlich! Das Ohmsche Gesetz beschreibt den Zusammenhang zwischen Spannung (U), Strom (I) und Widerstand (R): <strong><span class="math" data-tex="U = R \cdot I">U = R × I</span></strong>. Die Spannung ist das Produkt aus Widerstand und Stromstärke. Soll ich dazu eine Beispielaufgabe stellen?</div>
-  </div>
-  <div class="chip-row">
-    <span class="chip">Erkläre genauer</span>
-    <span class="chip">Beispielaufgabe</span>
-    <span class="chip">Quiz dazu erstellen</span>
-  </div>
-  <div style="display:flex;gap:var(--space-sm)">
-    <input class="input" placeholder="Nachricht…" style="flex:1;margin:0">
-    <button class="btn btn-primary btn-sm" style="width:auto;padding:var(--space-md) 18px">↑</button>
-  </div>
+<!-- ── FOLDERS ── -->
+<div class="screen" id="scr-folders">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Ordner</h2><button class="btn btn-sm btn-ghost">+</button></div>
+  <div class="folder-item" data-go="my-quizzes"><div class="f-icon">📁</div><div style="flex:1"><strong style="font-size:.88rem">Schule Q3</strong><p style="font-size:.76rem;color:var(--text-light)">4 Quizze · 3 schwache Fragen</p></div><span class="badge badge-muted">4</span></div>
+  <div class="folder-item" data-go="my-quizzes"><div class="f-icon">📁</div><div style="flex:1"><strong style="font-size:.88rem">Uni Mathe</strong><p style="font-size:.76rem;color:var(--text-light)">2 Quizze</p></div><span class="badge badge-muted">2</span></div>
 </div>
 
-<!-- ===================== POMODORO ===================== -->
-<div class="screen" id="s-pomodoro">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🍅 Pomodoro</h2></div>
-  <div class="pom-circle">25:00</div>
-  <div style="text-align:center;margin-bottom:var(--space-xl)">
-    <span class="chip active">Fokus 25min</span>
-    <span class="chip">Pause 5min</span>
-    <span class="chip">Lang 15min</span>
-  </div>
-  <div style="display:flex;gap:var(--space-md);justify-content:center">
-    <button class="btn btn-primary btn-sm" style="width:auto;padding:var(--space-md) 36px">▶ Start</button>
-    <button class="btn btn-outline btn-sm" style="width:auto">⟳ Reset</button>
-  </div>
-  <div class="card" style="margin-top:var(--space-xl);text-align:center">
-    <div style="font-size:var(--fs-md);font-weight:600">Heute: 3 Pomodoros</div>
-    <small>75 Minuten fokussiert</small>
-  </div>
+<!-- ── SR DASHBOARD ── -->
+<div class="screen" id="scr-sr-dashboard">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>SR-Dashboard</h2></div>
+  <div class="card"><h3 style="font-size:.9rem;margin-bottom:8px">📈 Vorhersage</h3><div class="forecast-chart"><div class="forecast-col"><span class="forecast-num">12</span><div class="forecast-bar" style="height:60%;background:var(--primary)"></div><span class="forecast-label">Mo</span></div><div class="forecast-col"><span class="forecast-num">8</span><div class="forecast-bar" style="height:40%;background:var(--primary)"></div><span class="forecast-label">Di</span></div><div class="forecast-col"><span class="forecast-num">15</span><div class="forecast-bar" style="height:80%;background:var(--primary)"></div><span class="forecast-label">Mi</span></div><div class="forecast-col"><span class="forecast-num">6</span><div class="forecast-bar" style="height:30%;background:var(--primary)"></div><span class="forecast-label">Do</span></div></div></div>
+  <div class="section-title">Mastery pro Quiz</div>
+  <div class="quiz-row"><div class="quiz-info"><h4>Mathe Vektoren</h4><div class="progress-row" style="margin:4px 0"><div class="progress-bar" style="height:8px"><div class="progress-fill" style="width:62%"></div></div><span class="progress-label" style="font-size:.7rem">62%</span></div></div></div>
+  <div class="quiz-row"><div class="quiz-info"><h4>Deutsch Grammatik</h4><div class="progress-row" style="margin:4px 0"><div class="progress-bar" style="height:8px"><div class="progress-fill" style="width:78%"></div></div><span class="progress-label" style="font-size:.7rem">78%</span></div></div></div>
 </div>
 
-<!-- ===================== SOCRATIC ===================== -->
-<div class="screen" id="s-socratic">
-  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🏛️ Sokratisches Lernen</h2></div>
-  <div class="chat-area">
-    <div class="chat-bubble chat-ai">Betrachte die Formel <span class="math" data-tex="U = R \cdot I">U = R × I</span>. Was passiert mit dem Strom I, wenn du den Widerstand R verdoppelst, die Spannung U aber gleich lässt?</div>
-    <div class="chat-bubble chat-user">Der Strom wird halbiert?</div>
-    <div class="chat-bubble chat-ai">Genau richtig! 👏 Kannst du erklären, warum das so ist? Denk an die Formel umgestellt nach I…</div>
-  </div>
-  <div class="chip-row">
-    <span class="chip">💡 Hinweis</span>
-    <span class="chip">🤷 Ich weiß nicht</span>
-    <span class="chip">📖 Theorie zeigen</span>
-  </div>
-  <div style="display:flex;gap:var(--space-sm)">
-    <input class="input" placeholder="Deine Antwort…" style="flex:1;margin:0">
-    <button class="btn btn-primary btn-sm" style="width:auto;padding:var(--space-md) 18px">↑</button>
-  </div>
+<!-- ── CLOZE ── -->
+<div class="screen" id="scr-cloze">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Lückentext</h2></div>
+  <div class="card"><h4 style="font-size:.9rem;margin-bottom:8px">🤖 Generierter Lückentext</h4><div class="skeleton skeleton-text" style="height:40px;margin-bottom:8px"></div><div class="skeleton skeleton-text" style="height:40px;width:80%"></div><p style="font-size:.75rem;color:var(--text-light);margin-top:8px">Wird mit KI generiert — füge Text ein und wähle Keywords.</p></div>
+  <div class="btn-row"><button class="btn btn-primary btn-block">Text eingeben</button></div>
 </div>
 
-<!-- ===================== CLOZE ===================== -->
-<div class="screen" id="s-cloze">
-  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>✂️ Lückentext</h2></div>
-  <div class="card card-elevated">
-    <p style="font-size:var(--fs-md);line-height:2.2;color:var(--text)">
-      Das Ohmsche Gesetz lautet
-      <span style="background:var(--primary-soft);color:var(--primary);padding:3px 16px;border-radius:6px;border:1px dashed var(--primary);margin:0 2px;font-weight:600">______</span>
-      = R × I. Der
-      <span style="background:var(--primary-soft);color:var(--primary);padding:3px 16px;border-radius:6px;border:1px dashed var(--primary);margin:0 2px;font-weight:600">______</span>
-      wird in Ohm (Ω) gemessen.
-    </p>
-  </div>
-  <div class="section-title">Verfügbare Wörter</div>
-  <div class="chip-row">
-    <span class="chip">U</span>
-    <span class="chip">Widerstand</span>
-    <span class="chip">Strom</span>
-    <span class="chip">Spannung</span>
-  </div>
-  <button class="btn btn-primary" style="margin-top:var(--space-xl)">Prüfen ✓</button>
+<!-- ── STUDY ── -->
+<div class="screen" id="scr-study">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Karteikarten</h2></div>
+  <div class="study-overview"><h3>📚 Mathe Vektoren</h3><div class="study-stats-row"><div class="study-stat"><span class="study-stat-num">5</span><span class="study-stat-label">Fällig</span></div><div class="study-stat"><span class="study-stat-num">12</span><span class="study-stat-label">Gesamt</span></div></div><div class="study-material-badge">Vektorrechnung</div></div>
+  <div class="btn-row" style="justify-content:center"><button class="btn btn-primary">Karteikarten starten</button></div>
 </div>
 
-<!-- ===================== SCAFFOLD ===================== -->
-<div class="screen" id="s-scaffold">
-  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🔢 Formel-Training</h2></div>
-  <div class="card card-accent-top">
-    <span class="badge badge-primary" style="margin-bottom:var(--space-sm)">Stufe 1 — Gegeben & Gesucht</span>
-    <h3>Berechne den Strom I</h3>
-    <div style="display:flex;gap:var(--space-md);margin:var(--space-md) 0">
-      <div style="flex:1;background:var(--surface-1);border-radius:var(--radius-sm);padding:var(--space-md)">
-        <small style="color:var(--success);font-weight:600">Gegeben</small>
-        <p style="color:var(--text)">U = 24 V</p>
-        <p style="color:var(--text)">R = 8 Ω</p>
-      </div>
-      <div style="flex:1;background:var(--surface-1);border-radius:var(--radius-sm);padding:var(--space-md)">
-        <small style="color:var(--warning);font-weight:600">Gesucht</small>
-        <p style="color:var(--text)">I = ? A</p>
-      </div>
-    </div>
-  </div>
-  <div class="formula-box"><span class="math" data-tex="I = \frac{U}{R}">I = U / R</span></div>
-  <div class="step-chain">
-    <div class="step-node"><div class="step-dot done"></div><span>Formel identifiziert: I = U/R</span></div>
-    <div class="step-node"><div class="step-dot active"></div><span style="font-weight:600">Werte einsetzen</span></div>
-    <div class="step-node"><div class="step-dot"></div><span>Berechnen</span></div>
-  </div>
-  <input class="input" placeholder="I = 24 / 8 = ?">
-  <button class="btn btn-primary">Prüfen</button>
+<!-- ── POMODORO ── -->
+<div class="screen" id="scr-pomodoro">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Pomodoro</h2></div>
+  <div class="pomo-card"><div class="pomo-ring"><svg viewBox="0 0 180 180" width="180" height="180"><circle cx="90" cy="90" r="80" fill="none" stroke="var(--border)" stroke-width="8"/><circle cx="90" cy="90" r="80" fill="none" stroke="var(--primary)" stroke-width="8" stroke-dasharray="502.6" stroke-dashoffset="150" stroke-linecap="round" transform="rotate(-90 90 90)" style="transition:stroke-dashoffset .5s"/></svg><div class="pomo-time">18:42</div></div><div class="btn-row" style="justify-content:center"><button class="btn btn-primary">▶ Start</button></div></div>
+  <div class="chip-row" style="justify-content:center"><span class="chip active">25 min</span><span class="chip">15 min</span><span class="chip">5 min</span></div>
 </div>
 
-<!-- ===================== DEEP-LEARN ===================== -->
-<div class="screen" id="s-deep-learn">
-  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>🔬 Deep Learning</h2></div>
-  <div class="card card-elevated" style="text-align:center">
-    <div style="font-size:2.5rem;margin-bottom:var(--space-md)">🔬</div>
-    <h3>Neues Thema starten</h3>
-    <p>PDF hochladen oder Quiz importieren — KI extrahiert Themen und leitet eine Verständnis-Session.</p>
-    <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-lg)">
-      <button class="btn btn-primary btn-sm" style="flex:1" data-go="deep-learn-import">📄 PDF / Text</button>
-      <button class="btn btn-outline btn-sm" style="flex:1" data-go="deep-learn-import">📚 Quiz Import</button>
-    </div>
-  </div>
-  <div class="section-title">Gespeicherte Sessions</div>
-  <div class="card" data-go="deep-learn-topics" style="cursor:pointer">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><h4>Elektrotechnik Skript</h4><small>5 Themen · 23 Nachrichten</small></div>
-      <span style="color:var(--text-muted)">›</span>
-    </div>
-  </div>
-  <div class="card" data-go="deep-learn-topics" style="cursor:pointer">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><h4>Analysis II Zusammenfassung</h4><small>4 Themen · 12 Nachrichten</small></div>
-      <span style="color:var(--text-muted)">›</span>
-    </div>
-  </div>
+<!-- ── SETTINGS ── -->
+<div class="screen" id="scr-settings">
+  <div class="top-bar"><button class="back-btn" data-go="home">← Zurück</button><h2>Einstellungen</h2></div>
+  <div class="card"><div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on" id="theme-toggle"><div class="toggle-knob"></div></div></div></div>
+  <div class="card"><h4 style="font-size:.85rem;margin-bottom:8px">🤖 KI-Modell</h4><div class="model-select-list"><div class="model-option selected"><div class="model-name"><span>💎</span> Fable 5</div><div class="model-meta">Standard · $15/M tok</div></div><div class="model-option"><div class="model-name"><span>🧠</span> Opus 4.8</div><div class="model-meta">Denken · $15/M tok</div></div></div></div>
+  <div class="btn-row"><button class="btn btn-outline btn-block">JSON Import/Export</button></div>
 </div>
 
-<!-- ===================== DEEP-LEARN-IMPORT ===================== -->
-<div class="screen" id="s-deep-learn-import">
-  <div class="top-bar"><button class="back" data-go="deep-learn">‹</button><h2>🔬 Material importieren</h2></div>
-  <div class="input-group"><label>Session-Name</label><input class="input" placeholder="z.B. Elektrotechnik Skript"></div>
-  <div class="card">
-    <button class="btn btn-outline" style="margin-bottom:var(--space-md)">📎 Datei auswählen (.pdf, .txt, .md)</button>
-    <textarea class="input" placeholder="Oder Text direkt einfügen…"></textarea>
-  </div>
-  <div class="toggle-row"><span>🔢 Mathe-Modus (Formeln extrahieren)</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-  <button class="btn btn-primary">🚀 Themen extrahieren</button>
+<!-- ── Bottom Sheet (Modal) ── -->
+<div class="bottom-sheet-overlay" id="bs-overlay">
+  <div class="bottom-sheet"><div class="sheet-handle"></div><div id="bs-content"><h3>Bottom Sheet</h3><p>Inhalt hier</p></div></div>
 </div>
 
-<!-- ===================== DEEP-LEARN-TOPICS ===================== -->
-<div class="screen" id="s-deep-learn-topics">
-  <div class="top-bar"><button class="back" data-go="deep-learn">‹</button><h2>Elektrotechnik Skript</h2></div>
-  <div class="section-title">Extrahierte Themen (5)</div>
-  <div class="card card-accent-left" data-go="deep-learn-chat">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><h4>⚡ Ohmsches Gesetz</h4><small>U = R × I, Grundlagen der E-Technik</small></div>
-      <span class="badge badge-success">8 💬</span>
-    </div>
-  </div>
-  <div class="card card-accent-left" data-go="deep-learn-chat">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><h4>🔌 Kirchhoffsche Gesetze</h4><small>Knoten- und Maschenregel</small></div>
-      <span class="badge badge-warning">3 💬</span>
-    </div>
-  </div>
-  <div class="card card-accent-left" data-go="deep-learn-chat">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><h4>🔋 Reihenschaltung</h4><small>Widerstände und Spannungsteiler</small></div>
-      <span class="badge badge-muted">0 💬</span>
-    </div>
-  </div>
-  <div class="card card-accent-left" data-go="deep-learn-chat">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><h4>⚙️ Parallelschaltung</h4><small>Stromteiler, Gesamtwiderstand</small></div>
-      <span class="badge badge-muted">0 💬</span>
-    </div>
-  </div>
-  <div class="card card-accent-left" data-go="deep-learn-chat">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div><h4>📈 Wechselstrom</h4><small>Sinusförmige Signale, Frequenz</small></div>
-      <span class="badge badge-muted">0 💬</span>
-    </div>
-  </div>
-</div>
+<!-- ── Offline Banner ── -->
+<div class="offline-banner" id="offline-banner">⚠️ Offline — Änderungen werden synchronisiert, sobald die Verbindung wiederhergestellt ist.</div>
 
-<!-- ===================== DEEP-LEARN-CHAT ===================== -->
-<div class="screen" id="s-deep-learn-chat">
-  <div class="top-bar"><button class="back" data-go="deep-learn-topics">‹</button><h2>⚡ Ohmsches Gesetz</h2></div>
-  <div class="chat-area">
-    <div class="chat-bubble chat-ai">Lass uns das Ohmsche Gesetz vertiefen! <span class="math" data-tex="U = R \cdot I">U = R × I</span> beschreibt den linearen Zusammenhang. Was möchtest du genauer verstehen?</div>
-    <div class="chat-bubble chat-user">Wie berechne ich den Strom wenn ich U und R kenne?</div>
-    <div class="chat-bubble chat-ai">Stelle die Formel um: <strong>I = U / R</strong>. Beispiel: U = 12V, R = 4Ω → I = 12/4 = <strong>3A</strong>. Der Strom ist also 3 Ampere.</div>
-  </div>
-  <div class="chip-row">
-    <span class="chip">Übungsaufgabe</span>
-    <span class="chip">Mit Beispiel erklären</span>
-    <span class="chip">Formel herleiten</span>
-  </div>
-  <div style="display:flex;gap:var(--space-sm)">
-    <input class="input" placeholder="Nachricht…" style="flex:1;margin:0">
-    <button class="btn btn-primary btn-sm" style="width:auto;padding:var(--space-md) 18px">↑</button>
-  </div>
-</div>
+<!-- ── Tab Bar ── -->
+<nav class="tab-bar" aria-label="Hauptnavigation">
+  <button data-go="home" class="active" aria-current="page"><span class="tab-icon">🏠</span>Home</button>
+  <button data-go="my-quizzes"><span class="tab-icon">📚</span>Quizze</button>
+  <button data-go="daily"><span class="tab-icon">📅</span>Daily</button>
+  <button data-go="stats"><span class="tab-icon">📊</span>Stats</button>
+  <button data-go="settings"><span class="tab-icon">⚙️</span>Settings</button>
+</nav>
+</div><!-- /#app -->
 
-<!-- ===================== FOLDERS ===================== -->
-<div class="screen" id="s-folders">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📁 Ordner & Prüfungen</h2></div>
-  <button class="btn btn-outline btn-sm" style="margin-bottom:var(--space-lg)">+ Neuer Ordner</button>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div style="flex:1"><strong>Elektrotechnik</strong><br><small>3 Quizze · 2 schwache Fragen</small></div><span style="color:var(--text-muted)">›</span></div>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div style="flex:1"><strong>Mathematik</strong><br><small>5 Quizze · Klausur in 12 Tagen</small></div><span class="badge badge-warning">⏳ 12d</span></div>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div style="flex:1"><strong>Physik</strong><br><small>2 Quizze</small></div><span style="color:var(--text-muted)">›</span></div>
-  <div class="folder-item" data-go="my-quizzes"><span class="f-icon">📁</span><div style="flex:1"><strong>Klausur-Vorbereitung</strong><br><small>4 Quizze · 80% bereit</small></div><span style="color:var(--text-muted)">›</span></div>
-</div>
-
-<!-- ===================== SR-DASHBOARD ===================== -->
-<div class="screen" id="s-sr-dashboard">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>🧠 Spaced Repetition</h2></div>
-
-  <div class="stat-grid">
-    <div class="stat-item"><div class="stat-val">12</div><div class="stat-label">Heute fällig</div></div>
-    <div class="stat-item"><div class="stat-val">45</div><div class="stat-label">Aktiv lernend</div></div>
-    <div class="stat-item"><div class="stat-val" style="color:var(--success)">89%</div><div class="stat-label">Retention</div></div>
-  </div>
-
-  <div class="card" style="margin-top:var(--space-md)">
-    <h3>Box-Verteilung (Leitner)</h3>
-    <div style="display:flex;gap:6px;margin-top:var(--space-md);height:90px;align-items:flex-end">
-      <div style="flex:1;background:var(--danger);border-radius:6px 6px 0 0;height:55%;position:relative">
-        <span style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:var(--fs-xs);color:var(--danger);font-weight:700">12</span>
-      </div>
-      <div style="flex:1;background:var(--warning);border-radius:6px 6px 0 0;height:35%;position:relative">
-        <span style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:var(--fs-xs);color:var(--warning);font-weight:700">8</span>
-      </div>
-      <div style="flex:1;background:#60a5fa;border-radius:6px 6px 0 0;height:65%"></div>
-      <div style="flex:1;background:var(--primary);border-radius:6px 6px 0 0;height:25%"></div>
-      <div style="flex:1;background:var(--success);border-radius:6px 6px 0 0;height:80%"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:var(--fs-xs);color:var(--text-muted);margin-top:8px">
-      <span>Box 1</span><span>Box 2</span><span>Box 3</span><span>Box 4</span><span>Box 5</span>
-    </div>
-  </div>
-
-  <div class="section-title">Nächste Reviews</div>
-  <div class="quiz-row card-accent-left"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>5 Karten heute fällig</small></div><span class="badge badge-primary">Heute</span></div>
-  <div class="quiz-row"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>4 Karten morgen</small></div><span class="badge badge-muted">Morgen</span></div>
-  <div class="quiz-row"><div class="quiz-info"><h4>Physik Grundlagen</h4><small>6 Karten in 3 Tagen</small></div><span class="badge badge-muted">3d</span></div>
-</div>
-
-<!-- ===================== ACHIEVEMENTS ===================== -->
-<div class="screen" id="s-achievements">
-  <div class="top-bar"><button class="back" data-go="settings">‹</button><h2>🏅 Erfolge</h2></div>
-
-  <div class="stat-grid" style="margin-bottom:var(--space-lg)">
-    <div class="stat-item"><div class="stat-val" style="color:var(--accent)">8</div><div class="stat-label">Freigeschaltet</div></div>
-    <div class="stat-item"><div class="stat-val">17</div><div class="stat-label">Gesamt</div></div>
-    <div class="stat-item"><div class="stat-val" style="color:var(--warning)">53%</div><div class="stat-label">Fortschritt</div></div>
-  </div>
-
-  <div class="ach-card"><span class="ach-icon">🎯</span><div class="ach-info"><div class="ach-title">Erste Schritte</div><div class="ach-desc">Erstes Quiz abgeschlossen</div></div><span class="badge badge-success" style="margin-left:auto">✓</span></div>
-  <div class="ach-card"><span class="ach-icon">🔥</span><div class="ach-info"><div class="ach-title">Streak Master</div><div class="ach-desc">7 Tage Streak erreicht</div></div><span class="badge badge-success" style="margin-left:auto">✓</span></div>
-  <div class="ach-card"><span class="ach-icon">💯</span><div class="ach-info"><div class="ach-title">Perfektionist</div><div class="ach-desc">100% in einem Quiz</div></div><span class="badge badge-success" style="margin-left:auto">✓</span></div>
-  <div class="ach-card"><span class="ach-icon">🐉</span><div class="ach-info"><div class="ach-title">Drachentöter</div><div class="ach-desc">Ersten Boss besiegt</div></div><span class="badge badge-success" style="margin-left:auto">✓</span></div>
-  <div class="ach-card locked"><span class="ach-icon">🔒</span><div class="ach-info"><div class="ach-title">Marathon</div><div class="ach-desc">100 Fragen an einem Tag</div></div></div>
-  <div class="ach-card locked"><span class="ach-icon">🔒</span><div class="ach-info"><div class="ach-title">Unbesiegbar</div><div class="ach-desc">30 Tage Streak</div></div></div>
-</div>
-
-<!-- ===================== STUDY (Flashcards) ===================== -->
-<div class="screen" id="s-study">
-  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>📖 Karteikarten</h2></div>
-  <!-- Card flip hint -->
-  <div class="card card-elevated" style="min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;position:relative;perspective:1000px">
-    <span class="badge badge-primary" style="margin-bottom:var(--space-md)">Frage 3/15</span>
-    <h3 style="font-size:var(--fs-lg)">Was ist die SI-Einheit der elektrischen Kapazität?</h3>
-    <div style="margin-top:var(--space-xl);display:flex;align-items:center;gap:var(--space-sm);color:var(--text-muted)">
-      <span style="font-size:0.8rem">👆</span> Tippen zum Umdrehen
-    </div>
-  </div>
-  <div class="progress"><div class="progress-fill primary" style="width:20%"></div></div>
-  <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
-    <button class="btn btn-sm" style="flex:1;background:var(--danger);color:#fff">✗ Falsch</button>
-    <button class="btn btn-sm" style="flex:1;background:var(--warning);color:#000">~ Unsicher</button>
-    <button class="btn btn-sm" style="flex:1;background:var(--success);color:#fff">✓ Richtig</button>
-  </div>
-</div>
-
-<!-- ===================== MARKED ===================== -->
-<div class="screen" id="s-marked">
-  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>⭐ Markierte Fragen</h2></div>
-  <p style="margin-bottom:var(--space-lg)">8 Fragen zum gezielten Wiederholen</p>
-  <div class="quiz-row card-accent-left"><div class="quiz-info"><h4>Was ist die Kirchhoffsche Knotenregel?</h4><small>Elektrotechnik 1</small></div><span style="color:var(--warning)">⭐</span></div>
-  <div class="quiz-row card-accent-left"><div class="quiz-info"><h4>Berechne <span class="math" data-tex="\int x^2 \, dx">∫ x² dx</span></h4><small>Mathe Klausur 2</small></div><span style="color:var(--warning)">⭐</span></div>
-  <div class="quiz-row card-accent-left"><div class="quiz-info"><h4>Definiere die Entropie</h4><small>Physik Grundlagen</small></div><span style="color:var(--warning)">⭐</span></div>
-  <button class="btn btn-primary" data-go="quiz" style="margin-top:var(--space-lg)">⭐ Markierte üben</button>
-</div>
-
-<!-- ===================== ERROR-DIARY ===================== -->
-<div class="screen" id="s-error-diary">
-  <div class="top-bar"><button class="back" data-go="learn-tab">‹</button><h2>📕 Fehlertagebuch</h2></div>
-  <p style="margin-bottom:var(--space-lg)">Häufigste Fehler — analysieren und gezielt verbessern</p>
-  <div class="card card-danger-left">
-    <div style="display:flex;justify-content:space-between;align-items:start">
-      <h3 style="font-size:var(--fs-base)">Kirchhoffsche Regeln</h3>
-      <span class="badge badge-danger">3× falsch</span>
-    </div>
-    <p>Verwechslung von Knoten- und Maschenregel</p>
-    <small>Zuletzt: vor 2 Tagen</small>
-    <div style="margin-top:var(--space-sm)"><button class="btn btn-ghost btn-xs">🎯 Gezielt üben →</button></div>
-  </div>
-  <div class="card card-warning-left">
-    <div style="display:flex;justify-content:space-between;align-items:start">
-      <h3 style="font-size:var(--fs-base)">Partielle Integration</h3>
-      <span class="badge badge-warning">2× falsch</span>
-    </div>
-    <p>Falsche Wahl von u und v'</p>
-    <small>Zuletzt: vor 1 Tag</small>
-    <div style="margin-top:var(--space-sm)"><button class="btn btn-ghost btn-xs">🎯 Gezielt üben →</button></div>
-  </div>
-</div>
-
-<!-- ===================== BROWSE-MODUS ===================== -->
-<div class="screen" id="s-browse">
-  <div class="top-bar"><button class="back" data-go="quiz-modes">‹</button><h2>👀 Browse-Modus</h2><span class="badge badge-primary">3/25</span></div>
-  <div class="progress"><div class="progress-fill success" style="width:12%"></div></div>
-  <div class="card card-accent-top" style="margin-top:var(--space-lg)">
-    <span class="badge badge-primary" style="margin-bottom:var(--space-sm)">Multiple Choice</span>
-    <h3>Wie lautet das Ohmsche Gesetz?</h3>
-  </div>
-  <div class="card card-success-left">
-    <small style="color:var(--text-muted)">Richtige Antwort:</small>
-    <p style="margin-top:4px;color:var(--success);font-weight:600;font-size:var(--fs-md)">B) <span class="math" data-tex="U = R \cdot I">U = R · I</span></p>
-    <small style="color:var(--text-secondary);margin-top:var(--space-sm);display:block">Das Ohmsche Gesetz beschreibt den Zusammenhang zwischen Spannung (U), Widerstand (R) und Stromstärke (I). Spannung = Widerstand × Strom.</small>
-  </div>
-  <button class="btn btn-outline btn-sm" style="width:auto;margin-bottom:var(--space-md)">🎯 Diese Frage beantworten</button>
-  <div class="browse-nav">
-    <button disabled>‹ Zurück</button>
-    <span style="font-size:var(--fs-sm);color:var(--text-muted)">3 / 25</span>
-    <button>Weiter ›</button>
-  </div>
-</div>
-
-<!-- ===================== DAILY ===================== -->
-<div class="screen" id="s-daily">
-  <div class="top-bar"><button class="back" data-go="home">‹</button><h2>📅 Tägliches Lernen</h2></div>
-  <div class="card card-elevated card-accent-top">
-    <h3>Heute fällig: 12 Fragen</h3>
-    <p>Aus 3 Quizzen</p>
-    <div class="progress" style="margin:var(--space-md) 0"><div class="progress-fill primary" style="width:0%"></div></div>
-    <button class="btn btn-primary" data-go="quiz">Wiederholung starten</button>
-  </div>
-  <div class="section-title">Quiz-Übersicht</div>
-  <div class="quiz-row card-accent-left"><div class="quiz-info"><h4>Elektrotechnik 1</h4><small>5 fällig</small></div><span class="badge badge-warning">5</span></div>
-  <div class="quiz-row card-accent-left"><div class="quiz-info"><h4>Mathe Klausur 2</h4><small>4 fällig</small></div><span class="badge badge-warning">4</span></div>
-  <div class="quiz-row card-accent-left"><div class="quiz-info"><h4>Physik Grundlagen</h4><small>3 fällig</small></div><span class="badge badge-warning">3</span></div>
-
-  <div class="section-title">Deep-Learning Vorschläge</div>
-  <div class="chip-row">
-    <span class="chip" data-go="deep-learn-chat">⚡ Ohmsches Gesetz vertiefen</span>
-    <span class="chip" data-go="deep-learn-chat">📐 Integrale üben</span>
-    <span class="chip" data-go="deep-learn-chat">🔋 Kirchhoff verstehen</span>
-  </div>
-</div>
-
-<!-- ===================== SLIDE-GENERATE ===================== -->
-<div class="screen" id="s-slide-generate">
-  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>📊 KI Folien-Konverter</h2></div>
-  <div class="card card-elevated">
-    <h3>Quiz aus Präsentation generieren</h3>
-    <p style="margin-bottom:var(--space-md)">Lade deine Vorlesungsfolien oder Skripte hoch (PDF, PPTX).</p>
-    <button class="btn btn-outline" style="margin-bottom:var(--space-md);width:100%">📎 Folien auswählen (.pptx, .pdf)</button>
-    <div class="input-group"><label>Seiten/Folien eingrenzen (optional)</label>
-    <input class="input" placeholder="z.B. 1-15, 23, 40-50" style="margin-bottom:0"></div>
-  </div>
-  <div class="card">
-    <h3>Generierungs-Fokus</h3>
-    <div class="toggle-row"><span>Kernkonzepte priorisieren</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>Detailfragen (Definitionen, Zahlen)</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>Formeln extrahieren</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-  </div>
-  <button class="btn btn-primary">🤖 Folien analysieren & Quiz generieren</button>
-</div>
-
-<!-- ===================== IMPORT-QUESTIONS ===================== -->
-<div class="screen" id="s-import-questions">
-  <div class="top-bar"><button class="back" data-go="my-quizzes">‹</button><h2>📥 Fragen importieren</h2></div>
-  <div class="card card-elevated">
-    <h3>Dateibasierter Import</h3>
-    <p style="margin-bottom:var(--space-md)">Importiere bestehende Fragen-Sets direkt in deine Bibliothek.</p>
-    <div class="folder-item" style="margin-bottom:var(--space-sm)"><span class="f-icon">📄</span><div><strong>Excel / CSV Tabelle</strong><br><small>Vorlage herunterladen</small></div></div>
-    <div class="folder-item" style="margin-bottom:var(--space-sm)"><span class="f-icon">🧠</span><div><strong>Anki Deck (.apkg)</strong><br><small>Karteikarten konvertieren</small></div></div>
-    <div class="folder-item" style="margin-bottom:var(--space-md)"><span class="f-icon">💻</span><div><strong>JSON Format</strong><br><small>Für Entwickler</small></div></div>
-    <button class="btn btn-primary">📎 Datei hochladen</button>
-  </div>
-</div>
-
-<!-- ===================== SYNC ===================== -->
-<div class="screen" id="s-sync">
-  <div class="top-bar"><button class="back" data-go="settings">‹</button><h2>☁️ Cloud Sync</h2></div>
-  <div class="card card-elevated" style="text-align:center">
-    <div style="font-size:3rem;margin-bottom:var(--space-md)">☁️</div>
-    <h3>Firebase Sync</h3>
-    <p>Synchronisiere deine Daten über alle Geräte — sicher und verschlüsselt.</p>
-  </div>
-  <div class="card">
-    <div class="toggle-row"><span>Auto-Sync</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>Status</span><span class="badge badge-success">● Verbunden</span></div>
-    <small>Letzte Synchronisation: vor 5 Minuten</small>
-  </div>
-  <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md)">
-    <button class="btn btn-primary btn-sm" style="flex:1">🔄 Jetzt synchronisieren</button>
-    <button class="btn btn-outline btn-sm" style="flex:1">📱 Sync-Code teilen</button>
-  </div>
-</div>
-
-
-<!-- ===================== SETTINGS ===================== -->
-<div class="screen" id="s-settings">
-  <div class="top-bar"><h2>⚙️ Einstellungen</h2></div>
-
-  <div class="grid-2" style="margin-bottom:var(--space-lg)">
-    <div class="grid-card" data-go="achievements"><span class="icon">🏅</span><div class="title">Erfolge</div><div class="desc">8 / 17</div></div>
-    <div class="grid-card" data-go="sync"><span class="icon">☁️</span><div class="title">Cloud Sync</div><div class="desc">Verbunden</div></div>
-  </div>
-
-  <div class="card">
-    <h3>Konto</h3>
-    <div class="toggle-row"><span>👤 piuslipp@gmail.com</span><span class="badge badge-success">Aktiv</span></div>
-    <button class="btn btn-outline btn-sm" style="width:auto">Abmelden</button>
-  </div>
-
-  <div class="card">
-    <h3>Allgemein</h3>
-    <div class="toggle-row"><span>🔔 Lern-Erinnerungen</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>🌙 Dark Mode</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>🔊 Sound-Effekte</span><div class="toggle-track"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>📳 Haptisches Feedback</span><div class="toggle-track on"><div class="toggle-knob"></div></div></div>
-    <div class="toggle-row"><span>∑ LaTeX-Formeln rendern</span><div class="toggle-track on" id="latex-toggle"><div class="toggle-knob"></div></div></div>
-    <small style="color:var(--text-muted);font-size:var(--fs-xs);display:block;margin-top:-4px">Mathematische Ausdrücke werden als schön gesetzte Formeln dargestellt.</small>
-  </div>
-
-  <div class="card card-accent-top">
-    <h3>🤖 KI-Einstellungen</h3>
-    <p style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:var(--space-md)">OpenRouter API-Key für KI-Funktionen (Generator, Tutor, Validierung)</p>
-    <div class="input-group"><label>OpenRouter API-Key</label>
-    <input class="input" type="password" value="sk-or-v1-xxx...xxx" placeholder="sk-or-..." style="margin-bottom:0"></div>
-    <div class="input-group"><label>Standard-Modell</label>
-    <div class="model-select-list">
-      <div class="model-option selected" data-model="google/gemini-2.0-flash-exp:free">
-        <div class="model-name">Gemini 2.0 Flash <span class="model-icons">👁 Bilder</span></div>
-        <div class="model-meta">Free · Kostenlos · 1M ctx</div>
-      </div>
-      <div class="model-option" data-model="deepseek/deepseek-chat-v3-0324:free">
-        <div class="model-name">DeepSeek V3 <span class="model-icons">📝 Text</span></div>
-        <div class="model-meta">Free · Kostenlos · 128k ctx</div>
-      </div>
-      <div class="model-option" data-model="openai/gpt-4o-mini">
-        <div class="model-name">GPT-4o Mini <span class="model-icons">👁 Bilder</span></div>
-        <div class="model-meta">Günstig · $0.15/M · 128k ctx</div>
-      </div>
-    </div></div>
-    <button class="btn btn-primary btn-sm" style="width:100%">Speichern</button>
-  </div>
-
-  <div class="card">
-    <h3>Daten & Export</h3>
-    <button class="btn btn-outline" data-go="stats" style="width:100%;margin-bottom:var(--space-sm)">📊 Zu meinen Lerndaten</button>
-    <div style="display:flex;gap:var(--space-sm)">
-      <button class="btn btn-outline btn-sm" style="flex:1">📤 Export</button>
-      <button class="btn btn-outline btn-sm" style="flex:1">📥 Import</button>
-    </div>
-    <button class="btn btn-danger btn-sm" style="margin-top:var(--space-md);width:100%">🗑️ Alle Daten löschen</button>
-  </div>
-</div>
-
-<!-- ===================== GAMES ===================== -->
-<div class="screen" id="s-games">
-  <div class="top-bar"><h2>🎮 Mini-Games</h2></div>
-
-  <!-- Mix campaign hero -->
-  <div class="hero-card" data-go="mix-game" style="background:linear-gradient(135deg, #ef4444, #dc2626);box-shadow:0 0 20px rgba(239,68,68,.2)">
-    <span class="hero-icon">🎯</span>
-    <div><h3>Mix-Kampagne</h3><p>Alle Spiele in einer Runde!</p></div>
-    <span class="chev">›</span>
-  </div>
-
-  <div class="grid-2">
-    <div class="grid-card" data-go="tower-defense"><span class="icon">🏰</span><div class="title">Tower Defense</div><div class="desc">Verteidige mit Wissen</div></div>
-    <div class="grid-card" data-go="quiz-battle"><span class="icon">⚔️</span><div class="title">Quiz Battle</div><div class="desc">KI-Duell</div></div>
-    <div class="grid-card" data-go="speed-quiz"><span class="icon">⚡</span><div class="title">Speed Quiz</div><div class="desc">Zeitdruck</div></div>
-    <div class="grid-card" data-go="millionaire"><span class="icon">💰</span><div class="title">Millionär</div><div class="desc">Wer wird…?</div></div>
-    <div class="grid-card" data-go="hangman"><span class="icon">💀</span><div class="title">Hangman</div><div class="desc">Wörter raten</div></div>
-    <div class="grid-card" data-go="boss-fight"><span class="icon">🐉</span><div class="title">Boss Fight</div><div class="desc">Endgegner</div></div>
-    <div class="grid-card" data-go="block-blast"><span class="icon">🧱</span><div class="title">Block Blast</div><div class="desc">Blöcke lösen</div></div>
-    <div class="grid-card" data-go="math-solver"><span class="icon">🧮</span><div class="title">Mathe-Solver</div><div class="desc">Lösungsweg</div></div>
-  </div>
-
-  <!-- Highscore preview -->
-  <div class="card" style="text-align:center">
-    <h3>🏆 Deine Highscores</h3>
-    <div style="display:flex;justify-content:center;gap:var(--space-xl);margin-top:var(--space-md)">
-      <div><div style="font-weight:700;color:var(--accent)">12.400</div><small>Tower Def.</small></div>
-      <div><div style="font-weight:700;color:var(--accent)">8.200</div><small>Quiz Battle</small></div>
-      <div><div style="font-weight:700;color:var(--accent)">64.000 €</div><small>Millionär</small></div>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== TOWER-DEFENSE ===================== -->
-<div class="screen" id="s-tower-defense">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🏰 Tower Defense</h2></div>
-  <div class="card card-elevated">
-    <h3>Verteidige deine Basis!</h3>
-    <p style="margin-bottom:var(--space-md)">Beantworte Fragen, um Türme zu bauen. Schwere Fragen = mehr Schaden.</p>
-    <div class="input-group"><label>Quiz wählen:</label>
-    <select class="input" style="margin-bottom:0">
-      <option>Elektrotechnik 1 (25)</option>
-      <option>Mathe Klausur 2 (18)</option>
-      <option>Physik Grundlagen (30)</option>
-    </select></div>
-  </div>
-  <div class="card">
-    <label style="font-size:var(--fs-sm);color:var(--text-secondary);display:block;margin-bottom:var(--space-sm);font-weight:500">Schwierigkeit:</label>
-    <div class="chip-row" style="margin:0">
-      <span class="chip active" style="border-color:var(--success);color:var(--success)">🌱 Leicht</span>
-      <span class="chip">⚔️ Normal</span>
-      <span class="chip">💀 Schwer</span>
-    </div>
-  </div>
-  <button class="btn btn-primary" data-go="td-ingame">▶ Spiel starten</button>
-  <button class="btn btn-outline" data-go="games" style="margin-top:var(--space-sm)">Zurück</button>
-</div>
-
-<div class="screen" id="s-td-ingame">
-  <div class="top-bar"><button class="back" data-go="tower-defense">‹</button><h2>Tower Defense</h2></div>
-  <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-sm);font-size:var(--fs-sm)">
-    <span style="color:var(--danger);font-weight:700">❤️ 3</span>
-    <span style="color:var(--warning);font-weight:700">💰 450</span>
-    <span style="color:var(--primary);font-weight:700">Welle 3/10</span>
-  </div>
-  <!-- Game canvas -->
-  <div style="background:var(--surface-1);border:1px solid var(--glass-border);border-radius:var(--radius-md);height:240px;position:relative;overflow:hidden;margin-bottom:var(--space-md)">
-    <div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,.02) 39px,rgba(255,255,255,.02) 40px),repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,.02) 39px,rgba(255,255,255,.02) 40px)"></div>
-    <div style="position:absolute;top:0;left:0;width:100%;height:40px;background:rgba(124,111,247,.08)"></div>
-    <div style="position:absolute;top:40px;right:0;width:40px;height:40px;background:rgba(124,111,247,.08)"></div>
-    <div style="position:absolute;top:80px;left:0;width:100%;height:40px;background:rgba(124,111,247,.08)"></div>
-    <!-- Towers -->
-    <div style="position:absolute;top:44px;left:80px;width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#000">T1</div>
-    <div style="position:absolute;top:44px;left:210px;width:34px;height:34px;background:var(--warning);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#000">T2</div>
-    <!-- Enemies -->
-    <div style="position:absolute;top:8px;left:120px;width:26px;height:26px;border-radius:50%;background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.4)"></div>
-    <div style="position:absolute;top:8px;left:190px;width:26px;height:26px;border-radius:50%;background:#3b82f6;box-shadow:0 0 8px rgba(59,130,246,.4)"></div>
-    <div style="position:absolute;top:8px;left:260px;width:26px;height:26px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.4)"></div>
-    <!-- Base -->
-    <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:var(--primary);padding:6px 16px;border-radius:8px;font-size:var(--fs-xs);font-weight:700;box-shadow:var(--shadow-glow-sm)">🏠 DEINE BASIS</div>
-  </div>
-  <div class="card card-accent-left">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <small style="color:var(--danger);font-weight:600">⚡ Feind nähert sich!</small>
-      <span class="badge badge-muted">Schwer</span>
-    </div>
-    <h4>Was ist 1 kΩ in Ohm?</h4>
-    <input class="input" placeholder="Antwort eingeben…" style="margin-top:var(--space-sm)">
-    <button class="btn btn-primary btn-sm" style="margin-top:var(--space-sm)">🏗️ Turm platzieren</button>
-  </div>
-</div>
-
-<!-- ===================== QUIZ-BATTLE ===================== -->
-<div class="screen" id="s-quiz-battle">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>⚔️ Quiz Battle</h2></div>
-  <div class="card card-elevated">
-    <h3>Kämpfe gegen die KI!</h3>
-    <p style="margin-bottom:var(--space-md)">Richtige Antworten = Angriff. Falsche = Gegner wird stärker.</p>
-    <div class="input-group"><label>Quiz wählen:</label>
-    <select class="input" style="margin-bottom:0">
-      <option>Elektrotechnik 1 (25)</option>
-      <option>Mathe Klausur 2 (18)</option>
-    </select></div>
-  </div>
-  <div class="card">
-    <label style="font-size:var(--fs-sm);color:var(--text-secondary);display:block;margin-bottom:var(--space-sm);font-weight:500">Schwierigkeit:</label>
-    <div class="chip-row" style="margin:0 0 var(--space-md) 0">
-      <span class="chip active" style="border-color:var(--success);color:var(--success)">🌱 Leicht</span>
-      <span class="chip">⚔️ Normal</span>
-      <span class="chip">💀 Schwer</span>
-    </div>
-    <label style="font-size:var(--fs-sm);color:var(--text-secondary);display:block;margin-bottom:var(--space-sm);font-weight:500">Modus:</label>
-    <div class="chip-row" style="margin:0">
-      <span class="chip active">🛡️ Verteidigung</span>
-      <span class="chip">⚔️ Duell vs. KI</span>
-    </div>
-  </div>
-  <button class="btn btn-primary" data-go="qb-ingame">⚔️ Kampf starten</button>
-  <button class="btn btn-outline" data-go="games" style="margin-top:var(--space-sm)">Zurück</button>
-</div>
-
-<div class="screen" id="s-qb-ingame">
-  <div class="top-bar"><button class="back" data-go="quiz-battle">‹</button><h2>Quiz Battle</h2></div>
-  <!-- Arena -->
-  <div style="background:var(--surface-1);border:1px solid var(--glass-border);border-radius:var(--radius-md);height:200px;position:relative;overflow:hidden;margin-bottom:var(--space-md)">
-    <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);text-align:center">
-      <div style="width:52px;height:52px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;box-shadow:var(--shadow-glow-sm)">🛡️</div>
-      <div style="width:90px;height:6px;background:rgba(0,0,0,.3);border-radius:3px;margin-top:6px">
-        <div style="width:75%;height:100%;background:var(--success);border-radius:3px"></div>
-      </div>
-    </div>
-    <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);text-align:center">
-      <div style="width:52px;height:52px;background:var(--danger);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.5rem">👹</div>
-      <div style="width:90px;height:6px;background:rgba(0,0,0,.3);border-radius:3px;margin-top:6px">
-        <div style="width:45%;height:100%;background:var(--danger);border-radius:3px"></div>
-      </div>
-    </div>
-    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:var(--warning);border-radius:50%;box-shadow:0 0 12px var(--warning)"></div>
-    <div style="position:absolute;top:8px;left:8px;font-size:var(--fs-xs);color:var(--text-muted)">Runde 3/5</div>
-    <div style="position:absolute;top:8px;right:8px;font-size:var(--fs-xs);color:var(--warning);font-weight:600">Score: 240</div>
-  </div>
-  <div class="card">
-    <h4>Welche Einheit hat die elektrische Leistung?</h4>
-    <div style="margin-top:var(--space-sm)">
-      <button class="option-btn">Volt (V)</button>
-      <button class="option-btn">Ampere (A)</button>
-      <button class="option-btn selected">Watt (W)</button>
-      <button class="option-btn">Ohm (Ω)</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== SPEED-QUIZ ===================== -->
-<div class="screen" id="s-speed-quiz">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>⚡ Speed Quiz</h2></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm)">
-    <span style="font-size:var(--fs-3xl);font-weight:800;color:var(--warning);font-variant-numeric:tabular-nums">0:07</span>
-    <span style="font-size:var(--fs-sm)">Score: <strong style="color:var(--accent)">1.200</strong></span>
-    <span class="badge badge-success">12/15</span>
-  </div>
-  <div class="progress"><div class="progress-fill warning" style="width:70%"></div></div>
-  <div class="card card-accent-top" style="margin-top:var(--space-lg)">
-    <h3>Wie viel ist <span class="math" data-tex="3^2 \cdot 2">3² × 2</span>?</h3>
-  </div>
-  <div class="grid-2">
-    <button class="option-btn" style="text-align:center">12</button>
-    <button class="option-btn selected" style="text-align:center">18</button>
-    <button class="option-btn" style="text-align:center">24</button>
-    <button class="option-btn" style="text-align:center">36</button>
-  </div>
-</div>
-
-<!-- ===================== MILLIONAIRE ===================== -->
-<div class="screen" id="s-millionaire">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>💰 Millionär</h2></div>
-  <div class="money-ladder">
-    <div class="money-step">15 · 1.000.000 €</div>
-    <div class="money-step">14 · 500.000 €</div>
-    <div class="money-step">13 · 125.000 €</div>
-    <div class="money-step">12 · 64.000 €</div>
-    <div class="money-step current">11 · 32.000 €</div>
-    <div class="money-step done">10 · 16.000 € ✓</div>
-    <div class="money-step done">9 · 8.000 € ✓</div>
-    <div class="money-step done">8 · 4.000 € ✓</div>
-  </div>
-  <div class="card" style="margin-top:var(--space-md)">
-    <h4>Wie lautet die Formel für die elektrische Leistung?</h4>
-  </div>
-  <button class="option-btn">A) <span class="math" data-tex="P = m \cdot g">P = m × g</span></button>
-  <button class="option-btn selected">B) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
-  <button class="option-btn">C) <span class="math" data-tex="P = F \cdot v">P = F × v</span></button>
-  <button class="option-btn">D) <span class="math" data-tex="P = \tfrac{1}{2}mv^2">P = ½mv²</span></button>
-  <div class="chip-row" style="justify-content:center;margin-top:var(--space-md)">
-    <span class="chip" style="background:var(--success-soft);border-color:var(--success)">✂️ 50:50</span>
-    <span class="chip">📞 Telefon</span>
-    <span class="chip">👥 Publikum</span>
-  </div>
-</div>
-
-<!-- ===================== HANGMAN ===================== -->
-<div class="screen" id="s-hangman">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>💀 Galgenmännchen</h2></div>
-  <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-sm);font-size:var(--fs-sm)">
-    <span>Runde <strong>3/10</strong></span>
-    <span style="color:var(--danger);font-weight:700">❤️ 4</span>
-    <span style="color:var(--warning);font-weight:700">Score: 20</span>
-  </div>
-  <div class="card" style="padding:var(--space-md) var(--space-lg)">
-    <small style="color:var(--text-muted)">Was ist die Einheit des Widerstands?</small>
-  </div>
-  <!-- SVG Hangman -->
-  <div style="text-align:center;margin:var(--space-md) 0">
-    <svg viewBox="0 0 120 140" style="width:130px;height:150px;color:var(--text-secondary)">
-      <line x1="20" y1="135" x2="100" y2="135" stroke="currentColor" stroke-width="2.5"/>
-      <line x1="40" y1="135" x2="40" y2="15" stroke="currentColor" stroke-width="2.5"/>
-      <line x1="40" y1="15" x2="80" y2="15" stroke="currentColor" stroke-width="2.5"/>
-      <line x1="80" y1="15" x2="80" y2="30" stroke="currentColor" stroke-width="2.5"/>
-      <circle cx="80" cy="40" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-      <line x1="80" y1="50" x2="80" y2="85" stroke="currentColor" stroke-width="2"/>
-      <line x1="80" y1="58" x2="65" y2="72" stroke="currentColor" stroke-width="2"/>
-    </svg>
-  </div>
-  <div class="hangman-fig">_ _ _ <span style="color:var(--text)">M</span> &nbsp; _ _ _ _ _</div>
-  <div class="letter-grid">
-    <button class="letter-btn">A</button><button class="letter-btn" disabled style="opacity:.3;background:var(--danger)">B</button>
-    <button class="letter-btn">C</button><button class="letter-btn">D</button>
-    <button class="letter-btn">E</button><button class="letter-btn">F</button>
-    <button class="letter-btn">G</button><button class="letter-btn">H</button>
-    <button class="letter-btn">I</button><button class="letter-btn">J</button>
-    <button class="letter-btn">K</button><button class="letter-btn">L</button>
-    <button class="letter-btn" style="background:var(--success);color:#fff">M</button>
-    <button class="letter-btn">N</button><button class="letter-btn">O</button>
-    <button class="letter-btn">P</button><button class="letter-btn">Q</button>
-    <button class="letter-btn">R</button><button class="letter-btn" disabled style="opacity:.3;background:var(--danger)">S</button>
-    <button class="letter-btn">T</button><button class="letter-btn">U</button>
-    <button class="letter-btn">V</button><button class="letter-btn">W</button>
-    <button class="letter-btn">X</button><button class="letter-btn" disabled style="opacity:.3;background:var(--danger)">Y</button>
-    <button class="letter-btn">Z</button>
-    <button class="letter-btn">Ä</button><button class="letter-btn">Ö</button>
-    <button class="letter-btn">Ü</button>
-  </div>
-</div>
-
-<!-- ===================== BOSS-FIGHT ===================== -->
-<div class="screen" id="s-boss-fight">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🐉 Boss-Kampf</h2></div>
-  <div style="background:var(--surface-1);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:var(--space-lg);margin-bottom:var(--space-md)">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div style="text-align:center;flex:1">
-        <div style="font-size:2.8rem">🐉</div>
-        <div style="font-weight:600;font-size:var(--fs-sm);margin:4px 0">Drache</div>
-        <div style="height:8px;background:rgba(0,0,0,.3);border-radius:4px;overflow:hidden">
-          <div style="width:35%;height:100%;background:var(--danger);border-radius:4px"></div>
-        </div>
-        <small style="font-size:var(--fs-xs)">140/400 HP</small>
-      </div>
-      <div style="font-size:var(--fs-xl);font-weight:700;padding:0 16px;color:var(--warning)">⚔️</div>
-      <div style="text-align:center;flex:1">
-        <div style="font-size:2.8rem">🧙</div>
-        <div style="font-weight:600;font-size:var(--fs-sm);margin:4px 0">Du</div>
-        <div style="height:8px;background:rgba(0,0,0,.3);border-radius:4px;overflow:hidden">
-          <div style="width:60%;height:100%;background:var(--success);border-radius:4px"></div>
-        </div>
-        <small style="font-size:var(--fs-xs)">60/100 HP</small>
-      </div>
-    </div>
-    <div style="text-align:center;margin-top:var(--space-md);font-size:var(--fs-sm);color:var(--warning);font-weight:700">🔥 3× Combo!</div>
-  </div>
-  <div class="card card-accent-left">
-    <h4>Berechnen Sie: <span class="math" data-tex="\int_0^1 2x \, dx = \;?">∫₀¹ 2x dx = ?</span></h4>
-    <input class="input" placeholder="Antwort eingeben…" style="margin-top:var(--space-sm)">
-    <div style="display:flex;gap:var(--space-sm)">
-      <button class="btn btn-primary btn-sm" style="flex:1">⚔️ Angreifen!</button>
-      <button class="btn btn-outline btn-sm" style="flex:1">🏃 Überspringen (−10 HP)</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== BLOCK BLAST ===================== -->
-<div class="screen" id="s-block-blast">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🧱 Block Blast</h2></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm);font-size:var(--fs-sm)">
-    <span>Score: <strong style="color:var(--warning)">1.840</strong></span>
-    <span>Reihen: <strong style="color:var(--success)">3</strong></span>
-    <span>Level: <strong style="color:var(--accent)">4</strong></span>
-  </div>
-  <!-- 8×8 grid -->
-  <div style="background:var(--surface-0);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:8px;margin-bottom:var(--space-md)">
-    <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:2px" id="block-grid"></div>
-  </div>
-  <!-- Block pieces -->
-  <div style="display:flex;justify-content:space-around;margin-bottom:var(--space-md)">
-    <div style="text-align:center">
-      <div style="display:grid;grid-template-columns:repeat(3,22px);gap:2px;opacity:.3">
-        <div style="width:22px;height:22px;background:var(--warning);border-radius:4px"></div><div style="width:22px;height:22px;background:var(--warning);border-radius:4px"></div><div style="width:22px;height:22px;background:var(--warning);border-radius:4px"></div>
-      </div>
-      <small style="font-size:0.6rem;color:var(--text-muted)">🔒 Gesperrt</small>
-    </div>
-    <div style="text-align:center">
-      <div style="display:grid;grid-template-columns:repeat(2,22px);gap:2px">
-        <div style="width:22px;height:22px;background:var(--success);border-radius:4px"></div><div style="width:22px;height:22px;background:var(--success);border-radius:4px"></div>
-        <div style="width:22px;height:22px;background:var(--success);border-radius:4px"></div><div style="width:22px;height:22px;background:var(--success);border-radius:4px"></div>
-      </div>
-      <small style="font-size:0.6rem;color:var(--success);font-weight:600">✓ Bereit</small>
-    </div>
-    <div style="text-align:center">
-      <div style="display:grid;grid-template-columns:repeat(1,22px);gap:2px;opacity:.3">
-        <div style="width:22px;height:22px;background:var(--danger);border-radius:4px"></div><div style="width:22px;height:22px;background:var(--danger);border-radius:4px"></div>
-        <div style="width:22px;height:22px;background:var(--danger);border-radius:4px"></div><div style="width:22px;height:22px;background:var(--danger);border-radius:4px"></div>
-      </div>
-      <small style="font-size:0.6rem;color:var(--text-muted)">🔒 Gesperrt</small>
-    </div>
-  </div>
-  <!-- Question -->
-  <div class="card card-warning-left">
-    <small style="color:var(--warning);font-weight:600">🔓 Frage beantworten um Block freizuschalten</small>
-    <h4 style="margin-top:8px">Was beschreibt das Ohmsche Gesetz?</h4>
-    <div style="margin-top:var(--space-sm)">
-      <button class="option-btn" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">A) <span class="math" data-tex="P = U \cdot I">P = U × I</span></button>
-      <button class="option-btn selected" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">B) <span class="math" data-tex="U = R \cdot I">U = R × I</span></button>
-      <button class="option-btn" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">C) <span class="math" data-tex="F = m \cdot a">F = m × a</span></button>
-      <button class="option-btn" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">D) <span class="math" data-tex="E = mc^2">E = mc²</span></button>
-    </div>
-  </div>
-</div>
-
-<!-- ===================== MATH-SOLVER GAME ===================== -->
-<div class="screen" id="s-math-solver">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🧮 Mathe-Solver</h2></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm)">
-    <span style="font-size:var(--fs-2xl);font-weight:800;color:var(--warning);font-variant-numeric:tabular-nums">0:23</span>
-    <span style="font-size:var(--fs-sm)">Schritt <strong style="color:var(--accent)">2/4</strong></span>
-    <span class="badge badge-success">Score: 340</span>
-  </div>
-  <div class="progress"><div class="progress-fill" style="width:50%;background:var(--accent)"></div></div>
-  <div class="card card-accent-top" style="margin-top:var(--space-lg);border-top-color:var(--accent)">
-    <span class="badge" style="background:rgba(0,212,207,.15);color:var(--accent)">Aufgabe</span>
-    <h3 style="margin-top:8px">Löse: <span class="math" data-tex="2x^2 + 4x - 6 = 0">2x² + 4x − 6 = 0</span></h3>
-    <small>Finde x₁ und x₂</small>
-  </div>
-  <div class="section-title">Dein Lösungsweg</div>
-  <div class="step-chain">
-    <div class="step-node">
-      <div class="step-dot done"></div>
-      <div><strong style="color:var(--success)">✓ Schritt 1:</strong> <span style="font-size:var(--fs-sm)">ABC-Formel anwenden: <span class="math" data-tex="x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}">x = (−b ± √(b²−4ac)) / 2a</span></span></div>
-    </div>
-    <div class="step-node">
-      <div class="step-dot active"></div>
-      <div><strong style="color:var(--primary)">→ Schritt 2:</strong> <span style="font-size:var(--fs-sm)">Werte einsetzen …</span></div>
-    </div>
-  </div>
-  <div class="card">
-    <small style="color:var(--text-muted);display:block;margin-bottom:var(--space-sm)">Wähle den nächsten richtigen Schritt:</small>
-    <button class="option-btn" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">A) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+48}}{4}">x = (−4 ± √(16+48)) / 4</span></button>
-    <button class="option-btn selected" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">B) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16 - 4 \cdot 2 \cdot (-6)}}{2 \cdot 2}">x = (−4 ± √(16−4·2·(−6))) / (2·2)</span></button>
-    <button class="option-btn" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">C) <span class="math" data-tex="x = \frac{4 \pm \sqrt{16-48}}{4}">x = (4 ± √(16−48)) / 4</span></button>
-    <button class="option-btn" style="font-size:var(--fs-sm);padding:var(--space-sm) var(--space-md)">D) <span class="math" data-tex="x = \frac{-4 \pm \sqrt{16+24}}{2}">x = (−4 ± √(16+24)) / 2</span></button>
-  </div>
-  <button class="btn btn-primary" style="margin-top:var(--space-sm)">Bestätigen →</button>
-</div>
-
-<!-- ===================== MIX-GAME KAMPAGNE ===================== -->
-<div class="screen" id="s-mix-game">
-  <div class="top-bar"><button class="back" data-go="games">‹</button><h2>🎯 Mix-Kampagne</h2></div>
-  <div class="card card-elevated">
-    <h3>Kampagne starten</h3>
-    <p style="margin-bottom:var(--space-md)">Mehrere Mini-Games hintereinander. Schwierigkeit steigt, Fehler werden am Ende wiederholt!</p>
-    <div class="input-group"><label>Quiz wählen:</label>
-    <select class="input" style="margin-bottom:0">
-      <option>Elektrotechnik 1 (25)</option>
-      <option>Mathe Klausur 2 (18)</option>
-      <option>Alle Quizze</option>
-    </select></div>
-  </div>
-  <div class="section-title">Ablauf</div>
-  <div class="step-chain">
-    <div class="step-node">
-      <div class="step-dot active"></div>
-      <div><strong>Runde 1 — 🧱 Block Blast</strong><br><small style="color:var(--success)">Leichte Fragen · Aufwärmen</small></div>
-    </div>
-    <div class="step-node">
-      <div class="step-dot"></div>
-      <div><strong>Runde 2 — 🏰 Tower Defense</strong><br><small style="color:var(--warning)">Mittlere Fragen · Verteidigung</small></div>
-    </div>
-    <div class="step-node">
-      <div class="step-dot"></div>
-      <div><strong>Runde 3 — ⚔️ Quiz Battle</strong><br><small style="color:var(--danger)">Schwere Fragen · KI-Duell</small></div>
-    </div>
-    <div class="step-node">
-      <div class="step-dot"></div>
-      <div><strong>Finale — 💰 Millionär</strong><br><small style="color:var(--primary)">Wiederholung · Falsche Antworten</small></div>
-    </div>
-  </div>
-  <div class="card" style="text-align:center;margin-top:var(--space-md)">
-    <div style="font-size:2.5rem;margin-bottom:var(--space-sm)">🏆</div>
-    <small style="color:var(--text-muted)">Gesamtscore über alle Runden · Sterne-Bewertung am Ende</small>
-  </div>
-  <button class="btn btn-primary" data-go="block-blast" style="margin-top:var(--space-md)">🚀 Kampagne starten!</button>
-</div>
-
-<!-- ===================== SKELETON LOADING EXAMPLE (commented out, reference only) ===================== -->
-<!--
-<div class="screen active" id="s-skeleton-demo">
-  <div class="top-bar"><h2>📚 Lade Quizze…</h2></div>
-  <div class="skeleton skeleton-text" style="width:40%;margin-bottom:var(--space-xl)"></div>
-  <div class="skeleton skeleton-card"></div>
-  <div class="skeleton skeleton-card"></div>
-  <div class="skeleton skeleton-card"></div>
-  <div style="display:flex;gap:var(--space-md);margin:var(--space-lg) 0">
-    <div class="skeleton skeleton-circle"></div>
-    <div style="flex:1">
-      <div class="skeleton skeleton-text"></div>
-      <div class="skeleton skeleton-text short"></div>
-    </div>
-  </div>
-</div>
--->
-
-<!-- ===================== TAB BAR (glass, pill indicator, badge support) ===================== -->
-<div class="tab-bar" role="navigation" aria-label="Hauptnavigation">
-  <button data-go="home" class="active" aria-label="Home" aria-current="page">
-    <span class="tab-icon">🏠</span>Home
-  </button>
-  <button data-go="learn-tab" aria-label="Lernen">
-    <span class="tab-icon">📖</span>Lernen
-  </button>
-  <button data-go="my-quizzes" aria-label="Quizze">
-    <span class="tab-icon">📚</span>Quizze
-  </button>
-  <button data-go="games" aria-label="Games">
-    <span class="tab-icon">🎮</span>Games
-  </button>
-  <button data-go="settings" aria-label="Einstellungen">
-    <span class="tab-icon">⚙️</span>Settings
-  </button>
-</div>
-
+<!-- ═══════════════════════════════════════════════════════
+   JAVASCRIPT — Navigation, Interaktionen, Theme, LaTeX
+   ═══════════════════════════════════════════════════════ -->
 <script>
-/* ============================================================
-   APP SHELL — same navigation logic, enhanced transitions
-   ============================================================ */
+/* ── Screen Navigation (Hash-Router Simulation) ── */
+const screens = new Map();
+document.querySelectorAll('.screen').forEach(s => screens.set(s.id, s));
 
-function go(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const target = document.getElementById('s-' + id);
-  if (target) {
-    target.classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  // Update tab bar active state
-  const mainTabs = ['home', 'learn-tab', 'my-quizzes', 'games', 'settings'];
-  if (mainTabs.includes(id)) {
-    document.querySelectorAll('.tab-bar button').forEach(b => {
-      const isActive = b.dataset.go === id;
-      b.classList.toggle('active', isActive);
-      if (isActive) b.setAttribute('aria-current', 'page');
-      else b.removeAttribute('aria-current');
-    });
-  }
-
-  // Close bottom sheet if navigating away
-  const sheet = document.getElementById('sheet-overlay');
-  if (sheet) sheet.classList.remove('open');
+function showScreen(id) {
+  const el = screens.get(id);
+  if (!el) return;
+  document.querySelectorAll('.screen.active').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  // Update tab bar
+  document.querySelectorAll('.tab-bar button').forEach(b => {
+    const go = b.dataset.go;
+    b.classList.toggle('active', go === id);
+    if (go === id) b.setAttribute('aria-current','page');
+    else b.removeAttribute('aria-current');
+  });
+  window.scrollTo(0,0);
+  // Shorthand screens re-route to dedicated screens
+  if (id === 'quiz') id = 'scr-quiz';
 }
 
-// Delegate all [data-go] clicks
+// Click navigation: data-go attributes
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-go]');
-  if (el) {
+  const go = e.target.closest('[data-go]');
+  if (go) {
     e.preventDefault();
-    go(el.dataset.go);
+    showScreen('scr-' + go.dataset.go);
   }
 });
 
-// Toggle switches
-document.querySelectorAll('.toggle-track').forEach(t => {
-  t.addEventListener('click', () => t.classList.toggle('on'));
-  t.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t.classList.toggle('on'); }
+// Tab bar
+document.querySelectorAll('.tab-bar button').forEach(b => {
+  b.addEventListener('click', () => showScreen('scr-' + b.dataset.go));
+});
+
+/* ── Theme Toggle ── */
+const themeToggle = document.getElementById('theme-toggle');
+themeToggle?.addEventListener('click', () => {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  themeToggle.classList.toggle('on', !isDark);
+});
+
+/* ── Chip Selection ── */
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    const row = this.parentElement;
+    if (!row) return;
+    row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    this.classList.add('active');
   });
 });
 
-// Option buttons (single select within group)
-document.querySelectorAll('.option-btn').forEach(b => {
-  b.addEventListener('click', () => {
-    b.parentElement.querySelectorAll('.option-btn').forEach(o => o.classList.remove('selected'));
-    b.classList.add('selected');
+/* ── Option Card Selection ── */
+document.querySelectorAll('.option-card').forEach(opt => {
+  opt.addEventListener('click', function() {
+    const parent = this.parentElement;
+    if (!parent) return;
+    parent.querySelectorAll('.option-card').forEach(o => o.classList.remove('selected'));
+    this.classList.add('selected');
   });
 });
 
-// Chips (toggle active, except those with data-go)
-document.querySelectorAll('.chip-row .chip').forEach(c => {
-  c.addEventListener('click', () => {
-    if (!c.dataset.go) c.classList.toggle('active');
+/* ── Shop Tabs ── */
+document.querySelectorAll('[data-shop-tab]').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('[data-shop-tab]').forEach(t => t.classList.remove('active'));
+    this.classList.add('active');
+    document.querySelectorAll('.shop-panel').forEach(p => p.classList.add('hidden'));
+    const panel = document.getElementById('shop-panel-' + this.dataset.shopTab);
+    if (panel) panel.classList.remove('hidden');
   });
 });
 
-/* ---- LaTeX rendering ---- */
-let latexEnabled = true;
-function renderMath() {
-  document.querySelectorAll('.math').forEach(el => {
-    if (!el.dataset.plain) el.dataset.plain = el.textContent;
-    if (latexEnabled && window.katex) {
-      try {
-        el.innerHTML = '';
-        window.katex.render(el.dataset.tex, el, { throwOnError: false, displayMode: false });
-      } catch(e) { el.textContent = el.dataset.plain; }
-    } else {
-      el.textContent = el.dataset.plain;
-    }
-  });
+/* ── Bottom Sheet ── */
+function openSheet(html) {
+  document.getElementById('bs-content').innerHTML = html;
+  document.getElementById('bs-overlay').classList.add('open');
 }
-
-if (window.katex) renderMath();
-else window.addEventListener('load', renderMath);
-
-const latexToggle = document.getElementById('latex-toggle');
-if (latexToggle) {
-  latexToggle.addEventListener('click', () => {
-    setTimeout(() => {
-      latexEnabled = latexToggle.classList.contains('on');
-      renderMath();
-    }, 0);
-  });
+function closeSheet() {
+  document.getElementById('bs-overlay').classList.remove('open');
 }
-
-// Model selector
-document.querySelectorAll('.model-option').forEach(el => {
-  el.addEventListener('click', () => {
-    document.querySelectorAll('.model-option').forEach(o => o.classList.remove('selected'));
-    el.classList.add('selected');
-  });
+document.getElementById('bs-overlay')?.addEventListener('click', function(e) {
+  if (e.target === this) closeSheet();
 });
 
-// Onboarding
+/* ── Tutor Chat ── */
+function addTutorBubble(text, role) {
+  const chat = document.getElementById('tutor-chat');
+  const div = document.createElement('div');
+  div.className = 'chat-bubble ' + role;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+document.getElementById('tutor-send')?.addEventListener('click', () => {
+  const inp = document.getElementById('tutor-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  addTutorBubble(text, 'user');
+  inp.value = '';
+  // Simulate AI response
+  setTimeout(() => {
+    addTutorBubble('Gute Frage! Lass mich dir helfen: …', 'assistant');
+    // Render any LaTeX
+    renderMathInElement(document.getElementById('tutor-chat'));
+  }, 600);
+});
+document.getElementById('tutor-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('tutor-send').click();
+});
+
+/* ── Onboarding ── */
 let obSlide = 0;
-function showSlide(n) {
-  document.querySelectorAll('.onboarding-slide').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.ob-dot').forEach(d => d.classList.remove('active'));
-  const slideEl = document.querySelector('[data-slide="' + n + '"]');
-  const dotEl = document.querySelector('[data-dot="' + n + '"]');
-  if (slideEl) slideEl.classList.add('active');
-  if (dotEl) dotEl.classList.add('active');
-  const nextBtn = document.getElementById('ob-next');
-  if (nextBtn) nextBtn.textContent = n === 2 ? 'Los geht\'s!' : 'Weiter';
+const obSlides = document.querySelectorAll('.onboarding-slide');
+const obDots = document.querySelectorAll('.ob-dot');
+document.getElementById('ob-next')?.addEventListener('click', () => {
+  if (obSlide < obSlides.length - 1) {
+    obSlides[obSlide].classList.remove('active');
+    obDots[obSlide].classList.remove('active');
+    obSlide++;
+    obSlides[obSlide].classList.add('active');
+    obDots[obSlide].classList.add('active');
+  } else {
+    document.getElementById('ob-overlay').classList.add('hidden');
+  }
+});
+document.getElementById('ob-skip')?.addEventListener('click', () => {
+  document.getElementById('ob-overlay').classList.add('hidden');
+});
+
+/* ── Skeleton Demo: simulate load ── */
+function simulateLoad(containerId, skeletonId, delay = 1200) {
+  const content = document.getElementById(containerId);
+  const skeleton = document.getElementById(skeletonId);
+  if (!content || !skeleton) return;
+  skeleton.classList.remove('hidden');
+  // After delay, hide skeleton
+  setTimeout(() => skeleton.classList.add('hidden'), delay);
 }
 
-document.getElementById('ob-next')?.addEventListener('click', () => {
-  if (obSlide < 2) { obSlide++; showSlide(obSlide); }
-  else { document.getElementById('onboarding').classList.add('hidden'); }
-});
-
-document.getElementById('ob-skip')?.addEventListener('click', () => {
-  document.getElementById('onboarding').classList.add('hidden');
-});
-
-// Offline banner dismiss
-document.getElementById('offline-banner')?.addEventListener('click', function() {
-  this.classList.toggle('show');
-});
-
-// Bottom sheet overlay dismiss
-const sheetOverlay = document.getElementById('sheet-overlay');
-sheetOverlay?.addEventListener('click', e => {
-  if (e.target === sheetOverlay) sheetOverlay.classList.remove('open');
-});
-
-// Generate Block Blast grid (avoids 64 inline divs)
-(function() {
-  const grid = document.getElementById('block-grid');
-  if (!grid) return;
-  const colors = [
-    'var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)',
-    'var(--surface-2)','var(--surface-2)','var(--primary)','var(--primary)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)',
-    'var(--surface-2)','var(--surface-2)','var(--primary)','var(--surface-2)','var(--surface-2)','var(--accent)','var(--accent)','var(--surface-2)',
-    'var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--accent)','var(--surface-2)','var(--surface-2)',
-    'var(--surface-2)','var(--warning)','var(--surface-2)','var(--surface-2)','var(--success)','var(--success)','var(--success)','var(--surface-2)',
-    'var(--surface-2)','var(--warning)','var(--warning)','var(--surface-2)','var(--surface-2)','var(--surface-2)','var(--danger)','var(--danger)',
-    'var(--primary)','var(--primary)','var(--warning)','var(--surface-2)','var(--accent)','var(--surface-2)','var(--danger)','var(--surface-2)',
-    'var(--primary)','var(--surface-2)','var(--surface-2)','var(--success)','var(--accent)','var(--accent)','var(--surface-2)','var(--surface-2)'
-  ];
-  colors.forEach(c => {
-    const cell = document.createElement('div');
-    cell.style.cssText = 'aspect-ratio:1;background:' + c + ';border-radius:3px';
-    grid.appendChild(cell);
+/* ── LaTeX Rendering (KaTeX) ── */
+function renderMathInElement(el) {
+  if (typeof renderMathInElement === 'undefined' || typeof katex === 'undefined') return;
+  el.querySelectorAll('.math').forEach(span => {
+    try { katex.render(span.textContent, span, { throwOnError: false }); }
+    catch(e) { span.textContent = span.textContent; }
   });
-})();
+}
+// Render on load
+document.addEventListener('DOMContentLoaded', () => {
+  renderMathInElement(document.body);
+});
 
-console.log('🧠 Lerntrainer Design Vision 2.0 geladen.');
-console.log('   Verbesserungen ggü. v1: Glass-Morphism, Elevation-System,');
-console.log('   Typography-Scale, Micro-Animations, Focus-Visible,');
-console.log('   Skeleton-States, Empty-States, Reduzierte-Bewegung.');
+/* ── Offline Detection ── */
+window.addEventListener('online', () => document.getElementById('offline-banner').classList.remove('show'));
+window.addEventListener('offline', () => document.getElementById('offline-banner').classList.add('show'));
+
+/* ── Keyboard: Escape closes sheet ── */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSheet();
+});
+
+console.log('🎨 Lerntrainer Design Vision 2.0 — Synced with app.css token system');
+console.log('   Light (green) / Dark (cyan) · Glass progressive · Skeleton states · a11y');
 </script>
 </body>
 </html>
