@@ -1,16 +1,12 @@
 import { loadQuizzes, saveQuizzes } from "../store.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, uid, CHIP_COLORS } from "../utils.js";
 import { openBlackoutEditor } from "../blackout.js";
 
 // Registry für document-Listener (Diagram-Label-Drag im Editor). renderChips
 // wird pro Neuzeichnen mehrfach aufgerufen; ohne Entfernung lecken die
 // document-Listener mit jedem Redraw.
 let _docCleanups = [];
-
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
 
 function emptyQuestion(type = "single_choice") {
   const q = { id: uid(), question_text: "", question_type: type, points: 1 };
@@ -501,8 +497,6 @@ async function saveQuiz(quizzes) {
   await saveQuizzes(quizzes);
   navigate("my-quizzes");
 }
-
-const CHIP_COLORS = ["#ef4444","#f59e0b","#22c55e","#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f97316"];
 
 function initDiagramPlacement(root, q, quizzes) {
   const canvas = root.querySelector("#placement-canvas");

@@ -1,7 +1,7 @@
 import { QuizSession, updateProgress } from "../quiz-engine.js";
 import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, addCoins } from "../store.js";
 import { navigate } from "../router.js";
-import { esc, mathEsc, escAttr } from "../utils.js";
+import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
 
@@ -395,8 +395,6 @@ function shuffle(arr) {
   }
   return arr;
 }
-
-const CHIP_COLORS = ["#ef4444","#f59e0b","#22c55e","#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f97316"];
 
 function setupDragDrop(root, q, assignments) {
   const sources = shuffle([...q.drag_drop_pairs.map(p => p.source)]);

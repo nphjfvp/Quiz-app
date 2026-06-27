@@ -1,7 +1,7 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
 import { generateQuiz, generateQuizFromImage, generateQuizFromImages, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
 import { navigate } from "../router.js";
-import { esc } from "../utils.js";
+import { esc, loadPdfJs, uid } from "../utils.js";
 
 const Q_TYPES = [
   { id: "single_choice", label: "Single Choice" },
@@ -12,10 +12,6 @@ const Q_TYPES = [
   { id: "drag_category", label: "Kategorie-Zuordnung" },
   { id: "math_formula", label: "Mathe-Formel" },
 ];
-
-function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
 
 export async function render(root, params = {}) {
   const prefillText = params.text ?? "";
@@ -340,23 +336,6 @@ export async function render(root, params = {}) {
     showError("Bitte eine .txt oder .pdf Datei auswählen.");
     fileInput.value = "";
   });
-
-  async function loadPdfJs() {
-    if (window.pdfjsLib) return window.pdfjsLib;
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-      script.onload = () => {
-        const lib = window.pdfjsLib;
-        if (lib) {
-          lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-          resolve(lib);
-        } else reject(new Error("pdf.js konnte nicht geladen werden"));
-      };
-      script.onerror = () => reject(new Error("pdf.js konnte nicht geladen werden. Prüfe deine Internetverbindung."));
-      document.head.appendChild(script);
-    });
-  }
 
   // --- Char counter ---
   const charCountEl = root.querySelector("#char-count");

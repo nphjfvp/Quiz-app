@@ -1,7 +1,7 @@
 import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins, addCoins, loadAchievements, saveAchievements } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount } from "../firebase-sync.js";
-import { esc } from "../utils.js";
+import { esc, getBoxCounts } from "../utils.js";
 import { renderAvatarSVG } from "../shop-catalog.js";
 
 export async function render(root) {
@@ -161,13 +161,4 @@ export async function render(root) {
   root.querySelectorAll("[data-quiz-id]").forEach((el) => {
     el.addEventListener("click", () => navigate("quiz-modes", { quizId: el.dataset.quizId }));
   });
-}
-
-function getBoxCounts(quiz, progress) {
-  const counts = {};
-  for (const q of (quiz.questions || [])) {
-    const b = progress[q.id]?.box ?? 1;
-    counts[b] = (counts[b] || 0) + 1;
-  }
-  return counts;
 }

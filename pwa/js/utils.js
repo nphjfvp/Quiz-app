@@ -20,6 +20,44 @@ export function escAttr(s) {
     .replace(/'/g, "&#39;");
 }
 
+// Eindeutige ID (UUID mit Fallback für alte Browser / unsichere Kontexte).
+export function uid() {
+  return crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+// Farbreihe für Diagram-Label- / Drag-Drop-Chips; geteilt zwischen quiz.js
+// und editor.js.
+export const CHIP_COLORS = ["#ef4444","#f59e0b","#22c55e","#3b82f6","#8b5cf6","#ec4899","#14b8a6","#f97316"];
+
+// Zählt die Fragen eines Quizzes pro Leitner-Box (1-5).
+export function getBoxCounts(quiz, progress) {
+  const counts = {};
+  for (const q of (quiz.questions || [])) {
+    const b = progress[q.id]?.box ?? 1;
+    counts[b] = (counts[b] || 0) + 1;
+  }
+  return counts;
+}
+
+// Lädt pdf.js einmalig via CDN und konfiguriert den Worker. Geteilt zwischen
+// ai-generate, deep-learn und scaffold (vorher 3 identische Kopien).
+export async function loadPdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    script.onload = () => {
+      const lib = window.pdfjsLib;
+      if (lib) {
+        lib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        resolve(lib);
+      } else reject(new Error("pdf.js konnte nicht geladen werden"));
+    };
+    script.onerror = () => reject(new Error("pdf.js konnte nicht geladen werden. Prüfe deine Internetverbindung."));
+    document.head.appendChild(script);
+  });
+}
+
 const LATEX_RE = /(\$\$[\s\S]+?\$\$|\$(?!\s)[^$\n]+?\$)/g;
 
 // Detects bare LaTeX commands the AI sometimes emits without $ delimiters.
