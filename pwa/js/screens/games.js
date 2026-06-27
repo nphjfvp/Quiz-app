@@ -41,6 +41,12 @@ export async function render(root) {
       best: scores["boss-fight"]?.best || 0,
       plays: scores["boss-fight"]?.plays || 0,
     },
+    {
+      id: "math-solver", icon: "🧮", title: "Mathe-Solver",
+      desc: "Lösungsweg-Puzzle", unlocked: true,
+      best: scores["math-solver"]?.best || 0,
+      plays: scores["math-solver"]?.plays || 0,
+    },
   ];
 
   let html = `

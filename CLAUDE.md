@@ -103,6 +103,8 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - **quiz-battle** – Karten-Kampf inkl. **PvC** (Computer-Gegner).
 - **speed-quiz** – Zeitdruck. **millionaire** – Wer wird Millionär (Joker).
 - **hangman** – Galgenmännchen. **boss-fight** – Endgegner mit HP/Combo.
+- **math-solver** – Lösungsweg-Puzzle: quadratische Gleichungen Schritt für Schritt
+  (Koeffizienten→Diskriminante→Wurzel→Lösungen) mit der ABC-Formel lösen (kein Quiz nötig).
 - Drumherum: **Coin-Economy** (`loadCoins/addCoins/spendCoins`) + **Highscores** (`game_scores`).
 
 ### Shop / Meta-Progression (umgesetzt)
@@ -176,4 +178,4 @@ robustes **parseJSON** (repariert ungültige LaTeX-Escapes wie `\(`/`\sqrt`).
 - **i18n / Mehrsprachigkeit** (PWA nur Deutsch; Desktop hat DE/EN via `i18n.py`).
 - **Echtes Rolling-Summary** für Chunking (statt nur Themen-Liste als Kontext) –
   der Bild-/Hybrid-PDF-Pfad chunkt zudem noch nicht (nur der Text-Pfad).
-- Mockup-Spiele noch nicht in echter PWA: **Block Blast, Math-Solver, Mix-Kampagne**.
+- Mockup-Spiele noch nicht in echter PWA: **Block Blast, Mix-Kampagne**.

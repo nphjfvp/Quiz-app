@@ -54,6 +54,7 @@ route("shop", async (root) => { const m = await import("./screens/shop.js"); ret
 route("random", async (root) => { const m = await import("./screens/random-mode.js"); return m.render(root); });
 route("formula-sheets", async (root, params) => { const m = await import("./screens/formula-sheets.js"); return m.render(root, params); });
 route("image-editor", async (root) => { const m = await import("./screens/image-editor.js"); return m.render(root); });
+route("math-solver", async (root) => { const m = await import("./screens/math-solver.js"); return m.render(root); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -89,6 +90,7 @@ setScreenTab("speed-quiz", "games");
 setScreenTab("millionaire", "games");
 setScreenTab("hangman", "games");
 setScreenTab("boss-fight", "games");
+setScreenTab("math-solver", "games");
 
 // 📊 Stats
 setScreenTab("stats", "stats");
