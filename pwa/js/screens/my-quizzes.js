@@ -35,6 +35,22 @@ export async function render(root) {
 
   root.innerHTML = html;
 
+  // Learning tools – accessible from the Lernen tab
+  html += `<div class="section-title">Lern-Werkzeuge</div>`;
+  html += `<div class="grid-4">
+    <div class="grid-card mini-card" data-nav="ai-generate"><div class="icon">🤖</div><div class="title">KI-Generator</div></div>
+    <div class="grid-card mini-card" data-nav="editor"><div class="icon">✏️</div><div class="title">Editor</div></div>
+    <div class="grid-card mini-card" data-nav="study"><div class="icon">🃏</div><div class="title">Karteikarten</div></div>
+    <div class="grid-card mini-card" data-nav="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>
+    <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner</div></div>
+    <div class="grid-card mini-card" data-nav="sr-dashboard"><div class="icon">🧠</div><div class="title">SR-Dashboard</div></div>
+    <div class="grid-card mini-card" data-nav="marked"><div class="icon">⭐</div><div class="title">Markiert</div></div>
+    <div class="grid-card mini-card" data-nav="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
+    <div class="grid-card mini-card" data-nav="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learn</div></div>
+    <div class="grid-card mini-card" data-nav="socratic"><div class="icon">🏛️</div><div class="title">Sokrates</div></div>
+    <div class="grid-card mini-card" data-nav="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
+  </div>`;
+
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
   root.querySelector("#new-quiz-btn").addEventListener("click", () => navigate("editor"));
   root.querySelectorAll("[data-edit-id]").forEach((btn) => {
@@ -45,5 +61,8 @@ export async function render(root) {
   });
   root.querySelectorAll("[data-quiz-id]").forEach((el) => {
     el.addEventListener("click", () => navigate("quiz-modes", { quizId: el.dataset.quizId }));
+  });
+  root.querySelectorAll("[data-nav]").forEach((el) => {
+    el.addEventListener("click", () => navigate(el.dataset.nav));
   });
 }

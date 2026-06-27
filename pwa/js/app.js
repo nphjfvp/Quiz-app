@@ -1,4 +1,4 @@
-import { route, navigate } from "./router.js";
+import { route, navigate, setScreenTab, handleTabClick } from "./router.js";
 import { render as homeScreen } from "./screens/home.js";
 import { render as quizScreen } from "./screens/quiz.js";
 import { render as resultsScreen } from "./screens/results.js";
@@ -18,6 +18,7 @@ import { render as clozeScreen } from "./screens/cloze.js";
 import { loadSettings } from "./store.js";
 import { setAccount } from "./firebase-sync.js";
 
+// ── Route registration ─────────────────────────────────────────────────
 route("home", homeScreen);
 route("quiz", quizScreen);
 route("results", resultsScreen);
@@ -50,6 +51,48 @@ route("scaffold", async (root, params) => { const m = await import("./screens/sc
 route("deep-learn", async (root, params) => { const m = await import("./screens/deep-learn.js"); return m.render(root, params); });
 route("shop", async (root) => { const m = await import("./screens/shop.js"); return m.render(root); });
 
+// ── Screen → Tab mapping ───────────────────────────────────────────────
+// 🏠 Home
+setScreenTab("home", "home");
+setScreenTab("daily", "home");
+setScreenTab("shop", "home");
+
+// 📚 Lernen
+setScreenTab("my-quizzes", "lernen");
+setScreenTab("quiz-modes", "lernen");
+setScreenTab("quiz", "lernen");
+setScreenTab("results", "lernen");
+setScreenTab("editor", "lernen");
+setScreenTab("ai-generate", "lernen");
+setScreenTab("folders", "lernen");
+setScreenTab("sr-dashboard", "lernen");
+setScreenTab("study", "lernen");
+setScreenTab("cloze", "lernen");
+setScreenTab("scaffold", "lernen");
+setScreenTab("deep-learn", "lernen");
+setScreenTab("socratic", "lernen");
+setScreenTab("tutor", "lernen");
+setScreenTab("marked", "lernen");
+
+// 🎮 Games
+setScreenTab("games", "games");
+setScreenTab("tower-defense", "games");
+setScreenTab("quiz-battle", "games");
+setScreenTab("speed-quiz", "games");
+setScreenTab("millionaire", "games");
+setScreenTab("hangman", "games");
+setScreenTab("boss-fight", "games");
+
+// 📊 Stats
+setScreenTab("stats", "stats");
+setScreenTab("achievements", "stats");
+setScreenTab("error-diary", "stats");
+
+// ⚙️ Settings
+setScreenTab("settings", "settings");
+setScreenTab("sync", "settings");
+setScreenTab("pomodoro", "settings");
+
 async function init() {
   const settings = await loadSettings();
 
@@ -75,6 +118,13 @@ async function init() {
     // Relativer Pfad, damit der SW sowohl unter / als auch unter /Quiz-app/ lädt
     const swUrl = new URL("sw.js", document.baseURI).href;
     navigator.serviceWorker.register(swUrl).catch(() => {});
+  }
+
+  // Wire tab bar
+  const tabBar = document.getElementById("tab-bar");
+  if (tabBar) {
+    tabBar.querySelectorAll("button[data-tab]").forEach((b) =>
+      b.addEventListener("click", () => handleTabClick(b.dataset.tab)));
   }
 
   const hash = location.hash.slice(1);
