@@ -39,8 +39,12 @@ function evalExpr(raw) {
   let s = normNum(raw).replace(/\^/g, "**").replace(/wrzl|√/g, "sqrt");
   s = s.replace(/(\d)([a-zA-Z(])/g, "$1*$2");
   if (s.includes("=")) s = s.split("=").pop();
-  // allow only safe characters + a few functions
+  // Sicherheits-Whitelist: nur Ziffern, Operatoren, Klammern und Buchstaben.
+  // Da keine Anführungszeichen/Backticks/Eckigen Klammern/Unterstriche erlaubt
+  // sind, lassen sich keine String-Literale oder Globals (fetch/window) bilden
+  // -> keine Code-Injektion über den nachfolgenden Function()-Aufruf.
   if (!/^[0-9.+\-*/() a-z]*$/i.test(s)) return null;
+  if (s.length > 200) return null; // Längenschutz gegen Riesenausdrücke
   s = s.replace(/sqrt/g, "Math.sqrt").replace(/\bpi\b/g, "Math.PI").replace(/\babs\b/g, "Math.abs");
   try {
     // eslint-disable-next-line no-new-func
