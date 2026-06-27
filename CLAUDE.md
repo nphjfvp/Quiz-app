@@ -82,6 +82,10 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - **socratic** – sokratischer Frage-Modus. **scaffold** – Formel-Training (PDF→KI extrahiert Teilaufgaben→löst Schritt für Schritt).
 - **cloze** – Lückentext-Generator (KI-Zusammenfassung + Keywords). **study** – Karteikarten-Modus.
 - **pomodoro** – Fokus-Timer.
+- **random** – Zufalls-Modus: mischt Fragen aus ALLEN Quizzen zu einer Lernrunde
+  (synthetisches Quiz → normale quiz-Engine; Fortschritt landet pro Frage-ID bei den Quellfragen).
+- **formula-sheets** – Formelsammlung-Manager (Store-Key `formula_sheets`): Sammlungen pro Fach
+  anlegen/ansehen/bearbeiten, LaTeX-Body via `mathEsc` gerendert (Desktop-Parität zu `fosa`).
 - **settings** – Theme (auto/hell/dunkel), Account, Sync-Code, **API-Key + Modell-Selektor mit
   Kostensperre** (Free-Modelle direkt, kostenpflichtige hinter „Weitere Modelle anzeigen",
   pro Modell 🔒-Sperre via `disabledModels`, Bestätigung bei Paid-Modellen),
@@ -169,3 +173,5 @@ robustes **parseJSON** (repariert ungültige LaTeX-Escapes wie `\(`/`\sqrt`).
 - **Echtes Rolling-Summary** für Chunking (statt nur Themen-Liste als Kontext) –
   der Bild-/Hybrid-PDF-Pfad chunkt zudem noch nicht (nur der Text-Pfad).
 - Mockup-Spiele noch nicht in echter PWA: **Block Blast, Math-Solver, Mix-Kampagne**.
+- Desktop-Parität offen: **Bild-Editor** (eigenständig; PWA hat Schwärzen nur in Fragen via `blackout.js`)
+  und **KI-Import** (Fragen aus Übungs-/Lösungsdokumenten 1:1 importieren statt neu generieren).
