@@ -31,7 +31,15 @@ export async function render(root, params = {}) {
   let charLimit = getModelContextLimit(currentModel);
   let uploadedFileType = null;
   let uploadedImageData = null;
-  let pdfPageImages = null; // data-URLs of rendered PDF pages when visual mode is on
+  let pdfPageImages = null; // data-URLs of rendered PDF pages (images/hybrid mode)
+  let pdfFile = null;       // File-Referenz, um Seiten bei Moduswechsel neu zu rendern
+  let pdfPageTexts = [];    // extrahierter Text pro Seite (Index 0 = Seite 1)
+  let pdfVisualPages = [];  // 1-basierte Seitennummern mit wenig Text (Grafik/Formel)
+  let pdfMode = "text";     // "text" | "hybrid" | "images"
+
+  // Eine Seite mit weniger Text gilt als „visuell" (Diagramm/Formel/Scan) und
+  // wird im Hybrid-Modus zusätzlich als Bild an ein Vision-Modell geschickt.
+  const VISUAL_PAGE_MIN_CHARS = 100;
 
   function fmtLimit(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
@@ -65,12 +73,14 @@ export async function render(root, params = {}) {
           <label>Datei laden (.txt, .pdf, Bild)</label>
           <input type="file" id="ai-file" accept=".txt,.pdf,image/*" class="input">
           <small class="file-hint">PDF-Text wird automatisch extrahiert. Bilder (Diagramme, Screenshots) werden per Vision-KI analysiert.</small>
-          <div id="visual-toggle-row" class="visual-toggle-row" style="display:none">
-            <label class="toggle-label">
-              <input type="checkbox" id="visual-toggle">
-              <span>📸 Enthält relevante Bilder</span>
-            </label>
-            <small class="file-hint">Wenn aktiv, werden PDF-Seiten als Bilder an ein Vision-Modell gesendet — so werden Diagramme, Formeln und Grafiken erkannt.</small>
+          <div id="pdf-mode-row" class="visual-toggle-row" style="display:none">
+            <label style="font-size:0.85rem;font-weight:600;margin-bottom:4px;display:block">PDF-Verarbeitung</label>
+            <div class="detail-presets" id="pdf-mode-presets">
+              <button type="button" class="detail-preset active" data-mode="text">📝 Nur Text</button>
+              <button type="button" class="detail-preset" data-mode="hybrid">🎨 Hybrid</button>
+              <button type="button" class="detail-preset" data-mode="images">📸 Alle als Bild</button>
+            </div>
+            <small class="file-hint" id="pdf-mode-hint">Nur Text: schnell &amp; günstig. Diagramme/Formeln gehen verloren.</small>
           </div>
           <div id="img-preview" class="img-preview"></div>
           <div id="file-progress" class="file-progress">
@@ -194,7 +204,8 @@ export async function render(root, params = {}) {
   // --- Model selection ---
   function needsVision() {
     if (uploadedFileType === "image") return true;
-    if (uploadedFileType === "pdf" && root.querySelector("#visual-toggle")?.checked) return true;
+    if (uploadedFileType === "pdf" && pdfMode === "images") return true;
+    if (uploadedFileType === "pdf" && pdfMode === "hybrid" && pdfVisualPages.length > 0) return true;
     return false;
   }
 
@@ -223,20 +234,28 @@ export async function render(root, params = {}) {
     });
   });
 
-  root.querySelector("#visual-toggle").addEventListener("change", async () => {
-    updateModelAvailability();
-    const visualOn = root.querySelector("#visual-toggle").checked;
-    const file = fileInput.files[0];
-    if (visualOn && file && file.name.endsWith(".pdf") && !pdfPageImages) {
-      await renderPdfAsImages(file);
+  function updatePdfModeHint() {
+    const hintEl = root.querySelector("#pdf-mode-hint");
+    if (!hintEl) return;
+    if (pdfMode === "text") {
+      hintEl.textContent = "Nur Text: schnell & günstig. Diagramme/Formeln gehen verloren.";
+    } else if (pdfMode === "hybrid") {
+      hintEl.textContent = `Hybrid (empfohlen): Volltext + ${pdfVisualPages.length} Seite(n) mit Grafik/Formel als Bild. Bestes Preis-Leistungs-Verhältnis.`;
+    } else {
+      hintEl.textContent = "Alle Seiten als Bild: vollständigste, aber teuerste Variante (Vision-Modell nötig).";
     }
-    if (!visualOn) {
-      pdfPageImages = null;
-      root.querySelector("#img-preview").innerHTML = "";
-    }
-  });
+  }
 
-  async function renderPdfAsImages(file) {
+  function setPdfMode(mode) {
+    pdfMode = mode;
+    root.querySelectorAll("#pdf-mode-presets .detail-preset").forEach(b =>
+      b.classList.toggle("active", b.dataset.mode === mode));
+    updatePdfModeHint();
+    updateModelAvailability();
+  }
+
+  // Rendert die gewünschten Seiten als JPEG-Bilder. pageNumbers=null → alle Seiten.
+  async function renderPdfPages(file, pageNumbers) {
     fileProgress.style.display = "block";
     fileBar.style.width = "10%";
     fileInfo.textContent = "Rendere PDF-Seiten als Bilder…";
@@ -245,33 +264,60 @@ export async function render(root, params = {}) {
       fileBar.style.width = "20%";
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let pages = (pageNumbers && pageNumbers.length)
+        ? pageNumbers.filter(n => n >= 1 && n <= pdf.numPages)
+        : Array.from({ length: pdf.numPages }, (_, i) => i + 1);
+      const capped = pages.length > 20;
+      pages = pages.slice(0, 20);
       const images = [];
-      const maxPages = Math.min(pdf.numPages, 20);
-      for (let i = 1; i <= maxPages; i++) {
+      for (let idx = 0; idx < pages.length; idx++) {
+        const i = pages[idx];
         const page = await pdf.getPage(i);
-        const scale = 2;
-        const viewport = page.getViewport({ scale });
+        const viewport = page.getViewport({ scale: 2 });
         const canvas = document.createElement("canvas");
         canvas.width = viewport.width;
         canvas.height = viewport.height;
         const ctx = canvas.getContext("2d");
         await page.render({ canvasContext: ctx, viewport }).promise;
         images.push(canvas.toDataURL("image/jpeg", 0.85));
-        fileBar.style.width = (20 + 80 * i / maxPages) + "%";
-        fileInfo.textContent = `Seite ${i}/${maxPages} gerendert…`;
+        fileBar.style.width = (20 + 80 * (idx + 1) / pages.length) + "%";
+        fileInfo.textContent = `Seite ${i} gerendert (${idx + 1}/${pages.length})…`;
       }
       pdfPageImages = images;
       const previewDiv = root.querySelector("#img-preview");
-      previewDiv.innerHTML = `<div class="file-hint">📸 ${images.length} Seiten als Bilder geladen${pdf.numPages > 20 ? ` (max. 20 von ${pdf.numPages})` : ""}. Vision-KI wird Bilder, Diagramme und Formeln erkennen.</div>`;
+      const label = pdfMode === "hybrid"
+        ? `🎨 Hybrid: Volltext + ${images.length} Bildseite(n)${capped ? " (max. 20)" : ""}.`
+        : `📸 ${images.length} Seiten als Bilder${capped ? ` (max. 20 von ${pdf.numPages})` : ""}.`;
+      previewDiv.innerHTML = `<div class="file-hint">${label} Vision-KI erkennt Bilder, Diagramme und Formeln.</div>`;
       previewDiv.innerHTML += images.slice(0, 3).map(src => `<img src="${src}" alt="PDF-Seite" style="max-height:120px;border-radius:8px;margin:4px">`).join("");
       if (images.length > 3) previewDiv.innerHTML += `<small>… und ${images.length - 3} weitere</small>`;
-      fileInfo.textContent = `✓ ${images.length} Seiten gerendert`;
+      fileInfo.textContent = `✓ ${images.length} Seite(n) gerendert`;
       setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
     } catch (err) {
       showError("PDF-Seiten konnten nicht gerendert werden: " + (err.message || err));
       fileProgress.style.display = "none";
     }
   }
+
+  root.querySelectorAll("#pdf-mode-presets .detail-preset").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      setPdfMode(btn.dataset.mode);
+      if (!pdfFile) return;
+      if (pdfMode === "images") {
+        await renderPdfPages(pdfFile, null);
+      } else if (pdfMode === "hybrid") {
+        if (pdfVisualPages.length) {
+          await renderPdfPages(pdfFile, pdfVisualPages);
+        } else {
+          pdfPageImages = null;
+          root.querySelector("#img-preview").innerHTML = `<div class="file-hint">🎨 Hybrid: Keine reinen Bildseiten erkannt — es wird nur Text gesendet.</div>`;
+        }
+      } else { // text
+        pdfPageImages = null;
+        root.querySelector("#img-preview").innerHTML = "";
+      }
+    });
+  });
 
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
@@ -282,9 +328,13 @@ export async function render(root, params = {}) {
     uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : isImage ? "image" : null;
     uploadedImageData = null;
     pdfPageImages = null;
+    pdfFile = null;
+    pdfPageTexts = [];
+    pdfVisualPages = [];
+    pdfMode = "text";
     root.querySelector("#img-preview").innerHTML = "";
-    root.querySelector("#visual-toggle-row").style.display = uploadedFileType === "pdf" ? "" : "none";
-    root.querySelector("#visual-toggle").checked = false;
+    root.querySelector("#pdf-mode-row").style.display = uploadedFileType === "pdf" ? "" : "none";
+    setPdfMode("text");
     updateModelAvailability();
 
     if (isImage) {
@@ -307,6 +357,7 @@ export async function render(root, params = {}) {
     }
 
     if (file.name.endsWith(".pdf")) {
+      pdfFile = file;
       fileProgress.style.display = "block";
       fileBar.style.width = "10%";
       fileInfo.textContent = "Lade PDF-Bibliothek...";
@@ -317,22 +368,37 @@ export async function render(root, params = {}) {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let text = "";
+        pdfPageTexts = [];
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          text += content.items.map(item => item.str).join(" ") + "\n\n";
+          const pageText = content.items.map(item => item.str).join(" ");
+          pdfPageTexts.push(pageText);
+          text += pageText + "\n\n";
           fileBar.style.width = (30 + 70 * i / pdf.numPages) + "%";
           fileInfo.textContent = `Seite ${i}/${pdf.numPages}...`;
         }
         textArea.value = text.trim();
+
+        // Seiten mit wenig Text gelten als „visuell" (Diagramm/Formel/Scan).
+        pdfVisualPages = pdfPageTexts
+          .map((t, idx) => ({ n: idx + 1, len: t.replace(/\s/g, "").length }))
+          .filter(p => p.len < VISUAL_PAGE_MIN_CHARS)
+          .map(p => p.n);
+
         const extractedLen = text.replace(/\s/g, "").length;
         if (extractedLen < 50) {
-          root.querySelector("#visual-toggle-row").style.display = "";
-          root.querySelector("#visual-toggle").checked = true;
-          updateModelAvailability();
-          fileInfo.textContent = `⚠ Kaum Text erkannt – visueller Modus aktiviert`;
-          await renderPdfAsImages(file);
+          // Scan-/Bild-PDF: gesamter Text fehlt → alle Seiten als Bild.
+          setPdfMode("images");
+          fileInfo.textContent = `⚠ Kaum Text erkannt – „Alle als Bild" aktiviert`;
+          await renderPdfPages(pdfFile, null);
+        } else if (pdfVisualPages.length > 0) {
+          // Teilweise visuell → Hybrid empfehlen und Bildseiten rendern.
+          setPdfMode("hybrid");
+          fileInfo.textContent = `✓ ${pdf.numPages} Seiten · ${pdfVisualPages.length} Bildseite(n) → Hybrid empfohlen`;
+          await renderPdfPages(pdfFile, pdfVisualPages);
         } else {
+          setPdfMode("text");
           fileInfo.textContent = `✓ ${pdf.numPages} Seiten extrahiert`;
           setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
         }
@@ -384,21 +450,31 @@ export async function render(root, params = {}) {
       return;
     }
 
-    // PDF visuell: Seiten als Bilder an Vision-KI
-    if (pdfPageImages && root.querySelector("#visual-toggle")?.checked) {
-      const quizName = nameInput.value.trim() || `KI-Quiz (PDF visuell)`;
-      hideError();
-      genBtn.disabled = true;
-      genBtn.textContent = `⏳ Analysiere ${pdfPageImages.length} Seiten…`;
-      try {
-        const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel }, text || undefined);
-        showReview(root, questions, quizName, currentModel, text || "");
-      } catch (err) {
-        showError(err.message || "PDF-Bilder konnten nicht ausgewertet werden.");
-        genBtn.disabled = false;
-        genBtn.textContent = "Quiz generieren";
+    // PDF visuell (alle Seiten) oder hybrid (Volltext + Bildseiten)
+    if (uploadedFileType === "pdf" && (pdfMode === "images" || pdfMode === "hybrid")) {
+      const haveImages = pdfPageImages && pdfPageImages.length > 0;
+      // Images-Modus braucht Bilder; Hybrid ohne Bildseiten fällt in den Textpfad.
+      if (pdfMode === "images" || (pdfMode === "hybrid" && haveImages)) {
+        const quizName = nameInput.value.trim() || (pdfMode === "hybrid" ? "KI-Quiz (PDF hybrid)" : "KI-Quiz (PDF visuell)");
+        hideError();
+        genBtn.disabled = true;
+        genBtn.textContent = pdfMode === "hybrid"
+          ? `⏳ Analysiere Text + ${pdfPageImages.length} Bildseite(n)…`
+          : `⏳ Analysiere ${pdfPageImages.length} Seiten…`;
+        try {
+          // Hybrid: Volltext als Zusatzkontext. Images: Text optional (oft leer).
+          let ctxText = pdfMode === "hybrid" ? text : (text || undefined);
+          if (ctxText && ctxText.length > charLimit) ctxText = ctxText.slice(0, charLimit);
+          const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel }, ctxText);
+          showReview(root, questions, quizName, currentModel, text || "");
+        } catch (err) {
+          showError(err.message || "PDF konnte nicht ausgewertet werden.");
+          genBtn.disabled = false;
+          genBtn.textContent = "Quiz generieren";
+        }
+        return;
       }
-      return;
+      // Hybrid ohne Bildseiten → weiter unten reiner Textpfad
     }
 
     if (!text) {
