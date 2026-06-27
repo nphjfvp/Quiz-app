@@ -89,6 +89,8 @@ export async function render(root) {
   html += `<div class="section-title">Weitere Tools</div>
   <div class="grid-4">
     <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner / Klausuren</div></div>
+    <div class="grid-card mini-card" data-nav="random"><div class="icon">🎲</div><div class="title">Zufalls-Modus</div></div>
+    <div class="grid-card mini-card" data-nav="formula-sheets"><div class="icon">📋</div><div class="title">Formelsammlung</div></div>
     <div class="grid-card mini-card" data-nav="study"><div class="icon">🃏</div><div class="title">Karteikarten</div></div>
     <div class="grid-card mini-card" data-nav="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
     <div class="grid-card mini-card" data-nav="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learn</div></div>

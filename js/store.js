@@ -93,6 +93,13 @@ export async function saveFolders(folders) {
   await set("folders", folders);
 }
 
+export async function loadFormulaSheets() {
+  return (await get("formula_sheets")) ?? [];
+}
+export async function saveFormulaSheets(sheets) {
+  await set("formula_sheets", sheets);
+}
+
 export async function loadFsrs() {
   return (await get("fsrs")) ?? {};
 }

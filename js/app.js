@@ -51,6 +51,8 @@ route("socratic", async (root, params) => { const m = await import("./screens/so
 route("scaffold", async (root, params) => { const m = await import("./screens/scaffold.js"); return m.render(root, params); });
 route("deep-learn", async (root, params) => { const m = await import("./screens/deep-learn.js"); return m.render(root, params); });
 route("shop", async (root) => { const m = await import("./screens/shop.js"); return m.render(root); });
+route("random", async (root) => { const m = await import("./screens/random-mode.js"); return m.render(root); });
+route("formula-sheets", async (root, params) => { const m = await import("./screens/formula-sheets.js"); return m.render(root, params); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -74,6 +76,8 @@ setScreenTab("deep-learn", "lernen");
 setScreenTab("socratic", "lernen");
 setScreenTab("tutor", "lernen");
 setScreenTab("marked", "lernen");
+setScreenTab("random", "lernen");
+setScreenTab("formula-sheets", "lernen");
 
 // 🎮 Games
 setScreenTab("games", "games");
