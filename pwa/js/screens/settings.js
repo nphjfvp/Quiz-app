@@ -2,7 +2,7 @@ import { loadSettings, saveSettings } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount, setAccount, signIn, signUp, pullAll, pushAll, pullBySyncCode } from "../firebase-sync.js";
 import { MODELS } from "../ai-service.js";
-import { esc } from "../utils.js";
+import { esc, setLatexEnabled } from "../utils.js";
 
 export async function render(root) {
   const settings = await loadSettings();
@@ -20,6 +20,12 @@ export async function render(root) {
         <button class="theme-opt ${theme === "auto" ? "active" : ""}" data-theme-val="auto">🖥️ Automatisch</button>
         <button class="theme-opt ${theme === "light" ? "active" : ""}" data-theme-val="light">☀️ Hell</button>
         <button class="theme-opt ${theme === "dark" ? "active" : ""}" data-theme-val="dark">🌙 Dunkel</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-desc">Mathematische Formeln und Gleichungen mit LaTeX darstellen (KaTeX).</div>
+      <div class="btn-row">
+        <button class="btn btn-ghost btn-sm" id="latex-toggle">${settings.latexEnabled !== false ? "✅ LaTeX aktiv" : "⬜ LaTeX deaktiviert"}</button>
       </div>
     </div>`;
 
@@ -126,6 +132,18 @@ export async function render(root) {
       } catch {}
       root.querySelectorAll(".theme-opt").forEach(b => b.classList.toggle("active", b === btn));
     });
+  });
+
+  // LaTeX toggle
+  root.querySelector("#latex-toggle")?.addEventListener("click", async () => {
+    const s = await loadSettings();
+    const cur = s.latexEnabled !== false;
+    const next = !cur;
+    s.latexEnabled = next;
+    await saveSettings(s);
+    setLatexEnabled(next);
+    const btn = root.querySelector("#latex-toggle");
+    btn.textContent = next ? "✅ LaTeX aktiv" : "⬜ LaTeX deaktiviert";
   });
 
   // Auth

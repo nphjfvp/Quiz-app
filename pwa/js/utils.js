@@ -71,7 +71,13 @@ function autowrapBareLatex(escaped) {
   return escaped.split(" ").map(tok => (tok && BARE_LATEX_RE.test(tok)) ? `$${tok}$` : tok).join(" ");
 }
 
+// LaTeX toggle – set by app.js on boot from settings.latexEnabled (default true).
+let _latexEnabled = true;
+export function setLatexEnabled(v) { _latexEnabled = !!v; }
+export function isLatexEnabled() { return _latexEnabled; }
+
 export function renderMath(escaped) {
+  if (!_latexEnabled) return escaped;
   if (!escaped) return escaped;
   if (typeof window.katex === "undefined") return escaped;
   escaped = autowrapBareLatex(escaped);
