@@ -1094,3 +1094,44 @@ export async function generateSimilarTasks(example, count = 5, config = {}, veri
   }
   return tasks;
 }
+
+export async function crossCheckQuiz(questions, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key für Cross-Check verfügbar.");
+
+  const simplified = questions.map((q, i) => ({
+    nr: i + 1,
+    type: q.question_type,
+    text: (q.question_text || q.text || "").slice(0, 300),
+    options: (q.options || []).map(o => `${o.is_correct ? "✓" : "✗"} ${o.text}`),
+    correctText: q.correct_text || "",
+    correctAnswer: q.correct_answer || "",
+    explanation: q.explanation || "",
+  }));
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Qualitätsprüfer für Lern-Quizze. Prüfe jede Frage auf:\n" +
+        "1. Ist die korrekte Antwort wirklich richtig?\n" +
+        "2. Sind falsche Optionen tatsächlich falsch?\n" +
+        "3. Ist die Frage klar und eindeutig formuliert?\n" +
+        "4. Bei Freitext: Werden Synonyme/Tippfehler fair behandelt?\n" +
+        "5. Passt der Fragetyp zum Inhalt?\n\n" +
+        'Antworte NUR mit JSON: {"findings":[{"nr":1,"issue":"...","severity":"high|medium|low","suggestion":"..."}]}\n' +
+        'Falls keine Probleme: {"findings":[]}',
+    },
+    {
+      role: "user",
+      content: `Prüfe folgende ${questions.length} Quiz-Fragen auf Fehler:\n\n${JSON.stringify(simplified, null, 2)}`,
+    },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "nvidia/nemotron-3-super-120b-a12b:free", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    return parsed?.findings || [];
+  } catch {
+    return [{ nr: 0, issue: "Cross-Check konnte nicht geparst werden.", severity: "low", suggestion: "Manuell prüfen." }];
+  }
+}

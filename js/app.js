@@ -56,6 +56,7 @@ route("formula-sheets", async (root, params) => { const m = await import("./scre
 route("image-editor", async (root) => { const m = await import("./screens/image-editor.js"); return m.render(root); });
 route("math-solver", async (root) => { const m = await import("./screens/math-solver.js"); return m.render(root); });
 route("bulk-edit", async (root, params) => { const m = await import("./screens/bulk-edit.js"); return m.render(root, params); });
+route("onboarding", async (root) => { const m = await import("./screens/onboarding.js"); return m.render(root); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -82,6 +83,7 @@ setScreenTab("formula-sheets", "lernen");
 setScreenTab("pomodoro", "lernen");
 setScreenTab("image-editor", "lernen");
 setScreenTab("bulk-edit", "lernen");
+setScreenTab("onboarding", "home");
 
 // 🎮 Games
 setScreenTab("games", "games");
@@ -142,6 +144,12 @@ async function init() {
   }
 
   const hash = location.hash.slice(1);
+  // Onboarding: beim ersten Besuch zeigen, wenn keine Quizze vorhanden
+  if (!settings.onboardingDone && !hash) {
+    const { loadQuizzes } = await import("./store.js");
+    const quizzes = await loadQuizzes();
+    if (!quizzes.length) { navigate("onboarding"); return; }
+  }
   navigate(hash || "home");
 }
 
