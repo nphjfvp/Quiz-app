@@ -203,7 +203,10 @@ function showDetail(root, plan) {
       html += `<div style="padding:8px 0;border-bottom:1px solid var(--border);${bgStyle}">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span>${diffLabel} <strong>${esc(t.name)}</strong></span>
-          <span style="font-size:0.75rem">~${t.estimatedHours}h</span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <button class="btn btn-sm btn-primary exercise-topic-btn" data-topic="${esc(t.name)}" style="font-size:0.7rem">🎯 Üben</button>
+            <span style="font-size:0.75rem">~${t.estimatedHours}h</span>
+          </div>
         </div>
         ${schedDate ? `<div style="font-size:0.72rem;color:${isPast ? "var(--text-light)" : "var(--primary)"}">
           📅 ${schedDate.toLocaleDateString("de")}${isToday ? " ← HEUTE" : ""}${isPast ? " ✓" : ""}
@@ -218,4 +221,10 @@ function showDetail(root, plan) {
   root.innerHTML = html;
   root.querySelector("#det-back")?.addEventListener("click", () => render(root));
   root.querySelector("#det-back2")?.addEventListener("click", () => render(root));
+  root.querySelectorAll(".exercise-topic-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      navigate("exercise-mode", { topic: btn.dataset.topic, planId: plan.id });
+    });
+  });
 }

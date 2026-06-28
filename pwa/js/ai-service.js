@@ -1345,3 +1345,68 @@ export async function extractStudyTopics(text, config = {}) {
     return [{ name: "Gesamter Stoff", difficulty: "medium", estimatedHours: 10 }];
   }
 }
+
+// ── Exercise Mode ──────────────────────────────────────────────────────────
+
+/**
+ * Generate a single exercise for a given topic.
+ */
+export async function generateExercise(topic, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Übungsaufgaben-Ersteller. Erstelle EINE Aufgabe zum gegebenen Thema.\n" +
+        "Formuliere klar, was zu tun ist. Gib auch die korrekte Lösung an (mit Lösungsweg).\n" +
+        'Antworte NUR mit JSON: {"question":"Aufgabentext","solution":"Lösungsweg und Endergebnis","hint":"Kleiner Tipp"}',
+    },
+    { role: "user", content: `Erstelle eine Übungsaufgabe zum Thema: ${topic}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    return parseJSON(raw);
+  } catch {
+    return { question: `Aufgabe zum Thema: ${topic}`, solution: "Lösung nicht verfügbar.", hint: "" };
+  }
+}
+
+/**
+ * Check a user's solution and find where they went wrong.
+ */
+export async function checkExerciseSolution(exercise, userAnswer, userImageBase64, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const hasImage = !!userImageBase64;
+  const chosen = MODELS.find((m) => m.id === (model || ""));
+  const useVision = hasImage && chosen?.vision;
+
+  const contentParts = [];
+  contentParts.push({
+    type: "text",
+    text: `Aufgabe:\n${exercise.question}\n\nKorrekte Lösung:\n${exercise.solution}\n\nNutzer-Lösung:\n${userAnswer || "(keine Text-Lösung)"}\n\nAnalysiere die Lösung des Nutzers. Finde heraus, WO genau der Fehler liegt (nicht nur ob falsch, sondern was falsch ist). Erkläre den Fehler verständlich.`,
+  });
+  if (useVision && userImageBase64) {
+    contentParts.push({ type: "image_url", image_url: { url: userImageBase64 } });
+  }
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein geduldiger Mathe-Tutor. Analysiere die Nutzer-Lösung und finde den GENAUEN Fehler im Lösungsweg.\n" +
+        "Nicht nur 'falsch' sagen — sondern zeigen WO und WARUM.\n" +
+        'Antworte NUR mit JSON: {"isCorrect":false,"errorStep":"...","explanation":"...","tip":"..."}',
+    },
+    { role: "user", content: contentParts },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: useVision ? (model || VISION_MODEL) : (model || "deepseek/deepseek-chat"), stream: false });
+  try {
+    return parseJSON(raw);
+  } catch {
+    return { isCorrect: false, errorStep: "Analyse fehlgeschlagen", explanation: raw?.slice(0, 300) || "Unbekannter Fehler", tip: "Versuch es nochmal mit mehr Details." };
+  }
+}
