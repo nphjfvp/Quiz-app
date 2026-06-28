@@ -1,6 +1,6 @@
 import { loadErrorDiary, saveErrorDiary } from "../store.js";
 import { navigate } from "../router.js";
-import { esc, escAttr } from "../utils.js";
+import { esc, escAttr, mathEsc } from "../utils.js";
 
 export async function render(root) {
   const diary = await loadErrorDiary();
@@ -37,11 +37,15 @@ export async function render(root) {
             <span class="q-card-quiz">${dateStr}</span>
             ${entry.topic ? `<span class="tag">${esc(entry.topic)}</span>` : ""}
           </div>
-          <div class="q-card-text">${esc(entry.questionText)}</div>
+          <div class="q-card-text">${mathEsc(entry.questionText)}</div>
           <div class="diary-line"><span class="lbl-wrong">✗ Deine Antwort:</span> ${esc(entry.userAnswer)}</div>
           <div class="diary-line"><span class="lbl-ok">✓ Richtig:</span> ${esc(entry.correctAnswer)}</div>
           ${entry.quizName ? `<div class="q-card-quiz" style="margin-top:6px">${esc(entry.quizName)}</div>` : ""}
-          <button class="btn btn-ghost btn-sm delete-entry" data-id="${escAttr(entry.id)}" style="margin-top:8px">Entfernen</button>
+          ${entry.kiExplanation ? `<div class="diary-explain" style="margin-top:8px;padding:8px 12px;background:var(--card-glass-bg,var(--card-bg));border-radius:var(--radius-md);font-size:0.85rem;color:var(--text-light)">📚 ${mathEsc(entry.kiExplanation)}</div>` : ""}
+          <div class="btn-row" style="margin-top:8px;gap:6px">
+            <button class="btn btn-ghost btn-sm delete-entry" data-id="${escAttr(entry.id)}">Entfernen</button>
+            <button class="btn btn-ghost btn-sm tutor-entry" data-id="${escAttr(entry.id)}">🤖 Mit KI besprechen</button>
+          </div>
         </div>`;
       }
     }
@@ -77,6 +81,22 @@ export async function render(root) {
           await saveErrorDiary(diary);
           renderList();
         }
+      });
+    });
+
+    root.querySelectorAll(".tutor-entry").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        const entry = diary.find(e => String(e.id) === id);
+        if (!entry) return;
+        const context = [
+          `Frage: ${entry.questionText}`,
+          `Deine Antwort: ${entry.userAnswer}`,
+          `Richtige Antwort: ${entry.correctAnswer}`,
+          entry.kiExplanation ? `KI-Erklärung: ${entry.kiExplanation}` : "",
+          "Der Nutzer möchte diese falsch beantwortete Frage besprechen und verstehen, warum sie falsch war.",
+        ].filter(Boolean).join("\n\n");
+        navigate("tutor", { context });
       });
     });
   }

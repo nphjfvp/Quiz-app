@@ -55,6 +55,7 @@ route("random", async (root) => { const m = await import("./screens/random-mode.
 route("formula-sheets", async (root, params) => { const m = await import("./screens/formula-sheets.js"); return m.render(root, params); });
 route("image-editor", async (root) => { const m = await import("./screens/image-editor.js"); return m.render(root); });
 route("math-solver", async (root) => { const m = await import("./screens/math-solver.js"); return m.render(root); });
+route("bulk-edit", async (root, params) => { const m = await import("./screens/bulk-edit.js"); return m.render(root, params); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -80,6 +81,7 @@ setScreenTab("random", "lernen");
 setScreenTab("formula-sheets", "lernen");
 setScreenTab("pomodoro", "lernen");
 setScreenTab("image-editor", "lernen");
+setScreenTab("bulk-edit", "lernen");
 
 // 🎮 Games
 setScreenTab("games", "games");

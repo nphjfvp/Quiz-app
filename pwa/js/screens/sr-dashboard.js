@@ -1,6 +1,6 @@
 import { loadQuizzes, loadProgress, loadFsrs } from "../store.js";
 import { navigate } from "../router.js";
-import { daysUntilDue, retrievability } from "../fsrs.js";
+import { daysUntilDue, retrievability, projectMasteryTimeline } from "../fsrs.js";
 import { esc } from "../utils.js";
 
 export async function render(root) {
@@ -136,6 +136,30 @@ export async function render(root) {
         🟢 <strong>${mature}</strong> gemeistert (Box 4-5)<br>
         🟡 <strong>${young}</strong> in Bearbeitung (Box 1-3)<br>
         ⚪ <strong>${unseen}</strong> noch nicht gelernt
+      </div>
+    </div>`;
+
+  // ── SR Insights & Prognose ──
+  const insights = projectMasteryTimeline(allQuestions, fsrs);
+  const tlBars = insights.timeline.map(m => {
+    const labelMap = { 7: "1 Wo", 14: "2 Wo", 30: "1 Mo", 60: "2 Mo", 90: "3 Mo" };
+    return `<div class="forecast-col">
+      <div class="forecast-num">${m.pct}%</div>
+      <div class="forecast-bar" style="height:${Math.max(m.pct, 8)}%;background:var(--success)"></div>
+      <div class="forecast-label">${labelMap[m.days] || m.days + "d"}</div>
+    </div>`;
+  }).join("");
+
+  html += `<div class="section-title">🔮 Lern-Prognose (FSRS)</div>
+    <div class="card">
+      <p style="font-size:0.85rem;color:var(--text-light);margin:0 0 12px">Simulation: bei täglichem Lernen mit "Gut"-Bewertung</p>
+      <div class="forecast-chart">${tlBars}</div>
+      <div style="margin-top:12px;font-size:0.9rem;line-height:1.6">
+        ${insights.daysTo90
+          ? `🎯 <strong>90% aller Karten gemeistert in ~${insights.daysTo90} Tagen</strong><br>`
+          : `📈 <strong>${insights.timeline[insights.timeline.length-1].pct}%</strong> in 3 Monaten prognostiziert<br>`}
+        📋 <strong>${insights.dueNow}</strong> aktuell fällig<br>
+        ⚡ <strong>~${insights.optimalDaily}</strong> Karten/Tag für stetigen Fortschritt
       </div>
     </div>`;
 
