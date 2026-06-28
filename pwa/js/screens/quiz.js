@@ -4,7 +4,7 @@ import { navigate } from "../router.js";
 import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
-import { generateHints } from "../ai-service.js";
+import { generateHints, explainWrongAnswers } from "../ai-service.js";
 import { drawDiagram, createDragGhost, moveDragGhost, removeDragGhost, bindChipDrag, drawLabeledPoint, createDiagramChip } from "../diagram.js";
 
 // Registry für document-Listener (Diagram-Label-Drag). Werden pro Frage neu
@@ -44,7 +44,7 @@ function showQuestion(root, quiz, session) {
   let html = `
     <div class="progress-row">
       <div class="progress-bar"><div class="progress-fill" style="width:${session.progress * 100}%"></div></div>
-      <span class="progress-label">Frage ${idx}/${total}</span>
+      <span class="progress-label">Frage ${idx}/${total}${session.stage === "revisit" ? ` · <span style="color:var(--warning,orange)">Wiederholung (Versuch ${session.getAttempt(q.id) + 1})</span>` : ""}</span>
     </div>
     <div class="card">
       ${(q.topic || q.title) ? `<div class="question-title">${mathEsc(q.topic || q.title)}</div>` : ""}
@@ -56,29 +56,37 @@ function showQuestion(root, quiz, session) {
     <div class="card" id="answer-area">`;
 
   if (q.question_type === "single_choice") {
-    html += q.options.map((o, i) => `
-      <div class="option-card" data-idx="${i}" role="radio" aria-checked="false" tabindex="0">
+    html += q.options.map((o, i) => {
+      const isJokerDisabled = q._jokerDisabledOption === i;
+      return `<div class="option-card${isJokerDisabled ? ' joker-disabled' : ''}" data-idx="${i}" role="radio" aria-checked="false" aria-disabled="${isJokerDisabled}" tabindex="${isJokerDisabled ? '-1' : '0'}">
         <span class="option-key">${String.fromCharCode(65 + i)}</span>
         <span class="option-text">${mathEsc(o.text)}</span>
-      </div>`).join("");
+      </div>`;
+    }).join("");
   } else if (q.question_type === "multiple_choice") {
-    html += q.options.map((o, i) => `
-      <div class="option-card" data-idx="${i}" data-mc="true" role="checkbox" aria-checked="false" tabindex="0">
+    const jokerDisabled = q._jokerDisabledOptions || [];
+    const jokerPreChecked = q._jokerPreCheckedOptions || [];
+    html += q.options.map((o, i) => {
+      const isDisabled = jokerDisabled.includes(i);
+      const isPreChecked = jokerPreChecked.includes(i);
+      return `<div class="option-card${isDisabled ? ' joker-disabled' : ''}${isPreChecked ? ' selected' : ''}" data-idx="${i}" data-mc="true" role="checkbox" aria-checked="${isPreChecked}" aria-disabled="${isDisabled}" tabindex="${isDisabled ? '-1' : '0'}">
         <span class="option-key">${String.fromCharCode(65 + i)}</span>
         <span class="option-text">${mathEsc(o.text)}</span>
-      </div>`).join("");
+      </div>`;
+    }).join("");
   } else if (q.question_type === "free_text") {
     html += `<div class="input-group">
       <label>Deine Antwort</label>
-      <input type="text" id="free-input" class="input" placeholder="Antwort eingeben…">
+      <input type="text" id="free-input" class="input" placeholder="${q._jokerFreeTextHint ? escAttr(q._jokerFreeTextHint) : 'Antwort eingeben…'}">
     </div>`;
   } else if (q.question_type === "fill_blank") {
+    const prefilled = q._jokerPrefilledBlanks || {};
     if (useCloze) {
       let cloze = `<div class="cloze">`;
       clozeParts.forEach((part, i) => {
         cloze += esc(part);
         if (i < clozeParts.length - 1) {
-          cloze += `<input type="text" class="blank-input cloze-blank" data-i="${i}" placeholder="…" autocomplete="off">`;
+          cloze += `<input type="text" class="blank-input cloze-blank" data-i="${i}" placeholder="…" autocomplete="off" value="${escAttr(prefilled[i] || '')}">`;
         }
       });
       cloze += `</div>`;
@@ -87,7 +95,7 @@ function showQuestion(root, quiz, session) {
       html += (q.blanks || []).map((_, i) => `
         <div class="input-group">
           <label>Lücke ${i + 1}</label>
-          <input type="text" class="blank-input input" placeholder="…">
+          <input type="text" class="blank-input input" placeholder="…" value="${escAttr(prefilled[i] || '')}">
         </div>`).join("");
     }
   } else if (q.question_type === "drag_drop") {
@@ -122,7 +130,7 @@ function showQuestion(root, quiz, session) {
     </div>`;
     html += `<div id="math-tab-text">
       <div class="input-group">
-        <label>Formel / Ergebnis</label>
+        <label>Formel / Ergebnis${q._jokerShowTolerance ? ` <span style="color:var(--warning,orange);font-weight:400">(Toleranz: ±${q.tolerance || 0.001})</span>` : ''}</label>
         <input type="text" id="math-input" class="input" placeholder="z.B. x = 2 oder $\\frac{a}{b}$">
       </div>
       ${q.formula_sheet ? `<details class="formula-sheet"><summary>Formelsammlung</summary><div class="formula-sheet-body">${mathEsc(q.formula_sheet)}</div></details>` : ""}
@@ -183,15 +191,17 @@ function showQuestion(root, quiz, session) {
   });
 
   // Drag & Drop setup
-  const dndAssignments = {};
+  const dndAssignments = q._jokerLockedPairs ? { ...q._jokerLockedPairs } : {};
+  const dndJokerLocked = new Set(q._jokerLockedPairs ? Object.keys(q._jokerLockedPairs) : []);
   if (q.question_type === "drag_drop") {
-    setupDragDrop(root, q, dndAssignments);
+    setupDragDrop(root, q, dndAssignments, dndJokerLocked);
   }
 
   // Drag Category setup
-  const dcAssignments = {};
+  const dcAssignments = q._jokerLockedPairs ? { ...q._jokerLockedPairs } : {};
+  const dcJokerLocked = new Set(q._jokerLockedPairs ? Object.keys(q._jokerLockedPairs) : []);
   if (q.question_type === "drag_category") {
-    setupDragCategory(root, q, dcAssignments);
+    setupDragCategory(root, q, dcAssignments, dcJokerLocked);
   }
 
   // Diagram Label setup
@@ -223,8 +233,10 @@ function showQuestion(root, quiz, session) {
   }
 
   // Single choice selection
-  let selectedSC = -1;
+  let selectedSC = q._jokerDisabledOption !== undefined ? -1 : -1;
   root.querySelectorAll(".option-card:not([data-mc])").forEach((el) => {
+    const isJokerDisabled = el.classList.contains("joker-disabled");
+    if (isJokerDisabled) return;
     const select = () => {
       if (feedbackShown) return;
       selectedSC = parseInt(el.dataset.idx);
@@ -238,8 +250,10 @@ function showQuestion(root, quiz, session) {
   });
 
   // Multiple choice
-  const mcSelected = new Set();
+  const mcSelected = new Set(q._jokerPreCheckedOptions || []);
   root.querySelectorAll(".option-card[data-mc]").forEach((el) => {
+    const isJokerDisabled = el.classList.contains("joker-disabled");
+    if (isJokerDisabled) return;
     const toggle = () => {
       if (feedbackShown) return;
       const idx = parseInt(el.dataset.idx);
@@ -252,7 +266,7 @@ function showQuestion(root, quiz, session) {
 
   // Submit
   root.querySelector("#submit-btn").addEventListener("click", async () => {
-    if (feedbackShown) { session.next(); showQuestion(root, quiz, session); return; }
+    if (feedbackShown) { session.skipToNext(); showQuestion(root, quiz, session); return; }
 
     let answer;
     if (q.question_type === "single_choice") answer = selectedSC;
@@ -281,7 +295,6 @@ function showQuestion(root, quiz, session) {
     progress = updateProgress(progress, q.id, result.is_correct);
     await saveProgress(progress);
     await logAnswer(result.is_correct);
-    // Münzen fürs Lernen: richtige Antwort belohnen (Shop-Economy).
     if (result.is_correct) { try { await addCoins(2, "lernen"); } catch (_) {} }
 
     // FSRS-Planung aktualisieren (Spaced Repetition)
@@ -300,20 +313,81 @@ function showQuestion(root, quiz, session) {
     if (session.mode === "single") {
       feedbackShown = true;
       const fb = root.querySelector("#feedback-area");
+      const attempt = session.getAttempt(q.id);
       const icon = result.is_correct ? "✓" : "✗";
       const label = result.is_correct ? "Richtig!" : "Falsch!";
-      fb.innerHTML = `<div class="feedback ${result.is_correct ? "correct" : "wrong"}">
+      let fbHtml = `<div class="feedback ${result.is_correct ? "correct" : "wrong"}">
         <div class="feedback-icon">${icon}</div>
         <div class="feedback-body">
           <h3>${label}</h3>
           <p>Punkte: ${result.score}/${result.max_score}</p>
           ${!result.is_correct ? `<p class="feedback-correct-answer">✓ ${mathEsc(result.correct_answer)}</p>` : ""}
         </div>
-      </div>
-      <div class="feedback-actions">
+      </div>`;
+
+      // ── Adaptives Quiz: 4-Stufen-Eskalation ──
+      if (!result.is_correct) {
+        // Stufe 2 (2. Versuch falsch): KI-Erklärung
+        if (attempt === 2) {
+          fbHtml += `<div class="adapt-explain" id="adapt-explain"><div class="adapt-explain-status">🤖 KI erklärt, warum deine Antwort falsch war…</div></div>`;
+        }
+        // Stufe 3 (3. Versuch falsch): Joker anwenden
+        if (attempt >= 3) {
+          const joker = session.applyJoker(q.id);
+          if (joker) {
+            fbHtml += `<div class="adapt-joker"><div class="adapt-joker-info">🃏 <strong>Joker:</strong> ${joker.detail}</div></div>`;
+          }
+        }
+        // Stufe 4 (4. Versuch falsch): Max erreicht
+        if (attempt >= 4) {
+          fbHtml += `<div class="adapt-max"><div class="adapt-max-body">🔒 Maximale Versuche erreicht.</div></div>`;
+        }
+      }
+
+      fbHtml += `<div class="feedback-actions">
         <button class="btn btn-ghost btn-sm" id="mark-btn">⭐ Markieren</button>
         <button class="btn btn-ghost btn-sm" id="tutor-btn">💬 KI fragen</button>
       </div>`;
+      fb.innerHTML = fbHtml;
+
+      // Stufe 2: KI-Erklärung asynchron laden
+      if (!result.is_correct && attempt === 2) {
+        const expDiv = fb.querySelector("#adapt-explain");
+        if (expDiv) {
+          try {
+            const settings = await loadSettings();
+            const explanation = settings.apiKey
+              ? await explainWrongAnswers(q, session.getUserAnswers(q.id).filter(a => !a.isCorrect))
+              : "Keine Erklärung verfügbar – API-Key fehlt.";
+            expDiv.innerHTML = `<div class="adapt-explain-body">📚 <strong>Erklärung:</strong> ${explanation}</div>`;
+            session.setQuestionData(q.id, { explanation });
+          } catch (_) {
+            expDiv.innerHTML = `<div class="adapt-explain-body">📚 KI-Erklärung konnte nicht geladen werden.</div>`;
+          }
+        }
+      }
+
+      // Tipp für Stufe 2+ automatisch laden
+      if (!result.is_correct && attempt >= 2) {
+        const hintArea = root.querySelector("#hint-area");
+        if (!session.hints[q.id]) {
+          try {
+            const qText = q.question_text || q.text || "";
+            const qOpts = q.options?.map(o => o.text).filter(Boolean) || [];
+            const full = qText + (qOpts.length ? "\nAntwortmöglichkeiten: " + qOpts.join(", ") : "");
+            const hints = await generateHints(full);
+            session.setQuestionData(q.id, { hint: hints[0] || "Kein Tipp verfügbar." });
+          } catch (_) {
+            session.setQuestionData(q.id, { hint: "Tipp nicht verfügbar." });
+          }
+        }
+        if (session.hints[q.id]) {
+          const hintDiv = document.createElement("div");
+          hintDiv.style.cssText = "margin-top:8px;padding:8px 12px;background:var(--card-glass-bg,var(--card-bg));border-radius:var(--radius-md);font-size:0.9rem;color:var(--text-light)";
+          hintDiv.textContent = `💡 ${session.hints[q.id]}`;
+          hintArea.appendChild(hintDiv);
+        }
+      }
 
       root.querySelector("#mark-btn")?.addEventListener("click", async () => {
         const marked = await loadMarked();
@@ -339,8 +413,8 @@ function showQuestion(root, quiz, session) {
         (async () => {
           try {
             const settings = await loadSettings();
-            if (settings.aiValidation === false) return; // user disabled AI checking
-            if (!settings.apiKey) return; // no key → skip silently (avoid noise)
+            if (settings.aiValidation === false) return;
+            if (!settings.apiKey) return;
           } catch (_) { return; }
           const kiBox = document.createElement("div");
           kiBox.className = "ki-validate";
@@ -392,10 +466,7 @@ function showQuestion(root, quiz, session) {
     }
   });
 
-  // ── Hinweis-Button (KI gestufte Tipps) ──
-  let hintLevel = 0;
-  let hints = [];
-  let hintsLoading = false;
+  // ── Hinweis-Button (adaptiv: manuell abrufbar für Wiederholungen) ──
   const hintArea = root.querySelector("#hint-area");
   const hintBtn = document.createElement("button");
   hintBtn.className = "btn btn-ghost btn-sm";
@@ -404,33 +475,33 @@ function showQuestion(root, quiz, session) {
   hintArea.appendChild(hintBtn);
 
   hintBtn.addEventListener("click", async () => {
-    if (feedbackShown || hintsLoading) return;
-    if (hintLevel === 0) {
-      hintsLoading = true;
-      hintBtn.textContent = "⏳ Lade Tipps…";
-      hintBtn.disabled = true;
-      try {
-        const qText = q.question_text || q.text || "";
-        const qOpts = q.options?.map(o => o.text).filter(Boolean) || [];
-        const full = qText + (qOpts.length ? "\nAntwortmöglichkeiten: " + qOpts.join(", ") : "");
-        hints = await generateHints(full);
-      } catch (_) {
-        hints = ["Tipp nicht verfügbar."];
-      }
-      hintsLoading = false;
-    }
-    if (hintLevel < hints.length) {
+    if (feedbackShown) return;
+    if (session.hints[q.id]) {
       const hintDiv = document.createElement("div");
       hintDiv.style.cssText = "margin-top:8px;padding:8px 12px;background:var(--card-glass-bg,var(--card-bg));border-radius:var(--radius-md);font-size:0.9rem;color:var(--text-light)";
-      hintDiv.textContent = `💡 ${hints[hintLevel]}`;
+      hintDiv.textContent = `💡 ${session.hints[q.id]}`;
       hintArea.appendChild(hintDiv);
-      hintLevel++;
-    }
-    if (hintLevel >= hints.length) {
-      hintBtn.textContent = "💡 Keine weiteren Tipps";
+      hintBtn.textContent = "💡 Tipp angezeigt";
       hintBtn.disabled = true;
-    } else {
-      hintBtn.textContent = `💡 Mehr Hilfe (${hintLevel}/${hints.length})`;
+      return;
+    }
+    hintBtn.textContent = "⏳ Lade Tipp…";
+    hintBtn.disabled = true;
+    try {
+      const qText = q.question_text || q.text || "";
+      const qOpts = q.options?.map(o => o.text).filter(Boolean) || [];
+      const full = qText + (qOpts.length ? "\nAntwortmöglichkeiten: " + qOpts.join(", ") : "");
+      const hints = await generateHints(full);
+      session.setQuestionData(q.id, { hint: hints[0] || "Kein Tipp verfügbar." });
+      const hintDiv = document.createElement("div");
+      hintDiv.style.cssText = "margin-top:8px;padding:8px 12px;background:var(--card-glass-bg,var(--card-bg));border-radius:var(--radius-md);font-size:0.9rem;color:var(--text-light)";
+      hintDiv.textContent = `💡 ${session.hints[q.id]}`;
+      hintArea.appendChild(hintDiv);
+    } catch (_) {
+      const hintDiv = document.createElement("div");
+      hintDiv.style.cssText = "margin-top:8px;padding:8px 12px;background:var(--card-glass-bg,var(--card-bg));border-radius:var(--radius-md);font-size:0.9rem;color:var(--text-light)";
+      hintDiv.textContent = "💡 Tipp nicht verfügbar.";
+      hintArea.appendChild(hintDiv);
     }
   });
 
@@ -448,7 +519,7 @@ function shuffle(arr) {
   return arr;
 }
 
-function setupDragDrop(root, q, assignments) {
+function setupDragDrop(root, q, assignments, jokerLocked = new Set()) {
   const sources = shuffle([...q.drag_drop_pairs.map(p => p.source)]);
   const targets = q.drag_drop_pairs.map(p => p.target);
   const chipsEl = root.querySelector("#dnd-chips");
@@ -461,9 +532,10 @@ function setupDragDrop(root, q, assignments) {
     ).join("");
     targetsEl.innerHTML = targets.map(t => {
       const assigned = Object.entries(assignments).find(([k]) => k === t)?.[1];
-      return `<div class="dnd-target ${assigned ? "filled" : ""}" data-target="${esc(t)}">
-        <div class="dnd-target-label">${esc(t)}</div>
-        <div class="dnd-target-slot">${assigned ? `<span class="dnd-assigned" data-target="${esc(t)}">${esc(assigned)} ✕</span>` : "Hierher ziehen"}</div>
+      const isLocked = assigned && jokerLocked.has(t);
+      return `<div class="dnd-target ${assigned ? "filled" : ""}${isLocked ? " joker-locked" : ""}" data-target="${esc(t)}">
+        <div class="dnd-target-label">${esc(t)}${isLocked ? ' 🃏' : ''}</div>
+        <div class="dnd-target-slot">${assigned ? `<span class="dnd-assigned" data-target="${esc(t)}">${esc(assigned)}${isLocked ? '' : ' ✕'}</span>` : "Hierher ziehen"}</div>
       </div>`;
     }).join("");
 
@@ -497,6 +569,7 @@ function setupDragDrop(root, q, assignments) {
     targetsEl.querySelectorAll(".dnd-assigned").forEach(el => {
       el.addEventListener("click", e => {
         e.stopPropagation();
+        if (jokerLocked.has(el.dataset.target)) return; // Joker-gesperrt
         delete assignments[el.dataset.target];
         renderDnd();
       });
@@ -505,7 +578,7 @@ function setupDragDrop(root, q, assignments) {
   renderDnd();
 }
 
-function setupDragCategory(root, q, assignments) {
+function setupDragCategory(root, q, assignments, jokerLocked = new Set()) {
   const pairs = q.drag_drop_pairs ?? [];
   const items = shuffle(pairs.map(p => p.source));
   const cats = [...new Set(pairs.map(p => p.target))];
@@ -522,9 +595,10 @@ function setupDragCategory(root, q, assignments) {
       const slot = catsEl.querySelector(`.dc-cat-items[data-cat="${CSS.escape(cat)}"]`);
       if (!slot) return;
       const catItems = Object.entries(assignments).filter(([, c]) => c === cat).map(([item]) => item);
-      slot.innerHTML = catItems.map(item =>
-        `<span class="dnd-assigned dc-assigned" data-item="${esc(item)}">${esc(item)} ✕</span>`
-      ).join("") || `<span class="dc-placeholder">Hierher ziehen</span>`;
+      slot.innerHTML = catItems.map(item => {
+        const isLocked = jokerLocked.has(item);
+        return `<span class="dnd-assigned dc-assigned${isLocked ? ' joker-locked' : ''}" data-item="${esc(item)}">${esc(item)}${isLocked ? ' 🃏' : ' ✕'}</span>`;
+      }).join("") || `<span class="dc-placeholder">Hierher ziehen</span>`;
     });
 
     let selectedChip = null;
@@ -558,6 +632,7 @@ function setupDragCategory(root, q, assignments) {
     catsEl.querySelectorAll(".dc-assigned").forEach(el => {
       el.addEventListener("click", e => {
         e.stopPropagation();
+        if (jokerLocked.has(el.dataset.item)) return; // Joker-gesperrt
         delete assignments[el.dataset.item];
         renderDC();
       });
@@ -585,17 +660,18 @@ function setupDiagramLabel(root, q, placements) {
     else { ctx.fillStyle = "#e2e8f0"; ctx.fillRect(0, 0, w, h); ctx.fillStyle = "#999"; ctx.font = "14px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kein Bild verfügbar", w/2, h/2); }
 
     // Draw snap zones
+    const highlightZones = q._jokerHighlightZones;
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
       const px = l.x * w, py = l.y * h;
       const snapPx = SNAP_RADIUS * Math.max(w, h);
       ctx.beginPath();
       ctx.arc(px, py, snapPx, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(100,100,100,0.08)";
+      ctx.fillStyle = highlightZones ? "rgba(34,197,94,0.18)" : "rgba(100,100,100,0.08)";
       ctx.fill();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = "rgba(100,100,100,0.25)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = highlightZones ? "rgba(34,197,94,0.5)" : "rgba(100,100,100,0.25)";
+      ctx.lineWidth = highlightZones ? 2 : 1;
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -688,6 +764,19 @@ function setupMarkImage(root, q) {
     const w = rect.width, h = rect.height;
     ctx.clearRect(0, 0, w, h);
     if (img) ctx.drawImage(img, 0, 0, w, h);
+    // Joker: korrekte Region anzeigen
+    if (q._jokerShowRegion && q.mark_region) {
+      const rx = q.mark_region.x * w, ry = q.mark_region.y * h;
+      const rr = (q.mark_region.radius || 0.08) * Math.max(w, h);
+      ctx.beginPath(); ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(34,197,94,0.2)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(34,197,94,0.6)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (marker) {
       const px = marker.x * w, py = marker.y * h;
       ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI * 2);

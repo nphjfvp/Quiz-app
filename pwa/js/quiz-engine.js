@@ -241,6 +241,14 @@ export class QuizSession {
     this.mode = mode;
     this.currentIndex = 0;
     this.answers = {};
+    // Adaptives Quiz: Wrong-Queue + Joker-System
+    this.wrongQueue = [];          // Frage-IDs, die falsch beantwortet wurden
+    this.attempts = {};            // { questionId: { count, userAnswers: [{answer,isCorrect}] } }
+    this.appliedJokers = new Set(); // Frage-IDs mit bereits verbrauchtem Joker
+    this.hints = {};              // { questionId: "Hint-Text" }
+    this.explanations = {};       // { questionId: "KI-Erklärung warum falsch" }
+    this._stage = "main";         // "main" | "revisit" | "done"
+    this._mainDone = false;
     if (mode !== "exam") this.shuffle();
   }
   shuffle() {
@@ -250,18 +258,176 @@ export class QuizSession {
     }
   }
   get current() { return this.questions[this.currentIndex] ?? null; }
-  get finished() { return this.currentIndex >= this.questions.length; }
-  get progress() { return this.questions.length ? (this.currentIndex / this.questions.length) : 0; }
+  get finished() { return this._stage === "done"; }
+  get progress() {
+    if (this._stage === "done") return 1;
+    return this.questions.length ? (this.currentIndex / this.questions.length) : 0;
+  }
+  get stage() { return this._stage; }
   get totalScore() { return Object.values(this.answers).reduce((s, a) => s + a.score, 0); }
   get maxScore() { return this.questions.reduce((s, q) => s + q.points, 0); }
+
+  getAttempt(qid) { return this.attempts[qid]?.count ?? 0; }
+  getUserAnswers(qid) { return this.attempts[qid]?.userAnswers ?? []; }
+
   submit(answer) {
     const q = this.current;
     if (!q) return null;
     const result = checkAnswer(q, answer);
     this.answers[q.id] = result;
-    if (this.mode !== "single") this.currentIndex++;
+
+    if (!this.attempts[q.id]) this.attempts[q.id] = { count: 0, userAnswers: [] };
+    this.attempts[q.id].count++;
+    this.attempts[q.id].userAnswers.push({ answer, isCorrect: result.is_correct });
+
+    if (!result.is_correct && !this.wrongQueue.includes(q.id)) {
+      this.wrongQueue.push(q.id);
+    }
+    if (result.is_correct) {
+      this.wrongQueue = this.wrongQueue.filter(id => id !== q.id);
+    }
+    if (this.mode !== "single" || this._stage !== "main") this._advance();
     return result;
   }
+
+  markWrong(questionId, userAnswer) {
+    if (!this.attempts[questionId]) this.attempts[questionId] = { count: 0, userAnswers: [] };
+    if (!this.wrongQueue.includes(questionId)) this.wrongQueue.push(questionId);
+    if (userAnswer !== undefined) {
+      this.attempts[questionId].userAnswers.push({ answer: userAnswer, isCorrect: false });
+    }
+  }
+
+  setQuestionData(questionId, data) {
+    if (data.hint) this.hints[questionId] = data.hint;
+    if (data.explanation) this.explanations[questionId] = data.explanation;
+  }
+
+  /** Joker anwenden. Gibt {type, questionId, detail} zurück oder null falls kein Joker verfügbar. */
+  applyJoker(questionId) {
+    if (this.appliedJokers.has(questionId)) return null;
+    const q = this.questions.find(q => q.id === questionId);
+    if (!q) return null;
+
+    const wrongAnswers = this.getUserAnswers(questionId).filter(a => !a.isCorrect);
+    const lastWrong = wrongAnswers[wrongAnswers.length - 1];
+    const userInput = lastWrong?.answer;
+    const joker = { type: q.question_type, questionId };
+
+    switch (q.question_type) {
+      case "single_choice": {
+        const wrongIdx = typeof userInput === "number" ? userInput : parseInt(userInput);
+        if (!isNaN(wrongIdx) && q.options?.[wrongIdx] && !q.options[wrongIdx].is_correct) {
+          q._jokerDisabledOption = wrongIdx;
+          joker.detail = `"${q.options[wrongIdx].text}" ausgegraut`;
+        }
+        break;
+      }
+      case "multiple_choice": {
+        const selected = Array.isArray(userInput) ? userInput : [];
+        const disabled = [], preChecked = [];
+        for (let i = 0; i < (q.options || []).length; i++) {
+          if (!q.options[i].is_correct && selected.includes(i)) disabled.push(i);
+          if (q.options[i].is_correct && !selected.includes(i)) preChecked.push(i);
+        }
+        q._jokerDisabledOptions = disabled;
+        q._jokerPreCheckedOptions = preChecked;
+        joker.detail = `${disabled.length} falsche ausgegraut, ${preChecked.length} richtige vor-markiert`;
+        break;
+      }
+      case "free_text": {
+        const correct = (q.correct_text || "").split(";")[0].trim();
+        if (correct) {
+          q._jokerFreeTextHint = `${correct[0]}… (${correct.length} Zeichen)`;
+          joker.detail = q._jokerFreeTextHint;
+        }
+        break;
+      }
+      case "fill_blank": {
+        const prevAnswers = Array.isArray(userInput) ? userInput : [];
+        const blanks = q.blanks || [];
+        const prefilled = {};
+        for (let i = 0; i < Math.min(prevAnswers.length, blanks.length); i++) {
+          if (prevAnswers[i] && !answerMatches(prevAnswers[i], blanks[i])) {
+            prefilled[i] = prevAnswers[i];
+          }
+        }
+        q._jokerPrefilledBlanks = prefilled;
+        joker.detail = `${Object.keys(prefilled).length} Lücke(n) vorausgefüllt`;
+        break;
+      }
+      case "drag_drop": {
+        const asg = (typeof userInput === "string" ? JSON.parse(userInput) : userInput) || {};
+        const pairs = q.drag_drop_pairs || [];
+        const locked = {};
+        for (const pair of pairs) {
+          if (asg[pair.target] && asg[pair.target] !== pair.source) {
+            locked[pair.target] = pair.source;
+          }
+        }
+        q._jokerLockedPairs = locked;
+        joker.detail = `${Object.keys(locked).length} Paar(e) fixiert`;
+        break;
+      }
+      case "drag_category": {
+        const asg = (typeof userInput === "string" ? JSON.parse(userInput) : userInput) || {};
+        const pairs = q.drag_drop_pairs || [];
+        const locked = {};
+        for (const pair of pairs) {
+          if (asg[pair.source] && asg[pair.source] !== pair.target) {
+            locked[pair.source] = pair.target;
+          }
+        }
+        q._jokerLockedPairs = locked;
+        joker.detail = `${Object.keys(locked).length} Kategorie(n) fixiert`;
+        break;
+      }
+      case "math_formula": {
+        q._jokerShowTolerance = true;
+        joker.detail = "Toleranz: ±" + (q.tolerance || 0.001);
+        break;
+      }
+      case "diagram_label": {
+        q._jokerHighlightZones = true;
+        joker.detail = "Ziel-Zonen hervorgehoben";
+        break;
+      }
+      case "mark_image": {
+        q._jokerShowRegion = true;
+        joker.detail = "Ziel-Region markiert";
+        break;
+      }
+      default: return null;
+    }
+    this.appliedJokers.add(questionId);
+    return joker;
+  }
+
+  /** Nächste Frage: main → revisit → done */
+  _advance() {
+    if (this._stage === "main") {
+      this.currentIndex++;
+      if (this.currentIndex >= this.questions.length) {
+        if (this.wrongQueue.length > 0) {
+          this._mainDone = true;
+          this._stage = "revisit";
+          this.currentIndex = this.questions.findIndex(q => q.id === this.wrongQueue[0]);
+        } else {
+          this._stage = "done";
+        }
+      }
+    } else if (this._stage === "revisit") {
+      const remaining = this.wrongQueue.filter(qid => this.getAttempt(qid) < 4);
+      if (remaining.length === 0) { this._stage = "done"; return; }
+      const currentQid = this.current?.id;
+      const currentPos = remaining.indexOf(currentQid);
+      const nextQid = currentPos >= 0 && currentPos < remaining.length - 1
+        ? remaining[currentPos + 1] : remaining[0];
+      this.currentIndex = this.questions.findIndex(q => q.id === nextQid);
+    }
+  }
+
+  skipToNext() { if (this._stage === "revisit") this._advance(); else this.currentIndex++; }
   next() { this.currentIndex = Math.min(this.currentIndex + 1, this.questions.length); }
   prev() { this.currentIndex = Math.max(0, this.currentIndex - 1); }
 }

@@ -671,6 +671,38 @@ export async function generateHints(question, config = {}) {
   return hints;
 }
 
+export async function explainWrongAnswers(question, wrongAnswers, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+
+  const wrongList = wrongAnswers.map((a, i) =>
+    `Versuch ${i + 1}: "${typeof a.answer === 'string' ? a.answer : JSON.stringify(a.answer)}"`).join("\n");
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        "Du bist ein geduldiger Lerntutor. Erkläre für eine falsch beantwortete Frage kurz und präzise (3-5 Sätze):\n" +
+        "1. Warum die gegebenen Antworten falsch waren\n" +
+        "2. Was die richtige Antwort ist und warum\n" +
+        "3. Einen Merksatz, damit der Lernende es sich besser merken kann\n" +
+        "Antworte auf Deutsch. Kein Markdown, reiner Text.",
+    },
+    {
+      role: "user",
+      content:
+        `Frage: ${question.question_text || question.text || ""}\n` +
+        `Fragetyp: ${question.question_type}\n` +
+        `Richtige Antwort: ${question.correct_text || question.correct_answer || question.correct_formula || ""}\n` +
+        `Optionen: ${JSON.stringify(question.options || question.blanks || [])}\n\n` +
+        `Falsche Antworten des Nutzers:\n${wrongList}\n\n` +
+        `Erkläre warum die Antworten falsch waren und gib die richtige Lösung.`,
+    },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+  return raw || "Keine Erklärung verfügbar.";
+}
+
 export async function simplifyExplanation(explanation, config = {}) {
   const { apiKey, model } = await getConfig(config);
 
