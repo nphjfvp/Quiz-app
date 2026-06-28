@@ -295,14 +295,15 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
         ? `Erstelle zu diesem Abschnitt so viele sinnvolle Fragen wie nötig, um seinen Inhalt abzudecken.${detailHint}`
         : `Erstelle etwa ${perChunkCount} Fragen zu diesem Abschnitt.`;
       const contextHint = covered.length
-        ? `Bereits abgedeckte Themen (NICHT wiederholen): ${covered.slice(-40).join("; ")}.\n\n`
+        ? `Bereits erstellte Fragen (NICHT duplizieren):\n${covered.slice(-40).join("\n")}\n\n`
         : "";
       const prefix = `${contextHint}Abschnitt ${i + 1}/${chunks.length} des Lernmaterials:`;
       try {
         const part = await runChunk(chunks[i], perChunkRule, prefix);
         for (const q of part) {
           collected.push(q);
-          if (q.title || q.topic || q.question_text) covered.push(q.title || q.topic || (q.question_text || "").slice(0, 50));
+          const summary = q.topic ? `${q.topic}: ${(q.question_text || "").slice(0, 60)}` : (q.title || (q.question_text || "").slice(0, 60));
+          covered.push(summary);
         }
       } catch (err) {
         // Ein fehlerhafter Abschnitt darf den Gesamtlauf nicht abbrechen.
@@ -542,7 +543,7 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
     const countAsk = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${Math.ceil(numQuestions * batchSize / imageUrls.length)} Prüfungsfragen`;
 
     const coveredHint = coveredTopics.length
-      ? `\n\nBEREITS ABGEDECKTE THEMEN (KEINE Fragen dazu erstellen):\n${coveredTopics.join("\n")}`
+      ? `\n\nBEREITS ERSTELLTE FRAGEN (NICHT duplizieren oder wiederholen):\n${coveredTopics.join("\n")}\nErstelle KEINE Fragen zu diesen Themen. Fokussiere auf NEUE, noch nicht abgefragte Inhalte.`
       : "";
 
     const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${batchSize} Bilder (gerenderte PDF-Seiten ${batchStart}-${batchEnd}). Analysiere den gesamten Inhalt und erstelle daraus hochwertige Lernfragen.
@@ -597,9 +598,11 @@ Antworte ausschließlich mit einem JSON-Array:
       const batchStart = i + 1;
       const batchEnd = Math.min(i + effectiveChunkSize, imageUrls.length);
       const chunkQuestions = await runImageChunk(batch, batchStart, batchEnd, coveredTopics);
-      // Extract topics from this chunk for rolling context
-      const newTopics = chunkQuestions.map(q => q.topic).filter(Boolean);
-      coveredTopics.push(...new Set(newTopics));
+      // Build rich rolling context: topic + question snippet (up to 80 chars)
+      const newSummaries = chunkQuestions
+        .map(q => `${q.topic || "?"}: ${(q.question_text || "").slice(0, 80)}`)
+        .filter(s => s.length > 3);
+      coveredTopics.push(...newSummaries);
       allQuestions.push(...chunkQuestions);
     }
     // Dedupe: remove questions with near-identical text
