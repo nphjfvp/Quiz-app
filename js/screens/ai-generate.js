@@ -557,14 +557,12 @@ export async function render(root, params = {}) {
         const quizName = nameInput.value.trim() || (pdfMode === "hybrid" ? "KI-Quiz (PDF hybrid)" : "KI-Quiz (PDF visuell)");
         hideError();
         genBtn.disabled = true;
-        genBtn.textContent = pdfMode === "hybrid"
-          ? `⏳ Analysiere Text + ${pdfPageImages.length} Bildseite(n)…`
-          : `⏳ Analysiere ${pdfPageImages.length} Seiten…`;
+        const imgChunkSize = 5; // Seiten pro Batch für Vision-KI
         try {
-          // Hybrid: Volltext als Zusatzkontext. Images: Text optional (oft leer).
           let ctxText = pdfMode === "hybrid" ? text : (text || undefined);
           if (ctxText && ctxText.length > charLimit) ctxText = ctxText.slice(0, charLimit);
-          const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes }, ctxText);
+          const onProgress = (i, n) => { genBtn.textContent = `⏳ Batch ${i}/${n}…`; };
+          const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize: imgChunkSize, onProgress }, ctxText);
           showReview(root, questions, quizName, currentModel, text || "");
         } catch (err) {
           showError(err.message || "PDF konnte nicht ausgewertet werden.");

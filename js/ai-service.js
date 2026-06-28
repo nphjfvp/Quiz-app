@@ -514,25 +514,110 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
   const chosen = MODELS.find((m) => m.id === model);
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
-  const autoImg = !(numQuestions > 0);
-  const detailImg = config.detailLevel || "normal";
-  const detailHintImg = detailImg === "thorough"
-    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt, jeder Formel und jedem Diagramm mindestens eine Frage. Lieber zu viele als zu wenige!"
-    : detailImg === "compact"
-    ? " Konzentriere dich auf die wichtigsten Kernkonzepte."
-    : "";
-  const countRuleImg = autoImg
-    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken.${detailHintImg}`
-    : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
-  const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
-
+  const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
+  const chunkSize = Number(config.chunkSize) || 0; // Images per chunk (0 = all at once)
   const IMGS_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank"];
   const allowedImgs = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
     ? IMGS_TYPES.filter(t => config.allowedTypes.includes(t))
     : IMGS_TYPES;
   const imgsTypesList = (allowedImgs.length ? allowedImgs : IMGS_TYPES).map(t => `"${t}"`).join(", ");
 
-  const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
+  const autoImg = !(numQuestions > 0);
+  const detailImg = config.detailLevel || "normal";
+  const detailHintImg = detailImg === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt, jeder Formel und jedem Diagramm mindestens eine Frage."
+    : detailImg === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte."
+    : "";
+
+  const USE_CHUNKING = chunkSize > 0 && imageUrls.length > chunkSize;
+  const effectiveChunkSize = USE_CHUNKING ? chunkSize : imageUrls.length;
+
+  // Build chunk function
+  const runImageChunk = async (imageBatch, batchStart, batchEnd, coveredTopics) => {
+    const batchSize = imageBatch.length;
+    const countRule = autoImg
+      ? `Entscheide selbst über die sinnvolle Anzahl Fragen für diese ${batchSize} Seiten.${detailHintImg}`
+      : `Erstelle ca. ${Math.ceil(numQuestions * batchSize / imageUrls.length)} Fragen aus diesen ${batchSize} Seiten.`;
+    const countAsk = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${Math.ceil(numQuestions * batchSize / imageUrls.length)} Prüfungsfragen`;
+
+    const coveredHint = coveredTopics.length
+      ? `\n\nBEREITS ABGEDECKTE THEMEN (KEINE Fragen dazu erstellen):\n${coveredTopics.join("\n")}`
+      : "";
+
+    const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${batchSize} Bilder (gerenderte PDF-Seiten ${batchStart}-${batchEnd}). Analysiere den gesamten Inhalt und erstelle daraus hochwertige Lernfragen.
+WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf diesen Seiten.${coveredHint}
+
+Regeln:
+- ${countRule}
+- Verwende AUSSCHLIESSLICH diese Fragetypen: ${imgsTypesList}.
+- Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
+- Jede Frage muss eine klare Erklärung enthalten.
+- Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array:
+[{
+  "question_type": "...",
+  "question_text": "Fragetext",
+  "title": "Kurztitel",
+  "topic": "Themengebiet",
+  "points": 1,
+  "options": [{"text": "Antwort", "is_correct": true}],
+  "correct_text": "",
+  "blanks": [],
+  "explanation": "Erklärung"
+}]`;
+
+    const contentParts = [
+      { type: "text", text: `Erstelle ${countAsk} auf Basis dieser ${batchSize} PDF-Seiten (Seite ${batchStart}-${batchEnd}).${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}${coveredHint}` },
+      ...imageBatch.map((url) => ({ type: "image_url", image_url: { url } })),
+    ];
+
+    const body = await chatCompletion([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: contentParts },
+    ], { apiKey, model, stream: true });
+    const raw = await readStream(body);
+    const questions = parseJSON(raw);
+    if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+    return questions;
+  };
+
+  // Run chunked or single-pass
+  let allQuestions;
+  if (USE_CHUNKING) {
+    allQuestions = [];
+    const coveredTopics = [];
+    const numChunks = Math.ceil(imageUrls.length / effectiveChunkSize);
+    for (let i = 0; i < imageUrls.length; i += effectiveChunkSize) {
+      const chunkIdx = Math.floor(i / effectiveChunkSize) + 1;
+      if (onProgress) onProgress(chunkIdx, numChunks);
+      const batch = imageUrls.slice(i, i + effectiveChunkSize);
+      const batchStart = i + 1;
+      const batchEnd = Math.min(i + effectiveChunkSize, imageUrls.length);
+      const chunkQuestions = await runImageChunk(batch, batchStart, batchEnd, coveredTopics);
+      // Extract topics from this chunk for rolling context
+      const newTopics = chunkQuestions.map(q => q.topic).filter(Boolean);
+      coveredTopics.push(...new Set(newTopics));
+      allQuestions.push(...chunkQuestions);
+    }
+    // Dedupe: remove questions with near-identical text
+    const seen = new Set();
+    allQuestions = allQuestions.filter(q => {
+      const key = (q.question_text || "").slice(0, 60);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  } else {
+    // Original single-pass behavior
+    const countRuleImg = autoImg
+      ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken.${detailHintImg}`
+      : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
+    const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
+
+    const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
 WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf ALLEN Seiten – jedes Konzept, jede Definition, jeder Fakt, jede Formel soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
@@ -558,24 +643,23 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
   }
 ]`;
 
-  const contentParts = [
-    { type: "text", text: `Erstelle ${countAskImg} auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
-    ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
-  ];
+    const contentParts = [
+      { type: "text", text: `Erstelle ${countAskImg} auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
+      ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+    ];
 
-  const messages = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: contentParts },
-  ];
+    const body = await chatCompletion([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: contentParts },
+    ], { apiKey, model, stream: true });
+    const raw = await readStream(body);
+    allQuestions = parseJSON(raw);
+    if (!Array.isArray(allQuestions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+  }
 
-  const body = await chatCompletion(messages, { apiKey, model, stream: true });
-  const raw = await readStream(body);
-  const questions = parseJSON(raw);
-  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
-
-  let filteredImgs = questions;
+  let filteredImgs = allQuestions;
   if (allowedImgs.length && allowedImgs.length < IMGS_TYPES.length) {
-    const kept = questions.filter(q => allowedImgs.includes(q.question_type));
+    const kept = allQuestions.filter(q => allowedImgs.includes(q.question_type));
     if (kept.length) filteredImgs = kept;
   }
 
@@ -1134,4 +1218,223 @@ export async function crossCheckQuiz(questions, config = {}) {
   } catch {
     return [{ nr: 0, issue: "Cross-Check konnte nicht geparst werden.", severity: "low", suggestion: "Manuell prüfen." }];
   }
+}
+
+// ── Formula Sheet Generation ──────────────────────────────────────────────
+
+/**
+ * Generate a formula sheet from text (pure text or PDF-extracted).
+ * Returns structured formula entries: [{name, formula, variables}]
+ */
+export async function generateFormulaSheet(text, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key für Formelsammlung verfügbar.");
+
+  const customPrompt = config.customPrompt || "";
+  const promptExtra = customPrompt
+    ? `\nZusätzliche Nutzer-Anweisung: ${customPrompt}`
+    : "";
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Mathematik-Experte. Extrahiere AUSSCHLIESSLICH reine Formeln aus dem gegebenen Text.\n" +
+        "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
+        "Nur allgemeingültige Formeln, die man anwenden kann (wie pq-Formel, abc-Formel, Satz des Pythagoras, Ableitungsregeln, etc.).\n" +
+        "Für jede Formel: Name, die Formel in LaTeX, und die Variablen mit Beschreibung.\n" +
+        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]}]}',
+    },
+    {
+      role: "user",
+      content: `Extrahiere alle Formeln aus diesem Text (KEINE Beispielrechnungen, nur allgemeine Formeln):${promptExtra}\n\n${text.slice(0, 8000)}`,
+    },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    return parsed?.formulas || [];
+  } catch {
+    return [{ name: "Extrahierte Formeln", formula: raw?.slice(0, 500) || "Fehler beim Parsen", variables: [] }];
+  }
+}
+
+/**
+ * Derive a formula sheet with explanations from existing formula entries.
+ */
+export async function deriveFormulaExplanations(formulas, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const input = formulas.map(f => `${f.name}: ${f.formula}`).join("\n");
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Mathematik-Dozent. Für jede Formel: erkläre kurz (2-3 Sätze), wofür sie verwendet wird und was sie bedeutet.\n" +
+        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","explanation":"..."}]}',
+    },
+    { role: "user", content: `Erkläre diese Formeln:\n${input}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    const explained = parsed?.formulas || [];
+    return formulas.map(f => {
+      const match = explained.find(e => e.name === f.name || e.formula === f.formula);
+      return { ...f, explanation: match?.explanation || "" };
+    });
+  } catch {
+    return formulas.map(f => ({ ...f, explanation: "" }));
+  }
+}
+
+/**
+ * Derive a formula sheet with formulas rearranged for each variable.
+ */
+export async function deriveFormulaByVariable(formulas, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const input = formulas.map(f => `${f.name}: ${f.formula}`).join("\n");
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Mathematik-Experte. Stelle jede Formel nach jeder ihrer Variablen um.\n" +
+        "Beispiel: U = R·I → I = U/R, R = U/I\n" +
+        "Gib für jede Umstellung Name, umgestellte Formel und die isolierte Variable an.\n" +
+        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","solvedFor":"..."}]}',
+    },
+    { role: "user", content: `Stelle diese Formeln nach jeder Variable um:\n${input}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    return parsed?.formulas || [];
+  } catch {
+    return [];
+  }
+}
+
+// ── Study Plan Generation ──────────────────────────────────────────────────
+
+/**
+ * Extract topics from lecture text and estimate study time per topic.
+ */
+export async function extractStudyTopics(text, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Lernplan-Experte. Analysiere den Text und extrahiere alle Themen/Unterthemen.\n" +
+        "Schätze für jedes Thema: Schwierigkeit (easy/medium/hard) und geschätzte Lernstunden.\n" +
+        "Sortiere didaktisch sinnvoll (Grundlagen zuerst).\n" +
+        'Antworte NUR mit JSON: {"topics":[{"name":"...","difficulty":"easy|medium|hard","estimatedHours":1.5}]}',
+    },
+    { role: "user", content: `Extrahiere Themen aus diesem Vorlesungstext:\n\n${text.slice(0, 12000)}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    return parsed?.topics || [];
+  } catch {
+    return [{ name: "Gesamter Stoff", difficulty: "medium", estimatedHours: 10 }];
+  }
+}
+
+// ── Exercise Mode ──────────────────────────────────────────────────────────
+
+/**
+ * Generate a single exercise for a given topic.
+ */
+export async function generateExercise(topic, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Übungsaufgaben-Ersteller. Erstelle EINE Aufgabe zum gegebenen Thema.\n" +
+        "Formuliere klar, was zu tun ist. Gib auch die korrekte Lösung an (mit Lösungsweg).\n" +
+        'Antworte NUR mit JSON: {"question":"Aufgabentext","solution":"Lösungsweg und Endergebnis","hint":"Kleiner Tipp"}',
+    },
+    { role: "user", content: `Erstelle eine Übungsaufgabe zum Thema: ${topic}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    return parseJSON(raw);
+  } catch {
+    return { question: `Aufgabe zum Thema: ${topic}`, solution: "Lösung nicht verfügbar.", hint: "" };
+  }
+}
+
+/**
+ * Check a user's solution and find where they went wrong.
+ */
+export async function checkExerciseSolution(exercise, userAnswer, userImageBase64, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const hasImage = !!userImageBase64;
+  const chosen = MODELS.find((m) => m.id === (model || ""));
+  const useVision = hasImage && chosen?.vision;
+
+  const contentParts = [];
+  contentParts.push({
+    type: "text",
+    text: `Aufgabe:\n${exercise.question}\n\nKorrekte Lösung:\n${exercise.solution}\n\nNutzer-Lösung:\n${userAnswer || "(keine Text-Lösung)"}\n\nAnalysiere die Lösung des Nutzers. Finde heraus, WO genau der Fehler liegt (nicht nur ob falsch, sondern was falsch ist). Erkläre den Fehler verständlich.`,
+  });
+  if (useVision && userImageBase64) {
+    contentParts.push({ type: "image_url", image_url: { url: userImageBase64 } });
+  }
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein geduldiger Mathe-Tutor. Analysiere die Nutzer-Lösung und finde den GENAUEN Fehler im Lösungsweg.\n" +
+        "Nicht nur 'falsch' sagen — sondern zeigen WO und WARUM.\n" +
+        'Antworte NUR mit JSON: {"isCorrect":false,"errorStep":"...","explanation":"...","tip":"..."}',
+    },
+    { role: "user", content: contentParts },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: useVision ? (model || VISION_MODEL) : (model || "deepseek/deepseek-chat"), stream: false });
+  try {
+    return parseJSON(raw);
+  } catch {
+    return { isCorrect: false, errorStep: "Analyse fehlgeschlagen", explanation: raw?.slice(0, 300) || "Unbekannter Fehler", tip: "Versuch es nochmal mit mehr Details." };
+  }
+}
+
+// ── Formula Photo → LaTeX ─────────────────────────────────────────────────
+
+export async function formulaPhotoToLatex(imageBase64, config = {}) {
+  const { apiKey } = resolveApiKey(config);
+  const messages = [{
+    role: "system",
+    content: "Extrahiere ALLE mathematischen Formeln aus diesem Bild als LaTeX-Code. Gib NUR die Formeln zurück, eine pro Zeile, im Format: `Formelname: \\formel`. Keine Erklärungen, keine Einleitung.",
+  }, {
+    role: "user",
+    content: [
+      { type: "image_url", image_url: { url: imageBase64 } },
+    ],
+  }];
+  const raw = await chatCompletion(messages, { apiKey, model: config.model || VISION_MODEL, stream: false });
+  // Parse lines: each line is either "Name: formula" or just a formula
+  const lines = raw.split("\n").filter(l => l.trim());
+  const formulas = [];
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx > 0 && colonIdx < 80) {
+      formulas.push({ name: line.slice(0, colonIdx).trim(), formula: line.slice(colonIdx + 1).trim() });
+    } else {
+      formulas.push({ name: "", formula: line.trim() });
+    }
+  }
+  return formulas;
 }
