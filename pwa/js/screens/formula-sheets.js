@@ -1,7 +1,7 @@
 import { loadFormulaSheets, saveFormulaSheets } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc, uid } from "../utils.js";
-import { generateFormulaSheet, deriveFormulaExplanations, deriveFormulaByVariable } from "../ai-service.js";
+import { generateFormulaSheet, deriveFormulaExplanations, deriveFormulaByVariable, formulaPhotoToLatex } from "../ai-service.js";
 
 // Formelsammlung: KI-generierte & manuelle Formelsammlungen.
 // Sheet-Form: { id, name, subject, body, formulas } – body ist Freitext,
@@ -104,6 +104,10 @@ async function showGenerator(root) {
           <input type="file" id="fs-gen-file" accept=".txt,.pdf" class="input" style="padding:8px">
           <small class="file-hint">.txt oder .pdf (PDF-Text wird extrahiert)</small>
         </div>
+        <div style="margin-top:6px">
+          <input type="file" id="fs-gen-photo" accept="image/*" class="input" style="padding:8px">
+          <small class="file-hint">📷 Foto von Formeln (Vision → LaTeX)</small>
+        </div>
       </div>
 
       <div class="input-group">
@@ -158,6 +162,31 @@ async function showGenerator(root) {
         const reader = new FileReader();
         reader.onload = () => { textArea.value = reader.result; };
         reader.readAsText(file);
+      }
+    });
+
+    root.querySelector("#fs-gen-photo").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const errBox = root.querySelector("#fs-gen-err");
+      errBox.style.display = "none";
+      const textArea = root.querySelector("#fs-gen-text");
+      textArea.value = "⏳ Extrahiere Formeln aus Foto…";
+      try {
+        const reader = new FileReader();
+        const base64 = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const formulas = await formulaPhotoToLatex(base64);
+        if (formulas.length) {
+          textArea.value = formulas.map(f => `${f.name}: ${f.formula}`).join("\n");
+        } else {
+          textArea.value = "❌ Keine Formeln erkannt. Bitte versuche ein klareres Foto.";
+        }
+      } catch (err) {
+        textArea.value = "❌ Fehler: " + (err.message || "Vision nicht verfügbar");
       }
     });
 
@@ -327,6 +356,7 @@ function showView(root, sheet) {
 
   html += `<div style="display:flex;gap:8px;margin-top:10px">
     <button class="btn btn-ghost btn-block" id="edit-btn">✏️ Bearbeiten</button>
+    <button class="btn btn-ghost btn-block" id="pdf-btn">📥 PDF</button>
   </div>`;
 
   root.innerHTML = html;
@@ -334,6 +364,9 @@ function showView(root, sheet) {
   root.querySelector("#edit-btn").addEventListener("click", async () => {
     const sheets = await loadFormulaSheets();
     showEdit(root, sheets, sheet.id);
+  });
+  root.querySelector("#pdf-btn").addEventListener("click", () => {
+    exportSheetAsPdf(sheet);
   });
   root.querySelector("#derive-explain")?.addEventListener("click", () => showDerived(root, sheet, "explain"));
   root.querySelector("#derive-bysolved")?.addEventListener("click", () => showDerived(root, sheet, "bysolved"));
@@ -380,4 +413,38 @@ function showEdit(root, sheets, sheetId) {
     await saveFormulaSheets(next);
     render(root);
   });
+}
+
+// ── PDF Export ────────────────────────────────────────────────────────────
+
+function exportSheetAsPdf(sheet) {
+  const hasFormulas = sheet.formulas && sheet.formulas.length > 0;
+  let bodyHtml = "";
+  if (hasFormulas) {
+    for (const f of sheet.formulas) {
+      bodyHtml += `<div style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #e5e7eb">
+        <div style="font-weight:600;font-size:0.95rem">${esc(f.name)}</div>
+        <div style="font-size:1.15rem;margin:4px 0">${f.formula}</div>
+        ${f.variables?.length ? `<div style="font-size:0.8rem;color:#666">${f.variables.map(v => esc(v.symbol) + ": " + esc(v.description)).join(" · ")}</div>` : ""}
+        ${f.explanation ? `<div style="font-size:0.8rem;color:#555;margin-top:2px">${esc(f.explanation)}</div>` : ""}
+      </div>`;
+    }
+  } else {
+    const lines = (sheet.body || "").split("\n").filter(l => l.trim());
+    bodyHtml = lines.map(l => `<div style="margin-bottom:6px;font-size:1rem">${l}</div>`).join("");
+  }
+
+  const w = window.open("", "_blank", "width=800,height=600");
+  if (!w) { alert("Pop-up blockiert – bitte erlauben für PDF-Export."); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(sheet.name)}</title>
+    <link rel="stylesheet" href="lib/katex/katex.min.css">
+    <script src="lib/katex/katex.min.js"><\/script>
+    <script src="lib/katex/contrib/auto-render.min.js"><\/script>
+    <style>body{font-family:system-ui,sans-serif;max-width:700px;margin:30px auto;padding:0 20px;color:#1a1a1a}
+      h1{font-size:1.4rem;margin-bottom:4px}h2{font-size:0.9rem;color:#666;font-weight:400;margin-bottom:20px}
+      @media print{body{margin:0;padding:10px}}</style></head><body>
+    <h1>${esc(sheet.name)}</h1>${sheet.subject ? `<h2>${esc(sheet.subject)}</h2>` : ""}
+    ${bodyHtml}
+    <script>renderMathInElement(document.body,{delimiters:[{left:"\\\\(",right:"\\\\)",display:false},{left:"$$",right:"$$",display:true},{left:"\\\\[",right:"\\\\]",display:true}]});setTimeout(()=>window.print(),800);<\/script></body></html>`);
+  w.document.close();
 }

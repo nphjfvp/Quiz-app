@@ -1410,3 +1410,31 @@ export async function checkExerciseSolution(exercise, userAnswer, userImageBase6
     return { isCorrect: false, errorStep: "Analyse fehlgeschlagen", explanation: raw?.slice(0, 300) || "Unbekannter Fehler", tip: "Versuch es nochmal mit mehr Details." };
   }
 }
+
+// ── Formula Photo → LaTeX ─────────────────────────────────────────────────
+
+export async function formulaPhotoToLatex(imageBase64, config = {}) {
+  const { apiKey } = resolveApiKey(config);
+  const messages = [{
+    role: "system",
+    content: "Extrahiere ALLE mathematischen Formeln aus diesem Bild als LaTeX-Code. Gib NUR die Formeln zurück, eine pro Zeile, im Format: `Formelname: \\formel`. Keine Erklärungen, keine Einleitung.",
+  }, {
+    role: "user",
+    content: [
+      { type: "image_url", image_url: { url: imageBase64 } },
+    ],
+  }];
+  const raw = await chatCompletion(messages, { apiKey, model: config.model || VISION_MODEL, stream: false });
+  // Parse lines: each line is either "Name: formula" or just a formula
+  const lines = raw.split("\n").filter(l => l.trim());
+  const formulas = [];
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx > 0 && colonIdx < 80) {
+      formulas.push({ name: line.slice(0, colonIdx).trim(), formula: line.slice(colonIdx + 1).trim() });
+    } else {
+      formulas.push({ name: "", formula: line.trim() });
+    }
+  }
+  return formulas;
+}

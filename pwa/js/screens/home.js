@@ -89,6 +89,11 @@ export async function render(root) {
       <div class="title">Lernpläne</div>
       <div class="desc">Klausurplanung</div>
     </div>
+    <div class="grid-card" data-nav="math-tools">
+      <div class="icon">🧮</div>
+      <div class="title">Mathe-Tools</div>
+      <div class="desc">Plotter & mehr</div>
+    </div>
   </div>`;
 
   if (marked.length > 0) {
