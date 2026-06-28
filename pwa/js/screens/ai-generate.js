@@ -1,5 +1,5 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, generateQuizFromImage, generateQuizFromImages, importQuiz, getModelContextLimit, MODELS, editQuestionWithAI } from "../ai-service.js";
+import { generateQuiz, generateQuizFromImage, generateQuizFromImages, importQuiz, getModelContextLimit, MODELS, editQuestionWithAI, crossCheckQuiz } from "../ai-service.js";
 import { navigate } from "../router.js";
 import { esc, loadPdfJs, uid } from "../utils.js";
 
@@ -76,6 +76,14 @@ export async function render(root, params = {}) {
             <span id="char-count">0 Zeichen</span>
             <span>Max ~${fmtLimit(charLimit)} Zeichen (${esc(currentModel.split("/").pop())})</span>
           </div>
+          <details style="margin-top:8px;font-size:0.85rem">
+            <summary style="cursor:pointer;color:var(--text-light)">🔍 Text filtern (optional)</summary>
+            <div style="margin-top:6px">
+              <label style="font-size:0.8rem">Auszuschließende Schlüsselwörter (Abschnitte mit diesen Wörtern werden ignoriert)</label>
+              <input type="text" id="exclude-keywords" class="input" placeholder="z.B. Inhaltsverzeichnis, Literatur, Anhang" style="margin-top:4px">
+              <small class="file-hint">Kommagetrennt. Jeder Absatz wird geprüft — enthält er ein Schlüsselwort, wird er ausgeschlossen.</small>
+            </div>
+          </details>
         </div>
 
         <div class="input-group">
@@ -509,7 +517,17 @@ export async function render(root, params = {}) {
 
   // --- Generate ---
   genBtn.addEventListener("click", async () => {
-    const text = textArea.value.trim();
+    let text = textArea.value.trim();
+    // Text-Filter: Abschnitte mit ausgeschlossenen Schlüsselwörtern entfernen
+    const excludeInput = root.querySelector("#exclude-keywords");
+    if (excludeInput?.value.trim()) {
+      const keywords = excludeInput.value.split(",").map(k => k.trim().toLowerCase()).filter(Boolean);
+      if (keywords.length) {
+        const paragraphs = text.split(/\n\s*\n/);
+        const kept = paragraphs.filter(p => !keywords.some(kw => p.toLowerCase().includes(kw)));
+        text = kept.join("\n\n");
+      }
+    }
     const numQuestions = getNumQuestions();
     const allowedTypes = getAllowedTypes();
 
@@ -680,9 +698,12 @@ async function showReview(root, questions, quizName, modelId, sourceText = "") {
       html += `</div>`;
     });
 
-    html += `<div class="review-save-row">
+    html += `<div class="review-save-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-primary btn-lg" id="review-save">Quiz speichern (${qs.length} Fragen)</button>
-    </div>`;
+      <button class="btn btn-ghost" id="review-crosscheck">🔍 KI-Cross-Check</button>
+      <span style="font-size:0.75rem;color:var(--text-light)">Zweite KI prüft auf Fehler</span>
+    </div>
+    <div id="crosscheck-results"></div>`;
 
     root.innerHTML = html;
     bindReviewEvents();
@@ -717,6 +738,39 @@ async function showReview(root, questions, quizName, modelId, sourceText = "") {
       if (confirm("Zurück? Nicht gespeicherte Änderungen gehen verloren.")) {
         render(root);
       }
+    });
+
+    root.querySelector("#review-crosscheck")?.addEventListener("click", async () => {
+      syncAllEdits();
+      const btn = root.querySelector("#review-crosscheck");
+      const resultsDiv = root.querySelector("#crosscheck-results");
+      btn.textContent = "⏳ Prüfe…";
+      btn.disabled = true;
+      resultsDiv.innerHTML = `<div style="padding:8px;font-size:0.85rem;color:var(--text-light)">🔍 KI-Cross-Check läuft…</div>`;
+      try {
+        const findings = await crossCheckQuiz(qs);
+        if (!findings || findings.length === 0) {
+          resultsDiv.innerHTML = `<div class="card" style="padding:10px 14px;margin-top:8px;background:var(--success-bg, #dcfce7)">
+            ✅ <strong>Keine Probleme gefunden!</strong> Alle ${qs.length} Fragen sehen gut aus.
+          </div>`;
+        } else {
+          let findingHtml = `<div class="card" style="padding:10px 14px;margin-top:8px">
+            <div style="font-weight:600;margin-bottom:8px">⚠️ ${findings.length} ${findings.length === 1 ? "Problem" : "Probleme"} gefunden:</div>`;
+          for (const f of findings) {
+            const sevColor = f.severity === "high" ? "var(--danger)" : f.severity === "medium" ? "var(--warning)" : "var(--text-light)";
+            findingHtml += `<div style="padding:8px 0;border-bottom:1px solid var(--border-light, #eee)">
+              <div><span style="color:${sevColor};font-weight:600">${f.severity === "high" ? "🔴" : f.severity === "medium" ? "🟡" : "🔵"} Frage ${f.nr || "?"}</span>: ${f.issue || ""}</div>
+              ${f.suggestion ? `<div style="font-size:0.8rem;color:var(--text-light);margin-top:2px">💡 ${f.suggestion}</div>` : ""}
+            </div>`;
+          }
+          findingHtml += `</div>`;
+          resultsDiv.innerHTML = findingHtml;
+        }
+      } catch (e) {
+        resultsDiv.innerHTML = `<div class="card" style="padding:10px 14px;margin-top:8px;color:var(--danger)">❌ Cross-Check fehlgeschlagen: ${e.message || "Unbekannter Fehler"}</div>`;
+      }
+      btn.textContent = "🔍 KI-Cross-Check";
+      btn.disabled = false;
     });
 
     root.querySelector("#review-save")?.addEventListener("click", async () => {
