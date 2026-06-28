@@ -656,8 +656,6 @@ function setupDiagramLabel(root, q, placements) {
   const labels = q.diagram_labels || [];
   let img = null;
   const SNAP_RADIUS = 0.10;
-  let dragLabel = null;
-
   function draw() {
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * 2;
@@ -668,18 +666,19 @@ function setupDiagramLabel(root, q, placements) {
     if (img) ctx.drawImage(img, 0, 0, w, h);
     else { ctx.fillStyle = "#e2e8f0"; ctx.fillRect(0, 0, w, h); ctx.fillStyle = "#999"; ctx.font = "14px sans-serif"; ctx.textAlign = "center"; ctx.fillText("Kein Bild verfügbar", w/2, h/2); }
 
-    // Draw snap zones
+    // Draw snap zones — always visible as drop targets
     const highlightZones = q._jokerHighlightZones;
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
       const px = l.x * w, py = l.y * h;
       const snapPx = SNAP_RADIUS * Math.max(w, h);
+      const alreadyPlaced = Object.entries(placements).some(([, v]) => Math.abs(v.x - l.x) < 0.02 && Math.abs(v.y - l.y) < 0.02);
       ctx.beginPath();
       ctx.arc(px, py, snapPx, 0, Math.PI * 2);
-      ctx.fillStyle = highlightZones ? "rgba(34,197,94,0.18)" : "rgba(100,100,100,0.08)";
+      ctx.fillStyle = highlightZones ? "rgba(34,197,94,0.22)" : alreadyPlaced ? "rgba(100,100,100,0.03)" : "rgba(100,100,100,0.10)";
       ctx.fill();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = highlightZones ? "rgba(34,197,94,0.5)" : "rgba(100,100,100,0.25)";
+      ctx.strokeStyle = highlightZones ? "rgba(34,197,94,0.6)" : alreadyPlaced ? "rgba(100,100,100,0.12)" : "rgba(100,100,100,0.35)";
       ctx.lineWidth = highlightZones ? 2 : 1;
       ctx.stroke();
       ctx.setLineDash([]);
@@ -688,12 +687,12 @@ function setupDiagramLabel(root, q, placements) {
     // Draw placed labels using shared utility
     for (const [label, pos] of Object.entries(placements)) {
       const idx = labels.findIndex(l => l.label === label);
-      const color = CHIP_COLORS[idx % CHIP_COLORS.length];
+      const color = CHIP_COLORS[idx >= 0 ? idx % CHIP_COLORS.length : 0];
       drawLabeledPoint(ctx, pos.x, pos.y, w, h, color, label);
     }
   }
 
-  function trySnap(clientX, clientY) {
+  function trySnap(clientX, clientY, currentLabel) {
     const rect = canvas.getBoundingClientRect();
     const fx = (clientX - rect.left) / rect.width;
     const fy = (clientY - rect.top) / rect.height;
@@ -701,7 +700,7 @@ function setupDiagramLabel(root, q, placements) {
     let bestDist = Infinity, bestIdx = -1;
     for (let i = 0; i < labels.length; i++) {
       const l = labels[i];
-      const alreadyPlaced = Object.entries(placements).some(([k, v]) => k !== dragLabel && Math.abs(v.x - l.x) < 0.02 && Math.abs(v.y - l.y) < 0.02);
+      const alreadyPlaced = Object.entries(placements).some(([k, v]) => k !== currentLabel && Math.abs(v.x - l.x) < 0.02 && Math.abs(v.y - l.y) < 0.02);
       if (alreadyPlaced) continue;
       const dx = (fx - l.x) * aspect;
       const dy = fy - l.y;
@@ -712,12 +711,10 @@ function setupDiagramLabel(root, q, placements) {
   }
 
   function onDrop(label, clientX, clientY) {
-    if (!dragLabel) return;
-    const snapIdx = trySnap(clientX, clientY);
+    const snapIdx = trySnap(clientX, clientY, label);
     if (snapIdx >= 0) {
-      placements[dragLabel] = { x: labels[snapIdx].x, y: labels[snapIdx].y };
+      placements[label] = { x: labels[snapIdx].x, y: labels[snapIdx].y };
     }
-    dragLabel = null;
     draw(); renderChips();
   }
 
