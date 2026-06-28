@@ -1135,3 +1135,100 @@ export async function crossCheckQuiz(questions, config = {}) {
     return [{ nr: 0, issue: "Cross-Check konnte nicht geparst werden.", severity: "low", suggestion: "Manuell prüfen." }];
   }
 }
+
+// ── Formula Sheet Generation ──────────────────────────────────────────────
+
+/**
+ * Generate a formula sheet from text (pure text or PDF-extracted).
+ * Returns structured formula entries: [{name, formula, variables}]
+ */
+export async function generateFormulaSheet(text, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key für Formelsammlung verfügbar.");
+
+  const customPrompt = config.customPrompt || "";
+  const promptExtra = customPrompt
+    ? `\nZusätzliche Nutzer-Anweisung: ${customPrompt}`
+    : "";
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Mathematik-Experte. Extrahiere AUSSCHLIESSLICH reine Formeln aus dem gegebenen Text.\n" +
+        "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
+        "Nur allgemeingültige Formeln, die man anwenden kann (wie pq-Formel, abc-Formel, Satz des Pythagoras, Ableitungsregeln, etc.).\n" +
+        "Für jede Formel: Name, die Formel in LaTeX, und die Variablen mit Beschreibung.\n" +
+        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]}]}',
+    },
+    {
+      role: "user",
+      content: `Extrahiere alle Formeln aus diesem Text (KEINE Beispielrechnungen, nur allgemeine Formeln):${promptExtra}\n\n${text.slice(0, 8000)}`,
+    },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    return parsed?.formulas || [];
+  } catch {
+    return [{ name: "Extrahierte Formeln", formula: raw?.slice(0, 500) || "Fehler beim Parsen", variables: [] }];
+  }
+}
+
+/**
+ * Derive a formula sheet with explanations from existing formula entries.
+ */
+export async function deriveFormulaExplanations(formulas, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const input = formulas.map(f => `${f.name}: ${f.formula}`).join("\n");
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Mathematik-Dozent. Für jede Formel: erkläre kurz (2-3 Sätze), wofür sie verwendet wird und was sie bedeutet.\n" +
+        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","explanation":"..."}]}',
+    },
+    { role: "user", content: `Erkläre diese Formeln:\n${input}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    const explained = parsed?.formulas || [];
+    return formulas.map(f => {
+      const match = explained.find(e => e.name === f.name || e.formula === f.formula);
+      return { ...f, explanation: match?.explanation || "" };
+    });
+  } catch {
+    return formulas.map(f => ({ ...f, explanation: "" }));
+  }
+}
+
+/**
+ * Derive a formula sheet with formulas rearranged for each variable.
+ */
+export async function deriveFormulaByVariable(formulas, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const input = formulas.map(f => `${f.name}: ${f.formula}`).join("\n");
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Mathematik-Experte. Stelle jede Formel nach jeder ihrer Variablen um.\n" +
+        "Beispiel: U = R·I → I = U/R, R = U/I\n" +
+        "Gib für jede Umstellung Name, umgestellte Formel und die isolierte Variable an.\n" +
+        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","solvedFor":"..."}]}',
+    },
+    { role: "user", content: `Stelle diese Formeln nach jeder Variable um:\n${input}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    return parsed?.formulas || [];
+  } catch {
+    return [];
+  }
+}
