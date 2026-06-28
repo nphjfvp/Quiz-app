@@ -28,6 +28,7 @@ export async function render(root) {
           ${[1,2,3,4,5].map(b => `<span class="quiz-box box-${b}">${counts[b]||0}</span>`).join("")}
         </div>
         <button class="btn-icon btn-icon-sm" data-edit-id="${quiz.id}">✏️</button>
+        <button class="btn-icon btn-icon-sm" data-bulk-id="${quiz.id}" title="Bulk-Edit">🔧</button>
         <button class="btn-icon btn-icon-sm" data-export-id="${quiz.id}" data-format="json" title="Als JSON exportieren">📥</button>
         <button class="btn-icon btn-icon-sm" data-export-id="${quiz.id}" data-format="html" title="Als HTML exportieren">📄</button>
         <span class="row-chev">›</span>
@@ -62,6 +63,12 @@ export async function render(root) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       navigate("editor", { quizId: btn.dataset.editId });
+    });
+  });
+  root.querySelectorAll("[data-bulk-id]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      navigate("bulk-edit", { quizId: btn.dataset.bulkId });
     });
   });
   root.querySelectorAll("[data-export-id]").forEach((btn) => {

@@ -162,3 +162,79 @@ export function ratingFromResult(isCorrect, confidence = 3) {
   if (isCorrect) return confidence >= 3 ? 4 : 3;
   return confidence >= 2 ? 2 : 1;
 }
+
+const MATURE_STABILITY = 21;
+
+export function projectMasteryTimeline(allCards, fsrsData) {
+  const milestones = [7, 14, 30, 60, 90];
+  const timeline = milestones.map(days => ({ days, count: 0 }));
+  const now = Date.now();
+
+  for (const card of allCards) {
+    let c = fsrsData[card.id] || newCard(card.id);
+    if (!c.last_review) c.last_review = new Date(now).toISOString();
+
+    let simDay = 0, reached = false;
+    for (const m of timeline) {
+      if (reached) { m.count++; continue; }
+      while (simDay < m.days) {
+        const r = retrievability(c);
+        if (r < REQUEST_RETENTION || c.state === "new") {
+          c = simulateReview(c, 3, new Date(now + simDay * 86400000));
+          simDay += Math.max(1, Math.round((c.scheduled_days || 1) * 0.8));
+        } else {
+          simDay += Math.max(1, Math.floor((c.scheduled_days || 1) * 0.9));
+        }
+        if (c.stability > MATURE_STABILITY) { reached = true; break; }
+      }
+      if (reached || c.stability > MATURE_STABILITY) { reached = true; m.count++; }
+    }
+  }
+
+  const total = allCards.length || 1;
+  let daysTo90 = null;
+  for (const m of timeline) {
+    m.pct = Math.round((m.count / total) * 100);
+    if (daysTo90 === null && m.pct >= 90) daysTo90 = m.days;
+  }
+
+  const dueNow = allCards.filter(c => {
+    const crd = fsrsData[c.id];
+    return !crd || crd.state === "new" || daysUntilDue(crd) <= 0;
+  }).length;
+  const optimalDaily = Math.max(5, Math.ceil(dueNow / Math.max(1, (daysTo90 || 30) / 7)));
+
+  return { timeline, optimalDaily, daysTo90, totalCards: allCards.length, dueNow };
+}
+
+function simulateReview(cardIn, rating, reviewDate) {
+  const card = { ...cardIn };
+  rating = Math.max(1, Math.min(4, rating));
+  let elapsedDays = 0;
+  if (card.last_review) {
+    elapsedDays = Math.max(0, (reviewDate.getTime() - new Date(card.last_review).getTime()) / 86400000);
+  }
+  card.elapsed_days = elapsedDays;
+  card.last_review = reviewDate.toISOString();
+  if (card.state === "new") {
+    card.difficulty = initDifficulty(rating);
+    card.stability = initStability(rating);
+    card.reps = 1; card.state = "learning";
+    if (rating === 1) card.lapses = 1;
+  } else {
+    const r = forgettingCurve(elapsedDays, card.stability);
+    card.difficulty = nextDifficulty(card.difficulty, rating);
+    if (rating === 1) {
+      card.stability = nextForgetStability(card.difficulty, card.stability, r);
+      card.lapses += 1; card.state = "relearning";
+    } else {
+      card.stability = nextRecallStability(card.difficulty, card.stability, r, rating);
+      card.state = "review";
+    }
+    card.reps += 1;
+  }
+  card.stability = Math.max(0.1, card.stability);
+  card.difficulty = Math.max(1, Math.min(10, card.difficulty));
+  card.scheduled_days = nextInterval(card.stability);
+  return card;
+}

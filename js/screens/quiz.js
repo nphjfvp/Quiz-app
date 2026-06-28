@@ -402,7 +402,16 @@ function showQuestion(root, quiz, session) {
 
       if (!result.is_correct) {
         const diary = await loadErrorDiary();
-        diary.unshift({ id: Date.now().toString(36), date: new Date().toISOString(), questionText: q.question_text || q.text || "", userAnswer: result.user_answer, correctAnswer: result.correct_answer, topic: q.topic || "", quizName: quiz.name || "" });
+        diary.unshift({
+          id: Date.now().toString(36), date: new Date().toISOString(),
+          questionText: q.question_text || q.text || "",
+          userAnswer: result.user_answer, correctAnswer: result.correct_answer,
+          topic: q.topic || "", quizName: quiz.name || "",
+          questionId: q.id,
+          kiExplanation: session.explanations[q.id] || "",
+          questionType: q.question_type,
+          options: q.options || null, correctText: q.correct_text || null,
+        });
         if (diary.length > 500) diary.length = 500;
         await saveErrorDiary(diary);
       }
