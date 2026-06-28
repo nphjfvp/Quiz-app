@@ -222,15 +222,20 @@ export async function saveAchievements(data) {
 // ── Recents ──
 // { type: "quiz"|"formula"|"plan"|"daily"|"tutor", id, name, ts }
 export async function loadRecents() {
-  return (await get("recents")) ?? [];
+  const val = await get("recents");
+  return Array.isArray(val) ? val : [];
 }
+
+// Sequential queue to prevent read-modify-write race between concurrent trackRecent calls
+let _recentsQueue = Promise.resolve();
 export async function trackRecent(type, id, name) {
-  const recents = await loadRecents();
-  // Remove existing entry with same type+id
-  const filtered = recents.filter(r => !(r.type === type && r.id === id));
-  filtered.unshift({ type, id, name, ts: Date.now() });
-  // Keep max 20
-  await set("recents", filtered.slice(0, 20));
+  _recentsQueue = _recentsQueue.then(async () => {
+    const recents = await loadRecents();
+    const filtered = recents.filter(r => !(r.type === type && r.id === id));
+    filtered.unshift({ type, id, name, ts: Date.now() });
+    await set("recents", filtered.slice(0, 20));
+  });
+  return _recentsQueue;
 }
 
 // ── Math task sets (Formel-Training / Scaffolding) ──

@@ -7,7 +7,7 @@ import { renderAvatarSVG, HOUSE_LEVELS } from "../shop-catalog.js";
 export async function render(root) {
   const [quizzes, stats, progress, account, marked, diary, profile, coins, recents] = await Promise.all([
     loadQuizzes(), loadStats(), loadProgress(), Promise.resolve(getAccount()),
-    loadMarked(), loadErrorDiary(), loadProfile(), loadCoins(), loadRecents(),
+    loadMarked(), loadErrorDiary(), loadProfile(), loadCoins(), loadRecents().catch(() => []),
   ]);
   const { current: streak, max: maxStreak } = getStreak(stats);
 
@@ -156,7 +156,17 @@ export async function render(root) {
 
   root.querySelector("#daily-btn")?.addEventListener("click", () => navigate("daily"));
   root.querySelectorAll("[data-nav]").forEach((el) => {
-    el.addEventListener("click", () => navigate(el.dataset.nav));
+    el.addEventListener("click", () => {
+      const raw = el.dataset.nav;
+      const q = raw.indexOf("?");
+      if (q >= 0) {
+        const screen = raw.slice(0, q);
+        const params = Object.fromEntries(new URLSearchParams(raw.slice(q)));
+        navigate(screen, params);
+      } else {
+        navigate(raw);
+      }
+    });
   });
   root.querySelectorAll("[data-quiz-id]").forEach((el) => {
     el.addEventListener("click", () => navigate("quiz-modes", { quizId: el.dataset.quizId }));

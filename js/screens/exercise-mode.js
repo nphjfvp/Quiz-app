@@ -86,7 +86,11 @@ export async function render(root, params = {}) {
       if (inputMode === "keyboard") userSolution = root.querySelector("#ex-answer-kb")?.value || "";
       inputMode = "text"; renderUI();
     });
-    root.querySelector("#mode-image")?.addEventListener("click", () => { inputMode = "image"; renderUI(); });
+    root.querySelector("#mode-image")?.addEventListener("click", () => {
+      if (inputMode === "text") userSolution = root.querySelector("#ex-answer")?.value || "";
+      if (inputMode === "keyboard") userSolution = root.querySelector("#ex-answer-kb")?.value || "";
+      inputMode = "image"; renderUI();
+    });
     root.querySelector("#mode-kb")?.addEventListener("click", () => {
       if (inputMode === "text") userSolution = root.querySelector("#ex-answer")?.value || "";
       inputMode = "keyboard"; renderUI();
@@ -106,7 +110,7 @@ export async function render(root, params = {}) {
         import("../math-keyboard.js").then(({ createMathKeyboard }) => {
           const ta = root.querySelector("#ex-answer-kb");
           createMathKeyboard(kbWrap, { target: ta }).show();
-        });
+        }).catch(() => {});
       }
     }
 

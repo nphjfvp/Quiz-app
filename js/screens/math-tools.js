@@ -146,9 +146,9 @@ function initUnits(root) {
     try {
       const res = await askTutor(
         `Prüfe die Einheit: "${input}". Ist das eine korrekte Einheit? Welche physikalische Größe wird damit gemessen? Antworte kurz in 2-3 Sätzen auf Deutsch.`,
-        { model: "deepseek/deepseek-chat" }
+        "", [], { model: "deepseek/deepseek-chat" }
       );
-      resultEl.innerHTML = res;
+      resultEl.textContent = res;
     } catch (e) {
       resultEl.textContent = "❌ Fehler: " + (e.message || "Unbekannt");
     }
@@ -194,7 +194,14 @@ function initExplorer(root) {
         expr = expr.replace(new RegExp(`\\b${v}\\b`, "g"), val);
       }
       try {
+        // Safety: only allow math-safe characters (digits, operators, parens, whitespace, dot)
+        if (expr.length > 200 || /[^0-9+\-*/().%\s^]/.test(expr)) {
+          resultDiv.textContent = "Ungültiger Ausdruck";
+          resultDiv.style.color = "var(--danger)";
+          return;
+        }
         const result = Function(`"use strict"; return (${expr});`)();
+        if (!isFinite(result)) throw new Error("not finite");
         resultDiv.textContent = `= ${result}`;
         resultDiv.style.color = "var(--text)";
       } catch {
@@ -248,7 +255,7 @@ function initDerive(root) {
     try {
       const res = await askTutor(
         `Leite folgendes Schritt für Schritt her: ${input}. Erkläre jeden Schritt kurz und verständlich. Nutze LaTeX für Formeln (Inline mit \\\\(...\\\\)).`,
-        { model: "deepseek/deepseek-chat" }
+        "", [], { model: "deepseek/deepseek-chat" }
       );
       resultEl.innerHTML = mathEsc(res);
     } catch (e) {

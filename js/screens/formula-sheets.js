@@ -429,14 +429,14 @@ function exportSheetAsPdf(sheet) {
     for (const f of sheet.formulas) {
       bodyHtml += `<div style="margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #e5e7eb">
         <div style="font-weight:600;font-size:0.95rem">${esc(f.name)}</div>
-        <div style="font-size:1.15rem;margin:4px 0">${f.formula}</div>
+        <div style="font-size:1.15rem;margin:4px 0">${esc(f.formula)}</div>
         ${f.variables?.length ? `<div style="font-size:0.8rem;color:#666">${f.variables.map(v => esc(v.symbol) + ": " + esc(v.description)).join(" · ")}</div>` : ""}
         ${f.explanation ? `<div style="font-size:0.8rem;color:#555;margin-top:2px">${esc(f.explanation)}</div>` : ""}
       </div>`;
     }
   } else {
     const lines = (sheet.body || "").split("\n").filter(l => l.trim());
-    bodyHtml = lines.map(l => `<div style="margin-bottom:6px;font-size:1rem">${l}</div>`).join("");
+    bodyHtml = lines.map(l => `<div style="margin-bottom:6px;font-size:1rem">${esc(l)}</div>`).join("");
   }
 
   const w = window.open("", "_blank", "width=800,height=600");
@@ -518,6 +518,8 @@ function downloadTexSheet(sheet) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
 }
