@@ -4,6 +4,7 @@ import { esc, mathEsc } from "../utils.js";
 
 export async function render(root, params = {}) {
   let quizId = params.quizId || null;
+  let mode = params.mode || "general"; // "general" | "math"
 
   // If no quiz was specified (e.g. from Home), show a picker first.
   if (!quizId) {
@@ -94,7 +95,21 @@ export async function render(root, params = {}) {
     return ctx;
   }
 
-  const systemPrompt = `Du bist ein sokratischer Lerntutor. Deine Regeln:
+  const isMath = mode === "math";
+
+  const systemPrompt = isMath ? `Du bist ein sokratischer Mathe-Tutor. Deine Regeln:
+1. Gib NIEMALS direkt die Lösung oder das Endergebnis.
+2. Stelle Gegenfragen, die den Lernenden Schritt für Schritt zum mathematischen Verständnis führen.
+3. Bei Rechenfehlern: frage "Wie bist du darauf gekommen?" oder "Was passiert wenn du stattdessen X machst?"
+4. Zerlege komplexe Probleme in kleine Schritte. Frage nach jedem Einzelschritt.
+5. Wenn der Lernende feststeckt, gib einen winzigen Hinweis (z.B. "Welche Formel könntest du hier anwenden?") — aber NICHT die Lösung.
+6. Nutze LaTeX für Formeln (Inline: \\\\(...\\\\)). Halte die Sprache einfach.
+7. Passe dich dem Niveau an: wenn jemand unsicher ist, beginne mit den Grundlagen.
+8. Fokussiere auf VERSTÄNDNIS, nicht auf Auswendiglernen.
+9. Bei Diagramm-/Geometrie-Fragen: beschreibe, worauf der Lernende achten soll.
+10. Ermutige und lobe korrekte Zwischenschritte — aber bleibe sokratisch.
+
+Antworte IMMER auf Deutsch.` : `Du bist ein sokratischer Lerntutor. Deine Regeln:
 1. Gib NIEMALS direkt die Antwort auf eine Frage.
 2. Stelle stattdessen Gegenfragen, die den Lernenden Schritt für Schritt zur Antwort führen.
 3. Wenn der Lernende komplett feststeckt, gib einen kleinen Hinweis — aber NICHT die Lösung.
@@ -107,10 +122,13 @@ Antworte IMMER auf Deutsch.`;
 
   let html = `<div class="editor-header">
     <button class="btn-icon" id="soc-back">←</button>
-    <h2>🏛️ Sokratischer Modus</h2>
+    <h2>${isMath ? "📐 Mathe-Sokrates" : "🏛️ Sokratischer Modus"}</h2>
+    <button class="btn btn-sm btn-ghost" id="soc-mode-toggle">${isMath ? "📚 Allgemein" : "📐 Mathe"}</button>
   </div>
   <div class="card" style="padding:12px;margin-bottom:12px">
-    <p style="font-size:0.85rem;color:var(--text-light);margin:0">Die KI gibt dir <strong>nie</strong> direkt die Antwort — sie stellt Gegenfragen, bis du selbst draufkommst.</p>
+    <p style="font-size:0.85rem;color:var(--text-light);margin:0">${isMath
+      ? "Mathe-Fokus: Die KI gibt dir <strong>nie</strong> direkt die Lösung. Sie führt dich Schritt für Schritt mit Gegenfragen. Nutze die Mathe-Tastatur für Formeln."
+      : "Die KI gibt dir <strong>nie</strong> direkt die Antwort — sie stellt Gegenfragen, bis du selbst draufkommst."}</p>
   </div>`;
 
   if (!quizId) {
@@ -119,7 +137,7 @@ Antworte IMMER auf Deutsch.`;
     </div>`;
   }
 
-  if (quiz) {
+  if (quiz && !isMath) {
     const questions = quiz.questions || [];
     const weak = questions.filter(q => {
       const p = progress[q.id];
@@ -134,11 +152,23 @@ Antworte IMMER auf Deutsch.`;
     </div>`;
   }
 
+  if (isMath) {
+    html += `<div class="study-suggestions" id="suggestions">
+      <button class="btn btn-ghost study-suggest-btn" data-prompt="Stell mir eine Frage zu einem mathematischen Konzept. Fang mit den Grundlagen an und führe mich sokratisch zur Lösung.">🧠 Grundverständnis</button>
+      <button class="btn btn-ghost study-suggest-btn" data-prompt="Gib mir eine Gleichung zum Lösen. Sag mir nicht die Lösung, sondern führe mich Schritt für Schritt.">🔢 Gleichung lösen</button>
+      <button class="btn btn-ghost study-suggest-btn" data-prompt="Stell mir eine Aufgabe zur Ableitung oder zum Integrieren. Führe mich sokratisch durch die Lösung.">📈 Analysis</button>
+      <button class="btn btn-ghost study-suggest-btn" data-prompt="Gib mir eine Aufgabe zur linearen Algebra (Vektoren, Matrizen). Führe mich Schritt für Schritt.">🧮 Lineare Algebra</button>
+      <button class="btn btn-ghost study-suggest-btn" data-prompt="Stell mir eine Frage zur Geometrie oder Trigonometrie. Führe mich sokratisch.">📐 Geometrie</button>
+      <button class="btn btn-ghost study-suggest-btn" data-prompt="Gib mir eine Aufgabe zur Stochastik oder Wahrscheinlichkeitsrechnung. Führe mich Schritt für Schritt.">🎲 Stochastik</button>
+    </div>`;
+  }
+
   html += `<div id="soc-messages" class="tutor-messages"></div>
   <div class="tutor-input-row">
-    <input id="soc-input" class="input" placeholder="Deine Antwort / Frage…">
-    <button id="soc-send" class="btn btn-primary">▶</button>
+    <textarea id="soc-input" class="input" placeholder="Deine Antwort / Frage…" rows="2"></textarea>
+    <button id="soc-send" class="btn btn-primary" style="align-self:flex-end">▶</button>
   </div>`;
+  if (isMath) html += `<div id="soc-kb-wrap" style="margin-top:4px"></div>`;
 
   root.innerHTML = `<div class="tutor-layout">${html}</div>`;
 
@@ -149,7 +179,11 @@ Antworte IMMER auf Deutsch.`;
 
   root.querySelector("#soc-back").addEventListener("click", () => {
     if (quizId) navigate("study", { quizId });
-    else navigate("home");
+    else navigate(isMath ? "math-tools" : "home");
+  });
+  root.querySelector("#soc-mode-toggle")?.addEventListener("click", () => {
+    const newMode = isMath ? "general" : "math";
+    navigate("socratic", { quizId, topic, mode: newMode });
   });
 
   function addMessage(role, content) {
@@ -208,4 +242,14 @@ Antworte IMMER auf Deutsch.`;
   });
 
   inputEl.focus();
+
+  // Math keyboard integration
+  if (isMath) {
+    const kbWrap = root.querySelector("#soc-kb-wrap");
+    if (kbWrap) {
+      import("../math-keyboard.js").then(({ createMathKeyboard }) => {
+        createMathKeyboard(kbWrap, { target: inputEl }).show();
+      }).catch(() => {});
+    }
+  }
 }

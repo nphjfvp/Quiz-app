@@ -12,9 +12,9 @@ export async function render(root, params = {}) {
     let html = `<button class="back-btn" id="mt-back">‹ Zurück</button>
       <div class="section-title">🧮 Mathe-Tools</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-        ${["plotter","units","explorer","derive"].map(t => `
+        ${["plotter","units","explorer","derive","socratic"].map(t => `
           <button class="btn btn-sm ${activeTool === t ? "btn-primary" : "btn-ghost"}" data-tool="${t}">${
-            t === "plotter" ? "📈 Plotter" : t === "units" ? "⚖️ Einheiten" : t === "explorer" ? "🎚️ Explorer" : "📐 Herleitungen"
+            t === "plotter" ? "📈 Plotter" : t === "units" ? "⚖️ Einheiten" : t === "explorer" ? "🎚️ Explorer" : t === "derive" ? "📐 Herleitungen" : "🏛️ Sokrates"
           }</button>`).join("")}
       </div>`;
 
@@ -29,7 +29,11 @@ export async function render(root, params = {}) {
 
     root.querySelector("#mt-back").addEventListener("click", () => navigate("home"));
     root.querySelectorAll("[data-tool]").forEach(b =>
-      b.addEventListener("click", () => { activeTool = b.dataset.tool; renderUI(); }));
+      b.addEventListener("click", () => {
+        activeTool = b.dataset.tool;
+        if (activeTool === "socratic") { navigate("socratic", { mode: "math" }); return; }
+        renderUI();
+      }));
   }
 
   renderUI();
