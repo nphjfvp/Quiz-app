@@ -101,8 +101,8 @@ async function showGenerator(root) {
         <label>Lerntext oder PDF hochladen</label>
         <textarea id="fs-gen-text" class="textarea input" rows="8" placeholder="Skript, Vorlesungsmitschrift, Formelsammlung als Text einfügen…"></textarea>
         <div style="margin-top:6px">
-          <input type="file" id="fs-gen-file" accept=".txt,.pdf" class="input" style="padding:8px">
-          <small class="file-hint">.txt oder .pdf (PDF-Text wird extrahiert)</small>
+          <input type="file" id="fs-gen-file" accept=".txt,.pdf,.tex" class="input" style="padding:8px">
+          <small class="file-hint">.txt, .pdf oder .tex (PDF-Text wird extrahiert)</small>
         </div>
         <div style="margin-top:6px">
           <input type="file" id="fs-gen-photo" accept="image/*" class="input" style="padding:8px">
