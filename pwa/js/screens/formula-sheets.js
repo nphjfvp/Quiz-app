@@ -357,6 +357,7 @@ function showView(root, sheet) {
   html += `<div style="display:flex;gap:8px;margin-top:10px">
     <button class="btn btn-ghost btn-block" id="edit-btn">✏️ Bearbeiten</button>
     <button class="btn btn-ghost btn-block" id="pdf-btn">📥 PDF</button>
+    <button class="btn btn-ghost btn-block" id="tex-btn">📄 .tex</button>
   </div>`;
 
   root.innerHTML = html;
@@ -367,6 +368,9 @@ function showView(root, sheet) {
   });
   root.querySelector("#pdf-btn").addEventListener("click", () => {
     exportSheetAsPdf(sheet);
+  });
+  root.querySelector("#tex-btn").addEventListener("click", () => {
+    downloadTexSheet(sheet);
   });
   root.querySelector("#derive-explain")?.addEventListener("click", () => showDerived(root, sheet, "explain"));
   root.querySelector("#derive-bysolved")?.addEventListener("click", () => showDerived(root, sheet, "bysolved"));
@@ -447,4 +451,72 @@ function exportSheetAsPdf(sheet) {
     ${bodyHtml}
     <script>renderMathInElement(document.body,{delimiters:[{left:"\\\\(",right:"\\\\)",display:false},{left:"$$",right:"$$",display:true},{left:"\\\\[",right:"\\\\]",display:true}]});setTimeout(()=>window.print(),800);<\/script></body></html>`);
   w.document.close();
+}
+
+// ── .tex Export ───────────────────────────────────────────────────────────
+
+function downloadTexSheet(sheet) {
+  const hasFormulas = sheet.formulas && sheet.formulas.length > 0;
+  const lines = [];
+  lines.push("\\documentclass[12pt,a4paper]{article}");
+  lines.push("\\usepackage[utf8]{inputenc}");
+  lines.push("\\usepackage{amsmath,amssymb}");
+  lines.push("\\usepackage{geometry}");
+  lines.push("\\geometry{margin=2cm}");
+  lines.push("\\usepackage{hyperref}");
+  lines.push("");
+  lines.push("\\begin{document}");
+  lines.push("");
+  lines.push(`\\title{${(sheet.name || "Formelsammlung").replace(/_/g, "\\_")}}`);
+  if (sheet.subject) lines.push(`\\author{${sheet.subject.replace(/_/g, "\\_")}}`);
+  lines.push("\\date{\\today}");
+  lines.push("\\maketitle");
+  lines.push("");
+
+  if (hasFormulas) {
+    lines.push("\\section*{Formeln}");
+    for (const f of sheet.formulas) {
+      const safeName = (f.name || "").replace(/_/g, "\\_");
+      // Remove \\( and \\) wrappers if present
+      const cleanFormula = (f.formula || "").replace(/^\\\(/, "").replace(/\\\)$/, "");
+      lines.push(`\\subsection*{${safeName}}`);
+      lines.push(`\\[${cleanFormula}\\]`);
+      if (f.variables?.length) {
+        lines.push("\\begin{itemize}");
+        for (const v of f.variables) {
+          const vSymbol = (v.symbol || "").replace(/_/g, "\\_");
+          const vDesc = (v.description || "").replace(/_/g, "\\_");
+          lines.push(`  \\item $\\text{${vSymbol}}$ — ${vDesc}`);
+        }
+        lines.push("\\end{itemize}");
+      }
+      if (f.explanation) {
+        lines.push("");
+        lines.push((f.explanation || "").replace(/_/g, "\\_"));
+      }
+      lines.push("");
+    }
+  } else {
+    lines.push("\\section*{Formeln}");
+    const bodyLines = (sheet.body || "").split("\n").filter(l => l.trim());
+    for (const line of bodyLines) {
+      // Strip \\( \\) wrappers for display math
+      const clean = line.replace(/^\\\(/, "").replace(/\\\)$/, "");
+      lines.push(`\\[${clean}\\]`);
+      lines.push("");
+    }
+  }
+
+  lines.push("");
+  lines.push("\\end{document}");
+
+  const content = lines.join("\n");
+  const filename = (sheet.name || "formelsammlung").replace(/[^a-zA-Z0-9äöüÄÖÜß_\- ]/g, "_") + ".tex";
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
