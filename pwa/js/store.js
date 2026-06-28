@@ -219,6 +219,20 @@ export async function saveAchievements(data) {
   await set("achievements", data);
 }
 
+// ── Recents ──
+// { type: "quiz"|"formula"|"plan"|"daily"|"tutor", id, name, ts }
+export async function loadRecents() {
+  return (await get("recents")) ?? [];
+}
+export async function trackRecent(type, id, name) {
+  const recents = await loadRecents();
+  // Remove existing entry with same type+id
+  const filtered = recents.filter(r => !(r.type === type && r.id === id));
+  filtered.unshift({ type, id, name, ts: Date.now() });
+  // Keep max 20
+  await set("recents", filtered.slice(0, 20));
+}
+
 // ── Math task sets (Formel-Training / Scaffolding) ──
 export async function loadMathTasks() {
   return (await get("math_tasks")) ?? [];

@@ -1,8 +1,10 @@
 import { askTutor } from "../ai-service.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc, escAttr } from "../utils.js";
+import { trackRecent } from "../store.js";
 
 export async function render(root, params = {}) {
+  trackRecent("tutor", "", "KI-Tutor");
   const chatHistory = [];
 
   let html = `<div class="editor-header">
