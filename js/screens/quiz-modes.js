@@ -1,4 +1,4 @@
-import { loadQuizzes, loadProgress, getMaterial } from "../store.js";
+import { loadQuizzes, loadProgress, getMaterial, trackRecent } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, getBoxCounts, loadPdfJs } from "../utils.js";
 
@@ -6,6 +6,7 @@ export async function render(root, params) {
   const quizzes = await loadQuizzes();
   const quiz = quizzes.find((q) => q.id === params.quizId);
   if (!quiz) { navigate("home"); return; }
+  trackRecent("quiz", quiz.id, quiz.name);
 
   const [progress, material] = await Promise.all([loadProgress(), getMaterial(params.quizId)]);
   const n = quiz.questions?.length ?? 0;

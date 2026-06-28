@@ -1,13 +1,13 @@
-import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins, addCoins, loadAchievements, saveAchievements } from "../store.js";
+import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins, addCoins, loadAchievements, saveAchievements, loadRecents } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount } from "../firebase-sync.js";
 import { esc, getBoxCounts } from "../utils.js";
 import { renderAvatarSVG, HOUSE_LEVELS } from "../shop-catalog.js";
 
 export async function render(root) {
-  const [quizzes, stats, progress, account, marked, diary, profile, coins] = await Promise.all([
+  const [quizzes, stats, progress, account, marked, diary, profile, coins, recents] = await Promise.all([
     loadQuizzes(), loadStats(), loadProgress(), Promise.resolve(getAccount()),
-    loadMarked(), loadErrorDiary(), loadProfile(), loadCoins(),
+    loadMarked(), loadErrorDiary(), loadProfile(), loadCoins(), loadRecents(),
   ]);
   const { current: streak, max: maxStreak } = getStreak(stats);
 
@@ -52,6 +52,12 @@ export async function render(root) {
       ${streakBonus > 0 ? `<div style="margin-left:auto;background:var(--warning);color:#fff;padding:2px 10px;border-radius:12px;font-size:0.8rem;font-weight:600">🪙 +${streakBonus}</div>` : ""}
     </div>`;
   }
+
+  // Search bar
+  html += `<div class="search-bar" data-nav="search" style="display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 14px;border-radius:12px;background:var(--glass-bg);border:1px solid var(--border);cursor:pointer">
+    <span style="font-size:1.1rem">🔍</span>
+    <span style="color:var(--text-light);font-size:0.9rem">Quizze, Formeln, Lernpläne durchsuchen…</span>
+  </div>`;
 
   html += `<div class="daily-card" id="daily-btn">
     <span class="daily-icon">📅</span>
@@ -111,7 +117,21 @@ export async function render(root) {
     </div>`;
   }
 
-  if (quizzes.length > 0) {
+  if (recents.length > 0) {
+    html += `<div class="section-title">Zuletzt</div>`;
+    const ICONS = { quiz: "📚", formula: "📋", plan: "📅", daily: "📆", tutor: "🤖" };
+    for (const r of recents.slice(0, 6)) {
+      const nav = r.type === "quiz" ? `quiz-modes?quizId=${r.id}` : r.type === "formula" ? `formula-sheets?sheetId=${r.id}` : r.type === "plan" ? `study-plans?planId=${r.id}&action=view` : r.type === "daily" ? "daily" : "tutor";
+      html += `<div class="quiz-row" data-nav="${nav}">
+        <div class="quiz-accent" style="background:var(--secondary)"></div>
+        <div class="quiz-info">
+          <h4>${ICONS[r.type] || "📄"} ${esc(r.name)}</h4>
+          <small>${r.type === "quiz" ? "Quiz" : r.type === "formula" ? "Formelsammlung" : r.type === "plan" ? "Lernplan" : r.type === "daily" ? "Daily" : "Tutor"}</small>
+        </div>
+        <span style="color:var(--text-light)">›</span>
+      </div>`;
+    }
+  } else if (quizzes.length > 0) {
     html += `<div class="section-title">Zuletzt</div>`;
     for (const quiz of quizzes.slice(0, 3)) {
       const n = quiz.questions?.length ?? 0;

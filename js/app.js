@@ -60,6 +60,7 @@ route("onboarding", async (root) => { const m = await import("./screens/onboardi
 route("study-plans", async (root, params) => { const m = await import("./screens/study-plans.js"); return m.render(root, params); });
 route("exercise-mode", async (root, params) => { const m = await import("./screens/exercise-mode.js"); return m.render(root, params); });
 route("math-tools", async (root, params) => { const m = await import("./screens/math-tools.js"); return m.render(root, params); });
+route("search", async (root) => { const m = await import("./screens/search.js"); return m.render(root); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -89,6 +90,7 @@ setScreenTab("bulk-edit", "lernen");
 setScreenTab("study-plans", "lernen");
 setScreenTab("exercise-mode", "lernen");
 setScreenTab("math-tools", "lernen");
+setScreenTab("search", "home");
 setScreenTab("onboarding", "home");
 
 // 🎮 Games

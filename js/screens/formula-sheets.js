@@ -1,4 +1,4 @@
-import { loadFormulaSheets, saveFormulaSheets } from "../store.js";
+import { loadFormulaSheets, saveFormulaSheets, trackRecent } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc, uid } from "../utils.js";
 import { generateFormulaSheet, deriveFormulaExplanations, deriveFormulaByVariable, formulaPhotoToLatex } from "../ai-service.js";
@@ -322,6 +322,7 @@ async function showDerived(root, sheet, mode) {
 // ── View ───────────────────────────────────────────────────────────────────
 
 function showView(root, sheet) {
+  trackRecent("formula", sheet.id, sheet.name);
   const hasFormulas = sheet.formulas && sheet.formulas.length > 0;
   let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>
     <div class="list-header">

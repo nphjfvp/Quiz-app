@@ -1,9 +1,10 @@
-import { loadQuizzes, loadProgress, loadDailyState, saveDailyState, loadFsrs, loadSettings, saveSettings } from "../store.js";
+import { loadQuizzes, loadProgress, loadDailyState, saveDailyState, loadFsrs, loadSettings, saveSettings, trackRecent } from "../store.js";
 import { navigate } from "../router.js";
 import { daysUntilDue, retrievability } from "../fsrs.js";
 import { esc } from "../utils.js";
 
 export async function render(root) {
+  trackRecent("daily", "", "Tägliches Lernen");
   const quizzes = await loadQuizzes();
   const progress = await loadProgress();
   const settings = await loadSettings();

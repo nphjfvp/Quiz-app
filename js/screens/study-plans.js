@@ -1,4 +1,4 @@
-import { loadStudyPlans, saveStudyPlans } from "../store.js";
+import { loadStudyPlans, saveStudyPlans, trackRecent } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, uid } from "../utils.js";
 import { extractStudyTopics } from "../ai-service.js";
@@ -182,6 +182,7 @@ async function showCreator(root) {
 // ── Detail ──────────────────────────────────────────────────────────────────
 
 function showDetail(root, plan) {
+  trackRecent("plan", plan.id, plan.name);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
