@@ -297,6 +297,14 @@ export async function getFullMemoryPrompt() {
   return parts.length ? `[Persönliches Benutzerprofil]\n${parts.join("\n")}\n[/Profil]` : "";
 }
 
+// ── Study Plans ─────────────────────────────────────────────────────────────
+export async function loadStudyPlans() {
+  return (await get("study_plans")) ?? [];
+}
+export async function saveStudyPlans(data) {
+  await set("study_plans", data);
+}
+
 // ── Quick Actions ──
 export async function loadQuickActions() {
   return (await get("quick_actions")) ?? [];

@@ -127,6 +127,29 @@ export async function render(root) {
     });
   } catch { /* no sessions */ }
 
+  // ── Study Plan: today's topics ────────────────────────────────────────
+  try {
+    const { loadStudyPlans } = await import("../store.js");
+    const plans = await loadStudyPlans();
+    const today = new Date().toISOString().split("T")[0];
+    const todayTopics = [];
+    for (const p of plans) {
+      for (const t of (p.topics || [])) {
+        if (t.scheduledDate === today) todayTopics.push({ plan: p.name, ...t });
+      }
+    }
+    if (todayTopics.length > 0) {
+      html += `<div class="section-title" style="margin-top:16px">📅 Heutige Lernplan-Themen</div>`;
+      for (const t of todayTopics) {
+        html += `<div class="card" style="padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${esc(t.name)}</strong> <span style="font-size:0.75rem;color:var(--text-light)">aus ${esc(t.plan)}</span></div>
+          <span style="font-size:0.75rem">~${t.estimatedHours}h</span>
+        </div>`;
+      }
+      html += `<button class="btn btn-ghost btn-sm btn-block" id="open-study-plans" style="margin-top:4px">Alle Lernpläne ansehen ›</button>`;
+    }
+  } catch { /* no study plans */ }
+
   if (dlSessions.length > 0) {
     html += `<div class="section-title" style="margin-top:16px">🔬 Konzepte vertiefen</div>`;
     for (const sess of dlSessions.slice(0, 3)) {
@@ -150,6 +173,7 @@ export async function render(root) {
   root.innerHTML = html;
 
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
+  root.querySelector("#open-study-plans")?.addEventListener("click", () => navigate("study-plans"));
 
   // Lernphase radios
   root.querySelectorAll("input[name='learning-phase']").forEach(r => {

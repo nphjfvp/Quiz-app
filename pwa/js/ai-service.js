@@ -1316,3 +1316,32 @@ export async function deriveFormulaByVariable(formulas, config = {}) {
     return [];
   }
 }
+
+// ── Study Plan Generation ──────────────────────────────────────────────────
+
+/**
+ * Extract topics from lecture text and estimate study time per topic.
+ */
+export async function extractStudyTopics(text, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  if (!apiKey) throw new Error("Kein API-Key verfügbar.");
+
+  const messages = [
+    {
+      role: "system",
+      content: "Du bist ein Lernplan-Experte. Analysiere den Text und extrahiere alle Themen/Unterthemen.\n" +
+        "Schätze für jedes Thema: Schwierigkeit (easy/medium/hard) und geschätzte Lernstunden.\n" +
+        "Sortiere didaktisch sinnvoll (Grundlagen zuerst).\n" +
+        'Antworte NUR mit JSON: {"topics":[{"name":"...","difficulty":"easy|medium|hard","estimatedHours":1.5}]}',
+    },
+    { role: "user", content: `Extrahiere Themen aus diesem Vorlesungstext:\n\n${text.slice(0, 12000)}` },
+  ];
+
+  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
+  try {
+    const parsed = parseJSON(raw);
+    return parsed?.topics || [];
+  } catch {
+    return [{ name: "Gesamter Stoff", difficulty: "medium", estimatedHours: 10 }];
+  }
+}
