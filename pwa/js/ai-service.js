@@ -514,25 +514,110 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
   const chosen = MODELS.find((m) => m.id === model);
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
-  const autoImg = !(numQuestions > 0);
-  const detailImg = config.detailLevel || "normal";
-  const detailHintImg = detailImg === "thorough"
-    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt, jeder Formel und jedem Diagramm mindestens eine Frage. Lieber zu viele als zu wenige!"
-    : detailImg === "compact"
-    ? " Konzentriere dich auf die wichtigsten Kernkonzepte."
-    : "";
-  const countRuleImg = autoImg
-    ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken.${detailHintImg}`
-    : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
-  const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
-
+  const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
+  const chunkSize = Number(config.chunkSize) || 0; // Images per chunk (0 = all at once)
   const IMGS_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank"];
   const allowedImgs = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
     ? IMGS_TYPES.filter(t => config.allowedTypes.includes(t))
     : IMGS_TYPES;
   const imgsTypesList = (allowedImgs.length ? allowedImgs : IMGS_TYPES).map(t => `"${t}"`).join(", ");
 
-  const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
+  const autoImg = !(numQuestions > 0);
+  const detailImg = config.detailLevel || "normal";
+  const detailHintImg = detailImg === "thorough"
+    ? " Sei MAXIMAL gründlich: Erstelle zu JEDEM Konzept, jeder Definition, jedem Fakt, jeder Formel und jedem Diagramm mindestens eine Frage."
+    : detailImg === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernkonzepte."
+    : "";
+
+  const USE_CHUNKING = chunkSize > 0 && imageUrls.length > chunkSize;
+  const effectiveChunkSize = USE_CHUNKING ? chunkSize : imageUrls.length;
+
+  // Build chunk function
+  const runImageChunk = async (imageBatch, batchStart, batchEnd, coveredTopics) => {
+    const batchSize = imageBatch.length;
+    const countRule = autoImg
+      ? `Entscheide selbst über die sinnvolle Anzahl Fragen für diese ${batchSize} Seiten.${detailHintImg}`
+      : `Erstelle ca. ${Math.ceil(numQuestions * batchSize / imageUrls.length)} Fragen aus diesen ${batchSize} Seiten.`;
+    const countAsk = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${Math.ceil(numQuestions * batchSize / imageUrls.length)} Prüfungsfragen`;
+
+    const coveredHint = coveredTopics.length
+      ? `\n\nBEREITS ABGEDECKTE THEMEN (KEINE Fragen dazu erstellen):\n${coveredTopics.join("\n")}`
+      : "";
+
+    const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${batchSize} Bilder (gerenderte PDF-Seiten ${batchStart}-${batchEnd}). Analysiere den gesamten Inhalt und erstelle daraus hochwertige Lernfragen.
+WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf diesen Seiten.${coveredHint}
+
+Regeln:
+- ${countRule}
+- Verwende AUSSCHLIESSLICH diese Fragetypen: ${imgsTypesList}.
+- Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
+- Jede Frage muss eine klare Erklärung enthalten.
+- Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
+- Sprache: ${language === "de" ? "Deutsch" : language}.
+
+Antworte ausschließlich mit einem JSON-Array:
+[{
+  "question_type": "...",
+  "question_text": "Fragetext",
+  "title": "Kurztitel",
+  "topic": "Themengebiet",
+  "points": 1,
+  "options": [{"text": "Antwort", "is_correct": true}],
+  "correct_text": "",
+  "blanks": [],
+  "explanation": "Erklärung"
+}]`;
+
+    const contentParts = [
+      { type: "text", text: `Erstelle ${countAsk} auf Basis dieser ${batchSize} PDF-Seiten (Seite ${batchStart}-${batchEnd}).${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}${coveredHint}` },
+      ...imageBatch.map((url) => ({ type: "image_url", image_url: { url } })),
+    ];
+
+    const body = await chatCompletion([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: contentParts },
+    ], { apiKey, model, stream: true });
+    const raw = await readStream(body);
+    const questions = parseJSON(raw);
+    if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+    return questions;
+  };
+
+  // Run chunked or single-pass
+  let allQuestions;
+  if (USE_CHUNKING) {
+    allQuestions = [];
+    const coveredTopics = [];
+    const numChunks = Math.ceil(imageUrls.length / effectiveChunkSize);
+    for (let i = 0; i < imageUrls.length; i += effectiveChunkSize) {
+      const chunkIdx = Math.floor(i / effectiveChunkSize) + 1;
+      if (onProgress) onProgress(chunkIdx, numChunks);
+      const batch = imageUrls.slice(i, i + effectiveChunkSize);
+      const batchStart = i + 1;
+      const batchEnd = Math.min(i + effectiveChunkSize, imageUrls.length);
+      const chunkQuestions = await runImageChunk(batch, batchStart, batchEnd, coveredTopics);
+      // Extract topics from this chunk for rolling context
+      const newTopics = chunkQuestions.map(q => q.topic).filter(Boolean);
+      coveredTopics.push(...new Set(newTopics));
+      allQuestions.push(...chunkQuestions);
+    }
+    // Dedupe: remove questions with near-identical text
+    const seen = new Set();
+    allQuestions = allQuestions.filter(q => {
+      const key = (q.question_text || "").slice(0, 60);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  } else {
+    // Original single-pass behavior
+    const countRuleImg = autoImg
+      ? `Entscheide selbst über die sinnvolle Anzahl Fragen, um den gesamten Inhalt aller Seiten abzudecken.${detailHintImg}`
+      : `Erstelle exakt ${numQuestions} Fragen basierend auf dem Gesamtinhalt aller Seiten.`;
+    const countAskImg = autoImg ? "So viele Prüfungsfragen wie sinnvoll" : `${numQuestions} Prüfungsfragen`;
+
+    const systemPrompt = `Du bist ein erfahrener Pädagoge. Du erhältst ${imageUrls.length} Bilder (gerenderte PDF-Seiten). Analysiere den gesamten Inhalt — Text, Diagramme, Formeln, Grafiken — und erstelle daraus hochwertige Lernfragen.
 WICHTIG: Erstelle Fragen zu ALLEN Inhalten auf ALLEN Seiten – jedes Konzept, jede Definition, jeder Fakt, jede Formel soll abgedeckt werden. Überspringe NICHTS.
 
 Regeln:
@@ -558,24 +643,23 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
   }
 ]`;
 
-  const contentParts = [
-    { type: "text", text: `Erstelle ${countAskImg} auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
-    ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
-  ];
+    const contentParts = [
+      { type: "text", text: `Erstelle ${countAskImg} auf Basis dieser ${imageUrls.length} PDF-Seiten.${additionalText ? `\n\nZusätzlicher Kontext:\n${additionalText}` : ""}` },
+      ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+    ];
 
-  const messages = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: contentParts },
-  ];
+    const body = await chatCompletion([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: contentParts },
+    ], { apiKey, model, stream: true });
+    const raw = await readStream(body);
+    allQuestions = parseJSON(raw);
+    if (!Array.isArray(allQuestions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
+  }
 
-  const body = await chatCompletion(messages, { apiKey, model, stream: true });
-  const raw = await readStream(body);
-  const questions = parseJSON(raw);
-  if (!Array.isArray(questions)) throw new Error("KI-Antwort ist kein gültiges Fragen-Array.");
-
-  let filteredImgs = questions;
+  let filteredImgs = allQuestions;
   if (allowedImgs.length && allowedImgs.length < IMGS_TYPES.length) {
-    const kept = questions.filter(q => allowedImgs.includes(q.question_type));
+    const kept = allQuestions.filter(q => allowedImgs.includes(q.question_type));
     if (kept.length) filteredImgs = kept;
   }
 
