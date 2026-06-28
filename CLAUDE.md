@@ -31,7 +31,9 @@ Commit-Messages mit `Co-Authored-By`. NIE das Modell-ID in Commits/Code schreibe
   Persistiert: quizzes, progress, settings, daily, marked, stats, error_diary,
   folders, fsrs, **coins** (Economy), **game_scores** (Highscores), achievements,
   math_tasks, materials, **profile** (Shop), **memory_text** + **memory_entries**
-  (KI-Memory), **quick_actions** (Quick-Actions-Editor).
+  (KI-Memory), **quick_actions** (Quick-Actions-Editor),
+  **recents** (trackRecent/loadRecents – zuletzt genutzte Quizze/Formeln/Lernpläne),
+  **formula_sheets** (Formelsammlungen).
 - `js/quiz-engine.js` – `checkAnswer` für ALLE Fragetypen, Leitner-`updateProgress`, `QuizSession`.
 - `js/ai-service.js` – komplette OpenRouter-Anbindung (s.u.), `MODELS`-Liste mit tier/price/context/vision.
 - `js/fsrs.js` – vollständiger FSRS-4.5-Scheduler (Anki-artig).
@@ -79,13 +81,24 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - **error-diary** – Fehler-Tagebuch. **marked** – markierte Fragen.
 - **folders** – Ordner/Klausuren gruppieren, Countdown, schwache Fragen zählen.
 - **tutor** – freier KI-Lerntutor-Chat. **deep-learn** – geführte Verständnis-Sessions (speicherbar).
-- **socratic** – sokratischer Frage-Modus. **scaffold** – Formel-Training (PDF→KI extrahiert Teilaufgaben→löst Schritt für Schritt).
+- **socratic** – sokratischer Frage-Modus mit **Mathe-Spezialmodus** (mode=math):
+  10-Regel-Mathe-Systemprompt, 6 Mathe-Vorschläge, Mathe-Tastatur-Integration,
+  Modus-Umschalter Allgemein/Mathe, mehrzeilige Texteingabe.
+- **scaffold** – Formel-Training (PDF→KI extrahiert Teilaufgaben→löst Schritt für Schritt).
 - **cloze** – Lückentext-Generator (KI-Zusammenfassung + Keywords). **study** – Karteikarten-Modus.
 - **pomodoro** – Fokus-Timer.
 - **random** – Zufalls-Modus: mischt Fragen aus ALLEN Quizzen zu einer Lernrunde
   (synthetisches Quiz → normale quiz-Engine; Fortschritt landet pro Frage-ID bei den Quellfragen).
 - **formula-sheets** – Formelsammlung-Manager (Store-Key `formula_sheets`): Sammlungen pro Fach
-  anlegen/ansehen/bearbeiten, LaTeX-Body via `mathEsc` gerendert (Desktop-Parität zu `fosa`).
+  anlegen/ansehen/bearbeiten, LaTeX-Body via `mathEsc` gerendert. **KI-Erstellung** aus
+  Text/PDF/Bild (Vision), **Foto→LaTeX** via `formulaPhotoToLaTeX` (Vision-Modell),
+  **Export als PDF** (Print-Popup mit KaTeX-Rendering) und **Export als .tex** (kompilierbares LaTeX-Dokument).
+- **math-tools** – Mathe-Tools-Hub: **Funktionsplotter** (Canvas + math.js), **Einheiten-Checker** (KI),
+  **Formel-Explorer** (Slider für Variablen + sicherer `Function()`-Eval),
+  **Schritt-für-Schritt-Herleitungen** (KI), verlinkt zu Sokrates-Mathe-Modus.
+- **search** – globale Suche über Quizze, Formelsammlungen und Lernpläne (In-Memory-Index, Live-Filter).
+- **exercise-mode** – KI-generierte Übungsaufgaben aus Lernplan-Themen: 3 Eingabemodi
+  (Text/Bild/Mathe-Tastatur), KI-Prüfung des Lösungswegs mit Fehleranalyse.
 - **image-editor** – eigenständiger Bild-Editor: Bild laden, mit Pinsel übermalen
   (Schwärzen/Weißen/Farben), Pinselgröße, Rückgängig, als PNG speichern (verallgemeinert `blackout.js`).
 - **ai-generate** hat zusätzlich einen **Import-Modus** (`importQuiz`): übernimmt vorhandene
@@ -131,7 +144,9 @@ explainAnswer, askTutor, generateHints (3 gestufte Hinweise),
 simplifyExplanation, analyzeClozeKeywords, aiValidateAnswer (Freitext),
 editQuestionWithAI, checkFreeTextAI + quickExplain (schnelles Free-Modell für Games),
 **generateHints** (im Quiz aktiv), **simplifyExplanation** + **generateSummary** (in results aktiv),
-Mathe-Pipeline: extractMathTasks → solveMathTasks (calc_chain) → generateSimilarTasks (+Verify).
+Mathe-Pipeline: extractMathTasks → solveMathTasks (calc_chain) → generateSimilarTasks (+Verify),
+**formulaPhotoToLaTeX** (Bild→LaTeX-Formeln via Vision), **generateExercise** (Übungsaufgaben),
+**checkExerciseSolution** (Lösungsweg-Prüfung mit Bild-Support + Warnung bei fehlendem Vision-Modell).
 
 ### KI-Memory (Personalisierung)
 - Store-Keys `memory_text` (Freitext) + `memory_entries` (strukturierte Einträge).
@@ -168,14 +183,15 @@ robustes **parseJSON** (repariert ungültige LaTeX-Escapes wie `\(`/`\sqrt`).
 - `generateQuiz/generateQuizFromImage/generateQuizFromImages` akzeptieren `config.allowedTypes`
   (Fragetypen-Whitelist; Prompt-Constraint + Post-Filter-Fallback).
 - `generateQuiz` unterstützt `config.chunkSize` (Zeichen) + `config.onProgress(i,n)`:
-  Bei großem Text wird via `chunkText()` abschnittsweise generiert, mit Rolling-Context
-  (bereits abgedeckte Themen) gegen Dopplungen, danach Dedupe über Fragetext.
+  Bei großem Text wird via `chunkText()` abschnittsweise generiert, mit **Rolling-Context**
+  (Thema + Frage-Snippet, dedupliziert via `new Set()`) gegen Dopplungen, danach Dedupe über Fragetext.
+  **Auch der Bild-/Hybrid-PDF-Pfad chunkt jetzt** mit demselben Rolling-Context-Mechanismus.
   UI: Chunking-Selektor Auto/Aus/Grob/Mittel/Fein (Auto chunkt ab ~10k Zeichen).
 - `parseJSON` probiert mehrere Reparatur-Varianten (Code-Fences strippen, äußersten
   JSON-Block extrahieren, ungültige Backslash-Escapes verdoppeln) bevor es wirft.
 
 ## Offen / noch NICHT umgesetzt (echte neue Ideen)
 - **i18n / Mehrsprachigkeit** (PWA nur Deutsch; Desktop hat DE/EN via `i18n.py`).
-- **Echtes Rolling-Summary** für Chunking (statt nur Themen-Liste als Kontext) –
-  der Bild-/Hybrid-PDF-Pfad chunkt zudem noch nicht (nur der Text-Pfad).
 - Mockup-Spiele noch nicht in echter PWA: **Block Blast, Mix-Kampagne**.
+- **Echtes Rolling-Summary** (mehr als nur Themen+Q-Snippet — z.B. KI-generierte Zusammenfassung
+  aller bisherigen Chunks als Kontext für den nächsten Chunk).

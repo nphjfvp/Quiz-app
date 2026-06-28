@@ -598,10 +598,12 @@ Antworte ausschließlich mit einem JSON-Array:
       const batchStart = i + 1;
       const batchEnd = Math.min(i + effectiveChunkSize, imageUrls.length);
       const chunkQuestions = await runImageChunk(batch, batchStart, batchEnd, coveredTopics);
-      // Build rich rolling context: topic + question snippet (up to 80 chars)
-      const newSummaries = chunkQuestions
-        .map(q => `${q.topic || "?"}: ${(q.question_text || "").slice(0, 80)}`)
-        .filter(s => s.length > 3);
+      // Build rich rolling context: topic + question snippet (up to 80 chars), deduped
+      const newSummaries = [...new Set(
+        chunkQuestions
+          .map(q => `${q.topic || "? "}: ${(q.question_text || "").slice(0, 80)}`)
+          .filter(s => s.length > 3)
+      )];
       coveredTopics.push(...newSummaries);
       allQuestions.push(...chunkQuestions);
     }
@@ -1388,10 +1390,11 @@ export async function checkExerciseSolution(exercise, userAnswer, userImageBase6
   const useVision = hasImage && chosen?.vision;
 
   const contentParts = [];
-  contentParts.push({
-    type: "text",
-    text: `Aufgabe:\n${exercise.question}\n\nKorrekte Lösung:\n${exercise.solution}\n\nNutzer-Lösung:\n${userAnswer || "(keine Text-Lösung)"}\n\nAnalysiere die Lösung des Nutzers. Finde heraus, WO genau der Fehler liegt (nicht nur ob falsch, sondern was falsch ist). Erkläre den Fehler verständlich.`,
-  });
+  let textPrompt = `Aufgabe:\n${exercise.question}\n\nKorrekte Lösung:\n${exercise.solution}\n\nNutzer-Lösung:\n${userAnswer || "(keine Text-Lösung)"}\n\nAnalysiere die Lösung des Nutzers. Finde heraus, WO genau der Fehler liegt (nicht nur ob falsch, sondern was falsch ist). Erkläre den Fehler verständlich.`;
+  if (hasImage && !useVision) {
+    textPrompt += "\n\n⚠️ Der Nutzer hat ein Bild seiner Lösung eingereicht, aber das aktuelle Modell kann Bilder nicht verarbeiten. Weise den Nutzer darauf hin, seine Lösung als Text einzugeben.";
+  }
+  contentParts.push({ type: "text", text: textPrompt });
   if (useVision && userImageBase64) {
     contentParts.push({ type: "image_url", image_url: { url: userImageBase64 } });
   }
@@ -1417,27 +1420,34 @@ export async function checkExerciseSolution(exercise, userAnswer, userImageBase6
 // ── Formula Photo → LaTeX ─────────────────────────────────────────────────
 
 export async function formulaPhotoToLatex(imageBase64, config = {}) {
-  const { apiKey } = resolveApiKey(config);
-  const messages = [{
-    role: "system",
-    content: "Extrahiere ALLE mathematischen Formeln aus diesem Bild als LaTeX-Code. Gib NUR die Formeln zurück, eine pro Zeile, im Format: `Formelname: \\formel`. Keine Erklärungen, keine Einleitung.",
-  }, {
-    role: "user",
-    content: [
-      { type: "image_url", image_url: { url: imageBase64 } },
-    ],
-  }];
-  const raw = await chatCompletion(messages, { apiKey, model: config.model || VISION_MODEL, stream: false });
-  // Parse lines: each line is either "Name: formula" or just a formula
-  const lines = raw.split("\n").filter(l => l.trim());
-  const formulas = [];
-  for (const line of lines) {
-    const colonIdx = line.indexOf(":");
-    if (colonIdx > 0 && colonIdx < 80) {
-      formulas.push({ name: line.slice(0, colonIdx).trim(), formula: line.slice(colonIdx + 1).trim() });
-    } else {
-      formulas.push({ name: "", formula: line.trim() });
+  try {
+    const { apiKey } = await getConfig(config);
+    const messages = [{
+      role: "system",
+      content: "Extrahiere ALLE mathematischen Formeln aus diesem Bild als LaTeX-Code. Antworte NUR mit einem JSON-Objekt: {\"formulas\":[{\"name\":\"Formelname\",\"formula\":\"\\\\frac{a}{b}\"}]}. Keine Erklärungen, keine Einleitung.",
+    }, {
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: imageBase64 } },
+      ],
+    }];
+    const raw = await chatCompletion(messages, { apiKey, model: config.model || VISION_MODEL, stream: false });
+    const parsed = parseJSON(raw);
+    if (parsed?.formulas?.length) return parsed.formulas;
+    // Fallback: try colon-separated lines
+    const lines = raw.split("\n").filter(l => l.trim());
+    const formulas = [];
+    for (const line of lines) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx > 0 && colonIdx < 80) {
+        formulas.push({ name: line.slice(0, colonIdx).trim(), formula: line.slice(colonIdx + 1).trim() });
+      } else {
+        formulas.push({ name: "", formula: line.trim() });
+      }
     }
+    return formulas;
+  } catch (e) {
+    console.error("formulaPhotoToLatex failed:", e);
+    return [];
   }
-  return formulas;
 }
