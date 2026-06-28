@@ -114,7 +114,8 @@ async function showCreator(root) {
         textArea.value = "⏳ Extrahiere PDF-Text…";
         try {
           const { getPdfText } = await import("../utils.js");
-          textArea.value = await getPdfText(file) || "";
+          const pages = await getPdfText(file);
+          textArea.value = pages.map(p => p.text).join("\n\n") || "";
         } catch { textArea.value = "❌ Fehler beim Lesen."; }
       } else {
         const reader = new FileReader();

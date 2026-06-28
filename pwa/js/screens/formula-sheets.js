@@ -172,8 +172,8 @@ async function showGenerator(root) {
         textArea.value = "⏳ Extrahiere PDF-Text…";
         try {
           const { getPdfText } = await import("../utils.js");
-          const text = await getPdfText(file);
-          textArea.value = text || "";
+          const pages = await getPdfText(file);
+          textArea.value = pages.map(p => p.text).join("\n\n") || "";
         } catch (err) {
           textArea.value = "❌ PDF konnte nicht gelesen werden.";
         }
