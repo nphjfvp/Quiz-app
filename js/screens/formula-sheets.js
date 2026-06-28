@@ -1,7 +1,7 @@
 import { loadFormulaSheets, saveFormulaSheets, trackRecent } from "../store.js";
 import { navigate } from "../router.js";
-import { esc, mathEsc, uid } from "../utils.js";
-import { generateFormulaSheet, deriveFormulaExplanations, deriveFormulaByVariable, formulaPhotoToLatex } from "../ai-service.js";
+import { esc, escAttr, mathEsc, uid, highlightSource } from "../utils.js";
+import { generateFormulaSheet, deriveFormulaExplanations, deriveFormulaByVariable, extractFormulasFromImages } from "../ai-service.js";
 
 // Formelsammlung: KI-generierte & manuelle Formelsammlungen.
 // Sheet-Form: { id, name, subject, body, formulas } – body ist Freitext,
@@ -105,10 +105,11 @@ async function showGenerator(root) {
           <small class="file-hint">.txt, .pdf oder .tex (PDF-Text wird extrahiert)</small>
         </div>
         <div style="margin-top:6px">
-          <input type="file" id="fs-gen-photo" accept="image/*" class="input" style="padding:8px">
-          <small class="file-hint">📷 Foto von Formeln (Vision → LaTeX)</small>
+          <input type="file" id="fs-gen-photo" accept="image/*" multiple class="input" style="padding:8px">
+          <small class="file-hint">📷 Foto von Formeln (Vision → LaTeX) — mehrere Bilder möglich</small>
         </div>
       </div>
+      <div id="fs-gen-progress" style="display:none;padding:8px;font-size:0.85rem;color:var(--text-light)"></div>
 
       <div class="input-group">
         <label>Fach / Name für die Sammlung</label>
@@ -129,14 +130,32 @@ async function showGenerator(root) {
 
     if (generatedFormulas && generatedFormulas.length) {
       html += `<div class="card" style="padding:14px;margin-top:12px">
-        <div style="font-weight:600;margin-bottom:10px">✅ ${generatedFormulas.length} Formeln extrahiert</div>`;
+        <div style="font-weight:600;margin-bottom:10px">✅ ${generatedFormulas.length} Formeln extrahiert</div>
+        <div id="fs-gen-formulas">`;
       for (const f of generatedFormulas) {
-        html += `<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        html += `<div style="padding:8px 0;border-bottom:1px solid var(--border)" data-formula-name="${escAttr(f.name || "")}">
           <div style="font-weight:600;font-size:0.9rem">${esc(f.name)}</div>
           <div style="font-size:1.1rem;margin:4px 0">${mathEsc(f.formula)}</div>
           ${f.variables?.length ? `<div style="font-size:0.75rem;color:var(--text-light)">${f.variables.map(v => esc(v.symbol) + ": " + esc(v.description)).join(" · ")}</div>` : ""}
         </div>`;
       }
+      html += `</div>`;
+
+      // Source toggle if any formula has source_quote
+      const hasSources = generatedFormulas.some(f => f.source_quote);
+      if (hasSources) {
+        const originalText = root.querySelector("#fs-gen-text")?.value || "";
+        html += `<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <button class="btn btn-sm btn-primary source-tab" data-tab="formulas">📋 Formelliste</button>
+            <button class="btn btn-sm btn-ghost source-tab" data-tab="source">🔍 Quelltext-Markierung</button>
+          </div>
+          <div id="fs-source-view" style="display:none;max-height:400px;overflow-y:auto;background:var(--bg-raised);padding:12px;border-radius:8px;font-size:0.9rem;line-height:1.6;white-space:pre-wrap">
+            ${highlightSource(originalText, generatedFormulas)}
+          </div>
+        </div>`;
+      }
+
       html += `<button class="btn btn-primary btn-block" id="fs-gen-save" style="margin-top:10px">💾 Formelsammlung speichern</button>
       </div>`;
     }
@@ -153,8 +172,8 @@ async function showGenerator(root) {
         textArea.value = "⏳ Extrahiere PDF-Text…";
         try {
           const { getPdfText } = await import("../utils.js");
-          const text = await getPdfText(file);
-          textArea.value = text || "";
+          const pages = await getPdfText(file);
+          textArea.value = pages.map(p => p.text).join("\n\n") || "";
         } catch (err) {
           textArea.value = "❌ PDF konnte nicht gelesen werden.";
         }
@@ -166,27 +185,56 @@ async function showGenerator(root) {
     });
 
     root.querySelector("#fs-gen-photo").addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
       const errBox = root.querySelector("#fs-gen-err");
-      errBox.style.display = "none";
       const textArea = root.querySelector("#fs-gen-text");
-      textArea.value = "⏳ Extrahiere Formeln aus Foto…";
-      try {
-        const reader = new FileReader();
-        const base64 = await new Promise((resolve, reject) => {
+      const progressDiv = root.querySelector("#fs-gen-progress");
+      errBox.style.display = "none";
+
+      const imageUrls = [];
+      for (const file of files) {
+        const base64 = await new Promise((resolve) => {
+          const reader = new FileReader();
           reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
           reader.readAsDataURL(file);
         });
-        const formulas = await formulaPhotoToLatex(base64);
-        if (formulas.length) {
-          textArea.value = formulas.map(f => `${f.name}: ${f.formula}`).join("\n");
-        } else {
-          textArea.value = "❌ Keine Formeln erkannt. Bitte versuche ein klareres Foto.";
+        imageUrls.push(base64);
+      }
+
+      if (imageUrls.length > 3) {
+        progressDiv.style.display = "";
+        progressDiv.textContent = "⏳ Extrahiere Formeln…";
+      }
+
+      try {
+        const formulas = await extractFormulasFromImages(imageUrls, {
+          onProgress: (i, total) => {
+            if (progressDiv) {
+              progressDiv.textContent = `⏳ Extrahiere Formeln… Batch ${i}/${total}`;
+            }
+          },
+        });
+
+        const existing = textArea.value.trim();
+        const newLines = formulas
+          .filter(f => f.name || f.formula)
+          .map(f => {
+            const prefix = f.name ? f.name + ": " : "";
+            return prefix + f.formula;
+          });
+        textArea.value = existing
+          ? existing + "\n" + newLines.join("\n")
+          : newLines.join("\n");
+
+        progressDiv.style.display = "none";
+        if (!formulas.length) {
+          progressDiv.style.display = "";
+          progressDiv.textContent = "⚠️ Keine Formeln erkannt. Versuche ein klareres Bild.";
         }
       } catch (err) {
-        textArea.value = "❌ Fehler: " + (err.message || "Vision nicht verfügbar");
+        progressDiv.style.display = "";
+        progressDiv.textContent = "❌ Fehler: " + (err.message || "Vision nicht verfügbar");
       }
     });
 
@@ -200,7 +248,7 @@ async function showGenerator(root) {
       errBox.style.display = "none";
       try {
         const customPrompt = root.querySelector("#fs-gen-prompt")?.value?.trim() || "";
-        generatedFormulas = await generateFormulaSheet(text, { customPrompt });
+        generatedFormulas = await generateFormulaSheet(text, { customPrompt, includeSources: true });
         renderGen();
       } catch (err) {
         errBox.textContent = err.message || "Fehler bei der Generierung";
@@ -217,6 +265,36 @@ async function showGenerator(root) {
       const sheet = { id: uid(), name, subject: "", body, formulas: generatedFormulas };
       await saveFormulaSheets([...sheets, sheet]);
       render(root);
+    });
+
+    // Source toggle tab switching
+    root.querySelectorAll(".source-tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.tab;
+        root.querySelectorAll(".source-tab").forEach(b => {
+          b.classList.toggle("btn-primary", b.dataset.tab === tab);
+          b.classList.toggle("btn-ghost", b.dataset.tab !== tab);
+        });
+        const sourceView = root.querySelector("#fs-source-view");
+        if (sourceView) sourceView.style.display = tab === "source" ? "" : "none";
+        const formulaList = root.querySelector("#fs-gen-formulas");
+        if (formulaList) formulaList.style.display = tab === "formulas" ? "" : "none";
+      });
+    });
+
+    // Click on mark → scroll to formula
+    root.querySelectorAll("mark.source-highlight").forEach(mark => {
+      mark.addEventListener("click", () => {
+        const name = mark.dataset.formulaName;
+        const formulaTab = root.querySelector('.source-tab[data-tab="formulas"]');
+        if (formulaTab) formulaTab.click();
+        const formulaEntry = root.querySelector(`[data-formula-name="${escAttr(name)}"]`);
+        if (formulaEntry) {
+          formulaEntry.scrollIntoView({ behavior: "smooth" });
+          formulaEntry.style.background = "var(--highlight, #fef08a)";
+          setTimeout(() => { formulaEntry.style.background = ""; }, 2000);
+        }
+      });
     });
   }
 
@@ -458,6 +536,7 @@ function exportSheetAsPdf(sheet) {
 
 function downloadTexSheet(sheet) {
   const hasFormulas = sheet.formulas && sheet.formulas.length > 0;
+  const texEscape = (s) => String(s ?? "").replace(/[\\{}&#^_~%$]/g, m => "\\" + m);
   const lines = [];
   lines.push("\\documentclass[12pt,a4paper]{article}");
   lines.push("\\usepackage[utf8]{inputenc}");
@@ -468,8 +547,8 @@ function downloadTexSheet(sheet) {
   lines.push("");
   lines.push("\\begin{document}");
   lines.push("");
-  lines.push(`\\title{${(sheet.name || "Formelsammlung").replace(/_/g, "\\_")}}`);
-  if (sheet.subject) lines.push(`\\author{${sheet.subject.replace(/_/g, "\\_")}}`);
+  lines.push(`\\title{${texEscape(sheet.name || "Formelsammlung")}}`);
+  if (sheet.subject) lines.push(`\\author{${texEscape(sheet.subject)}}`);
   lines.push("\\date{\\today}");
   lines.push("\\maketitle");
   lines.push("");
@@ -477,7 +556,7 @@ function downloadTexSheet(sheet) {
   if (hasFormulas) {
     lines.push("\\section*{Formeln}");
     for (const f of sheet.formulas) {
-      const safeName = (f.name || "").replace(/_/g, "\\_");
+      const safeName = texEscape(f.name);
       // Remove \\( and \\) wrappers if present
       const cleanFormula = (f.formula || "").replace(/^\\\(/, "").replace(/\\\)$/, "");
       lines.push(`\\subsection*{${safeName}}`);
@@ -485,15 +564,15 @@ function downloadTexSheet(sheet) {
       if (f.variables?.length) {
         lines.push("\\begin{itemize}");
         for (const v of f.variables) {
-          const vSymbol = (v.symbol || "").replace(/_/g, "\\_");
-          const vDesc = (v.description || "").replace(/_/g, "\\_");
+          const vSymbol = texEscape(v.symbol);
+          const vDesc = texEscape(v.description);
           lines.push(`  \\item $\\text{${vSymbol}}$ — ${vDesc}`);
         }
         lines.push("\\end{itemize}");
       }
       if (f.explanation) {
         lines.push("");
-        lines.push((f.explanation || "").replace(/_/g, "\\_"));
+        lines.push(texEscape(f.explanation));
       }
       lines.push("");
     }

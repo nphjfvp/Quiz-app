@@ -449,22 +449,12 @@ export async function render(root, params = {}) {
       fileBar.style.width = "10%";
       fileInfo.textContent = "Lade PDF-Bibliothek...";
       try {
-        const pdfjsLib = await loadPdfJs();
+        const { getPdfText } = await import("../utils.js");
         fileBar.style.width = "30%";
         fileInfo.textContent = "Lese PDF...";
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let text = "";
-        pdfPageTexts = [];
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          const pageText = content.items.map(item => item.str).join(" ");
-          pdfPageTexts.push(pageText);
-          text += pageText + "\n\n";
-          fileBar.style.width = (30 + 70 * i / pdf.numPages) + "%";
-          fileInfo.textContent = `Seite ${i}/${pdf.numPages}...`;
-        }
+        const pageData = await getPdfText(file);
+        pdfPageTexts = pageData.map(p => p.text);
+        let text = pdfPageTexts.join("\n\n");
         textArea.value = text.trim();
 
         // Seiten mit wenig Text gelten als „visuell" (Diagramm/Formel/Scan).

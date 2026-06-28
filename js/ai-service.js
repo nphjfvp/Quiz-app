@@ -601,7 +601,7 @@ Antworte ausschließlich mit einem JSON-Array:
       // Build rich rolling context: topic + question snippet (up to 80 chars), deduped
       const newSummaries = [...new Set(
         chunkQuestions
-          .map(q => `${q.topic || "? "}: ${(q.question_text || "").slice(0, 80)}`)
+          .map(q => `${q.topic || "?"}: ${(q.question_text || "").slice(0, 80)}`)
           .filter(s => s.length > 3)
       )];
       coveredTopics.push(...newSummaries);
@@ -1236,8 +1236,17 @@ export async function generateFormulaSheet(text, config = {}) {
   if (!apiKey) throw new Error("Kein API-Key für Formelsammlung verfügbar.");
 
   const customPrompt = config.customPrompt || "";
+  const includeSources = config.includeSources === true;
   const promptExtra = customPrompt
     ? `\nZusätzliche Nutzer-Anweisung: ${customPrompt}`
+    : "";
+
+  const sourceInstruction = includeSources
+    ? '\nGib für jede Formel zusätzlich ein Feld "source_quote" an – ein wörtliches Zitat (1-2 Sätze) aus dem Originaltext, aus dem die Formel extrahiert wurde.'
+    : "";
+
+  const sourceField = includeSources
+    ? ',"source_quote":"..."'
     : "";
 
   const messages = [
@@ -1247,7 +1256,8 @@ export async function generateFormulaSheet(text, config = {}) {
         "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
         "Nur allgemeingültige Formeln, die man anwenden kann (wie pq-Formel, abc-Formel, Satz des Pythagoras, Ableitungsregeln, etc.).\n" +
         "Für jede Formel: Name, die Formel in LaTeX, und die Variablen mit Beschreibung.\n" +
-        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]}]}',
+        sourceInstruction +
+        '\nAntworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]' + sourceField + '}]}',
     },
     {
       role: "user",
@@ -1417,37 +1427,143 @@ export async function checkExerciseSolution(exercise, userAnswer, userImageBase6
   }
 }
 
+// ── Formula Extraction from Images (Chunked) ──────────────────────────
+
+/**
+ * Extract formulas from multiple images with chunking and rolling context.
+ * Mirrors the generateQuizFromImages chunking pattern: batches images,
+ * feeds previously extracted formulas as dedup hints, deduplicates at end.
+ */
+export async function extractFormulasFromImages(imageUrls, config = {}) {
+  if (!imageUrls?.length) return [];
+
+  const { apiKey, model } = await getConfig(config);
+  const chunkSize = config.chunkSize || 3;
+  const totalChunks = Math.ceil(imageUrls.length / chunkSize);
+
+  const coveredFormulas = []; // rolling context: "Name: formula" strings
+  const allFormulas = [];
+
+  for (let i = 0; i < imageUrls.length; i += chunkSize) {
+    const chunkIdx = Math.floor(i / chunkSize) + 1;
+    if (config.onProgress) config.onProgress(chunkIdx, totalChunks);
+
+    const batch = imageUrls.slice(i, i + chunkSize);
+    const batchStart = i + 1;
+    const batchEnd = Math.min(i + chunkSize, imageUrls.length);
+
+    // Build dedup hint from previously extracted formulas
+    const dedupHint = coveredFormulas.length
+      ? `\n\nBereits extrahierte Formeln (NICHT erneut extrahieren):\n${coveredFormulas.join("\n")}`
+      : "";
+
+    const messages = [
+      {
+        role: "system",
+        content: "Du bist ein Mathematik-Experte. Extrahiere ALLE mathematischen Formeln aus den gegebenen Bildern.\n" +
+          "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
+          "Nur allgemeingültige Formeln (wie pq-Formel, Ableitungsregeln, physikalische Gesetze, etc.).\n" +
+          "Gib für jede Formel einen sprechenden Namen und die Formel in korrektem LaTeX an.\n" +
+          "Gib zusätzlich pro Formel ein Feld 'source_section' an, das beschreibt, WO im Bild die Formel zu finden ist (z.B. 'oberer Abschnitt', 'Seite 5, Kasten links', 'unter der Überschrift Dynamik').\n" +
+          'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","source_section":"..."}]}' +
+          dedupHint,
+      },
+      {
+        role: "user",
+        content: [
+          ...batch.map(url => ({
+            type: "image_url",
+            image_url: { url },
+          })),
+          {
+            type: "text",
+            text: `Extrahiere ALLE Formeln aus diesen ${batch.length} Bildern (Seiten ${batchStart}-${batchEnd}). KEINE Beispielrechnungen — nur allgemeingültige Formeln.`,
+          },
+        ],
+      },
+    ];
+
+    const raw = await chatCompletion(messages, {
+      apiKey,
+      model: model || VISION_MODEL,
+      stream: false,
+    });
+
+    let chunkFormulas = [];
+    try {
+      const parsed = parseJSON(raw);
+      chunkFormulas = parsed?.formulas || [];
+    } catch {
+      // Fallback: try colon-separated lines
+      const lines = raw.split("\n").filter(l => l.trim());
+      for (const line of lines) {
+        const colonIdx = line.indexOf(":");
+        if (colonIdx > 0 && colonIdx < 80) {
+          chunkFormulas.push({
+            name: line.slice(0, colonIdx).trim(),
+            formula: line.slice(colonIdx + 1).trim(),
+            source_section: `Seiten ${batchStart}-${batchEnd}`,
+          });
+        } else if (line.trim()) {
+          chunkFormulas.push({
+            name: "",
+            formula: line.trim(),
+            source_section: `Seiten ${batchStart}-${batchEnd}`,
+          });
+        }
+      }
+    }
+
+    // Build rolling context from this batch
+    for (const f of chunkFormulas) {
+      const summary = `${f.name || "?"}: ${(f.formula || "").slice(0, 80)}`;
+      if (summary.length > 3) coveredFormulas.push(summary);
+    }
+
+    allFormulas.push(...chunkFormulas);
+  }
+
+  // Dedup: normalize LaTeX (strip whitespace, unify braces) and deduplicate by name+formula
+  const norm = (s) => (s || "").replace(/\s+/g, " ").replace(/\{/g, "{").replace(/\}/g, "}").trim();
+  const seen = new Set();
+  const deduped = [];
+  for (const f of allFormulas) {
+    const key = `${(f.name || "").toLowerCase().trim()}|${norm(f.formula)}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(f);
+    }
+  }
+
+  return deduped;
+}
+
 // ── Formula Photo → LaTeX ─────────────────────────────────────────────────
 
 export async function formulaPhotoToLatex(imageBase64, config = {}) {
-  try {
-    const { apiKey } = await getConfig(config);
-    const messages = [{
-      role: "system",
-      content: "Extrahiere ALLE mathematischen Formeln aus diesem Bild als LaTeX-Code. Antworte NUR mit einem JSON-Objekt: {\"formulas\":[{\"name\":\"Formelname\",\"formula\":\"\\\\frac{a}{b}\"}]}. Keine Erklärungen, keine Einleitung.",
-    }, {
-      role: "user",
-      content: [
-        { type: "image_url", image_url: { url: imageBase64 } },
-      ],
-    }];
-    const raw = await chatCompletion(messages, { apiKey, model: config.model || VISION_MODEL, stream: false });
-    const parsed = parseJSON(raw);
-    if (parsed?.formulas?.length) return parsed.formulas;
-    // Fallback: try colon-separated lines
-    const lines = raw.split("\n").filter(l => l.trim());
-    const formulas = [];
-    for (const line of lines) {
-      const colonIdx = line.indexOf(":");
-      if (colonIdx > 0 && colonIdx < 80) {
-        formulas.push({ name: line.slice(0, colonIdx).trim(), formula: line.slice(colonIdx + 1).trim() });
-      } else {
-        formulas.push({ name: "", formula: line.trim() });
-      }
+  const { apiKey } = await getConfig(config);
+  const messages = [{
+    role: "system",
+    content: "Extrahiere ALLE mathematischen Formeln aus diesem Bild als LaTeX-Code. Antworte NUR mit einem JSON-Objekt: {\"formulas\":[{\"name\":\"Formelname\",\"formula\":\"\\\\frac{a}{b}\"}]}. Keine Erklärungen, keine Einleitung.",
+  }, {
+    role: "user",
+    content: [
+      { type: "image_url", image_url: { url: imageBase64 } },
+    ],
+  }];
+  const raw = await chatCompletion(messages, { apiKey, model: config.model || VISION_MODEL, stream: false });
+  const parsed = parseJSON(raw);
+  if (parsed?.formulas?.length) return parsed.formulas;
+  // Fallback: try colon-separated lines
+  const lines = raw.split("\n").filter(l => l.trim());
+  const formulas = [];
+  for (const line of lines) {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx > 0 && colonIdx < 80) {
+      formulas.push({ name: line.slice(0, colonIdx).trim(), formula: line.slice(colonIdx + 1).trim() });
+    } else {
+      formulas.push({ name: "", formula: line.trim() });
     }
-    return formulas;
-  } catch (e) {
-    console.error("formulaPhotoToLatex failed:", e);
-    return [];
   }
+  return formulas;
 }

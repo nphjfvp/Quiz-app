@@ -94,3 +94,103 @@ export function renderMath(escaped) {
 export function mathEsc(s) {
   return renderMath(esc(s));
 }
+
+// Extract text from a PDF file using pdf.js. Shared between ai-generate,
+// formula-sheets, and study-plans.
+export async function getPdfText(file) {
+  const pdfjsLib = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const text = content.items.map(item => item.str).join(" ");
+    pages.push({ pageNum: i, text });
+  }
+  return pages;
+}
+
+// Fuzzy-match a source_quote in the original text. Tries exact match,
+// whitespace-normalized match, then longest common substring (≥60% overlap).
+export function matchSourceQuote(originalText, sourceQuote) {
+  if (!originalText || !sourceQuote) return null;
+
+  // 1. Exact match
+  const idx = originalText.indexOf(sourceQuote);
+  if (idx >= 0) return { start: idx, end: idx + sourceQuote.length };
+
+  // 2. Whitespace-normalized match
+  const normText = originalText.replace(/\s+/g, " ");
+  const normQuote = sourceQuote.replace(/\s+/g, " ");
+  const normIdx = normText.indexOf(normQuote);
+  if (normIdx >= 0) {
+    // Map back to original offsets (approximate)
+    let origPos = 0, normPos = 0;
+    while (normPos < normIdx) {
+      if (/\s/.test(originalText[origPos])) {
+        while (/\s/.test(originalText[origPos])) origPos++;
+        normPos++;
+      } else {
+        origPos++;
+        normPos++;
+      }
+    }
+    return { start: origPos, end: origPos + sourceQuote.length };
+  }
+
+  // 3. Longest common substring (minimum 60% of quote length)
+  const minLen = Math.floor(sourceQuote.length * 0.6);
+  let best = null;
+  for (let i = 0; i < sourceQuote.length - minLen + 1; i++) {
+    for (let j = i + minLen; j <= sourceQuote.length; j++) {
+      const sub = sourceQuote.slice(i, j);
+      const pos = originalText.indexOf(sub);
+      if (pos >= 0 && (!best || sub.length > best.end - best.start)) {
+        best = { start: pos, end: pos + sub.length };
+      }
+    }
+  }
+  return best;
+}
+
+// Highlight source passages in original text based on formulas' source_quote fields.
+// Returns HTML string with <mark> tags. Formulas without a match are skipped.
+export function highlightSource(originalText, formulas) {
+  if (!originalText || !formulas?.length) return esc(originalText);
+
+  // Find matches for all formulas with source_quote
+  const matches = [];
+  for (const f of formulas) {
+    if (!f.source_quote) continue;
+    const match = matchSourceQuote(originalText, f.source_quote);
+    if (match) matches.push({ ...match, formulaId: f.name || f.formula, name: f.name });
+  }
+
+  if (!matches.length) return esc(originalText);
+
+  // Sort by position, merge overlapping
+  matches.sort((a, b) => a.start - b.start);
+  const merged = [];
+  for (const m of matches) {
+    const last = merged[merged.length - 1];
+    if (last && m.start <= last.end) {
+      last.end = Math.max(last.end, m.end);
+      last.formulaId += ", " + m.formulaId;
+    } else {
+      merged.push({ ...m });
+    }
+  }
+
+  // Build highlighted HTML
+  let html = "", pos = 0;
+  for (const m of merged) {
+    html += esc(originalText.slice(pos, m.start));
+    html += `<mark class="source-highlight" data-formula-id="${escAttr(m.formulaId)}" data-formula-name="${escAttr(m.name || "")}">`;
+    html += esc(originalText.slice(m.start, m.end));
+    html += `</mark>`;
+    pos = m.end;
+  }
+  html += esc(originalText.slice(pos));
+  return html;
+}
