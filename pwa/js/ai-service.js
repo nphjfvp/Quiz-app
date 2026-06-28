@@ -1236,8 +1236,17 @@ export async function generateFormulaSheet(text, config = {}) {
   if (!apiKey) throw new Error("Kein API-Key für Formelsammlung verfügbar.");
 
   const customPrompt = config.customPrompt || "";
+  const includeSources = config.includeSources === true;
   const promptExtra = customPrompt
     ? `\nZusätzliche Nutzer-Anweisung: ${customPrompt}`
+    : "";
+
+  const sourceInstruction = includeSources
+    ? '\nGib für jede Formel zusätzlich ein Feld "source_quote" an – ein wörtliches Zitat (1-2 Sätze) aus dem Originaltext, aus dem die Formel extrahiert wurde.'
+    : "";
+
+  const sourceField = includeSources
+    ? ',"source_quote":"..."'
     : "";
 
   const messages = [
@@ -1247,7 +1256,8 @@ export async function generateFormulaSheet(text, config = {}) {
         "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
         "Nur allgemeingültige Formeln, die man anwenden kann (wie pq-Formel, abc-Formel, Satz des Pythagoras, Ableitungsregeln, etc.).\n" +
         "Für jede Formel: Name, die Formel in LaTeX, und die Variablen mit Beschreibung.\n" +
-        'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]}]}',
+        sourceInstruction +
+        '\nAntworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]' + sourceField + '}]}',
     },
     {
       role: "user",
