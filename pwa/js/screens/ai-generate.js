@@ -87,8 +87,8 @@ export async function render(root, params = {}) {
         </div>
 
         <div class="input-group">
-          <label>Datei laden (.txt, .pdf, Bild)</label>
-          <input type="file" id="ai-file" accept=".txt,.pdf,image/*" class="input">
+          <label>Datei laden (.txt, .pdf, .tex, Bild)</label>
+          <input type="file" id="ai-file" accept=".txt,.pdf,.tex,image/*" class="input">
           <small class="file-hint">PDF-Text wird automatisch extrahiert. Bilder (Diagramme, Screenshots) werden per Vision-KI analysiert.</small>
           <div id="pdf-mode-row" class="visual-toggle-row" style="display:none">
             <label style="font-size:0.85rem;font-weight:600;margin-bottom:4px;display:block">PDF-Verarbeitung</label>
@@ -412,7 +412,7 @@ export async function render(root, params = {}) {
     hideError();
 
     const isImage = file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i);
-    uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : isImage ? "image" : null;
+    uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : isImage ? "image" : "text";
     uploadedImageData = null;
     pdfPageImages = null;
     pdfFile = null;
@@ -435,7 +435,7 @@ export async function render(root, params = {}) {
       return;
     }
 
-    if (file.name.endsWith(".txt")) {
+    if (file.name.endsWith(".txt") || file.name.endsWith(".tex")) {
       const reader = new FileReader();
       reader.onload = () => { textArea.value = reader.result; };
       reader.onerror = () => showError("Datei konnte nicht gelesen werden.");
@@ -496,7 +496,7 @@ export async function render(root, params = {}) {
       return;
     }
 
-    showError("Bitte eine .txt oder .pdf Datei auswählen.");
+    showError("Bitte eine .txt, .tex oder .pdf Datei auswählen.");
     fileInput.value = "";
   });
 

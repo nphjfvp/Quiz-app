@@ -72,8 +72,8 @@ async function showCreator(root) {
           <label>Vorlesungsstoff (Text oder PDF)</label>
           <textarea id="sp-text" class="textarea input" rows="8" placeholder="Skript, Vorlesungsmitschrift hier einfügen…"></textarea>
           <div style="margin-top:6px">
-            <input type="file" id="sp-file" accept=".txt,.pdf" class="input" style="padding:8px">
-            <small class="file-hint">.txt oder .pdf</small>
+            <input type="file" id="sp-file" accept=".txt,.pdf,.tex" class="input" style="padding:8px">
+            <small class="file-hint">.txt, .pdf oder .tex</small>
           </div>
         </div>
         <div class="input-group">
