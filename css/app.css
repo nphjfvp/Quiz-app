@@ -1092,6 +1092,8 @@ input:focus { border-color: var(--primary); }
 .qtype-chip:hover { border-color: var(--primary); }
 .qtype-chip input { accent-color: var(--primary); cursor: pointer; }
 .qtype-chip:has(input:checked) { background: var(--primary-subtle); border-color: var(--primary); color: var(--primary); }
+.sp-topic-card a { color: #fff !important; }
+.sp-topic-card[style*="opacity: 0.5"] { text-decoration: line-through; }
 .char-counter { font-size: 0.75rem; color: var(--text-light); margin-top: 4px; display: flex; justify-content: space-between; }
 .file-hint { color: var(--text-light); margin-top: 4px; display: block; font-size: 0.78rem; }
 .file-progress { display: none; margin-top: 8px; }

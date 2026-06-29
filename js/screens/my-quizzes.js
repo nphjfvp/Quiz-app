@@ -53,6 +53,7 @@ export async function render(root) {
     <div class="grid-card mini-card" data-nav="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
     <div class="grid-card mini-card" data-nav="pomodoro"><div class="icon">🍅</div><div class="title">Pomodoro</div></div>
     <div class="grid-card mini-card" data-nav="image-editor"><div class="icon">🖌️</div><div class="title">Bild-Editor</div></div>
+    <div class="grid-card mini-card" data-nav="study-plan"><div class="icon">📋</div><div class="title">Lernplan</div></div>
   </div>`;
 
   root.innerHTML = html;

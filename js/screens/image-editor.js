@@ -123,7 +123,9 @@ export async function render(root) {
       const a = document.createElement("a");
       a.href = url;
       a.download = "bild-editor.png";
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, "image/png");
   });
