@@ -252,6 +252,9 @@ export function createMathKeyboard(container, options = {}) {
   return {
     el: wrapper,
     setTarget(input) {
+      // Detach the preview listener from the previous target so repeated
+      // setTarget() calls don't accumulate duplicate listeners (memory leak).
+      if (currentTarget && previewEl) currentTarget.removeEventListener("input", updatePreview);
       currentTarget = input;
       if (input && previewEl) {
         input.addEventListener("input", updatePreview);
