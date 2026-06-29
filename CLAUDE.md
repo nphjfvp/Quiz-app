@@ -61,7 +61,8 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 ### Screens (`js/screens/`) – alle vorhanden
 - **home** – Welcome, Streak-Bar, Daily-Card, 4 Hauptkacheln, "Weitere Tools"-Grid, markiert/Fehler-Rows, zuletzt gelernt.
 - **my-quizzes / quiz-modes / quiz / results** – Quiz-Liste, Modus-Wahl, Spielen, Auswertung.
-  - **my-quizzes** bietet **Export** pro Quiz (HTML mit eingebetteten Bildern / JSON) via `html-export.js`.
+  - **my-quizzes** bietet **Export** pro Quiz (HTML mit eingebetteten Bildern / JSON) via `html-export.js`
+    sowie einen **Auswahl-Modus** (Checkboxen + „Alle") zum **Mehrfach-Löschen** von Quizzen.
   - **quiz** hat **„💡 Tipp"** (gestufte Hinweise via generateHints); KI-Freitext-Prüfung
     und FSRS-Aufzeichnung respektieren die Settings (`aiValidation`, `useFsrs`).
   - **results** hat **KI-Erklärung** + **KI-Tutor pro falscher Frage** + **„🔁 Einfacher erklären"**
