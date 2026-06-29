@@ -104,6 +104,13 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
 - **study-plan** – Lernplan-Generator: PDF/Text hochladen → KI extrahiert alle Themen,
   erkennt Sprache automatisch, erstellt geordneten Lernplan mit Schwierigkeitsgrad,
   geschätzter Lernzeit und YouTube-Suchlinks pro Thema. Fortschritt per Checkbox trackbar.
+  **Lernfluss Video → Quiz → Sokrates:** Pro Thema gibt es neben „▶️ Video" einen
+  „🎯 Quiz dazu"-Button, der per `generateQuiz` ein themenfokussiertes Quiz aus dem
+  Quellmaterial erzeugt und durch die normale Quiz-Engine spielt (ephemeres Quiz mit
+  `_learnFlow`-Marker {topic, sourceText, language}). Nach der Auswertung bietet **results**
+  bei falschen Antworten einen „🏛️ … sokratisch vertiefen"-Button, der **socratic** mit
+  `topic`, `sourceText` und `wrongQuestions` öffnet — der Sokrates-Modus startet dann
+  automatisch und arbeitet genau die falsch beantworteten Fragen auf.
 - **ai-generate** hat zusätzlich einen **Import-Modus** (`importQuiz`): übernimmt vorhandene
   Fragen aus Dokumenten 1:1 (Altklausur/Übungsblatt) statt neue zu generieren – inkl. Chunking.
 - **settings** – Theme (auto/hell/dunkel), Account, Sync-Code, **API-Key + Modell-Selektor mit

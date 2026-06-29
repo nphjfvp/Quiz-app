@@ -137,7 +137,7 @@ export async function render(root) {
 
     try {
       const plan = await generateStudyPlan(inputText, { model });
-      renderPlan(resultDiv, plan);
+      renderPlan(resultDiv, plan, inputText, model);
     } catch (err) {
       errorBox.textContent = err.message || "Fehler bei der Lernplan-Erstellung.";
       errorBox.style.display = "block";
@@ -147,7 +147,7 @@ export async function render(root) {
   });
 }
 
-function renderPlan(container, plan) {
+function renderPlan(container, plan, sourceText, model) {
   const lang = plan.language === "en" ? "Englisch" : plan.language === "de" ? "Deutsch" : plan.language || "Auto";
   let completedTopics = new Set();
 
@@ -170,6 +170,14 @@ function renderPlan(container, plan) {
       </ul>
     </div>`;
   }
+
+  html += `<div class="card" style="margin-top:8px;background:var(--primary-subtle)">
+    <div style="font-size:0.82rem;color:var(--text)">
+      <strong>So lernst du am besten:</strong> pro Thema erst das <strong>▶️ Video</strong> ansehen (passiv verstehen),
+      dann <strong>🎯 Quiz</strong> machen (aktiv abfragen). Falsch beantwortete Fragen kannst du direkt danach
+      im <strong>🏛️ Sokrates-Modus</strong> vertiefen.
+    </div>
+  </div>`;
 
   html += `<div class="section-title" style="margin-top:16px">Themen-Reihenfolge</div>
     <div id="sp-topics">`;
@@ -200,9 +208,13 @@ function renderPlan(container, plan) {
             </div>` : ""}
           </div>
         </div>
-        <a href="${ytUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="margin-top:8px;display:inline-flex;align-items:center;gap:4px;text-decoration:none">
-          ▶️ YouTube: ${esc(topic.youtubeQuery || topic.name)}
-        </a>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">
+          <a href="${ytUrl}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" style="display:inline-flex;align-items:center;gap:4px;text-decoration:none">
+            ▶️ Video
+          </a>
+          <button class="btn btn-sm btn-secondary sp-quiz-btn" data-idx="${i}">🎯 Quiz dazu</button>
+        </div>
+        <div class="sp-quiz-status" data-idx="${i}" style="display:none;font-size:0.8rem;color:var(--text-light);margin-top:6px"></div>
       </div>`;
   });
 
@@ -222,6 +234,48 @@ function renderPlan(container, plan) {
         completedTopics.add(idx);
         el.textContent = "☑";
         card.style.opacity = "0.5";
+      }
+    });
+  });
+
+  // 🎯 Quiz dazu — generate a short quiz focused on this topic from the source
+  // material, then run it through the normal quiz engine. The quiz carries a
+  // _learnFlow marker so the results screen can offer the Socratic follow-up.
+  container.querySelectorAll(".sp-quiz-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.dataset.idx);
+      const topic = plan.topics[idx];
+      const statusEl = container.querySelector(`.sp-quiz-status[data-idx="${idx}"]`);
+      const lang = plan.language === "en" ? "en" : "de";
+      btn.disabled = true;
+      btn.textContent = "⏳ Erstelle Quiz…";
+      if (statusEl) { statusEl.style.display = "block"; statusEl.textContent = "Die KI erstellt Fragen zu diesem Thema…"; }
+
+      try {
+        const { generateQuiz } = await import("../ai-service.js");
+        const focus = lang === "en"
+          ? `Focus exclusively on the topic: "${topic.name}".`
+          : `Fokussiere dich ausschließlich auf das Thema: "${topic.name}".`;
+        const quizText = `${focus}\n\n${sourceText}`;
+        const questions = await generateQuiz(quizText, 5, lang, { model });
+        if (!Array.isArray(questions) || !questions.length) {
+          throw new Error(lang === "en" ? "No questions generated." : "Keine Fragen erzeugt.");
+        }
+        const quiz = {
+          id: "sp-" + Date.now(),
+          name: topic.name,
+          questions,
+          _learnFlow: {
+            topic: topic.name,
+            sourceText: sourceText.slice(0, 12000),
+            language: lang,
+          },
+        };
+        navigate("quiz", { quiz, mode: "single" });
+      } catch (err) {
+        if (statusEl) statusEl.textContent = "Fehler: " + (err.message || "Quiz konnte nicht erstellt werden.");
+        btn.disabled = false;
+        btn.textContent = "🎯 Quiz dazu";
       }
     });
   });

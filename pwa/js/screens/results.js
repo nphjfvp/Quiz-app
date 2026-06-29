@@ -133,12 +133,39 @@ export async function render(root, params) {
     <button class="btn btn-primary" id="home-btn" style="flex:1">Zurück</button>
   </div>`;
 
+  // Learning-flow follow-up: if this quiz came from the study-plan (Video → Quiz)
+  // and the learner got something wrong, offer to deepen it Socratically.
+  const wrongQuestions = quiz?._learnFlow
+    ? session.questions.filter((q) => session.answers[q.id] && !session.answers[q.id].is_correct)
+    : [];
+  if (quiz?._learnFlow && wrongQuestions.length) {
+    html += `<button class="btn btn-block" id="socratic-flow-btn" style="margin-top:8px;background:var(--primary-subtle);color:var(--primary)">
+      🏛️ ${wrongQuestions.length} falsche Frage${wrongQuestions.length > 1 ? "n" : ""} sokratisch vertiefen
+    </button>`;
+  }
+
   root.innerHTML = html;
 
   root.querySelector("#retry-btn")?.addEventListener("click", () => {
     navigate("quiz", { quiz, mode: session.mode });
   });
   root.querySelector("#home-btn")?.addEventListener("click", () => navigate("home"));
+
+  root.querySelector("#socratic-flow-btn")?.addEventListener("click", () => {
+    navigate("socratic", {
+      topic: quiz._learnFlow.topic,
+      sourceText: quiz._learnFlow.sourceText,
+      mode: "general",
+      wrongQuestions: wrongQuestions.map((q) => {
+        const r = session.answers[q.id];
+        return {
+          question: q.question_text || q.text || "",
+          userAnswer: r?.user_answer || "",
+          correct: r?.correct_answer || "",
+        };
+      }),
+    });
+  });
 
   root.querySelector("#summary-btn")?.addEventListener("click", async () => {
     const btn = root.querySelector("#summary-btn");
