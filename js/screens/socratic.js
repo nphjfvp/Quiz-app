@@ -5,9 +5,13 @@ import { esc, mathEsc } from "../utils.js";
 export async function render(root, params = {}) {
   let quizId = params.quizId || null;
   let mode = params.mode || "general"; // "general" | "math"
+  const flowSourceText = params.sourceText || "";
+  const wrongQuestions = Array.isArray(params.wrongQuestions) ? params.wrongQuestions : [];
+  const fromLearnFlow = !!(flowSourceText || wrongQuestions.length || (params.topic && !quizId));
 
   // If no quiz was specified (e.g. from Home), show a picker first.
-  if (!quizId) {
+  // Skip the picker when arriving from the study-plan learning flow.
+  if (!quizId && !fromLearnFlow) {
     const allQ = await loadQuizzes();
     if (allQ.length) {
       const BACK = Symbol("back");
@@ -83,7 +87,18 @@ export async function render(root, params = {}) {
       const txt = material.text.length > maxLen ? material.text.slice(0, maxLen) + "\n[…]" : material.text;
       ctx += `\nQuellmaterial:\n${txt}\n`;
     }
+    if (flowSourceText) {
+      const maxLen = 10000;
+      const txt = flowSourceText.length > maxLen ? flowSourceText.slice(0, maxLen) + "\n[…]" : flowSourceText;
+      ctx += `\nQuellmaterial (aus Lernplan):\n${txt}\n`;
+    }
     if (topic) ctx += `\nGewünschtes Thema: ${topic}\n`;
+    if (wrongQuestions.length) {
+      ctx += `\nDer Lernende hat diese Fragen im Quiz FALSCH beantwortet — arbeite genau diese sokratisch auf:\n`;
+      for (const w of wrongQuestions) {
+        ctx += `- Frage: "${w.question}" → seine Antwort: "${w.userAnswer || "(leer)"}" (richtig wäre: "${w.correct}")\n`;
+      }
+    }
 
     const recentErrors = diary.slice(0, 10);
     if (recentErrors.length > 0) {
@@ -242,6 +257,13 @@ Antworte IMMER auf Deutsch.`;
   });
 
   inputEl.focus();
+
+  // Auto-start the Socratic dialogue when coming from the study-plan flow with
+  // wrong answers, so the learner lands straight in the deepening conversation.
+  if (fromLearnFlow && wrongQuestions.length) {
+    if (suggestionsEl) suggestionsEl.style.display = "none";
+    sendMessage("Ich habe gerade ein Quiz gemacht und einige Fragen falsch beantwortet. Bitte führe mich sokratisch durch genau diese falschen Fragen — beginne mit der ersten und stelle mir Gegenfragen, bis ich es selbst verstehe. Gib mir nicht direkt die Lösung.");
+  }
 
   // Math keyboard integration
   if (isMath) {
