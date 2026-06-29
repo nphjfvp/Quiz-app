@@ -10,35 +10,73 @@ function youtubeSearchUrl(query) {
   return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
 }
 
+// Context/chunk granularity presets (mirrors ai-generate). 0 = no chunking.
+const CHUNK_SIZES = { coarse: 12000, medium: 7000, fine: 3500 };
+const CHUNK_HINTS = {
+  auto: "Auto: Große Materialien werden automatisch in Abschnitte zerlegt, damit nichts abgeschnitten wird.",
+  off: "Aus: Alles wird in EINEM Aufruf gesendet und ggf. auf das Kontextfenster gekürzt (schnell, günstig).",
+  coarse: "Grob: ~12.000 Zeichen pro Abschnitt — wenige Aufrufe, schnell.",
+  medium: "Mittel: ~7.000 Zeichen pro Abschnitt — ausgewogen.",
+  fine: "Fein: ~3.500 Zeichen pro Abschnitt — gründlichste Abdeckung, aber die meisten KI-Aufrufe.",
+};
+
 export async function render(root) {
   const settings = await loadSettings();
   const disabledModels = settings.disabledModels || [];
   let currentModel = settings.aiModel || "nvidia/nemotron-3-super-120b-a12b:free";
 
+  // Loaded lectures/materials — the single source of truth. Each: {id, name, text}.
+  const sources = [];
+  let chunkMode = "auto";
+  let lastPlan = null; // remember so re-adding sources can regenerate
+
   root.innerHTML = `
     <div class="editor-header">
       <button class="btn-icon back-btn" id="sp-back">←</button>
-      <h2>📋 Lernplan erstellen</h2>
+      <h2>📋 Klausurvorbereitung</h2>
     </div>
 
     <div class="card mt-section">
       <p style="color:var(--text-light);font-size:0.88rem;margin:0 0 12px">
-        Lade eine Klausur, ein Skript oder Übungsblatt hoch — die KI erkennt alle Themen,
-        erstellt einen Lernplan und liefert YouTube-Links zum Lernen.
+        Lade <strong>mehrere Vorlesungen/Skripte auf einmal</strong> hoch (oder füge Text ein).
+        Die KI erkennt alle Themen über alle Materialien hinweg und erstellt einen Lernplan
+        mit YouTube-Links. Du kannst Materialien auch <strong>nach dem Erstellen</strong> ergänzen oder entfernen.
       </p>
 
       <div class="input-group">
-        <label>Text eingeben oder Datei hochladen</label>
-        <textarea id="sp-text" class="textarea input" rows="8" placeholder="Klausur-/Skripttext hier einfügen…"></textarea>
-      </div>
-
-      <div class="input-group">
-        <label>Datei laden (.txt, .pdf)</label>
-        <input type="file" id="sp-file" accept=".txt,.pdf" class="input">
-        <div id="sp-file-progress" class="file-progress">
+        <label>Vorlesungen / Materialien laden (.txt, .pdf — mehrere möglich)</label>
+        <input type="file" id="sp-file" accept=".txt,.pdf" class="input" multiple>
+        <div id="sp-file-progress" class="file-progress" style="display:none">
           <div class="file-track"><div id="sp-file-bar" class="file-fill"></div></div>
           <small id="sp-file-info" class="file-info">Extrahiere Text...</small>
         </div>
+      </div>
+
+      <div class="input-group">
+        <label>Oder Text einfügen</label>
+        <textarea id="sp-text" class="textarea input" rows="5" placeholder="Klausur-/Skripttext hier einfügen…"></textarea>
+        <button id="sp-add-text" class="btn btn-ghost btn-sm" style="margin-top:6px">➕ Als Material hinzufügen</button>
+      </div>
+
+      <div id="sp-sources-wrap" style="display:none;margin-bottom:12px">
+        <label style="font-size:0.8rem;color:var(--text-light)">Geladene Materialien</label>
+        <div id="sp-sources"></div>
+      </div>
+
+      <div class="input-group">
+        <label>Kontextgröße / Verarbeitung</label>
+        <div id="sp-chunk-presets" class="detail-presets">
+          <button type="button" class="detail-preset active" data-chunk="auto">⚙️ Auto</button>
+          <button type="button" class="detail-preset" data-chunk="off">📄 Aus</button>
+          <button type="button" class="detail-preset" data-chunk="coarse">🧱 Grob</button>
+          <button type="button" class="detail-preset" data-chunk="medium">⚖️ Mittel</button>
+          <button type="button" class="detail-preset" data-chunk="fine">🔬 Fein</button>
+        </div>
+        <small class="file-hint" id="sp-chunk-hint">${CHUNK_HINTS.auto}</small>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;margin-top:8px;cursor:pointer">
+          <input type="checkbox" id="sp-rolling" checked>
+          Rolling-Kontext (bereits erfasste Themen mitgeben → keine Dopplungen über Vorlesungen)
+        </label>
       </div>
 
       <div class="input-group">
@@ -65,85 +103,167 @@ export async function render(root) {
   const fileProgress = root.querySelector("#sp-file-progress");
   const fileBar = root.querySelector("#sp-file-bar");
   const fileInfo = root.querySelector("#sp-file-info");
+  const sourcesWrap = root.querySelector("#sp-sources-wrap");
+  const sourcesEl = root.querySelector("#sp-sources");
+  const chunkHintEl = root.querySelector("#sp-chunk-hint");
+  const rollingCb = root.querySelector("#sp-rolling");
 
   root.querySelector("#sp-back").addEventListener("click", () => navigate("my-quizzes"));
 
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    errorBox.style.display = "none";
+  function getChunkSize(len) {
+    if (chunkMode === "off") return 0;
+    if (chunkMode === "auto") return len > 10000 ? 8000 : 0;
+    return CHUNK_SIZES[chunkMode] || 0;
+  }
 
-    if (file.name.endsWith(".txt")) {
+  function totalChars() { return sources.reduce((s, x) => s + x.text.length, 0); }
+
+  function renderSources() {
+    sourcesWrap.style.display = sources.length ? "block" : "none";
+    sourcesEl.innerHTML = sources.map(s => `
+      <div class="sp-source-row" data-id="${s.id}" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-top:6px">
+        <span style="flex:1;font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${esc(s.name)}</span>
+        <span style="font-size:0.72rem;color:var(--text-light)">${(s.text.length / 1000).toFixed(1)}k Z.</span>
+        <button class="btn-icon btn-icon-sm sp-remove" data-id="${s.id}" title="Entfernen">✕</button>
+      </div>`).join("") +
+      (sources.length ? `<div style="font-size:0.75rem;color:var(--text-light);margin-top:6px">Gesamt: ${(totalChars() / 1000).toFixed(1)}k Zeichen aus ${sources.length} Material(ien)</div>` : "");
+    sourcesEl.querySelectorAll(".sp-remove").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        const idx = sources.findIndex(s => s.id === id);
+        if (idx >= 0) sources.splice(idx, 1);
+        renderSources();
+      });
+    });
+  }
+
+  function addSource(name, text) {
+    const clean = (text || "").trim();
+    if (!clean) return;
+    sources.push({ id: "s" + Date.now() + Math.random().toString(36).slice(2, 6), name, text: clean });
+    renderSources();
+  }
+
+  async function extractPdf(file) {
+    const pdfjsLib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(it => it.str).join(" ") + "\n\n";
+      fileBar.style.width = (10 + 90 * i / pdf.numPages) + "%";
+      fileInfo.textContent = `${file.name}: Seite ${i}/${pdf.numPages}…`;
+    }
+    return text.trim();
+  }
+
+  function readTxt(file) {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => { textArea.value = reader.result; };
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Datei konnte nicht gelesen werden."));
       reader.readAsText(file);
-      return;
-    }
+    });
+  }
 
-    if (file.name.endsWith(".pdf")) {
-      fileProgress.style.display = "block";
+  fileInput.addEventListener("change", async () => {
+    const files = Array.from(fileInput.files || []);
+    if (!files.length) return;
+    errorBox.style.display = "none";
+    fileProgress.style.display = "block";
+
+    for (const file of files) {
       fileBar.style.width = "10%";
-      fileInfo.textContent = "Lade PDF…";
+      fileInfo.textContent = `Lade ${file.name}…`;
       try {
-        const pdfjsLib = await loadPdfJs();
-        fileBar.style.width = "30%";
-        const buf = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-        let text = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          text += content.items.map(it => it.str).join(" ") + "\n\n";
-          fileBar.style.width = (30 + 70 * i / pdf.numPages) + "%";
-          fileInfo.textContent = `Seite ${i}/${pdf.numPages}…`;
+        if (file.name.toLowerCase().endsWith(".txt")) {
+          addSource(file.name, await readTxt(file));
+        } else if (file.name.toLowerCase().endsWith(".pdf")) {
+          addSource(file.name, await extractPdf(file));
+        } else {
+          errorBox.textContent = `„${file.name}" übersprungen — nur .txt oder .pdf.`;
+          errorBox.style.display = "block";
         }
-        textArea.value = text.trim();
-        fileInfo.textContent = `✓ ${pdf.numPages} Seiten extrahiert`;
-        setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
       } catch (err) {
-        errorBox.textContent = "PDF konnte nicht gelesen werden: " + (err.message || err);
+        errorBox.textContent = `${file.name}: ${err.message || err}`;
         errorBox.style.display = "block";
-        fileProgress.style.display = "none";
       }
-      return;
     }
-    errorBox.textContent = "Bitte eine .txt oder .pdf Datei wählen.";
-    errorBox.style.display = "block";
+    fileInfo.textContent = `✓ ${sources.length} Material(ien) geladen`;
+    setTimeout(() => { fileProgress.style.display = "none"; }, 1500);
+    fileInput.value = ""; // allow re-adding the same file later
   });
 
-  genBtn.addEventListener("click", async () => {
-    const text = textArea.value.trim();
-    if (!text) {
-      errorBox.textContent = "Bitte Text eingeben oder eine Datei hochladen.";
+  root.querySelector("#sp-add-text").addEventListener("click", () => {
+    const t = textArea.value.trim();
+    if (t.length < 30) {
+      errorBox.textContent = "Der eingefügte Text ist zu kurz.";
       errorBox.style.display = "block";
       return;
     }
-    if (text.length < 50) {
-      errorBox.textContent = "Der Text ist zu kurz für eine sinnvolle Analyse.";
+    errorBox.style.display = "none";
+    addSource(`Eingefügter Text ${sources.filter(s => s.name.startsWith("Eingefügter Text")).length + 1}`, t);
+    textArea.value = "";
+  });
+
+  root.querySelectorAll("#sp-chunk-presets .detail-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("#sp-chunk-presets .detail-preset").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      chunkMode = btn.dataset.chunk;
+      if (chunkHintEl) chunkHintEl.textContent = CHUNK_HINTS[chunkMode] || "";
+    });
+  });
+
+  genBtn.addEventListener("click", async () => {
+    // Include any unsaved pasted text as a source automatically.
+    if (textArea.value.trim().length >= 30) {
+      addSource(`Eingefügter Text ${sources.filter(s => s.name.startsWith("Eingefügter Text")).length + 1}`, textArea.value);
+      textArea.value = "";
+    }
+
+    if (!sources.length) {
+      errorBox.textContent = "Bitte mindestens ein Material laden oder Text hinzufügen.";
+      errorBox.style.display = "block";
+      return;
+    }
+
+    // Combine all materials; \f marks lecture boundaries so chunkText splits there.
+    let inputText = sources.map(s => s.text).join("\n\n\f\n\n");
+    if (inputText.length < 50) {
+      errorBox.textContent = "Die Materialien sind zu kurz für eine sinnvolle Analyse.";
       errorBox.style.display = "block";
       return;
     }
 
     const model = modelSelect.value;
-    const charLimit = getModelContextLimit(model);
-    let inputText = text;
-    if (inputText.length > charLimit) {
-      inputText = inputText.slice(0, charLimit);
+    let chunkSize = getChunkSize(inputText.length);
+    // Without chunking, respect the model's context window.
+    if (!chunkSize) {
+      const charLimit = getModelContextLimit(model);
+      if (inputText.length > charLimit) inputText = inputText.slice(0, charLimit);
     }
 
     errorBox.style.display = "none";
     genBtn.disabled = true;
-    genBtn.textContent = "⏳ Analysiere Dokument…";
+    genBtn.textContent = "⏳ Analysiere Materialien…";
 
     try {
-      const plan = await generateStudyPlan(inputText, { model });
+      const onProgress = (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; };
+      const plan = await generateStudyPlan(inputText, {
+        model, chunkSize, onProgress, rollingContext: rollingCb.checked,
+      });
+      lastPlan = plan;
       renderPlan(resultDiv, plan, inputText, model);
+      resultDiv.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       errorBox.textContent = err.message || "Fehler bei der Lernplan-Erstellung.";
       errorBox.style.display = "block";
     }
     genBtn.disabled = false;
-    genBtn.textContent = "🎯 Lernplan erstellen";
+    genBtn.textContent = lastPlan ? "🔄 Lernplan aktualisieren" : "🎯 Lernplan erstellen";
   });
 }
 
