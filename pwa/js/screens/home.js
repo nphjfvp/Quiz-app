@@ -90,10 +90,10 @@ export async function render(root) {
       <div class="title">Statistik</div>
       <div class="desc">Lernfortschritt</div>
     </div>
-    <div class="grid-card" data-nav="study-plans">
+    <div class="grid-card" data-nav="study-plan">
       <div class="icon">📅</div>
       <div class="title">Lernpläne</div>
-      <div class="desc">Klausurplanung</div>
+      <div class="desc">Klausurvorbereitung</div>
     </div>
     <div class="grid-card" data-nav="math-tools">
       <div class="icon">🧮</div>
@@ -121,7 +121,7 @@ export async function render(root) {
     html += `<div class="section-title">Zuletzt</div>`;
     const ICONS = { quiz: "📚", formula: "📋", plan: "📅", daily: "📆", tutor: "🤖" };
     for (const r of recents.slice(0, 6)) {
-      const nav = r.type === "quiz" ? `quiz-modes?quizId=${r.id}` : r.type === "formula" ? `formula-sheets?sheetId=${r.id}` : r.type === "plan" ? `study-plans?planId=${r.id}&action=view` : r.type === "daily" ? "daily" : "tutor";
+      const nav = r.type === "quiz" ? `quiz-modes?quizId=${r.id}` : r.type === "formula" ? `formula-sheets?sheetId=${r.id}` : r.type === "plan" ? "study-plan" : r.type === "daily" ? "daily" : "tutor";
       html += `<div class="quiz-row" data-nav="${nav}">
         <div class="quiz-accent" style="background:var(--secondary)"></div>
         <div class="quiz-info">

@@ -122,8 +122,35 @@ export async function render(root) {
   const savedDiv = root.querySelector("#sp-saved");
 
   // ── Saved plans ────────────────────────────────────────────────────
+  // Normalise: old study-plans format has {id, name, topics, examDate} at root;
+  // new format wraps it in {id, plan: {title, topics, ...}, createdAt, sourceText}.
+  function normalisePlan(p) {
+    if (p.plan && p.plan.topics) return p; // new format
+    return {
+      id: p.id,
+      createdAt: p.created ? new Date(p.created).getTime() : Date.now(),
+      sourceText: p.sourceText || "",
+      plan: {
+        title: p.name || "Lernplan",
+        subject: "",
+        language: "de",
+        topics: (p.topics || []).map(t => ({
+          name: t.name,
+          description: "",
+          difficulty: t.difficulty === "hard" ? "advanced" : t.difficulty === "easy" ? "beginner" : "intermediate",
+          estimatedMinutes: (t.estimatedHours || 1) * 60,
+          youtubeQuery: t.name,
+          keyTerms: [],
+        })),
+        totalHours: (p.topics || []).reduce((s, t) => s + (t.estimatedHours || 1), 0),
+        tips: [],
+      },
+    };
+  }
+
   async function renderSavedPlans() {
-    const plans = await loadStudyPlans();
+    const raw = await loadStudyPlans();
+    const plans = raw.map(normalisePlan);
     if (!plans.length) { savedDiv.innerHTML = ""; return; }
     savedDiv.innerHTML = `
       <div class="section-title" style="margin-top:12px">Gespeicherte Lernpläne</div>
@@ -140,7 +167,10 @@ export async function render(root) {
       row.addEventListener("click", (e) => {
         if (e.target.closest(".sp-delete-plan")) return;
         const p = plans.find(x => x.id === row.dataset.id);
-        if (p) renderPlan(resultDiv, p.plan, p.sourceText || "", modelSelect.value, renderSavedPlans);
+        if (p) {
+          renderPlan(resultDiv, p.plan, p.sourceText || "", modelSelect.value, renderSavedPlans);
+          resultDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       });
     });
     savedDiv.querySelectorAll(".sp-delete-plan").forEach(btn => {
