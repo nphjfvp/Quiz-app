@@ -28,7 +28,8 @@ export async function render(root) {
   // Loaded lectures/materials — the single source of truth. Each: {id, name, text}.
   const sources = [];
   let chunkMode = "auto";
-  let lastPlan = null; // remember so re-adding sources can regenerate
+  let detailLevel = "medium"; // coarse | medium | fine
+  let lastPlan = null;
 
   root.innerHTML = `
     <div class="editor-header">
@@ -61,6 +62,16 @@ export async function render(root) {
       <div id="sp-sources-wrap" style="display:none;margin-bottom:12px">
         <label style="font-size:0.8rem;color:var(--text-light)">Geladene Materialien</label>
         <div id="sp-sources"></div>
+      </div>
+
+      <div class="input-group">
+        <label>Detailgrad (wie viele Themen erkannt werden)</label>
+        <div id="sp-detail-presets" class="detail-presets">
+          <button type="button" class="detail-preset" data-detail="coarse">🎯 Grob</button>
+          <button type="button" class="detail-preset active" data-detail="medium">⚖️ Mittel</button>
+          <button type="button" class="detail-preset" data-detail="fine">🔬 Fein</button>
+        </div>
+        <small class="file-hint" id="sp-detail-hint">Mittel: Hauptthemen mit den wichtigsten Unterpunkten.</small>
       </div>
 
       <div class="input-group">
@@ -208,6 +219,21 @@ export async function render(root) {
     textArea.value = "";
   });
 
+  const DETAIL_HINTS = {
+    coarse: "Grob: Nur die übergeordneten Hauptthemen — wenige, breite Blöcke.",
+    medium: "Mittel: Hauptthemen mit den wichtigsten Unterpunkten.",
+    fine: "Fein: Jedes Konzept und jeden Unterpunkt einzeln auflisten.",
+  };
+  const detailHintEl = root.querySelector("#sp-detail-hint");
+  root.querySelectorAll("#sp-detail-presets .detail-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("#sp-detail-presets .detail-preset").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      detailLevel = btn.dataset.detail;
+      if (detailHintEl) detailHintEl.textContent = DETAIL_HINTS[detailLevel] || "";
+    });
+  });
+
   root.querySelectorAll("#sp-chunk-presets .detail-preset").forEach(btn => {
     btn.addEventListener("click", () => {
       root.querySelectorAll("#sp-chunk-presets .detail-preset").forEach(b => b.classList.remove("active"));
@@ -253,7 +279,7 @@ export async function render(root) {
     try {
       const onProgress = (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; };
       const plan = await generateStudyPlan(inputText, {
-        model, chunkSize, onProgress, rollingContext: rollingCb.checked,
+        model, chunkSize, onProgress, rollingContext: rollingCb.checked, detailLevel,
       });
       lastPlan = plan;
       renderPlan(resultDiv, plan, inputText, model);
@@ -333,8 +359,10 @@ function renderPlan(container, plan, sourceText, model) {
             ▶️ Video
           </a>
           <button class="btn btn-sm btn-secondary sp-quiz-btn" data-idx="${i}">🎯 Quiz dazu</button>
+          <button class="btn btn-sm btn-ghost sp-subtopics-btn" data-idx="${i}">🔍 Unterthemen</button>
         </div>
         <div class="sp-quiz-status" data-idx="${i}" style="display:none;font-size:0.8rem;color:var(--text-light);margin-top:6px"></div>
+        <div class="sp-subtopics" data-idx="${i}" style="display:none;margin-top:8px;padding-left:12px;border-left:3px solid var(--primary-subtle)"></div>
       </div>`;
   });
 
@@ -397,6 +425,61 @@ function renderPlan(container, plan, sourceText, model) {
         btn.disabled = false;
         btn.textContent = "🎯 Quiz dazu";
       }
+    });
+  });
+
+  // 🔍 Unterthemen — expand a topic into subtopics on demand
+  container.querySelectorAll(".sp-subtopics-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const idx = parseInt(btn.dataset.idx);
+      const topic = plan.topics[idx];
+      const subEl = container.querySelector(`.sp-subtopics[data-idx="${idx}"]`);
+      if (!subEl) return;
+
+      // Toggle: if already loaded, just show/hide
+      if (subEl.dataset.loaded === "1") {
+        subEl.style.display = subEl.style.display === "none" ? "block" : "none";
+        btn.textContent = subEl.style.display === "none" ? "🔍 Unterthemen" : "🔍 Einklappen";
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "⏳ Lade…";
+      subEl.style.display = "block";
+      subEl.innerHTML = `<div style="font-size:0.8rem;color:var(--text-light)">Erstelle Unterthemen…</div>`;
+
+      try {
+        const { generateSubtopics } = await import("../ai-service.js");
+        const subs = await generateSubtopics(topic.name, sourceText.slice(0, 12000), lang === "Englisch" ? "en" : "de", { model });
+        let subHtml = "";
+        subs.forEach((sub, si) => {
+          const diff = DIFFICULTY_LABELS[sub.difficulty] || "⚪";
+          const diffColor = DIFFICULTY_COLORS[sub.difficulty] || "var(--text-light)";
+          const ytUrl = youtubeSearchUrl(sub.youtubeQuery || sub.name);
+          subHtml += `
+            <div style="padding:8px 0;${si > 0 ? "border-top:1px solid var(--border)" : ""}">
+              <div style="display:flex;align-items:center;gap:6px">
+                <strong style="font-size:0.88rem">${idx + 1}.${si + 1} ${esc(sub.name)}</strong>
+              </div>
+              <p style="font-size:0.8rem;color:var(--text-light);margin:2px 0 4px">${esc(sub.description || "")}</p>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.75rem;color:var(--text-light);align-items:center">
+                <span style="color:${diffColor}">${diff}</span>
+                <span>⏱️ ~${sub.estimatedMinutes || 15} Min</span>
+                <a href="${ytUrl}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:none;font-size:0.75rem">▶️ Video</a>
+              </div>
+              ${sub.keyTerms?.length ? `<div style="margin-top:4px;display:flex;gap:3px;flex-wrap:wrap">
+                ${sub.keyTerms.map(t => `<span style="font-size:0.68rem;background:var(--primary-subtle);color:var(--primary);padding:1px 5px;border-radius:6px">${esc(t)}</span>`).join("")}
+              </div>` : ""}
+            </div>`;
+        });
+        subEl.innerHTML = subHtml;
+        subEl.dataset.loaded = "1";
+        btn.textContent = "🔍 Einklappen";
+      } catch (err) {
+        subEl.innerHTML = `<div style="font-size:0.8rem;color:var(--danger)">Fehler: ${esc(err.message || "Unterthemen konnten nicht erstellt werden.")}</div>`;
+        btn.textContent = "🔍 Unterthemen";
+      }
+      btn.disabled = false;
     });
   });
 }
