@@ -874,12 +874,12 @@ export async function generateStudyPlan(text, config = {}) {
     if (s.use_memory) memoryPrefix = await getFullMemoryPrompt();
   } catch (_) {}
 
-  const detail = config.detailLevel || "medium";
+  const detail = config.detailLevel || "coarse";
   const detailHint = detail === "coarse"
-    ? "\n\nWICHTIG zum Detailgrad: Extrahiere NUR die übergeordneten Hauptthemen (wenige, breite Blöcke). Fasse verwandte Konzepte zusammen, KEINE Einzeldetails oder Unterpunkte. Maximal 5–8 Themen."
+    ? "\n\nWICHTIG zum Detailgrad: Extrahiere NUR die großen Hauptthemen-Blöcke. Fasse verwandte Konzepte zu EINEM Thema zusammen. MAXIMAL 5 Themen, eher weniger. Keine Unterpunkte, keine Einzeldetails."
     : detail === "fine"
-    ? "\n\nWICHTIG zum Detailgrad: Extrahiere JEDES einzelne Konzept, jede Formel, jeden Unterpunkt und jedes Detail als eigenes Thema. Lieber zu viele Themen als zu wenige — sei maximal gründlich."
-    : "\n\nWICHTIG zum Detailgrad: Extrahiere die Hauptthemen mit ihren wichtigsten Unterpunkten. Ausgewogene Granularität — weder zu grob noch zu fein.";
+    ? "\n\nWICHTIG zum Detailgrad: Extrahiere JEDES einzelne Konzept, jede Formel, jeden Unterpunkt als eigenes Thema. Sei maximal gründlich."
+    : "\n\nWICHTIG zum Detailgrad: Extrahiere die Hauptthemen mit ihren wichtigsten Unterpunkten. MAXIMAL 10 Themen. Ausgewogene Granularität.";
   const systemContent = (memoryPrefix ? memoryPrefix + "\n\n" : "") + STUDY_PLAN_SYSTEM + detailHint;
 
   const runChunk = async (chunk, prefix) => {

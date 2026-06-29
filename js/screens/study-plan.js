@@ -1,7 +1,7 @@
 import { navigate } from "../router.js";
-import { loadSettings } from "../store.js";
+import { loadSettings, loadStudyPlans, saveStudyPlans } from "../store.js";
 import { generateStudyPlan, getModelContextLimit, MODELS } from "../ai-service.js";
-import { esc, loadPdfJs } from "../utils.js";
+import { esc, loadPdfJs, uid } from "../utils.js";
 
 const DIFFICULTY_LABELS = { beginner: "🟢 Grundlagen", intermediate: "🟡 Mittel", advanced: "🔴 Fortgeschritten" };
 const DIFFICULTY_COLORS = { beginner: "var(--success)", intermediate: "var(--warning)", advanced: "var(--danger)" };
@@ -28,7 +28,7 @@ export async function render(root) {
   // Loaded lectures/materials — the single source of truth. Each: {id, name, text}.
   const sources = [];
   let chunkMode = "auto";
-  let detailLevel = "medium"; // coarse | medium | fine
+  let detailLevel = "coarse"; // coarse | medium | fine
   let lastPlan = null;
 
   root.innerHTML = `
@@ -36,6 +36,8 @@ export async function render(root) {
       <button class="btn-icon back-btn" id="sp-back">←</button>
       <h2>📋 Klausurvorbereitung</h2>
     </div>
+
+    <div id="sp-saved"></div>
 
     <div class="card mt-section">
       <p style="color:var(--text-light);font-size:0.88rem;margin:0 0 12px">
@@ -67,11 +69,11 @@ export async function render(root) {
       <div class="input-group">
         <label>Detailgrad (wie viele Themen erkannt werden)</label>
         <div id="sp-detail-presets" class="detail-presets">
-          <button type="button" class="detail-preset" data-detail="coarse">🎯 Grob</button>
-          <button type="button" class="detail-preset active" data-detail="medium">⚖️ Mittel</button>
+          <button type="button" class="detail-preset active" data-detail="coarse">🎯 Grob (max 5)</button>
+          <button type="button" class="detail-preset" data-detail="medium">⚖️ Mittel (max 10)</button>
           <button type="button" class="detail-preset" data-detail="fine">🔬 Fein</button>
         </div>
-        <small class="file-hint" id="sp-detail-hint">Mittel: Hauptthemen mit den wichtigsten Unterpunkten.</small>
+        <small class="file-hint" id="sp-detail-hint">Grob: Nur die übergeordneten Hauptthemen — wenige, breite Blöcke. Unterthemen einzeln aufklappbar.</small>
       </div>
 
       <div class="input-group">
@@ -117,6 +119,42 @@ export async function render(root) {
   const sourcesWrap = root.querySelector("#sp-sources-wrap");
   const sourcesEl = root.querySelector("#sp-sources");
   const chunkHintEl = root.querySelector("#sp-chunk-hint");
+  const savedDiv = root.querySelector("#sp-saved");
+
+  // ── Saved plans ────────────────────────────────────────────────────
+  async function renderSavedPlans() {
+    const plans = await loadStudyPlans();
+    if (!plans.length) { savedDiv.innerHTML = ""; return; }
+    savedDiv.innerHTML = `
+      <div class="section-title" style="margin-top:12px">Gespeicherte Lernpläne</div>
+      ${plans.map(p => `
+        <div class="card sp-saved-row" data-id="${p.id}" style="margin-top:6px;cursor:pointer;display:flex;align-items:center;gap:8px">
+          <div style="flex:1;overflow:hidden">
+            <div style="font-size:0.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.plan?.title || "Lernplan")}</div>
+            <div style="font-size:0.75rem;color:var(--text-light)">${p.plan?.topics?.length || 0} Themen · ${esc(p.plan?.subject || "")} · ${new Date(p.createdAt).toLocaleDateString("de")}</div>
+          </div>
+          <button class="btn-icon btn-icon-sm sp-delete-plan" data-id="${p.id}" title="Löschen">✕</button>
+        </div>
+      `).join("")}`;
+    savedDiv.querySelectorAll(".sp-saved-row").forEach(row => {
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".sp-delete-plan")) return;
+        const p = plans.find(x => x.id === row.dataset.id);
+        if (p) renderPlan(resultDiv, p.plan, p.sourceText || "", modelSelect.value, renderSavedPlans);
+      });
+    });
+    savedDiv.querySelectorAll(".sp-delete-plan").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (!confirm("Lernplan wirklich löschen?")) return;
+        const all = await loadStudyPlans();
+        await saveStudyPlans(all.filter(p => p.id !== id));
+        renderSavedPlans();
+      });
+    });
+  }
+  renderSavedPlans();
   const rollingCb = root.querySelector("#sp-rolling");
 
   root.querySelector("#sp-back").addEventListener("click", () => navigate("my-quizzes"));
@@ -220,8 +258,8 @@ export async function render(root) {
   });
 
   const DETAIL_HINTS = {
-    coarse: "Grob: Nur die übergeordneten Hauptthemen — wenige, breite Blöcke.",
-    medium: "Mittel: Hauptthemen mit den wichtigsten Unterpunkten.",
+    coarse: "Grob: Nur die übergeordneten Hauptthemen — wenige, breite Blöcke. Unterthemen einzeln aufklappbar.",
+    medium: "Mittel: Hauptthemen mit den wichtigsten Unterpunkten (max 10).",
     fine: "Fein: Jedes Konzept und jeden Unterpunkt einzeln auflisten.",
   };
   const detailHintEl = root.querySelector("#sp-detail-hint");
@@ -282,7 +320,7 @@ export async function render(root) {
         model, chunkSize, onProgress, rollingContext: rollingCb.checked, detailLevel,
       });
       lastPlan = plan;
-      renderPlan(resultDiv, plan, inputText, model);
+      renderPlan(resultDiv, plan, inputText, model, renderSavedPlans);
       resultDiv.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       errorBox.textContent = err.message || "Fehler bei der Lernplan-Erstellung.";
@@ -293,7 +331,7 @@ export async function render(root) {
   });
 }
 
-function renderPlan(container, plan, sourceText, model) {
+function renderPlan(container, plan, sourceText, model, onSaved) {
   const lang = plan.language === "en" ? "Englisch" : plan.language === "de" ? "Deutsch" : plan.language || "Auto";
   let completedTopics = new Set();
 
@@ -306,6 +344,7 @@ function renderPlan(container, plan, sourceText, model) {
         <span>📝 ${plan.topics.length} Themen</span>
         <span>⏱️ ~${plan.totalHours || Math.round(plan.topics.reduce((s, t) => s + (t.estimatedMinutes || 30), 0) / 60)} Stunden</span>
       </div>
+      <button class="btn btn-sm btn-primary sp-save-btn" style="margin-top:10px">💾 Lernplan speichern</button>
     </div>`;
 
   if (plan.tips?.length) {
@@ -369,6 +408,28 @@ function renderPlan(container, plan, sourceText, model) {
   html += `</div>`;
 
   container.innerHTML = html;
+
+  // Save button
+  container.querySelector(".sp-save-btn")?.addEventListener("click", async () => {
+    const btn = container.querySelector(".sp-save-btn");
+    btn.disabled = true;
+    btn.textContent = "⏳ Speichere…";
+    try {
+      const all = await loadStudyPlans();
+      all.unshift({
+        id: uid(),
+        createdAt: Date.now(),
+        plan,
+        sourceText: sourceText.slice(0, 50000),
+      });
+      await saveStudyPlans(all);
+      btn.textContent = "✓ Gespeichert";
+      if (typeof onSaved === "function") onSaved();
+    } catch (err) {
+      btn.textContent = "❌ Fehler";
+    }
+    setTimeout(() => { btn.disabled = false; btn.textContent = "💾 Lernplan speichern"; }, 2000);
+  });
 
   container.querySelectorAll(".sp-check").forEach(el => {
     el.addEventListener("click", () => {
