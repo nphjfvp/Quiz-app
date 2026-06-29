@@ -101,6 +101,9 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   (Text/Bild/Mathe-Tastatur), KI-Prüfung des Lösungswegs mit Fehleranalyse.
 - **image-editor** – eigenständiger Bild-Editor: Bild laden, mit Pinsel übermalen
   (Schwärzen/Weißen/Farben), Pinselgröße, Rückgängig, als PNG speichern (verallgemeinert `blackout.js`).
+- **study-plan** – Lernplan-Generator: PDF/Text hochladen → KI extrahiert alle Themen,
+  erkennt Sprache automatisch, erstellt geordneten Lernplan mit Schwierigkeitsgrad,
+  geschätzter Lernzeit und YouTube-Suchlinks pro Thema. Fortschritt per Checkbox trackbar.
 - **ai-generate** hat zusätzlich einen **Import-Modus** (`importQuiz`): übernimmt vorhandene
   Fragen aus Dokumenten 1:1 (Altklausur/Übungsblatt) statt neue zu generieren – inkl. Chunking.
 - **settings** – Theme (auto/hell/dunkel), Account, Sync-Code, **API-Key + Modell-Selektor mit
@@ -144,6 +147,7 @@ explainAnswer, askTutor, generateHints (3 gestufte Hinweise),
 simplifyExplanation, analyzeClozeKeywords, aiValidateAnswer (Freitext),
 editQuestionWithAI, checkFreeTextAI + quickExplain (schnelles Free-Modell für Games),
 **generateHints** (im Quiz aktiv), **simplifyExplanation** + **generateSummary** (in results aktiv),
+**generateStudyPlan** (Themen-Extraktion + Lernplan + YouTube-Suchlinks),
 Mathe-Pipeline: extractMathTasks → solveMathTasks (calc_chain) → generateSimilarTasks (+Verify),
 **formulaPhotoToLaTeX** (Bild→LaTeX-Formeln via Vision), **generateExercise** (Übungsaufgaben),
 **checkExerciseSolution** (Lösungsweg-Prüfung mit Bild-Support + Warnung bei fehlendem Vision-Modell).

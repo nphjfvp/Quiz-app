@@ -835,6 +835,59 @@ export async function generateSummary(session, config = {}) {
   return readStream(body);
 }
 
+export async function generateStudyPlan(text, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+
+  let memoryPrefix = "";
+  try {
+    const s = await loadSettings();
+    if (s.use_memory) memoryPrefix = await getFullMemoryPrompt();
+  } catch (_) {}
+
+  const messages = [
+    {
+      role: "system",
+      content:
+        (memoryPrefix ? memoryPrefix + "\n\n" : "") +
+        `Du bist ein erfahrener Lernberater. Analysiere das folgende Dokument (z.B. Klausur, Skript, Übungsblatt) und erstelle einen strukturierten Lernplan.
+
+Aufgaben:
+1. Erkenne die Sprache des Dokuments automatisch.
+2. Extrahiere ALLE Themen/Konzepte die im Dokument vorkommen.
+3. Ordne sie in eine sinnvolle Lernreihenfolge (Grundlagen zuerst, dann aufbauend).
+4. Erstelle für jedes Thema eine YouTube-Suchquery in der Dokumentsprache.
+5. Schätze die Lernzeit pro Thema.
+
+Antworte AUSSCHLIESSLICH mit diesem JSON (kein Markdown):
+{
+  "language": "de|en|...",
+  "subject": "Fachbezeichnung",
+  "title": "Lernplan: ...",
+  "topics": [
+    {
+      "name": "Thema",
+      "description": "Kurzbeschreibung was man lernen muss",
+      "difficulty": "beginner|intermediate|advanced",
+      "estimatedMinutes": 30,
+      "youtubeQuery": "Suchbegriff für YouTube",
+      "prerequisites": ["Vorheriges Thema falls nötig"],
+      "keyTerms": ["Begriff1", "Begriff2"]
+    }
+  ],
+  "totalHours": 10,
+  "tips": ["Allgemeiner Lerntipp 1", "Tipp 2"]
+}`
+    },
+    { role: "user", content: `Analysiere dieses Dokument und erstelle einen Lernplan:\n\n${text}` },
+  ];
+
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const raw = await readStream(body);
+  const plan = parseJSON(raw);
+  if (!plan || !Array.isArray(plan.topics)) throw new Error("KI-Antwort enthält keinen gültigen Lernplan.");
+  return plan;
+}
+
 export async function analyzeClozeKeywords(text, minChars = 1200, maxChars = 2500, config = {}) {
   const { apiKey, model } = await getConfig(config);
   const lengthHint = `Der Text soll zwischen ${minChars} und ${maxChars} Zeichen lang sein. `;
@@ -1100,16 +1153,27 @@ const MATH_VERIFY_PROMPT = `Du bist ein präziser Mathematik-Prüfer. Rechne die
 Antworte NUR mit JSON: {"correct": true/false, "result_text": "...", "result_numeric": [...]}`;
 
 // Split text on page markers / large gaps so each call sees a coherent chunk.
+// Falls back to paragraph-based splitting when no page markers exist.
 function chunkText(text, maxLen = 9000) {
   const pages = text.split(/--- ?Seite ?---|\f/);
+  // If no markers were found (single element = original text), split on paragraphs
+  const parts = pages.length <= 1
+    ? text.split(/\n\s*\n/)
+    : pages;
   const chunks = [];
   let buf = "";
-  for (const p of pages) {
-    if ((buf + p).length > maxLen && buf) { chunks.push(buf); buf = ""; }
-    buf += p + "\n";
+  for (const p of parts) {
+    if (buf && (buf + p).length > maxLen) { chunks.push(buf); buf = ""; }
+    buf += (buf ? "\n\n" : "") + p;
   }
   if (buf.trim()) chunks.push(buf);
-  return chunks.length ? chunks : [text];
+  // If a single chunk still exceeds maxLen (e.g. one giant paragraph), force-split it
+  const final = [];
+  for (const c of chunks) {
+    if (c.length <= maxLen) { final.push(c); continue; }
+    for (let i = 0; i < c.length; i += maxLen) final.push(c.slice(i, i + maxLen));
+  }
+  return final.length ? final : [text];
 }
 
 export async function extractMathTasks(text, instructions = "", config = {}, onProgress = null) {
