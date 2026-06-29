@@ -874,7 +874,13 @@ export async function generateStudyPlan(text, config = {}) {
     if (s.use_memory) memoryPrefix = await getFullMemoryPrompt();
   } catch (_) {}
 
-  const systemContent = (memoryPrefix ? memoryPrefix + "\n\n" : "") + STUDY_PLAN_SYSTEM;
+  const detail = config.detailLevel || "medium";
+  const detailHint = detail === "coarse"
+    ? "\n\nWICHTIG zum Detailgrad: Extrahiere NUR die übergeordneten Hauptthemen (wenige, breite Blöcke). Fasse verwandte Konzepte zusammen, KEINE Einzeldetails oder Unterpunkte. Maximal 5–8 Themen."
+    : detail === "fine"
+    ? "\n\nWICHTIG zum Detailgrad: Extrahiere JEDES einzelne Konzept, jede Formel, jeden Unterpunkt und jedes Detail als eigenes Thema. Lieber zu viele Themen als zu wenige — sei maximal gründlich."
+    : "\n\nWICHTIG zum Detailgrad: Extrahiere die Hauptthemen mit ihren wichtigsten Unterpunkten. Ausgewogene Granularität — weder zu grob noch zu fein.";
+  const systemContent = (memoryPrefix ? memoryPrefix + "\n\n" : "") + STUDY_PLAN_SYSTEM + detailHint;
 
   const runChunk = async (chunk, prefix) => {
     const messages = [
@@ -936,6 +942,39 @@ export async function generateStudyPlan(text, config = {}) {
   if (!merged.topics.length) throw new Error("KI-Antwort enthält keinen gültigen Lernplan.");
   merged.totalHours = Math.round(merged.topics.reduce((s, t) => s + (t.estimatedMinutes || 30), 0) / 60);
   return merged;
+}
+
+export async function generateSubtopics(topicName, sourceText, language = "de", config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const maxSrc = Math.min((sourceText || "").length, 10000);
+  const src = sourceText ? sourceText.slice(0, maxSrc) : "";
+  const messages = [
+    {
+      role: "system",
+      content: `Du bist ein Lernberater. Zerlege das angegebene Oberthema in konkrete Unterthemen/Lernschritte.
+Pro Unterthema: Name, Kurzbeschreibung, Schwierigkeitsgrad, geschätzte Lernzeit, YouTube-Suchquery, Schlüsselbegriffe.
+Antworte AUSSCHLIESSLICH mit einem JSON-Array (kein Markdown):
+[
+  {
+    "name": "Unterthema",
+    "description": "Was man lernen muss",
+    "difficulty": "beginner|intermediate|advanced",
+    "estimatedMinutes": 15,
+    "youtubeQuery": "Suchbegriff",
+    "keyTerms": ["Begriff1", "Begriff2"]
+  }
+]`
+    },
+    {
+      role: "user",
+      content: `Oberthema: "${topicName}" (Sprache: ${language})\n\n${src ? `Quellmaterial:\n${src}` : "Kein Quellmaterial vorhanden — nutze dein Wissen."}\n\nErstelle 3–6 Unterthemen für dieses Oberthema.`,
+    },
+  ];
+  const body = await chatCompletion(messages, { apiKey, model, stream: true });
+  const raw = await readStream(body);
+  const parsed = parseJSON(raw);
+  if (!Array.isArray(parsed)) throw new Error("KI-Antwort ist kein gültiges Unterthemen-Array.");
+  return parsed;
 }
 
 export async function analyzeClozeKeywords(text, minChars = 1200, maxChars = 2500, config = {}) {
