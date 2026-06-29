@@ -102,9 +102,15 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   (Text/Bild/Mathe-Tastatur), KI-Prüfung des Lösungswegs mit Fehleranalyse.
 - **image-editor** – eigenständiger Bild-Editor: Bild laden, mit Pinsel übermalen
   (Schwärzen/Weißen/Farben), Pinselgröße, Rückgängig, als PNG speichern (verallgemeinert `blackout.js`).
-- **study-plan** – Lernplan-Generator: PDF/Text hochladen → KI extrahiert alle Themen,
-  erkennt Sprache automatisch, erstellt geordneten Lernplan mit Schwierigkeitsgrad,
-  geschätzter Lernzeit und YouTube-Suchlinks pro Thema. Fortschritt per Checkbox trackbar.
+- **study-plan** – Lernplan-Generator / Klausurvorbereitung: **mehrere Vorlesungen/Skripte
+  gleichzeitig** (.txt/.pdf, `multiple`) oder eingefügten Text als Material-Liste laden;
+  Materialien lassen sich **vor UND nach dem Erstellen** ergänzen/entfernen (Quelle der Wahrheit
+  ist die `sources`-Liste, Button wird zu „🔄 aktualisieren"). **Kontextgrößen-Selektor**
+  (Auto/Aus/Grob/Mittel/Fein) + **Rolling-Kontext-Toggle** (`rollingContext`) – `generateStudyPlan`
+  chunkt große Materialien via `chunkText` (Lecture-Grenzen via `\f`) und sammelt Themen mit
+  Rolling-Context dedupliziert über alle Abschnitte. KI extrahiert alle Themen, erkennt Sprache
+  automatisch, erstellt geordneten Lernplan mit Schwierigkeitsgrad, geschätzter Lernzeit und
+  YouTube-Suchlinks pro Thema. Fortschritt per Checkbox trackbar.
   **Lernfluss Video → Quiz → Sokrates:** Pro Thema gibt es neben „▶️ Video" einen
   „🎯 Quiz dazu"-Button, der per `generateQuiz` ein themenfokussiertes Quiz aus dem
   Quellmaterial erzeugt und durch die normale Quiz-Engine spielt (ephemeres Quiz mit

@@ -835,21 +835,7 @@ export async function generateSummary(session, config = {}) {
   return readStream(body);
 }
 
-export async function generateStudyPlan(text, config = {}) {
-  const { apiKey, model } = await getConfig(config);
-
-  let memoryPrefix = "";
-  try {
-    const s = await loadSettings();
-    if (s.use_memory) memoryPrefix = await getFullMemoryPrompt();
-  } catch (_) {}
-
-  const messages = [
-    {
-      role: "system",
-      content:
-        (memoryPrefix ? memoryPrefix + "\n\n" : "") +
-        `Du bist ein erfahrener Lernberater. Analysiere das folgende Dokument (z.B. Klausur, Skript, Übungsblatt) und erstelle einen strukturierten Lernplan.
+const STUDY_PLAN_SYSTEM = `Du bist ein erfahrener Lernberater. Analysiere das folgende Lernmaterial (z.B. Klausur, Skript, Vorlesung, Übungsblatt) und erstelle einen strukturierten Lernplan.
 
 Aufgaben:
 1. Erkenne die Sprache des Dokuments automatisch.
@@ -876,16 +862,80 @@ Antworte AUSSCHLIESSLICH mit diesem JSON (kein Markdown):
   ],
   "totalHours": 10,
   "tips": ["Allgemeiner Lerntipp 1", "Tipp 2"]
-}`
-    },
-    { role: "user", content: `Analysiere dieses Dokument und erstelle einen Lernplan:\n\n${text}` },
-  ];
+}`;
 
-  const body = await chatCompletion(messages, { apiKey, model, stream: true });
-  const raw = await readStream(body);
-  const plan = parseJSON(raw);
-  if (!plan || !Array.isArray(plan.topics)) throw new Error("KI-Antwort enthält keinen gültigen Lernplan.");
-  return plan;
+export async function generateStudyPlan(text, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
+
+  let memoryPrefix = "";
+  try {
+    const s = await loadSettings();
+    if (s.use_memory) memoryPrefix = await getFullMemoryPrompt();
+  } catch (_) {}
+
+  const systemContent = (memoryPrefix ? memoryPrefix + "\n\n" : "") + STUDY_PLAN_SYSTEM;
+
+  const runChunk = async (chunk, prefix) => {
+    const messages = [
+      { role: "system", content: systemContent },
+      { role: "user", content: `${prefix}\n\n${chunk}` },
+    ];
+    const body = await chatCompletion(messages, { apiKey, model, stream: true });
+    const raw = await readStream(body);
+    const plan = parseJSON(raw);
+    if (!plan || !Array.isArray(plan.topics)) throw new Error("KI-Antwort enthält keinen gültigen Lernplan.");
+    return plan;
+  };
+
+  const chunkSize = Number(config.chunkSize) || 0;
+  const useChunking = chunkSize > 0 && text.length > chunkSize;
+
+  if (!useChunking) {
+    return runChunk(text, "Analysiere dieses Lernmaterial und erstelle einen Lernplan:");
+  }
+
+  // Chunked: über mehrere Abschnitte/Vorlesungen hinweg Themen sammeln.
+  // Rolling Context: bereits gefundene Themennamen mitgeben, damit die KI
+  // im nächsten Abschnitt keine Dopplungen erzeugt.
+  const chunks = chunkText(text, chunkSize);
+  const merged = { language: "", subject: "", title: "", topics: [], tips: [] };
+  const seenTopics = new Set();
+  const seenTips = new Set();
+
+  const useRolling = config.rollingContext !== false; // default on
+  for (let i = 0; i < chunks.length; i++) {
+    if (onProgress) onProgress(i + 1, chunks.length);
+    const covered = useRolling ? merged.topics.map(t => t.name).slice(-50) : [];
+    const contextHint = covered.length
+      ? `Bereits erfasste Themen (NICHT wiederholen, nur NEUE ergänzen):\n${covered.join("\n")}\n\n`
+      : "";
+    const prefix = `${contextHint}Abschnitt ${i + 1}/${chunks.length} des Lernmaterials. Extrahiere die hier vorkommenden Themen:`;
+    try {
+      const part = await runChunk(chunks[i], prefix);
+      if (!merged.language && part.language) merged.language = part.language;
+      if (!merged.subject && part.subject) merged.subject = part.subject;
+      if (!merged.title && part.title) merged.title = part.title;
+      for (const t of part.topics || []) {
+        const key = (t.name || "").toLowerCase().replace(/\s+/g, " ").trim();
+        if (!key || seenTopics.has(key)) continue;
+        seenTopics.add(key);
+        merged.topics.push(t);
+      }
+      for (const tip of part.tips || []) {
+        const key = String(tip).toLowerCase().trim();
+        if (!key || seenTips.has(key)) continue;
+        seenTips.add(key);
+        merged.tips.push(tip);
+      }
+    } catch (err) {
+      if (chunks.length === 1) throw err;
+    }
+  }
+
+  if (!merged.topics.length) throw new Error("KI-Antwort enthält keinen gültigen Lernplan.");
+  merged.totalHours = Math.round(merged.topics.reduce((s, t) => s + (t.estimatedMinutes || 30), 0) / 60);
+  return merged;
 }
 
 export async function analyzeClozeKeywords(text, minChars = 1200, maxChars = 2500, config = {}) {
