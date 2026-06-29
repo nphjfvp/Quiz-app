@@ -875,11 +875,13 @@ export async function generateStudyPlan(text, config = {}) {
   } catch (_) {}
 
   const detail = config.detailLevel || "coarse";
+  const DETAIL_CAPS = { coarse: 5, medium: 10, fine: 50 };
+  const globalCap = DETAIL_CAPS[detail] || 10;
   const detailHint = detail === "coarse"
-    ? "\n\nWICHTIG zum Detailgrad: Extrahiere NUR die großen Hauptthemen-Blöcke. Fasse verwandte Konzepte zu EINEM Thema zusammen. MAXIMAL 5 Themen, eher weniger. Keine Unterpunkte, keine Einzeldetails."
+    ? `\n\nWICHTIG zum Detailgrad: Extrahiere NUR die großen Hauptthemen-Blöcke. Fasse verwandte Konzepte zu EINEM Thema zusammen. MAXIMAL ${globalCap} Themen insgesamt, eher weniger. Keine Unterpunkte, keine Einzeldetails.`
     : detail === "fine"
     ? "\n\nWICHTIG zum Detailgrad: Extrahiere JEDES einzelne Konzept, jede Formel, jeden Unterpunkt als eigenes Thema. Sei maximal gründlich."
-    : "\n\nWICHTIG zum Detailgrad: Extrahiere die Hauptthemen mit ihren wichtigsten Unterpunkten. MAXIMAL 10 Themen. Ausgewogene Granularität.";
+    : `\n\nWICHTIG zum Detailgrad: Extrahiere die Hauptthemen mit ihren wichtigsten Unterpunkten. MAXIMAL ${globalCap} Themen insgesamt. Ausgewogene Granularität.`;
   const systemContent = (memoryPrefix ? memoryPrefix + "\n\n" : "") + STUDY_PLAN_SYSTEM + detailHint;
 
   const runChunk = async (chunk, prefix) => {
@@ -912,11 +914,15 @@ export async function generateStudyPlan(text, config = {}) {
   const useRolling = config.rollingContext !== false; // default on
   for (let i = 0; i < chunks.length; i++) {
     if (onProgress) onProgress(i + 1, chunks.length);
+    // Stop early if we've already hit the global topic cap
+    if (merged.topics.length >= globalCap) break;
+    const remaining = globalCap - merged.topics.length;
     const covered = useRolling ? merged.topics.map(t => t.name).slice(-50) : [];
     const contextHint = covered.length
       ? `Bereits erfasste Themen (NICHT wiederholen, nur NEUE ergänzen):\n${covered.join("\n")}\n\n`
       : "";
-    const prefix = `${contextHint}Abschnitt ${i + 1}/${chunks.length} des Lernmaterials. Extrahiere die hier vorkommenden Themen:`;
+    const budgetHint = detail !== "fine" ? ` Extrahiere MAXIMAL ${remaining} neue Themen aus diesem Abschnitt.` : "";
+    const prefix = `${contextHint}Abschnitt ${i + 1}/${chunks.length} des Lernmaterials.${budgetHint} Extrahiere die hier vorkommenden Themen:`;
     try {
       const part = await runChunk(chunks[i], prefix);
       if (!merged.language && part.language) merged.language = part.language;
@@ -940,6 +946,8 @@ export async function generateStudyPlan(text, config = {}) {
   }
 
   if (!merged.topics.length) throw new Error("KI-Antwort enthält keinen gültigen Lernplan.");
+  // Hard cap: even if the model ignored the limit, enforce it globally
+  if (merged.topics.length > globalCap) merged.topics = merged.topics.slice(0, globalCap);
   merged.totalHours = Math.round(merged.topics.reduce((s, t) => s + (t.estimatedMinutes || 30), 0) / 60);
   return merged;
 }
