@@ -423,12 +423,17 @@ function renderPlan(container, plan, sourceText, model, onSaved) {
         sourceText: sourceText.slice(0, 50000),
       });
       await saveStudyPlans(all);
-      btn.textContent = "✓ Gespeichert";
+      btn.textContent = "✓ Gespeichert!";
+      btn.style.background = "var(--success)";
+      btn.style.color = "#fff";
       if (typeof onSaved === "function") onSaved();
     } catch (err) {
-      btn.textContent = "❌ Fehler";
+      btn.textContent = "❌ " + (err.message || "Speichern fehlgeschlagen");
+      btn.style.background = "var(--danger)";
+      btn.style.color = "#fff";
+      console.error("Study plan save error:", err);
     }
-    setTimeout(() => { btn.disabled = false; btn.textContent = "💾 Lernplan speichern"; }, 2000);
+    setTimeout(() => { btn.disabled = false; btn.textContent = "💾 Lernplan speichern"; btn.style.background = ""; btn.style.color = ""; }, 3000);
   });
 
   container.querySelectorAll(".sp-check").forEach(el => {
