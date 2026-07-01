@@ -37,6 +37,17 @@ async function set(key, value) {
   });
 }
 
+/** Löscht ALLE Keys (kompletter Reset) — erfasst auch künftige Store-Keys. */
+export async function clearAll() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function loadQuizzes() {
   return (await get("quizzes")) ?? [];
 }
@@ -154,6 +165,15 @@ export async function logAnswer(correct) {
   if (correct) day.correct++;
   stats[today] = day;
   await saveStats(stats);
+
+  // Tageszeit-Erfolge (Nachteule/Frühaufsteher): Die Stats-Keys tragen keine
+  // Uhrzeit, daher wird der Unlock-Flag direkt beim Antworten gesetzt.
+  const h = new Date().getHours();
+  if (h >= 23 || h < 7) {
+    const ach = await loadAchievements();
+    const flag = h >= 23 ? "night_owl_unlocked" : "early_bird_unlocked";
+    if (!ach[flag]) { ach[flag] = true; await saveAchievements(ach); }
+  }
 }
 
 export function getStreak(stats) {

@@ -472,11 +472,11 @@ export async function render(root, params = {}) {
         } else if (pdfVisualPages.length > 0) {
           // Teilweise visuell → Hybrid empfehlen und Bildseiten rendern.
           setPdfMode("hybrid");
-          fileInfo.textContent = `✓ ${pdf.numPages} Seiten · ${pdfVisualPages.length} Bildseite(n) → Hybrid empfohlen`;
+          fileInfo.textContent = `✓ ${pdfPageTexts.length} Seiten · ${pdfVisualPages.length} Bildseite(n) → Hybrid empfohlen`;
           await renderPdfPages(pdfFile, pdfVisualPages);
         } else {
           setPdfMode("text");
-          fileInfo.textContent = `✓ ${pdf.numPages} Seiten extrahiert`;
+          fileInfo.textContent = `✓ ${pdfPageTexts.length} Seiten extrahiert`;
           setTimeout(() => { fileProgress.style.display = "none"; }, 2000);
         }
       } catch (err) {

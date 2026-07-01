@@ -3,7 +3,9 @@ import { navigate } from "../router.js";
 import { esc, mathEsc } from "../utils.js";
 import { buildPlayable, checkText, checkTextSmart, checkMulti, checkMultiText, shuffle, buildFeedbackHtml, attachFeedbackListeners } from "../games-util.js";
 import { getGameSkin } from "../shop-catalog.js";
-import { lerp, addFloater, roundRectPath, roundRectFill, roundRectStroke, strokePath, burst } from "../canvas-util.js";
+// Note: local burst() stays (sets particle `size`, which draw() relies on);
+// canvas-util's burst does not set size, so it must not be imported here.
+import { lerp, addFloater, roundRectPath, roundRectFill, roundRectStroke, strokePath } from "../canvas-util.js";
 
 const CANVAS_W = 360, CANVAS_H = 560;
 const TILE = 40;
@@ -758,13 +760,6 @@ function drawBase(ctx, x, y, state, now) {
   ctx.beginPath(); ctx.moveTo(x, y - 24); ctx.lineTo(x, y - 8); ctx.stroke();
 }
 
-
-function strokePath(ctx, pts) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-  ctx.stroke();
-}
 
 function burst(state, x, y, color, n) {
   for (let i = 0; i < n; i++) {

@@ -368,8 +368,11 @@ export async function render(root) {
       if (!email || !pass) { errEl.textContent = "Bitte E-Mail und Passwort eingeben."; return; }
       try {
         errEl.textContent = "Anmelden…";
-        await signIn(email, pass);
-        await saveSettings({ ...settings, accountEmail: email });
+        const acc = await signIn(email, pass);
+        // Tokens mitspeichern — app.js restauriert den Account beim Boot nur,
+        // wenn accountToken vorhanden ist (sonst nach jedem Reload ausgeloggt).
+        await saveSettings({ ...settings, accountEmail: acc.email, accountUid: acc.uid,
+          accountToken: acc.idToken, accountRefresh: acc.refreshToken, accountExpires: acc.expiresAt });
         render(root);
       } catch (e) { errEl.textContent = e.message; }
     });
@@ -380,8 +383,9 @@ export async function render(root) {
       if (!email || pass.length < 6) { errEl.textContent = "Passwort muss min. 6 Zeichen haben."; return; }
       try {
         errEl.textContent = "Registrieren…";
-        await signUp(email, pass);
-        await saveSettings({ ...settings, accountEmail: email });
+        const acc = await signUp(email, pass);
+        await saveSettings({ ...settings, accountEmail: acc.email, accountUid: acc.uid,
+          accountToken: acc.idToken, accountRefresh: acc.refreshToken, accountExpires: acc.expiresAt });
         render(root);
       } catch (e) { errEl.textContent = e.message; }
     });
@@ -533,11 +537,11 @@ export async function render(root) {
     if (!confirm("Wirklich ALLE Daten löschen? Quizze, Fortschritt, Statistiken — alles wird unwiderruflich gelöscht!")) return;
     if (!confirm("Bist du sicher? Dies kann NICHT rückgängig gemacht werden.")) return;
     try {
-      const { saveQuizzes, saveProgress, saveSettings: saveSett, saveMarked: saveMark, saveStats: saveStat, saveErrorDiary, saveFolders, saveDailyState, saveFsrs } = await import("../store.js");
-      await Promise.all([
-        saveQuizzes([]), saveProgress({}), saveSett({}), saveMark([]),
-        saveStat({}), saveErrorDiary([]), saveFolders([]), saveDailyState(null), saveFsrs({}),
-      ]);
+      // clearAll leert den kompletten KV-Store — vorher wurden einzelne Keys
+      // aufgezählt und z. B. Münzen, Erfolge, Profil, Memory und Lernpläne
+      // blieben beim "alles löschen" zurück.
+      const { clearAll } = await import("../store.js");
+      await clearAll();
       setAccount(null);
       st.textContent = "✓ Alle Daten gelöscht.";
       setTimeout(() => navigate("home"), 1500);
