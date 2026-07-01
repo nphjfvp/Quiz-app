@@ -275,9 +275,12 @@ Antworte IMMER auf Deutsch.`;
     const renderLive = () => {
       if (!previewEl) return;
       const raw = inputEl.value.trim();
-      if (!raw) { previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+      // Nur rendern, was nach Formel aussieht. Normale Sätze ("warum ist …")
+      // dürfen NICHT in $…$ gepackt werden — im Mathe-Modus verschluckt KaTeX
+      // die Leerzeichen und der Text wird unleserlich.
+      const looksLikeFormula = raw.includes("$") || /[\\^_{}]|[0-9)\s][+\-*/=<>][\s(0-9a-zA-Z]/.test(raw);
+      if (!raw || !looksLikeFormula) { previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
       previewEl.style.display = "block";
-      // Ohne $-Delimiter wird die gesamte Eingabe als Formel gerendert.
       previewEl.innerHTML = mathEsc(raw.includes("$") ? raw : `$${raw}$`);
     };
     inputEl.addEventListener("input", renderLive);

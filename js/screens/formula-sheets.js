@@ -164,18 +164,80 @@ async function showGenerator(root) {
 
     root.querySelector("#gen-back").addEventListener("click", () => render(root));
 
+    // Vision-Extraktion (Fotos UND PDF-Seiten): erkannte Formeln landen als
+    // "Name: LaTeX"-Zeilen in der Textarea, wo sie prüf- und editierbar sind.
+    async function extractViaVision(imageUrls) {
+      const textArea = root.querySelector("#fs-gen-text");
+      const progressDiv = root.querySelector("#fs-gen-progress");
+      progressDiv.style.display = "";
+      progressDiv.textContent = "⏳ Extrahiere Formeln…";
+      try {
+        const formulas = await extractFormulasFromImages(imageUrls, {
+          onProgress: (i, total) => {
+            progressDiv.textContent = `⏳ Extrahiere Formeln… Batch ${i}/${total}`;
+          },
+        });
+        const existing = textArea.value.trim();
+        const newLines = formulas
+          .filter(f => f.name || f.formula)
+          .map(f => (f.name ? f.name + ": " : "") + f.formula);
+        textArea.value = existing
+          ? existing + "\n" + newLines.join("\n")
+          : newLines.join("\n");
+        progressDiv.style.display = "none";
+        if (!formulas.length) {
+          progressDiv.style.display = "";
+          progressDiv.textContent = "⚠️ Keine Formeln erkannt. Versuche ein klareres Bild.";
+        }
+      } catch (err) {
+        progressDiv.style.display = "";
+        progressDiv.textContent = "❌ Fehler: " + (err.message || "Vision nicht verfügbar");
+      }
+    }
+
     root.querySelector("#fs-gen-file").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       const textArea = root.querySelector("#fs-gen-text");
       if (file.name.endsWith(".pdf")) {
-        textArea.value = "⏳ Extrahiere PDF-Text…";
+        // PDFs gehen über die Vision-KI: die pdf.js-TEXT-Extraktion zerstört
+        // gesetzte Formeln (Hoch-/Tiefstellungen, Brüche, Symbole) — das war
+        // die Hauptursache für unbrauchbare Formelsammlungen aus Skripten.
+        const progressDiv = root.querySelector("#fs-gen-progress");
+        progressDiv.style.display = "";
+        progressDiv.textContent = "⏳ Rendere PDF-Seiten…";
         try {
-          const { getPdfText } = await import("../utils.js");
-          const pages = await getPdfText(file);
-          textArea.value = pages.map(p => p.text).join("\n\n") || "";
+          const { loadPdfJs } = await import("../utils.js");
+          const pdfjsLib = await loadPdfJs();
+          const buf = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+          const pageCount = Math.min(pdf.numPages, 20);
+          const images = [];
+          for (let i = 1; i <= pageCount; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 2 });
+            const canvas = document.createElement("canvas");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+            images.push(canvas.toDataURL("image/jpeg", 0.85));
+            progressDiv.textContent = `⏳ Rendere Seite ${i}/${pageCount}…`;
+          }
+          if (pdf.numPages > 20) {
+            progressDiv.textContent = `⚠️ Nur die ersten 20 von ${pdf.numPages} Seiten werden verarbeitet.`;
+          }
+          await extractViaVision(images);
         } catch (err) {
-          textArea.value = "❌ PDF konnte nicht gelesen werden.";
+          // Fallback: Text-Extraktion (besser als nichts, aber formel-lastig unzuverlässig)
+          try {
+            const { getPdfText } = await import("../utils.js");
+            const pages = await getPdfText(file);
+            textArea.value = pages.map(p => p.text).join("\n\n") || "";
+            progressDiv.style.display = "";
+            progressDiv.textContent = "⚠️ Vision fehlgeschlagen — Text-Modus (Formeln ggf. ungenau prüfen!).";
+          } catch {
+            textArea.value = "❌ PDF konnte nicht gelesen werden.";
+          }
         }
       } else {
         const reader = new FileReader();
@@ -187,11 +249,7 @@ async function showGenerator(root) {
     root.querySelector("#fs-gen-photo").addEventListener("change", async (e) => {
       const files = Array.from(e.target.files || []);
       if (!files.length) return;
-      const errBox = root.querySelector("#fs-gen-err");
-      const textArea = root.querySelector("#fs-gen-text");
-      const progressDiv = root.querySelector("#fs-gen-progress");
-      errBox.style.display = "none";
-
+      root.querySelector("#fs-gen-err").style.display = "none";
       const imageUrls = [];
       for (const file of files) {
         const base64 = await new Promise((resolve) => {
@@ -201,41 +259,7 @@ async function showGenerator(root) {
         });
         imageUrls.push(base64);
       }
-
-      if (imageUrls.length > 3) {
-        progressDiv.style.display = "";
-        progressDiv.textContent = "⏳ Extrahiere Formeln…";
-      }
-
-      try {
-        const formulas = await extractFormulasFromImages(imageUrls, {
-          onProgress: (i, total) => {
-            if (progressDiv) {
-              progressDiv.textContent = `⏳ Extrahiere Formeln… Batch ${i}/${total}`;
-            }
-          },
-        });
-
-        const existing = textArea.value.trim();
-        const newLines = formulas
-          .filter(f => f.name || f.formula)
-          .map(f => {
-            const prefix = f.name ? f.name + ": " : "";
-            return prefix + f.formula;
-          });
-        textArea.value = existing
-          ? existing + "\n" + newLines.join("\n")
-          : newLines.join("\n");
-
-        progressDiv.style.display = "none";
-        if (!formulas.length) {
-          progressDiv.style.display = "";
-          progressDiv.textContent = "⚠️ Keine Formeln erkannt. Versuche ein klareres Bild.";
-        }
-      } catch (err) {
-        progressDiv.style.display = "";
-        progressDiv.textContent = "❌ Fehler: " + (err.message || "Vision nicht verfügbar");
-      }
+      await extractViaVision(imageUrls);
     });
 
     root.querySelector("#fs-gen-btn")?.addEventListener("click", async () => {
