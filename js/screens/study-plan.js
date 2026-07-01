@@ -508,6 +508,7 @@ function renderPlan(container, plan, sourceText, model, onSaved) {
         const quiz = {
           id: "sp-" + Date.now(),
           name: topic.name,
+          description: "Lernplan-Quiz",
           questions,
           _learnFlow: {
             topic: topic.name,
@@ -515,6 +516,15 @@ function renderPlan(container, plan, sourceText, model, onSaved) {
             language: lang,
           },
         };
+        // Als echtes Quiz speichern, damit Fortschritt/FSRS/Fehler-Tagebuch
+        // erhalten bleiben und das Quiz später wiederholbar ist.
+        const { loadQuizzes, saveQuizzes } = await import("../store.js");
+        const all = await loadQuizzes();
+        // Vorhandenes Lernplan-Quiz zum selben Thema ersetzen statt anhäufen
+        const existing = all.findIndex(q => q.description === "Lernplan-Quiz" && q.name === topic.name);
+        if (existing >= 0) { quiz.id = all[existing].id; all[existing] = quiz; }
+        else all.push(quiz);
+        await saveQuizzes(all);
         navigate("quiz", { quiz, mode: "single" });
       } catch (err) {
         if (statusEl) statusEl.textContent = "Fehler: " + (err.message || "Quiz konnte nicht erstellt werden.");

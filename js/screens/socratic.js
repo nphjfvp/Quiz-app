@@ -178,9 +178,12 @@ Antworte IMMER auf Deutsch.`;
     </div>`;
   }
 
-  html += `<div id="soc-messages" class="tutor-messages"></div>
-  <div class="tutor-input-row">
-    <textarea id="soc-input" class="input" placeholder="Deine Antwort / Frage…" rows="2"></textarea>
+  html += `<div id="soc-messages" class="tutor-messages"></div>`;
+  if (isMath) {
+    html += `<div id="soc-live-preview" style="display:none;min-height:30px;padding:8px 10px;margin-bottom:4px;font-size:1.15rem;background:var(--card);border:1px solid var(--border);border-radius:10px;overflow-x:auto"></div>`;
+  }
+  html += `<div class="tutor-input-row">
+    <textarea id="soc-input" class="input" placeholder="${isMath ? "Formel oder Antwort tippen — wird live gerendert…" : "Deine Antwort / Frage…"}" rows="2"></textarea>
     <button id="soc-send" class="btn btn-primary" style="align-self:flex-end">▶</button>
   </div>`;
   if (isMath) html += `<div id="soc-kb-wrap" style="margin-top:4px"></div>`;
@@ -265,8 +268,20 @@ Antworte IMMER auf Deutsch.`;
     sendMessage("Ich habe gerade ein Quiz gemacht und einige Fragen falsch beantwortet. Bitte führe mich sokratisch durch genau diese falschen Fragen — beginne mit der ersten und stelle mir Gegenfragen, bis ich es selbst verstehe. Gib mir nicht direkt die Lösung.");
   }
 
-  // Math keyboard integration
+  // Math keyboard + live formula rendering: whatever is typed (keyboard or
+  // symbol palette) is rendered above the input via KaTeX while typing.
   if (isMath) {
+    const previewEl = root.querySelector("#soc-live-preview");
+    const renderLive = () => {
+      if (!previewEl) return;
+      const raw = inputEl.value.trim();
+      if (!raw) { previewEl.style.display = "none"; previewEl.innerHTML = ""; return; }
+      previewEl.style.display = "block";
+      // Ohne $-Delimiter wird die gesamte Eingabe als Formel gerendert.
+      previewEl.innerHTML = mathEsc(raw.includes("$") ? raw : `$${raw}$`);
+    };
+    inputEl.addEventListener("input", renderLive);
+
     const kbWrap = root.querySelector("#soc-kb-wrap");
     if (kbWrap) {
       import("../math-keyboard.js").then(({ createMathKeyboard }) => {
