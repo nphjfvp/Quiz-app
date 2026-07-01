@@ -211,7 +211,22 @@ function normalizeQuizQuestion(q) {
   };
 }
 
-function buildQuizSystemPrompt(countRule, typesList, language) {
+// Format-Regeln PRO TYP — nur die Regeln der erlaubten Typen landen im Prompt,
+// damit abgewählte Typen dem Modell gar nicht erst vorgeschlagen werden.
+const TYPE_RULES = {
+  single_choice: '- Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.',
+  multiple_choice: '- Bei multiple_choice: mindestens 2 Optionen sind korrekt, mindestens 4 Optionen.',
+  free_text: `- Bei free_text: gib den korrekten Antworttext in "correct_text" an. Mehrere akzeptierte Antworten mit ';' trennen.`,
+  fill_blank: '- Bei fill_blank: markiere Lücken im Fragetext mit ___ und liste die Lösungswörter in "blanks" auf.',
+  drag_drop: '- Bei drag_drop: nur wenn 1:1-Zuordnungen (Begriff↔Definition). Liste Paare in "drag_drop_pairs" mit "source" und "target".',
+  drag_category: '- Bei drag_category: wenn mehrere Begriffe in Kategorien eingeordnet werden sollen (z.B. 6 Begriffe auf 2 Kategorien). Nutze "drag_drop_pairs" wobei "source" der Begriff und "target" die Kategorie ist. Kategorien dürfen mehrfach vorkommen.',
+  math_formula: '- Bei math_formula: Rechen-/Formelaufgabe. Gib die Lösung in "correct_formula" an (z.B. "x = 2" oder "a^2 + b^2").',
+};
+
+function buildQuizSystemPrompt(countRule, allowedArr, language) {
+  const typesList = allowedArr.map(t => `"${t}"`).join(", ");
+  const typeRules = allowedArr.map(t => TYPE_RULES[t]).filter(Boolean).join("\n") +
+    (allowedArr.length > 2 ? "\n- Bevorzuge Choice-/Text-Fragen; nutze Zuordnungs-/Formel-Typen nur, wo es inhaltlich passt." : "");
   return `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
 WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
@@ -227,22 +242,16 @@ Qualitätsregeln (entscheidend für gute Prüfungsfragen):
 
 Format-Regeln:
 - ${countRule}
-- Verwende AUSSCHLIESSLICH diese Fragetypen: ${typesList}. Andere Typen sind NICHT erlaubt.
-- Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
-- Bei single_choice: genau eine Option ist korrekt, mindestens 3 Optionen.
-- Bei multiple_choice: mindestens 2 Optionen sind korrekt, mindestens 4 Optionen.
-- Bei free_text: gib den korrekten Antworttext in "correct_text" an. Mehrere akzeptierte Antworten mit ';' trennen.
-- Bei fill_blank: markiere Lücken im Fragetext mit ___ und liste die Lösungswörter in "blanks" auf.
-- Bei drag_drop: nur wenn 1:1-Zuordnungen (Begriff↔Definition). Liste Paare in "drag_drop_pairs" mit "source" und "target".
-- Bei drag_category: wenn mehrere Begriffe in Kategorien eingeordnet werden sollen (z.B. 6 Begriffe auf 2 Kategorien). Nutze "drag_drop_pairs" wobei "source" der Begriff und "target" die Kategorie ist. Kategorien dürfen mehrfach vorkommen.
-- Bei math_formula: nur bei mathematischen/naturwissenschaftlichen Inhalten. Gib die Lösung in "correct_formula" an (z.B. "x = 2" oder "a^2 + b^2").
-- Bevorzuge Choice-/Text-Fragen; nutze drag_drop, drag_category und math_formula nur, wo es inhaltlich passt.
+- ABSOLUT VERBINDLICH: Das Feld "question_type" darf NUR einen dieser Werte haben: ${typesList}.
+  Fragen mit anderen Typen werden VERWORFEN und sind verschwendete Arbeit. Wenn ein Inhalt nicht
+  zu den erlaubten Typen passt, formuliere ihn passend um (z.B. als Frage des erlaubten Typs).
+${typeRules}
 - Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher Text) in diesem Format:
 [
   {
-    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "drag_drop" | "drag_category" | "math_formula",
+    "question_type": ${typesList},
     "question_text": "Fragetext",
     "title": "Kurztitel der Frage",
     "topic": "Themengebiet",
@@ -271,7 +280,7 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
   const allowed = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
     ? QUIZ_ALL_TYPES.filter(t => config.allowedTypes.includes(t))
     : QUIZ_ALL_TYPES;
-  const typesList = (allowed.length ? allowed : QUIZ_ALL_TYPES).map(t => `"${t}"`).join(", ");
+  const allowedArr = allowed.length ? allowed : QUIZ_ALL_TYPES;
   const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
 
   // Wenn eine Chunk-Größe gesetzt ist und der Text größer ist als ein Chunk,
@@ -281,7 +290,7 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
   const useChunking = chunkSize > 0 && text.length > chunkSize;
 
   const runChunk = async (chunkText, perChunkRule, userPrefix) => {
-    const systemPrompt = buildQuizSystemPrompt(perChunkRule, typesList, language);
+    const systemPrompt = buildQuizSystemPrompt(perChunkRule, allowedArr, language);
     const messages = [
       { role: "system", content: systemPrompt },
       { role: "user", content: `${userPrefix}\n\n${chunkText}` },
@@ -328,11 +337,15 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
     collected = await runChunk(text, countRule, `Erstelle ${countAsk} auf Basis dieses Textes:`);
   }
 
-  // Typen filtern (Fallback, falls das Modell verbotene Typen liefert)
+  // Typen STRIKT filtern. Vorher gab es einen stillen Fallback: lieferte das
+  // Modell nur verbotene Typen, wurde die Nutzer-Auswahl komplett ignoriert.
   let filtered = collected;
   if (allowed.length && allowed.length < QUIZ_ALL_TYPES.length) {
-    const kept = collected.filter(q => allowed.includes(q.question_type));
-    if (kept.length) filtered = kept;
+    filtered = collected.filter(q => allowed.includes(q.question_type));
+    if (!filtered.length && collected.length) {
+      throw new Error(`Die KI hat keine Fragen der gewählten Typen erzeugt (${allowed.join(", ")}). ` +
+        `Versuche es erneut oder wähle ein stärkeres Modell.`);
+    }
   }
 
   // Dedupe über normalisierten Fragetext (wichtig bei Chunking-Überschneidungen)
@@ -360,15 +373,27 @@ export async function importQuiz(text, language = "de", config = {}) {
   const { apiKey, model } = await getConfig(config);
   const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
 
+  // Optionale Typen-Whitelist: z.B. NUR math_formula aus einem Übungsblatt ziehen.
+  const allowedImport = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
+    ? QUIZ_ALL_TYPES.filter(t => config.allowedTypes.includes(t))
+    : [];
+  const importTypeRule = allowedImport.length
+    ? `- ABSOLUT VERBINDLICH: Importiere NUR Fragen der Typen ${allowedImport.map(t => `"${t}"`).join(", ")}. ` +
+      `Alle anderen Aufgaben im Dokument ÜBERSPRINGST du komplett.` +
+      (allowedImport.includes("math_formula")
+        ? `\n- Rechenaufgaben werden als "math_formula" importiert: Aufgabenstellung in "question_text", Lösung in "correct_formula".`
+        : "")
+    : `- Erkenne den Fragetyp automatisch: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula".
+- Rechenaufgaben → "free_text" mit Lösung in "correct_text" (oder "math_formula" mit "correct_formula").`;
+
   const systemPrompt = `Du bist ein Experte für das Importieren von Prüfungsfragen aus Dokumenten.
 Das Dokument enthält BEREITS fertige Fragen (z.B. aus Übungsskripten, Altklausuren, Arbeitsblättern).
 Extrahiere ALLE vorhandenen Fragen und konvertiere sie 1:1 in das JSON-Format. ERFINDE KEINE neuen Fragen.
 
 Regeln:
-- Importiere ABSOLUT JEDE einzelne Frage – überspringe KEINE.
-- Erkenne den Fragetyp automatisch: "single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula".
+- Importiere ${allowedImport.length ? "jede passende" : "ABSOLUT JEDE einzelne"} Frage – überspringe ${allowedImport.length ? "nur Fragen fremder Typen" : "KEINE"}.
+${importTypeRule}
 - Behalte den originalen Fragentext möglichst bei.
-- Rechenaufgaben → "free_text" mit Lösung in "correct_text" (oder "math_formula" mit "correct_formula").
 - Wenn Antwortoptionen gegeben sind, markiere die richtigen via "is_correct".
 - Bei fill_blank: Lücken mit ___ markieren, Lösungswörter in "blanks".
 - Bei mehreren unabhängigen Gleichungen/Teilaufgaben (a, b, c …): JEDE wird eine EIGENE, eigenständig lösbare Frage.
@@ -420,6 +445,15 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
     }
   } else {
     collected = await runChunk(text, "Importiere ALLE Fragen aus diesem Dokument:");
+  }
+
+  // Typen-Whitelist strikt durchsetzen (Modelle ignorieren die Regel gelegentlich)
+  if (allowedImport.length) {
+    const kept = collected.filter(q => allowedImport.includes(q.question_type));
+    if (!kept.length && collected.length) {
+      throw new Error(`Im Dokument wurden keine Fragen der gewählten Typen gefunden (${allowedImport.join(", ")}).`);
+    }
+    collected = kept;
   }
 
   // Dedupe über normalisierten Fragetext (Chunking-Überschneidungen)
@@ -493,8 +527,10 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 
   let filteredImg = questions;
   if (allowedImg.length && allowedImg.length < IMG_TYPES.length) {
-    const kept = questions.filter(q => allowedImg.includes(q.question_type));
-    if (kept.length) filteredImg = kept;
+    filteredImg = questions.filter(q => allowedImg.includes(q.question_type));
+    if (!filteredImg.length && questions.length) {
+      throw new Error(`Die KI hat keine Fragen der gewählten Typen erzeugt (${allowedImg.join(", ")}).`);
+    }
   }
 
   return filteredImg.map((q) => ({
@@ -674,8 +710,10 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 
   let filteredImgs = allQuestions;
   if (allowedImgs.length && allowedImgs.length < IMGS_TYPES.length) {
-    const kept = allQuestions.filter(q => allowedImgs.includes(q.question_type));
-    if (kept.length) filteredImgs = kept;
+    filteredImgs = allQuestions.filter(q => allowedImgs.includes(q.question_type));
+    if (!filteredImgs.length && allQuestions.length) {
+      throw new Error(`Die KI hat keine Fragen der gewählten Typen erzeugt (${allowedImgs.join(", ")}).`);
+    }
   }
 
   return filteredImgs.map((q) => ({

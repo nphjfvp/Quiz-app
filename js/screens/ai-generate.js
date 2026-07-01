@@ -591,7 +591,7 @@ export async function render(root, params = {}) {
     try {
       const onProgress = (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; };
       const questions = genMode === "import"
-        ? await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress })
+        ? await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress, allowedTypes })
         : await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize, onProgress });
       const importName = nameInput.value.trim() || "Importiertes Quiz";
       showReview(root, questions, genMode === "import" ? importName : quizName, currentModel, inputText);
