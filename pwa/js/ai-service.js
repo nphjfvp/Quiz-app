@@ -837,12 +837,20 @@ export async function generateSummary(session, config = {}) {
 
 const STUDY_PLAN_SYSTEM = `Du bist ein erfahrener Lernberater. Analysiere das folgende Lernmaterial (z.B. Klausur, Skript, Vorlesung, Übungsblatt) und erstelle einen strukturierten Lernplan.
 
-Aufgaben:
-1. Erkenne die Sprache des Dokuments automatisch.
-2. Extrahiere ALLE Themen/Konzepte die im Dokument vorkommen.
-3. Ordne sie in eine sinnvolle Lernreihenfolge (Grundlagen zuerst, dann aufbauend).
-4. Erstelle für jedes Thema eine YouTube-Suchquery in der Dokumentsprache.
-5. Schätze die Lernzeit pro Thema.
+Vorgehen (WICHTIG, in dieser Reihenfolge):
+1. Verschaffe dir zuerst einen Überblick: Welche großen Themenblöcke/Kapitel deckt das Material ab?
+2. Ein "Thema" ist ein OBERTHEMA (Kapitel-Ebene, z.B. "Quadratische Gleichungen"), NIEMALS ein Detail
+   davon (z.B. "pq-Formel", "Diskriminante" — solche Details gehören als keyTerms UNTER das Oberthema).
+3. Die Themenliste muss GEMEINSAM das GESAMTE Material abdecken — Breite geht vor Tiefe.
+   Lass kein Oberthema weg, nur weil du Details eines anderen aufzählst.
+4. Erkenne die Sprache des Dokuments automatisch.
+5. Ordne die Themen in eine sinnvolle Lernreihenfolge (Grundlagen zuerst, dann aufbauend).
+6. Erstelle für jedes Thema eine YouTube-Suchquery in der Dokumentsprache.
+7. Schätze die Lernzeit pro Thema.
+
+Negativbeispiel (FALSCH): 10 Themen, die alle Unterpunkte desselben Kapitels sind.
+Positivbeispiel (RICHTIG): 5 Themen, die 5 verschiedene Kapitel des Materials abdecken,
+jeweils mit den Detailbegriffen in keyTerms.
 
 Antworte AUSSCHLIESSLICH mit diesem JSON (kein Markdown):
 {
@@ -912,16 +920,18 @@ export async function generateStudyPlan(text, config = {}) {
   const seenTips = new Set();
 
   const useRolling = config.rollingContext !== false; // default on
+  // Budget GLEICHMÄSSIG über alle Abschnitte verteilen. Ein früher Abbruch am
+  // Gesamtlimit würde spätere Vorlesungen komplett überspringen — deren
+  // Oberthemen fehlten dann im Plan, obwohl das Limit eigentlich nur die
+  // Granularität steuern soll.
+  const perChunkBudget = Math.max(1, Math.ceil(globalCap / chunks.length));
   for (let i = 0; i < chunks.length; i++) {
     if (onProgress) onProgress(i + 1, chunks.length);
-    // Stop early if we've already hit the global topic cap
-    if (merged.topics.length >= globalCap) break;
-    const remaining = globalCap - merged.topics.length;
     const covered = useRolling ? merged.topics.map(t => t.name).slice(-50) : [];
     const contextHint = covered.length
-      ? `Bereits erfasste Themen (NICHT wiederholen, nur NEUE ergänzen):\n${covered.join("\n")}\n\n`
+      ? `Bereits erfasste Themen (NICHT wiederholen, nur NEUE ergänzen — falls ein Abschnitt zu einem bereits erfassten Thema gehört, überspringe ihn):\n${covered.join("\n")}\n\n`
       : "";
-    const budgetHint = ` Extrahiere MAXIMAL ${remaining} neue Themen aus diesem Abschnitt.`;
+    const budgetHint = ` Extrahiere MAXIMAL ${perChunkBudget} neue OBERTHEMEN aus diesem Abschnitt (Details als keyTerms zusammenfassen).`;
     const prefix = `${contextHint}Abschnitt ${i + 1}/${chunks.length} des Lernmaterials.${budgetHint} Extrahiere die hier vorkommenden Themen:`;
     try {
       const part = await runChunk(chunks[i], prefix);
@@ -946,8 +956,10 @@ export async function generateStudyPlan(text, config = {}) {
   }
 
   if (!merged.topics.length) throw new Error("KI-Antwort enthält keinen gültigen Lernplan.");
-  // Hard cap: even if the model ignored the limit, enforce it globally
-  if (merged.topics.length > globalCap) merged.topics = merged.topics.slice(0, globalCap);
+  // Weicher Cap: etwas Überhang zulassen (1 Thema pro Abschnitt), damit spätere
+  // Vorlesungen nicht durch hartes Abschneiden aus dem Plan fallen.
+  const hardCap = globalCap + chunks.length;
+  if (merged.topics.length > hardCap) merged.topics = merged.topics.slice(0, hardCap);
   merged.totalHours = Math.round(merged.topics.reduce((s, t) => s + (t.estimatedMinutes || 30), 0) / 60);
   return merged;
 }

@@ -113,7 +113,15 @@ export async function pushAll() {
     daily ? fsPut(syncPath("daily"), daily) : Promise.resolve(),
     fsPut(syncPath("stats"), stats),
     fsPut(syncPath("fsrs"), fsrs),
+    // Metadaten für den Pull-Schutz: Zeitstempel + Umfang des Cloud-Stands.
+    fsPut(syncPath("meta"), { updatedAt: Date.now(), quizCount: quizzes.length }),
   ]);
+}
+
+/** Liest die Cloud-Metadaten (Zeitstempel/Umfang), ohne etwas zu überschreiben. */
+export async function getCloudMeta() {
+  if (!_account) return null;
+  try { return await fsGet(syncPath("meta")); } catch { return null; }
 }
 
 export async function pullAll() {

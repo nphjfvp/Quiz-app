@@ -398,6 +398,25 @@ export async function render(root) {
     });
     root.querySelector("#sync-pull")?.addEventListener("click", async () => {
       const st = root.querySelector("#sync-status");
+      // Pull ist last-write-wins und ÜBERSCHREIBT lokale Quizze/Fortschritt.
+      // Vorher zeigen, wie alt der Cloud-Stand ist, damit kein neuerer lokaler
+      // Stand versehentlich durch einen alten Cloud-Stand ersetzt wird.
+      st.textContent = "Prüfe Cloud-Stand…";
+      let cloudInfo = "Cloud-Stand unbekannt";
+      let localCount = "?";
+      try {
+        const { getCloudMeta } = await import("../firebase-sync.js");
+        const { loadQuizzes: loadLocalQ } = await import("../store.js");
+        const [meta, localQ] = await Promise.all([getCloudMeta(), loadLocalQ()]);
+        localCount = localQ.length;
+        if (meta?.updatedAt) {
+          cloudInfo = `Cloud-Stand vom ${new Date(meta.updatedAt).toLocaleString("de")} (${meta.quizCount ?? "?"} Quizze)`;
+        }
+      } catch (_) { /* Meta ist best-effort — die Bestätigung kommt trotzdem */ }
+      if (!confirm(`${cloudInfo}.\n\nLokale Daten (${localCount} Quizze, Fortschritt, Statistiken) werden ÜBERSCHRIEBEN. Fortfahren?`)) {
+        st.textContent = "Abgebrochen — nichts überschrieben.";
+        return;
+      }
       st.textContent = "Lade herunter…";
       try { const ok = await pullAll(); st.textContent = ok ? "✓ Heruntergeladen!" : "Keine Cloud-Daten gefunden."; }
       catch (e) { st.textContent = "Fehler beim Herunterladen: " + (e?.message || ""); }

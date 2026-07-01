@@ -323,6 +323,15 @@ body {
 .mini-card .icon { font-size: 1.2rem; margin-bottom: 4px; }
 .mini-card .title { font-size: 0.72rem; }
 
+/* Breite Werkzeug-Karte: Icon links, Text links ausgerichtet — 2 pro Reihe */
+.tool-card {
+  display: flex; align-items: center; gap: 10px;
+  text-align: left; padding: 12px 12px;
+}
+.tool-card .icon { font-size: 1.45rem; margin-bottom: 0; flex-shrink: 0; }
+.tool-card .title { font-size: 0.82rem; }
+.tool-card .desc { margin-top: 1px; }
+
 /* ── Buttons ── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center;

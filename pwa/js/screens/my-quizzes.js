@@ -10,8 +10,36 @@ export async function render(root) {
   let selectMode = false;
   const selected = new Set();
 
-  let html = `<button class="back-btn" id="back-btn">‹ Zurück</button>
-    <div class="list-header">
+  // Learning tools FIRST — the ways to learn are the primary content of the
+  // Lernen tab; the quiz library lives in its own section below.
+  const TOOLS = [
+    ["ai-generate", "🤖", "KI-Generator", "Quiz aus Text/PDF/Bild"],
+    ["study-plan", "📅", "Lernplan", "Klausurvorbereitung"],
+    ["study", "🃏", "Karteikarten", "Spaced Repetition"],
+    ["socratic", "🏛️", "Sokrates", "Fragend verstehen"],
+    ["deep-learn", "🔬", "Deep Learn", "Geführte Sessions"],
+    ["tutor", "💬", "KI-Tutor", "Freier Lern-Chat"],
+    ["random", "🎲", "Zufalls-Modus", "Fragen aus allen Quizzen"],
+    ["scaffold", "🔢", "Formel-Training", "Schritt für Schritt"],
+    ["cloze", "✂️", "Lückentext", "KI-Zusammenfassung"],
+    ["formula-sheets", "📋", "Formelsammlung", "Pro Fach sammeln"],
+    ["editor", "✏️", "Editor", "Quiz manuell erstellen"],
+    ["folders", "📁", "Ordner", "Klausuren gruppieren"],
+    ["marked", "⭐", "Markiert", "Gemerkte Fragen"],
+    ["pomodoro", "🍅", "Pomodoro", "Fokus-Timer"],
+    ["image-editor", "🖌️", "Bild-Editor", "Schwärzen & malen"],
+  ];
+  let html = `<div class="section-title" style="margin-top:4px">Lernen</div>
+    <div class="grid-2">
+      ${TOOLS.map(([nav, icon, title, desc]) => `
+        <div class="grid-card tool-card" data-nav="${nav}">
+          <div class="icon">${icon}</div>
+          <div><div class="title">${title}</div><div class="desc">${desc}</div></div>
+        </div>`).join("")}
+    </div>`;
+
+  // Quiz library below, in its own section
+  html += `<div class="list-header" style="margin-top:6px">
       <div class="section-title" style="margin:0">📚 Meine Quizze</div>
       <div style="display:flex;gap:6px">
         ${quizzes.length ? `<button class="btn btn-ghost btn-sm" id="select-btn">Auswählen</button>` : ""}
@@ -28,7 +56,7 @@ export async function render(root) {
     </div>`;
 
   if (!quizzes.length) {
-    html += `<div class="empty">Noch keine Quizze.<br>Importiere welche über Einstellungen!</div>`;
+    html += `<div class="empty">Noch keine Quizze.<br>Erstelle eins mit dem KI-Generator oder Editor!</div>`;
   } else {
     for (const quiz of quizzes) {
       const n = quiz.questions?.length ?? 0;
@@ -52,29 +80,8 @@ export async function render(root) {
     }
   }
 
-  // Learning tools – accessible from the Lernen tab
-  html += `<div class="section-title">Lern-Werkzeuge</div>`;
-  html += `<div class="grid-4">
-    <div class="grid-card mini-card" data-nav="ai-generate"><div class="icon">🤖</div><div class="title">KI-Generator</div></div>
-    <div class="grid-card mini-card" data-nav="editor"><div class="icon">✏️</div><div class="title">Editor</div></div>
-    <div class="grid-card mini-card" data-nav="study"><div class="icon">🃏</div><div class="title">Karteikarten</div></div>
-    <div class="grid-card mini-card" data-nav="cloze"><div class="icon">✂️</div><div class="title">Lückentext</div></div>
-    <div class="grid-card mini-card" data-nav="folders"><div class="icon">📁</div><div class="title">Ordner / Klausuren</div></div>
-    <div class="grid-card mini-card" data-nav="random"><div class="icon">🎲</div><div class="title">Zufalls-Modus</div></div>
-    <div class="grid-card mini-card" data-nav="formula-sheets"><div class="icon">📋</div><div class="title">Formelsammlung</div></div>
-    <div class="grid-card mini-card" data-nav="marked"><div class="icon">⭐</div><div class="title">Markiert</div></div>
-    <div class="grid-card mini-card" data-nav="scaffold"><div class="icon">🔢</div><div class="title">Formel-Training</div></div>
-    <div class="grid-card mini-card" data-nav="deep-learn"><div class="icon">🔬</div><div class="title">Deep Learn</div></div>
-    <div class="grid-card mini-card" data-nav="socratic"><div class="icon">🏛️</div><div class="title">Sokrates</div></div>
-    <div class="grid-card mini-card" data-nav="tutor"><div class="icon">💬</div><div class="title">KI-Tutor</div></div>
-    <div class="grid-card mini-card" data-nav="pomodoro"><div class="icon">🍅</div><div class="title">Pomodoro</div></div>
-    <div class="grid-card mini-card" data-nav="image-editor"><div class="icon">🖌️</div><div class="title">Bild-Editor</div></div>
-    <div class="grid-card mini-card" data-nav="study-plan"><div class="icon">📋</div><div class="title">Lernplan</div></div>
-  </div>`;
-
   root.innerHTML = html;
 
-  root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
   root.querySelector("#new-quiz-btn").addEventListener("click", () => navigate("editor"));
 
   // ── Multi-select / bulk delete ───────────────────────────────────────
