@@ -487,6 +487,17 @@ async function saveQuiz(quizzes) {
       alert(`Frage ${i + 1}: Alle Antworten müssen Text haben.`);
       return;
     }
+    // Ohne richtige Option wäre die Frage unlösbar (checkAnswer findet Index -1).
+    if ((q.question_type === "single_choice" || q.question_type === "multiple_choice") &&
+        !q.options.some((o) => o.is_correct)) {
+      alert(`Frage ${i + 1}: Mindestens eine Antwort muss als richtig markiert sein.`);
+      return;
+    }
+    if (q.question_type === "fill_blank" &&
+        (!q.blanks || !q.blanks.length || q.blanks.some((b) => !String(b).trim()))) {
+      alert(`Frage ${i + 1}: Lückentext braucht mindestens eine ausgefüllte Lücke.`);
+      return;
+    }
   }
 
   const idx = quizzes.findIndex((q) => q.id === quiz.id);

@@ -78,7 +78,7 @@ export async function quizToHtml(quiz) {
 
   const questionCards = questions.map((q, i) => {
     let imgHtml = "";
-    const imgSrc = q.image || q.image_path;
+    const imgSrc = q.image || q.image_path || q.diagram_image || q.diagram_image_path;
     if (imgSrc) {
       const dataUrl = imageCache.get(imgSrc) || imgSrc;
       imgHtml = `<div class="quiz-img-wrap"><img src="${escapeAttr(dataUrl)}" alt="Fragebild"></div>`;

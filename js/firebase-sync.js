@@ -50,9 +50,18 @@ export async function refreshToken() {
   _account.expiresAt = Date.now() + parseInt(data.expires_in) * 1000;
 }
 
+let _refreshPromise = null;
 async function ensureToken() {
   if (!_account) return null;
-  if (_account.expiresAt - Date.now() < 60000) await refreshToken();
+  if (_account.expiresAt - Date.now() < 60000) {
+    // Promise-Lock: parallele Sync-Aufrufe teilen sich EINEN Refresh, statt
+    // gleichzeitig zwei Refresh-Requests zu feuern (Firebase rotiert das
+    // Refresh-Token — Doppel-Refresh kann Tokens gegenseitig invalidieren).
+    if (!_refreshPromise) {
+      _refreshPromise = refreshToken().finally(() => { _refreshPromise = null; });
+    }
+    await _refreshPromise;
+  }
   return _account.idToken;
 }
 

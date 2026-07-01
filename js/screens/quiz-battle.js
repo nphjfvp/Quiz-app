@@ -223,96 +223,96 @@ function showQuestion(state, root, canvas) {
   const txt = document.createElement("div");
   txt.innerHTML = mathEsc(q.prompt);
   qtextEl.appendChild(txt);
-  const cards = root.querySelector(“#qb-cards”);
-  cards.innerHTML = “”;
+  const cards = root.querySelector("#qb-cards");
+  cards.innerHTML = "";
 
-  const commit = (ok, userAnswer = “”, aiFeedback = null) => {
+  const commit = (ok, userAnswer = "", aiFeedback = null) => {
     if (state.locked) return;
     state.locked = true;
     if (state.currentQ) state.log.push({ q: state.currentQ, correct: ok, userAnswer, aiFeedback });
     onAnswer(state, ok, root);
-    if (state.mode === “pvc”) cpuTurn(state, root);
+    if (state.mode === "pvc") cpuTurn(state, root);
     const ongoing = !state.gameOver && state.towerHP > 0
-      && (state.mode === “pvc” ? state.cpuHP > 0 : state.kills < state.goalKills);
+      && (state.mode === "pvc" ? state.cpuHP > 0 : state.kills < state.goalKills);
     if (ongoing) setTimeout(() => showQuestion(state, root, canvas), 950);
   };
 
-  if (q.kind === “choice”) {
+  if (q.kind === "choice") {
     shuffle([...q.options]).forEach((o) => {
-      const card = document.createElement(“div”);
-      card.className = “qb-card”;
+      const card = document.createElement("div");
+      card.className = "qb-card";
       card.innerHTML = mathEsc(o.text);
       makeDraggable(card, canvas, () => commit(!!o.correct, o.text));
       cards.appendChild(card);
     });
-  } else if (q.kind === “multi”) {
+  } else if (q.kind === "multi") {
     const shuffled = shuffle([...q.options]);
     const selected = new Set();
-    const hint = document.createElement(“div”);
-    hint.className = “qb-multi-hint”;
-    hint.textContent = “Mehrere richtig — antippen zum Wählen, dann „Angreifen” ziehen”;
+    const hint = document.createElement("div");
+    hint.className = "qb-multi-hint";
+    hint.textContent = "Mehrere richtig — antippen zum Wählen, dann »Angreifen« ziehen";
     cards.appendChild(hint);
     shuffled.forEach((o, i) => {
-      const card = document.createElement(“div”);
-      card.className = “qb-card qb-card-select”;
+      const card = document.createElement("div");
+      card.className = "qb-card qb-card-select";
       card.innerHTML = mathEsc(o.text);
-      card.addEventListener(“click”, () => {
-        if (selected.has(i)) { selected.delete(i); card.classList.remove(“selected”); }
-        else { selected.add(i); card.classList.add(“selected”); }
+      card.addEventListener("click", () => {
+        if (selected.has(i)) { selected.delete(i); card.classList.remove("selected"); }
+        else { selected.add(i); card.classList.add("selected"); }
         attackCard.textContent = `⚔️ Angreifen (${selected.size})`;
       });
       cards.appendChild(card);
     });
-    const attackCard = document.createElement(“div”);
-    attackCard.className = “qb-card qb-attack-card”;
-    attackCard.textContent = “⚔️ Angreifen (0)”;
+    const attackCard = document.createElement("div");
+    attackCard.className = "qb-card qb-attack-card";
+    attackCard.textContent = "⚔️ Angreifen (0)";
     makeDraggable(attackCard, canvas, () => {
       const chosen = shuffled.filter((_, i) => selected.has(i));
-      commit(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))), chosen.map(o => o.text).join(“, “));
+      commit(checkMulti(q.options, chosen.map(o => q.options.indexOf(o))), chosen.map(o => o.text).join(", "));
     });
     cards.appendChild(attackCard);
-  } else if (q.kind === “multi_text”) {
+  } else if (q.kind === "multi_text") {
     const inputs = [];
     q.blanks.forEach((_, i) => {
-      const row = document.createElement(“div”);
-      row.className = “td-blank-row”;
-      const label = document.createElement(“span”);
-      label.className = “td-blank-label”;
+      const row = document.createElement("div");
+      row.className = "td-blank-row";
+      const label = document.createElement("span");
+      label.className = "td-blank-label";
       label.textContent = `Lücke ${i + 1}:`;
-      const inp = document.createElement(“input”);
-      inp.type = “text”; inp.className = “td-input”; inp.placeholder = `Lücke ${i + 1}…`;
+      const inp = document.createElement("input");
+      inp.type = "text"; inp.className = "td-input"; inp.placeholder = `Lücke ${i + 1}…`;
       inputs.push(inp);
       row.appendChild(label); row.appendChild(inp);
       cards.appendChild(row);
     });
-    const btn = document.createElement(“button”);
-    btn.className = “td-opt td-submit”;
-    btn.textContent = “⚔️ Bestätigen”;
-    btn.addEventListener(“click”, () => {
+    const btn = document.createElement("button");
+    btn.className = "td-opt td-submit";
+    btn.textContent = "⚔️ Bestätigen";
+    btn.addEventListener("click", () => {
       const vals = inputs.map(i => i.value);
-      commit(checkMultiText(q.blanks, vals), vals.join(“, “));
+      commit(checkMultiText(q.blanks, vals), vals.join(", "));
     });
-    inputs[inputs.length - 1]?.addEventListener(“keydown”, (e) => { if (e.key === “Enter”) btn.click(); });
+    inputs[inputs.length - 1]?.addEventListener("keydown", (e) => { if (e.key === "Enter") btn.click(); });
     cards.appendChild(btn);
     setTimeout(() => inputs[0]?.focus(), 50);
   } else {
-    const inp = document.createElement(“input”);
-    inp.type = “text”;
-    inp.className = “td-input”;
-    inp.placeholder = “Antwort eingeben…”;
-    const btn = document.createElement(“button”);
-    btn.className = “td-opt td-submit”;
-    btn.textContent = “⚔️”;
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "td-input";
+    inp.placeholder = "Antwort eingeben…";
+    const btn = document.createElement("button");
+    btn.className = "td-opt td-submit";
+    btn.textContent = "⚔️";
     const check = async () => {
       const localOk = checkText(q.accept, inp.value);
       if (localOk) { commit(true, inp.value); return; }
       const result = await checkTextSmart(q.prompt, q.accept, inp.value);
       commit(result.correct, inp.value, result.feedback);
     };
-    btn.addEventListener(“click”, check);
-    inp.addEventListener(“keydown”, (e) => { if (e.key === “Enter”) check(); });
-    const wrap = document.createElement(“div”);
-    wrap.className = “qb-text-row”;
+    btn.addEventListener("click", check);
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
+    const wrap = document.createElement("div");
+    wrap.className = "qb-text-row";
     wrap.appendChild(inp); wrap.appendChild(btn);
     cards.appendChild(wrap);
     setTimeout(() => inp.focus(), 50);
@@ -476,7 +476,7 @@ function updateClassic(state, dt) {
         h.attackCd = 600;
         const dmg = h.dmg * (1 - e.armor);
         e.hp -= dmg; e.hit = 6;
-        addFloater(state, e.x + (Math.random(, 45) - 0.5) * 12, e.y - e.size, `-${Math.round(dmg)}`, "#22d3ee");
+        addFloater(state, e.x + (Math.random() - 0.5) * 12, e.y - e.size, `-${Math.round(dmg)}`, "#22d3ee", 45);
       }
     } else {
       h.y -= h.speed * dt * 0.1 + h.speed;
@@ -500,7 +500,7 @@ function updatePvc(state, dt) {
       if (h.attackCd <= 0) {
         h.attackCd = 600;
         foe.hp -= h.dmg; foe.hit = 6;
-        addFloater(state, foe.x, foe.y - foe.size, `-${Math.round(h.dmg, 45)}`, "#22d3ee");
+        addFloater(state, foe.x, foe.y - foe.size, `-${Math.round(h.dmg)}`, "#22d3ee", 45);
       }
     } else {
       h.y -= h.speed * dt * 0.1 + h.speed * 0.5;
@@ -520,7 +520,7 @@ function updatePvc(state, dt) {
       if (f.attackCd <= 0) {
         f.attackCd = 650;
         hero.hp -= f.dmg; hero.hit = 6;
-        addFloater(state, hero.x, hero.y - hero.size, `-${Math.round(f.dmg, 45)}`, "#ef4444");
+        addFloater(state, hero.x, hero.y - hero.size, `-${Math.round(f.dmg)}`, "#ef4444", 45);
       }
     } else {
       f.y += f.speed * dt * 0.1 + f.speed * 0.5;

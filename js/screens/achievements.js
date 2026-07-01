@@ -33,15 +33,10 @@ export async function render(root) {
   const box5 = Object.values(progress).filter(p => (p.box ?? 1) >= 5).length;
   const hasPerfect = allDays.some(([, d]) => d.answered >= 5 && d.correct === d.answered);
 
-  const hours = allDays.map(([date]) => {
-    const h = new Date(date + "T12:00:00").getHours();
-    return h;
-  });
-  const lateNight = allDays.some(([d]) => {
-    const hour = parseInt(d.slice(11, 13) || "12");
-    return hour >= 23;
-  }) || (saved.night_owl_unlocked || false);
-  const earlyMorning = saved.early_bird_unlocked || false;
+  // Tageszeit-Erfolge: Flags werden in store.js logAnswer() gesetzt, da die
+  // Stats-Keys (YYYY-MM-DD) keine Uhrzeit enthalten.
+  const lateNight = !!saved.night_owl_unlocked;
+  const earlyMorning = !!saved.early_bird_unlocked;
 
   const ctx = {
     totalAnswered, totalCorrect, maxStreak, streak,
