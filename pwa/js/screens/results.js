@@ -98,6 +98,16 @@ export async function render(root, params) {
   }
   const bonusCoins = session.awardedBonus || 0;
 
+  // Auto-Sync: nach Quiz-Abschluss den Stand still in die Cloud pushen,
+  // wenn ein Account eingeloggt ist (abschaltbar via Setting autoSync).
+  try {
+    const settings = await loadSettings();
+    if (settings.autoSync !== false) {
+      const { getAccount, pushAll } = await import("../firebase-sync.js");
+      if (getAccount()) pushAll().catch(() => { /* offline o.ä. — nächster Abschluss versucht es erneut */ });
+    }
+  } catch (_) {}
+
   let html = `
     <div class="result-hero" style="background:${bgColor}">
       <div style="font-size:2rem;margin-bottom:4px">${emoji}</div>

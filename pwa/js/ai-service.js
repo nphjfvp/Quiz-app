@@ -215,7 +215,17 @@ function buildQuizSystemPrompt(countRule, typesList, language) {
   return `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
 WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
 
-Regeln:
+Qualitätsregeln (entscheidend für gute Prüfungsfragen):
+- Prüfe VERSTÄNDNIS und ANWENDUNG, nicht Wortlaut-Wiedergabe. Mische die Anspruchsniveaus:
+  ~1/3 Reproduktion (Definitionen), ~1/3 Verständnis (Warum/Wie/Abgrenzung), ~1/3 Transfer (Anwendung auf neuen Fall).
+- Falsche Antwortoptionen (Distraktoren) müssen PLAUSIBEL sein: typische Fehlvorstellungen,
+  verwandte Begriffe, häufige Verwechslungen — niemals offensichtlich absurde Optionen.
+- Jede Frage muss OHNE den Quelltext eigenständig verständlich sein. Verboten sind Formulierungen
+  wie "laut Text", "im obigen Abschnitt", "wie in der Vorlesung erwähnt".
+- Beziehe dich inhaltlich NUR auf den gegebenen Text. Erfinde keine Fakten, Zahlen oder Namen dazu.
+- Vermeide Fragen zu Nebensächlichkeiten (Folien-Nummern, Beispielnamen, organisatorisches).
+
+Format-Regeln:
 - ${countRule}
 - Verwende AUSSCHLIESSLICH diese Fragetypen: ${typesList}. Andere Typen sind NICHT erlaubt.
 - Jede Frage muss eine klare, verständliche Erklärung enthalten, warum die richtige Antwort korrekt ist.
@@ -1422,29 +1432,52 @@ export async function generateFormulaSheet(text, config = {}) {
     ? ',"source_quote":"..."'
     : "";
 
-  const messages = [
-    {
-      role: "system",
-      content: "Du bist ein Mathematik-Experte. Extrahiere AUSSCHLIESSLICH reine Formeln aus dem gegebenen Text.\n" +
-        "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
-        "Nur allgemeingültige Formeln, die man anwenden kann (wie pq-Formel, abc-Formel, Satz des Pythagoras, Ableitungsregeln, etc.).\n" +
-        "Für jede Formel: Name, die Formel in LaTeX, und die Variablen mit Beschreibung.\n" +
-        sourceInstruction +
-        '\nAntworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]' + sourceField + '}]}',
-    },
-    {
-      role: "user",
-      content: `Extrahiere alle Formeln aus diesem Text (KEINE Beispielrechnungen, nur allgemeine Formeln):${promptExtra}\n\n${text.slice(0, 8000)}`,
-    },
-  ];
+  const systemPrompt = "Du bist ein Mathematik-Experte. Extrahiere AUSSCHLIESSLICH reine Formeln aus dem gegebenen Text.\n" +
+    "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
+    "Nur allgemeingültige Formeln, die man anwenden kann (wie pq-Formel, abc-Formel, Satz des Pythagoras, Ableitungsregeln, etc.).\n" +
+    "\nLaTeX-Regeln für das Feld \"formula\" (STRIKT einhalten):\n" +
+    "- NUR gültiges KaTeX-LaTeX, OHNE $-Delimiter und ohne Prosa.\n" +
+    "- Brüche als \\frac{a}{b} (nie a/b bei mehrgliedrigen Termen), Potenzen als x^{2}, Indizes als x_{1}.\n" +
+    "- Wurzeln als \\sqrt{x}, griechische Buchstaben als \\alpha, \\sigma usw.\n" +
+    "- KEINE Unicode-Mathe-Zeichen (², ×, ÷, √, ≤) — immer die LaTeX-Befehle (^{2}, \\cdot, \\div, \\sqrt, \\le).\n" +
+    "- ACHTUNG: Der Eingabetext stammt aus einer PDF-Text-Extraktion und kann Formeln VERSTÜMMELT enthalten " +
+    "(verlorene Hoch-/Tiefstellungen, fehlende Bruchstriche). Rekonstruiere die fachlich korrekte Standardform " +
+    "der Formel; wenn eine Formel nicht sicher rekonstruierbar ist, lass sie WEG statt zu raten.\n" +
+    "\nBeispiel eines korrekten Eintrags:\n" +
+    '{"name":"Normalverteilung (Dichte)","formula":"f(x) = \\\\frac{1}{\\\\sigma\\\\sqrt{2\\\\pi}} e^{-\\\\frac{(x-\\\\mu)^{2}}{2\\\\sigma^{2}}}","variables":[{"symbol":"\\\\mu","description":"Erwartungswert"},{"symbol":"\\\\sigma","description":"Standardabweichung"}]}\n' +
+    sourceInstruction +
+    '\nAntworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","variables":[{"symbol":"...","description":"..."}]' + sourceField + '}]}';
 
-  const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
-  try {
+  const runChunk = async (chunk, hint) => {
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Extrahiere alle Formeln aus diesem Text (KEINE Beispielrechnungen, nur allgemeine Formeln):${promptExtra}${hint}\n\n${chunk}` },
+    ];
+    const raw = await chatCompletion(messages, { apiKey, model: model || "deepseek/deepseek-chat", stream: false });
     const parsed = parseJSON(raw);
     return parsed?.formulas || [];
-  } catch {
-    return [{ name: "Extrahierte Formeln", formula: raw?.slice(0, 500) || "Fehler beim Parsen", variables: [] }];
+  };
+
+  // Große Skripte abschnittsweise verarbeiten statt hart bei 8k Zeichen
+  // abzuschneiden (vorher fehlten alle Formeln nach ~3 Seiten kommentarlos).
+  const chunks = chunkText(text, 7000);
+  const all = [];
+  const seen = new Set();
+  for (let i = 0; i < chunks.length; i++) {
+    if (typeof config.onProgress === "function") config.onProgress(i + 1, chunks.length);
+    const hint = chunks.length > 1 ? ` (Abschnitt ${i + 1}/${chunks.length})` : "";
+    try {
+      for (const f of await runChunk(chunks[i], hint)) {
+        const key = String(f.formula || "").replace(/\s+/g, "");
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        all.push(f);
+      }
+    } catch (err) {
+      if (chunks.length === 1) throw err;
+    }
   }
+  return all;
 }
 
 /**
@@ -1637,6 +1670,9 @@ export async function extractFormulasFromImages(imageUrls, config = {}) {
           "WICHTIG: KEINE Beispielrechnungen, KEINE Zahlenbeispiele, KEINE Textaufgaben.\n" +
           "Nur allgemeingültige Formeln (wie pq-Formel, Ableitungsregeln, physikalische Gesetze, etc.).\n" +
           "Gib für jede Formel einen sprechenden Namen und die Formel in korrektem LaTeX an.\n" +
+          "LaTeX-Regeln (STRIKT): NUR gültiges KaTeX-LaTeX ohne $-Delimiter. Brüche als \\frac{a}{b}, " +
+          "Potenzen als x^{2}, Indizes als x_{1}, Wurzeln als \\sqrt{x}, griechische Buchstaben als \\alpha usw. " +
+          "KEINE Unicode-Mathe-Zeichen (², ×, ÷, √) — übertrage exakt die Formel aus dem Bild, nichts erfinden.\n" +
           "Gib zusätzlich pro Formel ein Feld 'source_section' an, das beschreibt, WO im Bild die Formel zu finden ist (z.B. 'oberer Abschnitt', 'Seite 5, Kasten links', 'unter der Überschrift Dynamik').\n" +
           'Antworte NUR mit JSON: {"formulas":[{"name":"...","formula":"...","source_section":"..."}]}' +
           dedupHint,
