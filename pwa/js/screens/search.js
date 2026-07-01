@@ -79,7 +79,7 @@ export async function render(root) {
         const id = el.dataset.searchId;
         if (t === "quiz") navigate("quiz-modes", { quizId: id });
         else if (t === "formula") navigate("formula-sheets", { sheetId: id });
-        else if (t === "plan") navigate("study-plans", { planId: id, action: "view" });
+        else if (t === "plan") navigate("study-plan");
       });
     });
   }

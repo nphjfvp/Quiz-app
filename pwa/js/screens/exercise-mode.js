@@ -70,7 +70,7 @@ export async function render(root, params = {}) {
     root.innerHTML = html;
 
     root.querySelector("#ex-back").addEventListener("click", () => {
-      navigate("study-plans", planId ? { planId, action: "view" } : {});
+      navigate("study-plan");
     });
 
     root.querySelector("#ex-gen-btn")?.addEventListener("click", async () => {

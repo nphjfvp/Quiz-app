@@ -921,7 +921,7 @@ export async function generateStudyPlan(text, config = {}) {
     const contextHint = covered.length
       ? `Bereits erfasste Themen (NICHT wiederholen, nur NEUE ergänzen):\n${covered.join("\n")}\n\n`
       : "";
-    const budgetHint = detail !== "fine" ? ` Extrahiere MAXIMAL ${remaining} neue Themen aus diesem Abschnitt.` : "";
+    const budgetHint = ` Extrahiere MAXIMAL ${remaining} neue Themen aus diesem Abschnitt.`;
     const prefix = `${contextHint}Abschnitt ${i + 1}/${chunks.length} des Lernmaterials.${budgetHint} Extrahiere die hier vorkommenden Themen:`;
     try {
       const part = await runChunk(chunks[i], prefix);

@@ -174,7 +174,7 @@ export async function render(root) {
   root.innerHTML = html;
 
   root.querySelector("#back-btn").addEventListener("click", () => navigate("home"));
-  root.querySelector("#open-study-plans")?.addEventListener("click", () => navigate("study-plans"));
+  root.querySelector("#open-study-plans")?.addEventListener("click", () => navigate("study-plan"));
 
   // Lernphase radios
   root.querySelectorAll("input[name='learning-phase']").forEach(r => {

@@ -568,10 +568,15 @@ function renderPlan(container, plan, sourceText, model, onSaved) {
               </div>` : ""}
             </div>`;
         });
+        // The user may have generated/loaded a different plan while this
+        // request was in flight, replacing container.innerHTML — bail out
+        // instead of writing into a now-detached DOM node.
+        if (!subEl.isConnected) return;
         subEl.innerHTML = subHtml;
         subEl.dataset.loaded = "1";
         btn.textContent = "🔍 Einklappen";
       } catch (err) {
+        if (!subEl.isConnected) return;
         subEl.innerHTML = `<div style="font-size:0.8rem;color:var(--danger)">Fehler: ${esc(err.message || "Unterthemen konnten nicht erstellt werden.")}</div>`;
         btn.textContent = "🔍 Unterthemen";
       }
