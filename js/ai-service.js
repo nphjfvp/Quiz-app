@@ -305,7 +305,9 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
   let collected;
   if (useChunking) {
     const chunks = chunkText(text, chunkSize);
-    const perChunkCount = auto ? 0 : Math.max(1, Math.round(numQuestions / chunks.length));
+    // ceil statt round: lieber leicht überschießen und am Ende auf numQuestions
+    // kappen, als die gewünschte Anzahl systematisch zu unterschreiten.
+    const perChunkCount = auto ? 0 : Math.max(1, Math.ceil(numQuestions / chunks.length));
     const covered = []; // Titel/Themen bereits erzeugter Fragen (Rolling Context)
     collected = [];
     for (let i = 0; i < chunks.length; i++) {
@@ -456,16 +458,22 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
     collected = kept;
   }
 
-  // Dedupe über normalisierten Fragetext (Chunking-Überschneidungen)
-  const seen = new Set();
-  const deduped = [];
-  for (const q of collected) {
-    const key = (q.question_text || "").toLowerCase().replace(/\s+/g, " ").trim();
-    if (key && seen.has(key)) continue;
-    if (key) seen.add(key);
-    deduped.push(q);
+  // Dedupe NUR beim Chunking (dort entstehen Überschneidungen an den
+  // Abschnittsgrenzen). Ohne Chunking bleibt der Import strikt 1:1 —
+  // Dokumente enthalten legitim identische Fragestämme ("Berechne:" …),
+  // die vorher fälschlich verworfen wurden.
+  let result = collected;
+  if (useChunking) {
+    const seen = new Set();
+    result = [];
+    for (const q of collected) {
+      const key = (q.question_text || "").toLowerCase().replace(/\s+/g, " ").trim();
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      result.push(q);
+    }
   }
-  return deduped.map(normalizeQuizQuestion);
+  return result.map(normalizeQuizQuestion);
 }
 
 // Generiert Fragen direkt aus einem Bild (Screenshot, Foto, Diagramm) via Vision-Modell.
@@ -478,15 +486,28 @@ export async function generateQuizFromImage(imageUrl, numQuestions = 3, language
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
   const IMG_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "diagram_label"];
-  const allowedImg = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
-    ? IMG_TYPES.filter(t => config.allowedTypes.includes(t))
-    : IMG_TYPES;
-  const imgTypesList = (allowedImg.length ? allowedImg : IMG_TYPES).map(t => `"${t}"`).join(", ");
+  let allowedImg = IMG_TYPES;
+  if (Array.isArray(config.allowedTypes) && config.allowedTypes.length) {
+    allowedImg = IMG_TYPES.filter(t => config.allowedTypes.includes(t));
+    // Leere Schnittmenge = Auswahl unerfüllbar → klarer Fehler statt stillem
+    // Zurückfallen auf alle Typen (das hat die Nutzer-Auswahl ignoriert).
+    if (!allowedImg.length) {
+      throw new Error(`Die gewählten Fragetypen sind für Bild-Fragen nicht verfügbar. Unterstützt: ${IMG_TYPES.join(", ")}.`);
+    }
+  }
+  const imgTypesList = allowedImg.map(t => `"${t}"`).join(", ");
+
+  const detail = config.detailLevel || "normal";
+  const detailHintImg = detail === "thorough"
+    ? " Sei MAXIMAL gründlich: erstelle zu jedem erkennbaren Konzept im Bild eine Frage."
+    : detail === "compact"
+    ? " Konzentriere dich auf die wichtigsten Kernaussagen des Bildes."
+    : "";
 
   const systemPrompt = `Du bist ein erfahrener Pädagoge. Analysiere das gezeigte Bild (Diagramm, Skizze, Screenshot, Tafelbild o.ä.) und erstelle daraus hochwertige Lernfragen.
 
 Regeln:
-- Erstelle bis zu ${numQuestions} Fragen, die sich auf den Bildinhalt beziehen.
+- Erstelle bis zu ${numQuestions} Fragen, die sich auf den Bildinhalt beziehen.${detailHintImg}
 - Verwende AUSSCHLIESSLICH diese Fragetypen: ${imgTypesList}. Andere Typen sind NICHT erlaubt.
 - Wenn das Bild ein beschriftbares Diagramm ist, kannst du eine "diagram_label"-Frage erstellen: liste die zu beschriftenden Punkte in "diagram_labels" mit Name und relativer Position x/y (0-1) auf.
 - Jede Frage braucht eine klare Erklärung.
@@ -496,7 +517,7 @@ Regeln:
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
   {
-    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank" | "diagram_label",
+    "question_type": ${imgTypesList},
     "question_text": "Fragetext",
     "title": "Kurztitel",
     "topic": "Themengebiet",
@@ -564,10 +585,14 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
   const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
   const chunkSize = Number(config.chunkSize) || 0; // Images per chunk (0 = all at once)
   const IMGS_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank"];
-  const allowedImgs = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
-    ? IMGS_TYPES.filter(t => config.allowedTypes.includes(t))
-    : IMGS_TYPES;
-  const imgsTypesList = (allowedImgs.length ? allowedImgs : IMGS_TYPES).map(t => `"${t}"`).join(", ");
+  let allowedImgs = IMGS_TYPES;
+  if (Array.isArray(config.allowedTypes) && config.allowedTypes.length) {
+    allowedImgs = IMGS_TYPES.filter(t => config.allowedTypes.includes(t));
+    if (!allowedImgs.length) {
+      throw new Error(`Die gewählten Fragetypen sind für PDF-Bild-Fragen nicht verfügbar. Unterstützt: ${IMGS_TYPES.join(", ")}.`);
+    }
+  }
+  const imgsTypesList = allowedImgs.map(t => `"${t}"`).join(", ");
 
   const autoImg = !(numQuestions > 0);
   const detailImg = config.detailLevel || "normal";
@@ -714,6 +739,11 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
     if (!filteredImgs.length && allQuestions.length) {
       throw new Error(`Die KI hat keine Fragen der gewählten Typen erzeugt (${allowedImgs.join(", ")}).`);
     }
+  }
+
+  // Bei fester Anzahl nicht überschießen (ceil pro Batch summiert sich sonst auf)
+  if (!autoImg && filteredImgs.length > numQuestions) {
+    filteredImgs = filteredImgs.slice(0, numQuestions);
   }
 
   return filteredImgs.map((q) => ({
@@ -956,7 +986,13 @@ export async function generateStudyPlan(text, config = {}) {
   const useChunking = chunkSize > 0 && text.length > chunkSize;
 
   if (!useChunking) {
-    return runChunk(text, "Analysiere dieses Lernmaterial und erstelle einen Lernplan:");
+    const plan = await runChunk(text, "Analysiere dieses Lernmaterial und erstelle einen Lernplan:");
+    // Detailgrad-Limit auch hier im Code durchsetzen (nicht nur im Prompt)
+    if (detail !== "fine" && plan.topics.length > globalCap) {
+      plan.topics = plan.topics.slice(0, globalCap);
+      plan.totalHours = Math.round(plan.topics.reduce((s, t) => s + (t.estimatedMinutes || 30), 0) / 60);
+    }
+    return plan;
   }
 
   // Chunked: über mehrere Abschnitte/Vorlesungen hinweg Themen sammeln.

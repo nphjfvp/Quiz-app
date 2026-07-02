@@ -31,7 +31,10 @@ export async function render(root) {
   const totalAnswered = allDays.reduce((s, [, d]) => s + (d.answered || 0), 0);
   const totalCorrect = allDays.reduce((s, [, d]) => s + (d.correct || 0), 0);
   const box5 = Object.values(progress).filter(p => (p.box ?? 1) >= 5).length;
-  const hasPerfect = allDays.some(([, d]) => d.answered >= 5 && d.correct === d.answered);
+  // Präzises Flag aus results.js (einzelnes Quiz mit 100%); der Tages-Check
+  // bleibt als Fallback für Alt-Nutzer, die den Erfolg vorher erspielt haben.
+  const hasPerfect = !!saved.perfect_quiz_done ||
+    allDays.some(([, d]) => d.answered >= 5 && d.correct === d.answered);
 
   // Tageszeit-Erfolge: Flags werden in store.js logAnswer() gesetzt, da die
   // Stats-Keys (YYYY-MM-DD) keine Uhrzeit enthalten.

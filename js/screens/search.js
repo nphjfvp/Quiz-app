@@ -27,10 +27,13 @@ export async function render(root) {
     });
   }
   for (const p of plans) {
+    // Beide Formate: neu {plan:{title,topics}}, alt {name,topics} an der Wurzel
+    const name = p.plan?.title || p.name || "Lernplan";
+    const topics = p.plan?.topics || p.topics || [];
     idx.push({
-      type: "plan", id: p.id, name: p.name,
-      text: [p.name, ...(p.topics || []).map(t => t.name)].join(" ").toLowerCase(),
-      count: (p.topics || []).length,
+      type: "plan", id: p.id, name,
+      text: [name, ...topics.map(t => t.name)].join(" ").toLowerCase(),
+      count: topics.length,
     });
   }
 

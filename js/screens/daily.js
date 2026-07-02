@@ -35,7 +35,7 @@ export async function render(root) {
   // Create daily plan if needed
   if (!daily || daily.date !== today) {
     const fsrs = await loadFsrs();
-    daily = createDailyPlan(quizzes, progress, today, fsrs, disabledTopics);
+    daily = createDailyPlan(quizzes, progress, today, fsrs, disabledTopics, learningPhase, settings.useFsrs !== false);
     await saveDailyState(daily);
   }
 
@@ -186,7 +186,7 @@ export async function render(root) {
       // Refresh to rebuild plan with new phase
       const fsrs = await loadFsrs();
       const disabled = new Set(s.disabled_topics || []);
-      daily = createDailyPlan(quizzes, progress, today, fsrs, disabled);
+      daily = createDailyPlan(quizzes, progress, today, fsrs, disabled, s.learning_phase || "deepen", s.useFsrs !== false);
       await saveDailyState(daily);
       const hintEl = root.querySelector("#phase-hint");
       if (hintEl) hintEl.textContent = phaseHints[r.value];
@@ -205,7 +205,7 @@ export async function render(root) {
       await saveSettings(s);
       // Rebuild plan with new topic filter
       const fsrs = await loadFsrs();
-      daily = createDailyPlan(quizzes, progress, today, fsrs, disabled);
+      daily = createDailyPlan(quizzes, progress, today, fsrs, disabled, s.learning_phase || "deepen", s.useFsrs !== false);
       await saveDailyState(daily);
       render(root);
     });
@@ -232,7 +232,7 @@ export async function render(root) {
   });
 }
 
-function createDailyPlan(quizzes, progress, today, fsrs = {}, disabledTopics = new Set()) {
+function createDailyPlan(quizzes, progress, today, fsrs = {}, disabledTopics = new Set(), phase = "deepen", useFsrs = true) {
   let allQs = quizzes.flatMap(q => q.questions || []);
 
   // Filter out disabled topics
@@ -240,28 +240,46 @@ function createDailyPlan(quizzes, progress, today, fsrs = {}, disabledTopics = n
     allQs = allQs.filter(q => !q.topic || !disabledTopics.has(q.topic));
   }
 
-  // FSRS-Priorisierung: neue/überfällige Karten zuerst, dann nach geringer Recall-Wahrscheinlichkeit.
+  // Lernphase steuert Umfang und Mischung — vorher wurde die Einstellung
+  // zwar gespeichert, aber nie in die Plan-Erstellung einbezogen.
+  //   basics: kleinerer Plan, NEUE Inhalte zuerst
+  //   deepen: ausgewogen (Standard)
+  //   exam:   größerer Plan, Wiederholung/Überfälliges dominiert
+  const PHASE = {
+    basics: { size: 15, newBoost: 400, reviewBoost: 0 },
+    deepen: { size: 20, newBoost: 0, reviewBoost: 0 },
+    exam:   { size: 30, newBoost: -300, reviewBoost: 300 },
+  }[phase] || { size: 20, newBoost: 0, reviewBoost: 0 };
+
   const scored = allQs.map(q => {
     const card = fsrs[q.id];
+    const p = progress[q.id];
+    const box = p?.box ?? 1;
     let score;
-    if (!card || card.state === "new" || !card.last_review) {
+    const isNew = !card || card.state === "new" || !card.last_review;
+    if (!useFsrs) {
+      // FSRS abgeschaltet → reine Leitner-Priorisierung (niedrige Box zuerst,
+      // häufig falsch beantwortete Fragen nach oben).
+      const wrongRatio = p && p.times_correct + p.times_wrong > 0
+        ? p.times_wrong / (p.times_correct + p.times_wrong) : 0;
+      score = 600 - box * 100 + wrongRatio * 200 + (p ? 0 : 100);
+      score += (p ? PHASE.reviewBoost : PHASE.newBoost);
+    } else if (isNew) {
       // Noch nie / als neu gesehen → höchste Priorität
-      const p = progress[q.id];
-      const box = p?.box ?? 1;
-      score = 1000 - box * 10; // neue/Box-1 zuerst
+      score = 1000 - box * 10 + PHASE.newBoost;
     } else {
       const due = daysUntilDue(card);          // <0 = überfällig
       const recall = retrievability(card);      // 0..1, niedrig = vergessen
       // Überfällige Tage stark gewichten, niedriger Recall erhöht Priorität
-      score = 500 + Math.max(0, -due) * 20 + (1 - recall) * 100;
+      score = 500 + Math.max(0, -due) * 20 + (1 - recall) * 100 + PHASE.reviewBoost;
       // Noch nicht fällige Karten (due > 0) nach unten
-      if (due > 0) score = 200 - Math.min(due, 30) * 5;
+      if (due > 0) score = 200 - Math.min(due, 30) * 5 + PHASE.reviewBoost;
     }
     return { q, score };
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const plan = scored.slice(0, 20).map(s => s.q.id);
+  const plan = scored.slice(0, PHASE.size).map(s => s.q.id);
 
   return { date: today, plan, completed: [], wrong: [], extra_done: false };
 }
