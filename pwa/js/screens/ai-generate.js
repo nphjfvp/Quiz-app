@@ -165,7 +165,7 @@ export async function render(root, params = {}) {
               <span>${esc(t.label)}</span>
             </label>`).join("")}
           </div>
-          <small class="file-hint">Abgewählte Typen werden nicht generiert. Bei Bild/PDF stehen nur Single/Multiple Choice, Freitext &amp; Lückentext zur Verfügung.</small>
+          <small class="file-hint">Abgewählte Typen werden nicht generiert. Bei Bild/PDF stehen Single/Multiple Choice, Freitext, Lückentext &amp; Mathe-Formel zur Verfügung.</small>
         </div>
 
         <div id="ai-error" class="error-box"></div>

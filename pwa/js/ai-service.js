@@ -485,7 +485,7 @@ export async function generateQuizFromImage(imageUrl, numQuestions = 3, language
   const chosen = MODELS.find((m) => m.id === model);
   if (!chosen || !chosen.vision) model = VISION_MODEL;
 
-  const IMG_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "diagram_label"];
+  const IMG_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "diagram_label", "math_formula"];
   let allowedImg = IMG_TYPES;
   if (Array.isArray(config.allowedTypes) && config.allowedTypes.length) {
     allowedImg = IMG_TYPES.filter(t => config.allowedTypes.includes(t));
@@ -512,7 +512,7 @@ Regeln:
 - Wenn das Bild ein beschriftbares Diagramm ist, kannst du eine "diagram_label"-Frage erstellen: liste die zu beschriftenden Punkte in "diagram_labels" mit Name und relativer Position x/y (0-1) auf.
 - Jede Frage braucht eine klare Erklärung.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
-- Sprache: ${language === "de" ? "Deutsch" : language}.
+${imgTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelaufgabe aus dem Bildinhalt. Lösung in "correct_formula" (z.B. "x = 2" oder "a^2 + b^2").\n' : ""}- Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
@@ -525,6 +525,7 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
     "options": [{"text": "Antwort", "is_correct": true}],
     "correct_text": "",
     "blanks": [],
+    "correct_formula": "",
     "diagram_labels": [{"label": "Bezeichnung", "x": 0.5, "y": 0.5}],
     "explanation": "Erklärung"
   }
@@ -584,7 +585,7 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
 
   const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
   const chunkSize = Number(config.chunkSize) || 0; // Images per chunk (0 = all at once)
-  const IMGS_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank"];
+  const IMGS_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "math_formula"];
   let allowedImgs = IMGS_TYPES;
   if (Array.isArray(config.allowedTypes) && config.allowedTypes.length) {
     allowedImgs = IMGS_TYPES.filter(t => config.allowedTypes.includes(t));
@@ -626,11 +627,11 @@ Regeln:
 - Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
 - Jede Frage muss eine klare Erklärung enthalten.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
-- Sprache: ${language === "de" ? "Deutsch" : language}.
+${imgsTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelaufgabe aus dem Seiteninhalt. Lösung in "correct_formula" (z.B. "x = 2" oder "a^2 + b^2").\n' : ""}- Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array:
 [{
-  "question_type": "...",
+  "question_type": ${imgsTypesList},
   "question_text": "Fragetext",
   "title": "Kurztitel",
   "topic": "Themengebiet",
@@ -638,6 +639,7 @@ Antworte ausschließlich mit einem JSON-Array:
   "options": [{"text": "Antwort", "is_correct": true}],
   "correct_text": "",
   "blanks": [],
+  "correct_formula": "",
   "explanation": "Erklärung"
 }]`;
 
@@ -702,12 +704,12 @@ Regeln:
 - Achte besonders auf visuelle Inhalte: Diagramme, Grafiken, Formeln, Tabellen.
 - Jede Frage muss eine klare Erklärung enthalten.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
-- Sprache: ${language === "de" ? "Deutsch" : language}.
+${imgsTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelaufgabe aus dem Seiteninhalt. Lösung in "correct_formula" (z.B. "x = 2" oder "a^2 + b^2").\n' : ""}- Sprache: ${language === "de" ? "Deutsch" : language}.
 
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
   {
-    "question_type": "single_choice" | "multiple_choice" | "free_text" | "fill_blank",
+    "question_type": ${imgsTypesList},
     "question_text": "Fragetext",
     "title": "Kurztitel",
     "topic": "Themengebiet",
@@ -715,6 +717,7 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
     "options": [{"text": "Antwort", "is_correct": true}],
     "correct_text": "",
     "blanks": [],
+    "correct_formula": "",
     "explanation": "Erklärung"
   }
 ]`;
