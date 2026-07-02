@@ -98,6 +98,16 @@ export async function render(root, params) {
   }
   const bonusCoins = session.awardedBonus || 0;
 
+  // "Perfekt!"-Erfolg: EIN Quiz mit 100% (≥3 Fragen) — das Flag hier zu setzen
+  // ist präziser als der alte Check über die Tages-Statistik in achievements.js.
+  if (pct === 100 && answered >= 3) {
+    try {
+      const { loadAchievements, saveAchievements } = await import("../store.js");
+      const ach = await loadAchievements();
+      if (!ach.perfect_quiz_done) { ach.perfect_quiz_done = true; await saveAchievements(ach); }
+    } catch (_) {}
+  }
+
   // Auto-Sync: nach Quiz-Abschluss den Stand still in die Cloud pushen,
   // wenn ein Account eingeloggt ist (abschaltbar via Setting autoSync).
   try {
