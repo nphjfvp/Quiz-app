@@ -1444,6 +1444,184 @@ export async function generateSimilarTasks(example, count = 5, config = {}, veri
   return tasks;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Probeklausur-Pipeline: Seiten analysieren → Aufgaben lösen → verifizieren →
+// Nutzer-Antworten bewerten → Klausuren im Stil generieren.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Analysiert gerenderte Klausur-Seiten (Bilder) via Vision:
+ * erkennt alle Aufgaben mit Position (für Screenshots), Punkten und Typ.
+ */
+export async function analyzeExamPages(imageUrls, config = {}) {
+  const { apiKey } = await getConfig(config);
+  let model = config.model;
+  const chosen = MODELS.find((m) => m.id === model);
+  if (!chosen || !chosen.vision) model = VISION_MODEL;
+
+  const batchSize = 3;
+  const style = { subject: "", title: "", examType: "", totalPoints: 0, durationMin: 0, styleNotes: "" };
+  const tasks = [];
+
+  for (let i = 0; i < imageUrls.length; i += batchSize) {
+    const batch = imageUrls.slice(i, i + batchSize);
+    if (config.onProgress) config.onProgress(Math.floor(i / batchSize) + 1, Math.ceil(imageUrls.length / batchSize), "Analysiere Seiten");
+    const raw = await chatCompletion([
+      {
+        role: "system",
+        content: `Du analysierst Klausur-Seiten. Erkenne JEDE Aufgabe/Teilaufgabe (a, b, c zählen als eigene Aufgaben, wenn eigenständig lösbar).
+Für jede Aufgabe:
+- "number": Aufgabennummer wie gedruckt (z.B. "1", "2a").
+- "page": Seitenindex innerhalb DIESER Bilder (1 = erstes Bild dieser Nachricht).
+- "yStart"/"yEnd": vertikale Position der Aufgabe auf der Seite (0 = oben, 1 = unten), großzügig geschätzt.
+- "text": vollständige Aufgabenstellung als Text (Formeln in LaTeX).
+- "type": "calc" (Rechnen), "proof" (Beweis/Herleitung), "text" (Erklärung/Definition), "draw" (Zeichnen/Skizzieren), "multiple_choice".
+- "points": gedruckte Punktzahl; wenn KEINE gedruckt ist, schätze realistisch und setze "pointsEstimated": true.
+- "solvable": false NUR wenn die Lösung nicht als Text darstellbar ist (z.B. Zeichnung anfertigen).
+Erkenne außerdem Metadaten (nur beim ersten Vorkommen): "subject" (Fach), "title", "examType" (z.B. "Klausur", "Probeklausur"), "durationMin", "styleNotes" (2-3 Sätze: Aufgabenstil, Schwierigkeitsgrad, Struktur — als Vorlage für ähnliche Klausuren).
+Antworte NUR mit JSON: {"meta":{"subject":"...","title":"...","examType":"...","durationMin":0,"styleNotes":"..."},"tasks":[{"number":"...","page":1,"yStart":0.1,"yEnd":0.4,"text":"...","type":"calc","points":4,"pointsEstimated":false,"solvable":true}]}`,
+      },
+      {
+        role: "user",
+        content: [
+          ...batch.map(url => ({ type: "image_url", image_url: { url } })),
+          { type: "text", text: `Analysiere diese ${batch.length} Klausur-Seiten (Seiten ${i + 1}-${i + batch.length} der Klausur). Erkenne ALLE Aufgaben.` },
+        ],
+      },
+    ], { apiKey, model, stream: false });
+    const parsed = parseJSON(raw);
+    if (parsed?.meta) {
+      for (const k of ["subject", "title", "examType", "styleNotes"]) {
+        if (!style[k] && parsed.meta[k]) style[k] = parsed.meta[k];
+      }
+      if (!style.durationMin && parsed.meta.durationMin) style.durationMin = parsed.meta.durationMin;
+    }
+    for (const t of parsed?.tasks || []) {
+      tasks.push({ ...t, page: (t.page || 1) + i }); // Batch-Offset → globaler Seitenindex
+    }
+  }
+
+  style.totalPoints = tasks.reduce((s, t) => s + (Number(t.points) || 0), 0);
+  return { style, tasks };
+}
+
+/**
+ * Löst eine Klausur-Aufgabe (mit Seiten-Screenshot als Kontext).
+ * Nicht lösbare Aufgaben (Zeichnungen etc.) werden nur beschrieben.
+ */
+export async function solveExamTask(task, pageImage, config = {}) {
+  const { apiKey } = await getConfig(config);
+  let model = config.model;
+  const chosen = MODELS.find((m) => m.id === model);
+  if (pageImage && (!chosen || !chosen.vision)) model = VISION_MODEL;
+
+  const content = [];
+  if (pageImage) content.push({ type: "image_url", image_url: { url: pageImage } });
+  content.push({
+    type: "text",
+    text: `Aufgabe ${task.number} (${task.points} Punkte, Typ: ${task.type}):\n${task.text}\n\n` +
+      (task.solvable === false
+        ? "Diese Aufgabe kann nicht als Text gelöst werden (z.B. Zeichnung). BESCHREIBE stattdessen präzise, was eine korrekte Lösung enthalten muss."
+        : "Löse diese Aufgabe vollständig, Schritt für Schritt."),
+  });
+
+  const raw = await chatCompletion([
+    {
+      role: "system",
+      content: `Du bist ein Experte, der Klausur-Aufgaben löst. Arbeite präzise und prüfe Rechnungen doppelt.
+Formeln in LaTeX (Inline: $...$).
+Antworte NUR mit JSON:
+{"canSolve": true, "describeOnly": false, "finalAnswer": "kurzes Endergebnis", "steps": ["Schritt 1 …", "Schritt 2 …"], "keyPoints": ["was für volle Punktzahl nötig ist"]}
+Bei nicht als Text lösbaren Aufgaben (Zeichnen etc.): "canSolve": true, "describeOnly": true und beschreibe in steps/keyPoints, was die Lösung enthalten muss.`,
+    },
+    { role: "user", content },
+  ], { apiKey, model, stream: false });
+  const sol = parseJSON(raw);
+  if (!sol || (!sol.finalAnswer && !sol.steps?.length)) throw new Error(`Aufgabe ${task.number}: Lösung konnte nicht erzeugt werden.`);
+  return sol;
+}
+
+/**
+ * Verifiziert eine Lösung in einem ZWEITEN, unabhängigen KI-Aufruf
+ * ("Tool, das wirklich nochmal checkt"). Bei Fehlern wird korrigiert.
+ */
+export async function verifyExamSolution(task, solution, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  try {
+    const raw = await chatCompletion([
+      {
+        role: "system",
+        content: `Du bist ein extrem kritischer Korrektor. Prüfe die Lösung UNABHÄNGIG: rechne selbst nach, prüfe jeden Schritt auf Rechen- und Logikfehler.
+Antworte NUR mit JSON:
+{"correct": true, "issues": [], "correctedAnswer": "", "correctedSteps": []}
+Bei Fehlern: "correct": false, beschreibe die Fehler in "issues" und liefere korrigierte Antwort/Schritte.`,
+      },
+      {
+        role: "user",
+        content: `Aufgabe ${task.number}: ${task.text}\n\nBehauptete Lösung: ${solution.finalAnswer}\nLösungsweg:\n${(solution.steps || []).join("\n")}`,
+      },
+    ], { apiKey, model, stream: false });
+    const v = parseJSON(raw);
+    if (v && v.correct === false && (v.correctedAnswer || v.correctedSteps?.length)) {
+      return {
+        verified: true, corrected: true,
+        finalAnswer: v.correctedAnswer || solution.finalAnswer,
+        steps: v.correctedSteps?.length ? v.correctedSteps : solution.steps,
+        verifyNote: (v.issues || []).join("; "),
+      };
+    }
+    return { verified: true, corrected: false, finalAnswer: solution.finalAnswer, steps: solution.steps, verifyNote: "" };
+  } catch {
+    // Verifikation fehlgeschlagen → Original behalten, aber als unverifiziert markieren
+    return { verified: false, corrected: false, finalAnswer: solution.finalAnswer, steps: solution.steps, verifyNote: "" };
+  }
+}
+
+/** Bewertet die Nutzer-Antwort auf eine Klausur-Aufgabe (Teilpunkte möglich). */
+export async function gradeExamAnswer(task, solution, userAnswer, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const raw = await chatCompletion([
+    {
+      role: "system",
+      content: `Du bist ein fairer Klausur-Korrektor. Vergleiche die Antwort des Studierenden mit der Musterlösung.
+Vergib Teilpunkte für richtige Ansätze/Zwischenschritte, auch wenn das Endergebnis falsch ist. Sei fair, aber nicht geschenkt.
+Bei describeOnly-Aufgaben (Zeichnungen): bewerte, ob die BESCHREIBUNG des Studierenden die Kernpunkte trifft.
+Antworte NUR mit JSON:
+{"score": 3.5, "maxScore": ${Number(task.points) || 1}, "verdict": "correct|partial|wrong", "feedback": "2-4 Sätze: was war gut, was fehlte"}`,
+    },
+    {
+      role: "user",
+      content: `Aufgabe ${task.number} (${task.points} Punkte): ${task.text}\n\nMusterlösung: ${solution.finalAnswer}\nLösungsweg: ${(solution.steps || []).join(" | ")}\nKernpunkte: ${(solution.keyPoints || []).join("; ")}\n\nAntwort des Studierenden:\n${userAnswer || "(keine Antwort)"}`,
+    },
+  ], { apiKey, model, stream: false });
+  const g = parseJSON(raw);
+  if (!g || typeof g.score !== "number") return { score: 0, maxScore: Number(task.points) || 1, verdict: "wrong", feedback: "Bewertung fehlgeschlagen." };
+  g.score = Math.max(0, Math.min(g.score, Number(task.points) || 1));
+  return g;
+}
+
+/** Experimentell: erzeugt eine NEUE Klausur im Stil einer hochgeladenen. */
+export async function generateExamInStyle(exam, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const sampleTasks = (exam.tasks || []).slice(0, 8).map(t =>
+    `Aufgabe ${t.number} (${t.points}P, ${t.type}): ${(t.text || "").slice(0, 300)}`).join("\n");
+  const raw = await chatCompletion([
+    {
+      role: "system",
+      content: `Du erstellst eine NEUE Übungsklausur im exakten Stil einer Vorlage: gleiches Fach, gleiche Aufgabentypen, gleicher Schwierigkeitsgrad, ähnliche Punkteverteilung — aber NEUE Aufgaben (andere Zahlen, andere Beispiele, keine Kopien).
+Formeln in LaTeX. Antworte NUR mit JSON:
+{"title":"...","tasks":[{"number":"1","text":"...","type":"calc","points":4,"solvable":true}]}`,
+    },
+    {
+      role: "user",
+      content: `Fach: ${exam.style?.subject || "?"}\nKlausur-Stil: ${exam.style?.styleNotes || "?"}\nGesamtpunkte: ~${exam.style?.totalPoints || 40}\n\nVorlage-Aufgaben:\n${sampleTasks}\n\nErstelle eine neue Klausur mit ${(exam.tasks || []).length} Aufgaben in diesem Stil.`,
+    },
+  ], { apiKey, model, stream: false });
+  const parsed = parseJSON(raw);
+  if (!parsed || !Array.isArray(parsed.tasks) || !parsed.tasks.length) throw new Error("Klausur-Generierung fehlgeschlagen.");
+  return parsed;
+}
+
 export async function crossCheckQuiz(questions, config = {}) {
   const { apiKey, model } = await getConfig(config);
   if (!apiKey) throw new Error("Kein API-Key für Cross-Check verfügbar.");

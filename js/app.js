@@ -62,6 +62,7 @@ route("exercise-mode", async (root, params) => { const m = await import("./scree
 route("math-tools", async (root, params) => { const m = await import("./screens/math-tools.js"); return m.render(root, params); });
 route("search", async (root) => { const m = await import("./screens/search.js"); return m.render(root); });
 route("study-plan", async (root) => { const m = await import("./screens/study-plan.js"); return m.render(root); });
+route("mock-exam", async (root) => { const m = await import("./screens/mock-exam.js"); return m.render(root); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -94,6 +95,7 @@ setScreenTab("math-tools", "lernen");
 setScreenTab("search", "home");
 setScreenTab("onboarding", "home");
 setScreenTab("study-plan", "lernen");
+setScreenTab("mock-exam", "lernen");
 
 // 🎮 Games
 setScreenTab("games", "games");

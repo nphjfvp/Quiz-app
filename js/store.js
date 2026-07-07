@@ -344,6 +344,14 @@ export async function saveStudyPlans(data) {
   await set("study_plans", data);
 }
 
+// ── Probeklausuren (Mock Exams) ─────────────────────────────────────────────
+export async function loadMockExams() {
+  return (await get("mock_exams")) ?? [];
+}
+export async function saveMockExams(data) {
+  await set("mock_exams", data);
+}
+
 // ── Quick Actions ──
 export async function loadQuickActions() {
   return (await get("quick_actions")) ?? [];
