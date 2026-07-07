@@ -120,6 +120,17 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   automatisch und arbeitet genau die falsch beantworteten Fragen auf.
 - **ai-generate** hat zusätzlich einen **Import-Modus** (`importQuiz`): übernimmt vorhandene
   Fragen aus Dokumenten 1:1 (Altklausur/Übungsblatt) statt neue zu generieren – inkl. Chunking.
+- **mock-exam** – Probeklausur-Modus (Store-Key `mock_exams`): Klausur-PDF hochladen →
+  Seiten als Bilder gerendert → Vision erkennt ALLE Aufgaben (Nummer, Position für
+  Screenshot-Crop, Text, Typ calc/proof/text/draw, gedruckte ODER geschätzte Punkte) →
+  jede Aufgabe wird gelöst (`solveExamTask`) und in einem ZWEITEN unabhängigen KI-Aufruf
+  verifiziert (`verifyExamSolution`, korrigiert bei Fehlern). Übungsmodus: Aufgaben-Screenshot
+  anzeigen, Lösung darunter eingeben (Mathe-Tastatur), durch die Klausur blättern, am Ende
+  KI-Bewertung mit Teilpunkten (`gradeExamAnswer`), Lösungswege bei Fehlern (aufklappbar),
+  Rückfragen-Chat pro Aufgabe, **Note** nach Standard-Notenschlüssel. Zeichen-Aufgaben
+  werden nur beschrieben (describeOnly). **Mix-Klausuren** aus mehreren Uploads (typbalanciert),
+  **KI-Klausur im Stil einer Vorlage** (`generateExamInStyle`, experimentell). Versuche mit
+  Note werden pro Klausur gespeichert.
 - **settings** – Theme (auto/hell/dunkel), Account, Sync-Code, **API-Key + Modell-Selektor mit
   Kostensperre** (Free-Modelle direkt, kostenpflichtige hinter „Weitere Modelle anzeigen",
   pro Modell 🔒-Sperre via `disabledModels`, Bestätigung bei Paid-Modellen),
