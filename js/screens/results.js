@@ -1,7 +1,11 @@
 import { navigate } from "../router.js";
 import { explainAnswer, simplifyExplanation } from "../ai-service.js";
 import { esc, mathEsc } from "../utils.js";
-import { addCoins, loadDailyState, saveDailyState, loadSettings } from "../store.js";
+import { addCoins, loadDailyState, saveDailyState, loadSettings, loadQuizzes } from "../store.js";
+
+// Ab dieser Prozentzahl gilt ein Schwierigkeits-Level als "im grünen Bereich"
+// und das nächste (schwerere) Level wird zum Aufstieg angeboten.
+const VARIANT_PROMOTE_THRESHOLD = 80;
 
 export async function render(root, params) {
   const { session, quiz } = params;
@@ -164,12 +168,30 @@ export async function render(root, params) {
     </button>`;
   }
 
+  // Schwierigkeits-Varianten (aus dem 1:1-Import mit Varianten-Option):
+  // bei guter Punktzahl direkt ins nächste, schwerere Level anbieten.
+  let nextLevelQuiz = null;
+  if (quiz?.variantGroup && quiz.variantLevel < (quiz.variantLevels - 1) && pct >= VARIANT_PROMOTE_THRESHOLD) {
+    try {
+      const allQuizzes = await loadQuizzes();
+      nextLevelQuiz = allQuizzes.find(q => q.variantGroup === quiz.variantGroup && q.variantLevel === quiz.variantLevel + 1) || null;
+    } catch (_) {}
+  }
+  if (nextLevelQuiz) {
+    html += `<button class="btn btn-block" id="next-level-btn" style="margin-top:8px;background:var(--success);color:#fff">
+      🎯 Im grünen Bereich! Nächstes Level starten: ${esc(nextLevelQuiz.variantTypeLabel || "")}
+    </button>`;
+  }
+
   root.innerHTML = html;
 
   root.querySelector("#retry-btn")?.addEventListener("click", () => {
     navigate("quiz", { quiz, mode: session.mode });
   });
   root.querySelector("#home-btn")?.addEventListener("click", () => navigate("home"));
+  root.querySelector("#next-level-btn")?.addEventListener("click", () => {
+    navigate("quiz-modes", { quizId: nextLevelQuiz.id });
+  });
 
   root.querySelector("#socratic-flow-btn")?.addEventListener("click", () => {
     navigate("socratic", {

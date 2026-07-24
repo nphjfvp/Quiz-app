@@ -193,7 +193,7 @@ function extractCompleteObjects(s) {
 
 const QUIZ_ALL_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula"];
 
-function normalizeQuizQuestion(q) {
+export function normalizeQuizQuestion(q) {
   return {
     id: uid(),
     question_type: q.question_type,
@@ -474,6 +474,71 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown):
     }
   }
   return result.map(normalizeQuizQuestion);
+}
+
+// Vordefinierte Schwierigkeitsstufen für generateDifficultyVariants(): jede
+// Stufe bildet dieselbe Frage in einem anderen, zunehmend anspruchsvolleren
+// Fragetyp ab. 3 Stufen überspringen multiple_choice, 4 Stufen nehmen es dazu.
+export const VARIANT_LEVEL_PRESETS = {
+  3: ["single_choice", "fill_blank", "free_text"],
+  4: ["single_choice", "multiple_choice", "fill_blank", "free_text"],
+};
+
+/**
+ * Wandelt eine Liste bereits importierter 1:1-Fragen (mit bekannter Lösung)
+ * in denselben Fragetyp um — GLEICHE Reihenfolge, GLEICHE Anzahl, damit die
+ * Frage an Index i über alle Schwierigkeitsstufen hinweg dieselbe bleibt und
+ * die Level-Zuordnung rein über den Array-Index funktioniert.
+ */
+export async function generateDifficultyVariants(baseQuestions, targetType, language = "de", config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const typeRule = TYPE_RULES[targetType] || "";
+
+  const runBatch = async (batch) => {
+    const source = batch.map((q, i) => ({
+      nr: i + 1,
+      text: q.question_text,
+      answer: q.correct_text || q.correct_formula ||
+        (q.options || []).filter(o => o.is_correct).map(o => o.text).join("; ") ||
+        (q.blanks || []).join("; "),
+      explanation: q.explanation || "",
+    }));
+    const messages = [
+      {
+        role: "system",
+        content: `Du wandelst Prüfungsfragen mit BEKANNTER Lösung in den Fragetyp "${targetType}" um.
+Der geprüfte Fakt/die Lösung darf sich NICHT ändern — nur das FORMAT der Frage.
+${typeRule}
+KRITISCH: Antworte mit GENAU ${batch.length} Fragen, in DERSELBEN Reihenfolge wie die Eingabe (Feld "nr" beibehalten) — Frage Nr. 1 bleibt Nr. 1, etc.
+Sprache: ${language === "de" ? "Deutsch" : language}.
+Antworte NUR mit JSON: {"questions":[{"nr":1,"question_type":"${targetType}","question_text":"...","title":"...","topic":"...","points":1,"options":[{"text":"...","is_correct":true}],"correct_text":"","blanks":[],"correct_formula":"","explanation":"..."}]}`,
+      },
+      { role: "user", content: `Wandle diese ${batch.length} Fragen um:\n${JSON.stringify(source, null, 1)}` },
+    ];
+    const raw = await chatCompletion(messages, { apiKey, model, stream: false });
+    const parsed = parseJSON(raw);
+    const arr = Array.isArray(parsed) ? parsed : parsed?.questions;
+    if (!Array.isArray(arr)) throw new Error(`Umwandlung nach "${targetType}" fehlgeschlagen (kein Array in Antwort).`);
+    // Nach "nr" sortieren und auf Batch-Länge auffüllen, damit Index-Zuordnung
+    // auch bei fehlenden/vertauschten Einträgen stabil bleibt.
+    const byNr = new Map(arr.map(q => [q.nr, q]));
+    return batch.map((orig, i) => {
+      const q = byNr.get(i + 1) || arr[i];
+      if (!q) return { ...orig, question_type: targetType }; // Fallback: Original-Typ behalten statt Frage zu verlieren
+      return { ...q, question_type: targetType };
+    });
+  };
+
+  // In Batches von 10, damit Antwortgröße/Reihenfolge stabil bleiben.
+  const BATCH = 10;
+  const out = [];
+  for (let i = 0; i < baseQuestions.length; i += BATCH) {
+    if (typeof config.onProgress === "function") {
+      config.onProgress(Math.floor(i / BATCH) + 1, Math.ceil(baseQuestions.length / BATCH));
+    }
+    out.push(...await runBatch(baseQuestions.slice(i, i + BATCH)));
+  }
+  return out.map(normalizeQuizQuestion);
 }
 
 // Generiert Fragen direkt aus einem Bild (Screenshot, Foto, Diagramm) via Vision-Modell.
