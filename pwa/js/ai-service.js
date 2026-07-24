@@ -225,6 +225,7 @@ const TYPE_RULES = {
 
 function buildQuizSystemPrompt(countRule, allowedArr, language) {
   const typesList = allowedArr.map(t => `"${t}"`).join(", ");
+  const typesUnion = allowedArr.map(t => `"${t}"`).join(" | ");
   const typeRules = allowedArr.map(t => TYPE_RULES[t]).filter(Boolean).join("\n") +
     (allowedArr.length > 2 ? "\n- Bevorzuge Choice-/Text-Fragen; nutze Zuordnungs-/Formel-Typen nur, wo es inhaltlich passt." : "");
   return `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
@@ -251,7 +252,7 @@ ${typeRules}
 Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher Text) in diesem Format:
 [
   {
-    "question_type": ${typesList},
+    "question_type": ${typesUnion},
     "question_text": "Fragetext",
     "title": "Kurztitel der Frage",
     "topic": "Themengebiet",
@@ -561,6 +562,7 @@ export async function generateQuizFromImage(imageUrl, numQuestions = 3, language
     }
   }
   const imgTypesList = allowedImg.map(t => `"${t}"`).join(", ");
+  const imgTypesUnion = allowedImg.map(t => `"${t}"`).join(" | ");
 
   const detail = config.detailLevel || "normal";
   const detailHintImg = detail === "thorough"
@@ -582,7 +584,7 @@ ${imgTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelauf
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
   {
-    "question_type": ${imgTypesList},
+    "question_type": ${imgTypesUnion},
     "question_text": "Fragetext",
     "title": "Kurztitel",
     "topic": "Themengebiet",
@@ -659,6 +661,7 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
     }
   }
   const imgsTypesList = allowedImgs.map(t => `"${t}"`).join(", ");
+  const imgsTypesUnion = allowedImgs.map(t => `"${t}"`).join(" | ");
 
   const autoImg = !(numQuestions > 0);
   const detailImg = config.detailLevel || "normal";
@@ -696,7 +699,7 @@ ${imgsTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelau
 
 Antworte ausschließlich mit einem JSON-Array:
 [{
-  "question_type": ${imgsTypesList},
+  "question_type": ${imgsTypesUnion},
   "question_text": "Fragetext",
   "title": "Kurztitel",
   "topic": "Themengebiet",
@@ -774,7 +777,7 @@ ${imgsTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelau
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
   {
-    "question_type": ${imgsTypesList},
+    "question_type": ${imgsTypesUnion},
     "question_text": "Fragetext",
     "title": "Kurztitel",
     "topic": "Themengebiet",
