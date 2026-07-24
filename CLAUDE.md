@@ -138,6 +138,13 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   automatisch und arbeitet genau die falsch beantworteten Fragen auf.
 - **ai-generate** hat zusätzlich einen **Import-Modus** (`importQuiz`): übernimmt vorhandene
   Fragen aus Dokumenten 1:1 (Altklausur/Übungsblatt) statt neue zu generieren – inkl. Chunking.
+  Im Import-Modus außerdem **Schwierigkeits-Varianten** (`generateDifficultyVariants`,
+  `VARIANT_LEVEL_PRESETS`): dieselben 1:1-Fragen werden in 3 oder 4 aufsteigend schwerere
+  Fragetypen umgewandelt (Single Choice → [Multiple Choice] → Lückentext → Freitext) und als
+  SEPARATE Quizze gespeichert (gemeinsame `variantGroup`-ID, `variantLevel`-Index, gleiche
+  Reihenfolge/Anzahl = Frage an Index i ist über alle Level identisch). **results.js** bietet
+  nach einem Level mit ≥80% automatisch einen Sprung ins nächste (schwerere) Level an, bis
+  Freitext als schwerste Stufe erreicht ist.
 - **mock-exam** – Probeklausur-Modus (Store-Key `mock_exams`): Klausur-PDF hochladen →
   Seiten als Bilder gerendert → Vision erkennt ALLE Aufgaben (Nummer, Position für
   Screenshot-Crop, Text, Typ calc/proof/text/draw, gedruckte ODER geschätzte Punkte) →

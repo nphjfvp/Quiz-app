@@ -1,5 +1,5 @@
 import { loadQuizzes, saveQuizzes, loadSettings } from "../store.js";
-import { generateQuiz, generateQuizFromImage, generateQuizFromImages, importQuiz, getModelContextLimit, MODELS, editQuestionWithAI, crossCheckQuiz } from "../ai-service.js";
+import { generateQuiz, generateQuizFromImage, generateQuizFromImages, importQuiz, getModelContextLimit, MODELS, editQuestionWithAI, crossCheckQuiz, generateDifficultyVariants, VARIANT_LEVEL_PRESETS } from "../ai-service.js";
 import { navigate } from "../router.js";
 import { esc, loadPdfJs, uid } from "../utils.js";
 
@@ -67,6 +67,21 @@ export async function render(root, params = {}) {
             <button type="button" class="detail-preset" data-genmode="import">📄 Importieren (1:1)</button>
           </div>
           <small class="file-hint" id="gen-mode-hint">Neu generieren: KI erstellt neue Fragen aus dem Stoff. Importieren: übernimmt bereits vorhandene Fragen (Altklausur, Übungsblatt) 1:1.</small>
+        </div>
+
+        <div class="input-group" id="variant-group" style="display:none">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="variant-toggle"> 🎯 Schwierigkeits-Varianten erstellen
+          </label>
+          <small class="file-hint">Erstellt statt EINEM mehrere Quizze mit derselben Frage in steigendem
+            Schwierigkeitsgrad (z.B. Single Choice → Lückentext → Freitext). Nach jedem Level kannst du bei guter
+            Punktzahl direkt ins nächste Level springen.</small>
+          <div id="variant-levels-row" style="display:none;margin-top:6px">
+            <div class="detail-presets" id="variant-levels">
+              <button type="button" class="detail-preset active" data-levels="3">3 Stufen</button>
+              <button type="button" class="detail-preset" data-levels="4">4 Stufen (+ Multiple Choice)</button>
+            </div>
+          </div>
         </div>
 
         <div class="input-group">
@@ -272,7 +287,17 @@ export async function render(root, params = {}) {
 
   // --- Modus: generieren vs. importieren ---
   let genMode = "generate";
+  let variantLevels = 3; // nur relevant wenn variantToggle.checked
   const numGroup = numInput.closest(".input-group");
+  const variantGroupEl = root.querySelector("#variant-group");
+  const variantToggle = root.querySelector("#variant-toggle");
+  const variantLevelsRow = root.querySelector("#variant-levels-row");
+
+  function updateGenBtnLabel() {
+    if (genMode !== "import") { genBtn.textContent = "Quiz generieren"; return; }
+    genBtn.textContent = variantToggle.checked ? "🎯 Varianten importieren" : "Fragen importieren";
+  }
+
   root.querySelectorAll("#gen-mode-presets .detail-preset").forEach(btn => {
     btn.addEventListener("click", () => {
       root.querySelectorAll("#gen-mode-presets .detail-preset").forEach(b => b.classList.remove("active"));
@@ -280,7 +305,20 @@ export async function render(root, params = {}) {
       genMode = btn.dataset.genmode;
       // Beim Import bestimmt das Dokument die Anzahl → Anzahl-Auswahl ausblenden.
       if (numGroup) numGroup.style.display = genMode === "import" ? "none" : "";
-      genBtn.textContent = genMode === "import" ? "Fragen importieren" : "Quiz generieren";
+      if (variantGroupEl) variantGroupEl.style.display = genMode === "import" ? "block" : "none";
+      updateGenBtnLabel();
+    });
+  });
+
+  variantToggle?.addEventListener("change", () => {
+    if (variantLevelsRow) variantLevelsRow.style.display = variantToggle.checked ? "block" : "none";
+    updateGenBtnLabel();
+  });
+  root.querySelectorAll("#variant-levels .detail-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("#variant-levels .detail-preset").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      variantLevels = Number(btn.dataset.levels);
     });
   });
 
@@ -568,6 +606,50 @@ export async function render(root, params = {}) {
   // --- Back ---
   backBtn.addEventListener("click", () => navigate("home"));
 
+  const VARIANT_TYPE_LABELS = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", fill_blank: "Lückentext", free_text: "Freitext" };
+
+  // Importiert 1:1, wandelt danach dieselben Fragen in aufsteigend schwerere
+  // Fragetypen um und speichert JEDES Level als eigenes Quiz. Die Level teilen
+  // sich eine variantGroup-ID; results.js bietet nach guter Punktzahl einen
+  // Sprung ins nächste Level an (Aufstieg von "grün" zum nächsten Schwierigkeitsgrad).
+  async function runVariantImport(inputText, importName, chunkSize, onProgress) {
+    const levelTypes = VARIANT_LEVEL_PRESETS[variantLevels] || VARIANT_LEVEL_PRESETS[3];
+    try {
+      genBtn.textContent = "⏳ Importiere Basis-Fragen…";
+      const baseQuestions = await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress });
+      if (!baseQuestions.length) throw new Error("Keine Fragen im Dokument gefunden.");
+
+      const variantGroup = uid();
+      const createdQuizzes = [];
+      for (let lvl = 0; lvl < levelTypes.length; lvl++) {
+        const targetType = levelTypes[lvl];
+        genBtn.textContent = `⏳ Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]})…`;
+        const levelQuestions = await generateDifficultyVariants(baseQuestions, targetType, "de", {
+          model: currentModel,
+          onProgress: (i, n) => { genBtn.textContent = `⏳ Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]}) — Batch ${i}/${n}…`; },
+        });
+        createdQuizzes.push({
+          id: uid(),
+          name: `${importName} · Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]})`,
+          description: "Schwierigkeits-Variante",
+          questions: levelQuestions,
+          created: new Date().toISOString(),
+          variantGroup, variantLevel: lvl, variantLevels: levelTypes.length, variantTypeLabel: VARIANT_TYPE_LABELS[targetType],
+          ...(subjectId ? { subject: subjectId } : {}),
+        });
+      }
+
+      const all = await loadQuizzes();
+      all.push(...createdQuizzes);
+      await saveQuizzes(all);
+      showVariantSummary(root, createdQuizzes);
+    } catch (err) {
+      showError(err.message || "Beim Erstellen der Varianten ist ein Fehler aufgetreten.");
+      genBtn.disabled = false;
+      updateGenBtnLabel();
+    }
+  }
+
   // --- Generate ---
   genBtn.addEventListener("click", async () => {
     let text = textArea.value.trim();
@@ -653,15 +735,21 @@ export async function render(root, params = {}) {
 
     try {
       const onProgress = (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; };
+      const importName = nameInput.value.trim() || "Importiertes Quiz";
+
+      if (genMode === "import" && variantToggle.checked) {
+        await runVariantImport(inputText, importName, chunkSize, onProgress);
+        return;
+      }
+
       const questions = genMode === "import"
         ? await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress, allowedTypes })
         : await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize, onProgress });
-      const importName = nameInput.value.trim() || "Importiertes Quiz";
       showReview(root, questions, genMode === "import" ? importName : quizName, currentModel, inputText);
     } catch (err) {
       showError(err.message || (genMode === "import" ? "Beim Importieren ist ein Fehler aufgetreten." : "Beim Generieren ist ein Fehler aufgetreten."));
       genBtn.disabled = false;
-      genBtn.textContent = genMode === "import" ? "Fragen importieren" : "Quiz generieren";
+      updateGenBtnLabel();
     }
   });
 
@@ -674,6 +762,38 @@ export async function render(root, params = {}) {
   function hideError() {
     errorBox.style.display = "none";
   }
+}
+
+// ─── Zusammenfassung: Schwierigkeits-Varianten erstellt ─────────────
+
+function showVariantSummary(root, quizzes) {
+  root.innerHTML = `
+    <div class="editor-header">
+      <button class="btn-icon back-btn" id="vs-back">←</button>
+      <h2>🎯 Varianten erstellt</h2>
+    </div>
+    <div class="card" style="margin-top:10px">
+      <p style="font-size:0.88rem;color:var(--text-light);margin:0 0 10px">
+        ${quizzes[0]?.questions.length || 0} Fragen wurden in ${quizzes.length} Schwierigkeitsstufen umgewandelt.
+        Starte mit Stufe 1 — nach guter Punktzahl kannst du direkt ins nächste Level springen.
+      </p>
+      ${quizzes.map((q, i) => `
+        <div class="quiz-row" data-quiz-id="${q.id}" style="cursor:pointer">
+          <div class="quiz-accent"></div>
+          <div class="quiz-info">
+            <h4>${i === 0 ? "🟢" : i === quizzes.length - 1 ? "🔴" : "🟡"} Stufe ${i + 1}: ${esc(q.variantTypeLabel)}</h4>
+            <small>${q.questions.length} Fragen</small>
+          </div>
+          <span style="color:var(--text-light)">›</span>
+        </div>`).join("")}
+    </div>
+    <button class="btn btn-primary btn-block" id="vs-done" style="margin-top:12px">Fertig — zu Meine Quizze</button>`;
+
+  root.querySelector("#vs-back").addEventListener("click", () => navigate("my-quizzes"));
+  root.querySelector("#vs-done").addEventListener("click", () => navigate("my-quizzes"));
+  root.querySelectorAll("[data-quiz-id]").forEach(el => {
+    el.addEventListener("click", () => navigate("quiz-modes", { quizId: el.dataset.quizId }));
+  });
 }
 
 // ─── Review Screen ──────────────────────────────────────────────────
