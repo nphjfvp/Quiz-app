@@ -48,7 +48,8 @@ export async function render(root) {
                 <div style="font-size:0.75rem;color:var(--text-light)">${p.desc}</div>
               </button>`).join("")}
           </div>
-          <button class="btn btn-ghost btn-sm" id="skip-onboarding" style="margin-top:16px">Überspringen ›</button>
+          <button class="btn btn-primary btn-lg" id="continue-step0" style="margin-top:16px;display:none">Weiter ›</button>
+          <button class="btn btn-ghost btn-sm" id="skip-onboarding" style="margin-top:8px">Ohne Auswahl fortfahren ›</button>
         </div>`;
     } else if (step === 1) {
       html = `<div class="section-title">🚀 Diese Features erwarten dich</div>
@@ -77,14 +78,17 @@ export async function render(root) {
     root.innerHTML = html;
 
     if (step === 0) {
+      const continueBtn = root.querySelector("#continue-step0");
       root.querySelectorAll(".study-option").forEach(btn => {
         btn.addEventListener("click", () => {
           root.querySelectorAll(".study-option").forEach(b => b.style.borderColor = "transparent");
           btn.style.borderColor = "var(--primary)";
           selectedField = btn.dataset.field;
+          if (continueBtn) continueBtn.style.display = "block";
         });
       });
-      root.querySelector("#skip-onboarding")?.addEventListener("click", () => finish(null));
+      continueBtn?.addEventListener("click", () => { step = 1; renderStep(); });
+      root.querySelector("#skip-onboarding")?.addEventListener("click", () => { step = 1; renderStep(); });
     }
     if (step === 1) {
       root.querySelector("#continue-btn")?.addEventListener("click", () => { step = 2; renderStep(); });
