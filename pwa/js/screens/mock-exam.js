@@ -6,7 +6,6 @@
 // Extras: Mix-Klausuren aus mehreren Uploads, KI-generierte Klausuren im
 // Stil einer Vorlage (experimentell).
 import { loadMockExams, saveMockExams, loadSettings } from "../store.js";
-import { navigate } from "../router.js";
 import { esc, escAttr, uid, mathEsc, loadPdfJs } from "../utils.js";
 import {
   analyzeExamPages, solveExamTask, verifyExamSolution,
@@ -280,6 +279,9 @@ function cropTask(canvas, yStart, yEnd) {
   const pad = 0.02;
   let y0 = Math.max(0, (Number(yStart) || 0) - pad);
   let y1 = Math.min(1, (Number(yEnd) || 1) + pad);
+  // Vision-Modelle liefern gelegentlich vertauschte Werte → sortieren,
+  // sonst entsteht eine negative Canvas-Höhe und der Crop schlägt fehl.
+  if (y1 < y0) [y0, y1] = [y1, y0];
   if (y1 - y0 < 0.1) { y0 = Math.max(0, y0 - 0.05); y1 = Math.min(1, y1 + 0.05); } // Mindesthöhe
   const h = Math.round((y1 - y0) * canvas.height);
   const out = document.createElement("canvas");
