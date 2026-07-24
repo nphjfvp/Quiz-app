@@ -64,6 +64,8 @@ route("search", async (root) => { const m = await import("./screens/search.js");
 route("study-plan", async (root) => { const m = await import("./screens/study-plan.js"); return m.render(root); });
 route("mock-exam", async (root) => { const m = await import("./screens/mock-exam.js"); return m.render(root); });
 route("trick-mode", async (root) => { const m = await import("./screens/trick-mode.js"); return m.render(root); });
+route("subjects", async (root, params) => { const m = await import("./screens/subjects.js"); return m.render(root, params); });
+route("subject-hub", async (root, params) => { const m = await import("./screens/subject-hub.js"); return m.render(root, params); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -98,6 +100,8 @@ setScreenTab("onboarding", "home");
 setScreenTab("study-plan", "lernen");
 setScreenTab("mock-exam", "lernen");
 setScreenTab("trick-mode", "lernen");
+setScreenTab("subjects", "home");
+setScreenTab("subject-hub", "home");
 
 // 🎮 Games
 setScreenTab("games", "games");

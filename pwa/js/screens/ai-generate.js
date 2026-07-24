@@ -23,6 +23,11 @@ function getQTypes(enableImages) {
 export async function render(root, params = {}) {
   const prefillText = params.text ?? "";
   const prefillName = params.name ?? "";
+  // Von einem Themen-Hub (subject-hub.js) vorausgewählte Fragetypen + Tag
+  // für das gespeicherte Quiz, damit es dem Thema zugeordnet bleibt.
+  const presetTypes = Array.isArray(params.presetTypes) && params.presetTypes.length ? params.presetTypes : null;
+  const subjectId = params.subjectId || null;
+  const subjectName = params.subjectName || null;
   const settings = await loadSettings();
   const enableImages = settings.enableImages !== false;
   const disabledModels = settings.disabledModels || [];
@@ -159,9 +164,10 @@ export async function render(root, params = {}) {
 
         <div class="input-group">
           <label>Fragetypen (welche erlaubt sind)</label>
+          ${subjectName ? `<small class="file-hint" style="display:block;margin-bottom:4px">Voreingestellt für Thema „${esc(subjectName)}" — kannst du hier noch anpassen.</small>` : ""}
           <div id="qtype-select" class="qtype-select">
             ${Q_TYPES.map(t => `<label class="qtype-chip">
-              <input type="checkbox" class="qtype-cb" value="${t.id}" checked>
+              <input type="checkbox" class="qtype-cb" value="${t.id}" ${(!presetTypes || presetTypes.includes(t.id)) ? "checked" : ""}>
               <span>${esc(t.label)}</span>
             </label>`).join("")}
           </div>
@@ -770,6 +776,7 @@ async function showReview(root, questions, quizName, modelId, sourceText = "") {
         questions: qs,
         description: "KI-generiert",
         created: new Date().toISOString(),
+        ...(subjectId ? { subject: subjectId } : {}),
       };
       const quizzes = await loadQuizzes();
       quizzes.push(quiz);

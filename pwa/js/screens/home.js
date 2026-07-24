@@ -1,13 +1,14 @@
-import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins, addCoins, loadAchievements, saveAchievements, loadRecents } from "../store.js";
+import { loadQuizzes, loadStats, getStreak, loadProgress, loadMarked, loadErrorDiary, loadProfile, loadCoins, addCoins, loadAchievements, saveAchievements, loadRecents, loadSubjects } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount } from "../firebase-sync.js";
 import { esc, getBoxCounts } from "../utils.js";
 import { renderAvatarSVG, HOUSE_LEVELS } from "../shop-catalog.js";
 
 export async function render(root) {
-  const [quizzes, stats, progress, account, marked, diary, profile, coins, recents] = await Promise.all([
+  const [quizzes, stats, progress, account, marked, diary, profile, coins, recents, subjects] = await Promise.all([
     loadQuizzes(), loadStats(), loadProgress(), Promise.resolve(getAccount()),
     loadMarked(), loadErrorDiary(), loadProfile(), loadCoins(), loadRecents().catch(() => []),
+    loadSubjects().catch(() => []),
   ]);
   const { current: streak, max: maxStreak } = getStreak(stats);
 
@@ -58,6 +59,20 @@ export async function render(root) {
     <span style="font-size:1.1rem">🔍</span>
     <span style="color:var(--text-light);font-size:0.9rem">Quizze, Formeln, Lernpläne durchsuchen…</span>
   </div>`;
+
+  // Eigene Themen-Shortcuts (z.B. "Mathe"): horizontal scrollbare Chip-Reihe
+  html += `<div class="section-title" style="margin-top:4px">Deine Themen</div>
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px">
+      ${subjects.map(s => `
+        <div class="subject-chip" data-subject-id="${s.id}" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 14px;border-radius:12px;border:2px solid ${s.color};background:var(--card-glass-bg,var(--card-bg));cursor:pointer;min-width:76px">
+          <div style="font-size:1.4rem">${s.icon}</div>
+          <small style="font-size:0.72rem;font-weight:600;white-space:nowrap">${esc(s.name)}</small>
+        </div>`).join("")}
+      <div class="subject-chip" data-nav="subjects" style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:10px 14px;border-radius:12px;border:2px dashed var(--border);cursor:pointer;min-width:76px">
+        <div style="font-size:1.4rem">➕</div>
+        <small style="font-size:0.72rem;color:var(--text-light);white-space:nowrap">Thema</small>
+      </div>
+    </div>`;
 
   html += `<div class="daily-card" id="daily-btn">
     <span class="daily-icon">📅</span>
@@ -170,5 +185,8 @@ export async function render(root) {
   });
   root.querySelectorAll("[data-quiz-id]").forEach((el) => {
     el.addEventListener("click", () => navigate("quiz-modes", { quizId: el.dataset.quizId }));
+  });
+  root.querySelectorAll("[data-subject-id]").forEach((el) => {
+    el.addEventListener("click", () => navigate("subject-hub", { subjectId: el.dataset.subjectId }));
   });
 }

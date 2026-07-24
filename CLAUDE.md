@@ -94,6 +94,16 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   (nicht wortgleich). Bei richtiger Antwort oder Überspringen: Lösungsweg einsehbar, per Toggle
   entweder nur bis zum Trick-Schritt oder komplett bis zum Ende (inkl. Vereinfachungen).
   Fortschritt pro Aufgabe wird gespeichert.
+- **subjects** + **subject-hub** – Eigene Themen-Profile (Store-Key `subjects`): Nutzer legt Themen
+  wie „Mathe" mit Icon/Farbe an und wählt PRO THEMA erlaubte Fragetypen (für KI-Generierung,
+  vorausgewählt in `ai-generate` via `params.presetTypes`) sowie erlaubte Lernarten
+  (`LEARNING_MODE_CATALOG` in `subjects.js` — nur ausgewählte Werkzeuge erscheinen im Hub).
+  Themen erscheinen als horizontal scrollbare Shortcut-Chips auf **home**; Tap öffnet
+  **subject-hub** mit nur den freigeschalteten Werkzeugen + den dem Thema zugeordneten Quizzen
+  (`quiz.subject`-Feld, gesetzt beim Erstellen über den Hub in `ai-generate`/`editor`).
+- **settings** hat einen **Design-Picker** (Akzentfarben-Paletten, dieselben `THEME_SKINS` wie im
+  Shop) direkt unter der Hell/Dunkel-Auswahl — freischaltbar mit Münzen, sofort per `applyThemeSkin`
+  angewendet, kein Umweg über den Shop nötig.
 - **cloze** – Lückentext-Generator (KI-Zusammenfassung + Keywords). **study** – Karteikarten-Modus.
 - **pomodoro** – Fokus-Timer.
 - **random** – Zufalls-Modus: mischt Fragen aus ALLEN Quizzen zu einer Lernrunde

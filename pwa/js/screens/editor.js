@@ -50,7 +50,8 @@ export async function render(root, params = {}) {
     if (!quiz) { navigate("home"); return; }
     quiz = JSON.parse(JSON.stringify(quiz));
   } else {
-    quiz = { id: uid(), name: "", questions: [], created: new Date().toISOString() };
+    quiz = { id: uid(), name: "", questions: [], created: new Date().toISOString(),
+      ...(params.subjectId ? { subject: params.subjectId } : {}) };
   }
   editingIndex = -1;
 

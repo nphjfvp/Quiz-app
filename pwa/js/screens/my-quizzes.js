@@ -17,6 +17,7 @@ export async function render(root) {
     ["study-plan", "📅", "Lernplan", "Klausurvorbereitung"],
     ["mock-exam", "🎓", "Probeklausur", "Klausur hochladen & üben"],
     ["trick-mode", "🕵️", "Trick erkennen", "Mathe-Kniffe identifizieren"],
+    ["subjects", "🗂️", "Eigene Themen", "Fragetypen & Lernarten pro Fach"],
     ["study", "🃏", "Karteikarten", "Spaced Repetition"],
     ["socratic", "🏛️", "Sokrates", "Fragend verstehen"],
     ["deep-learn", "🔬", "Deep Learn", "Geführte Sessions"],

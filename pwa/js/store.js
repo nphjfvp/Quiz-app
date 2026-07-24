@@ -360,6 +360,14 @@ export async function saveTrickSets(data) {
   await set("trick_sets", data);
 }
 
+// ── Eigene Themen-Profile (Startseiten-Shortcuts, z.B. "Mathe") ─────────────
+export async function loadSubjects() {
+  return (await get("subjects")) ?? [];
+}
+export async function saveSubjects(data) {
+  await set("subjects", data);
+}
+
 // ── Quick Actions ──
 export async function loadQuickActions() {
   return (await get("quick_actions")) ?? [];
