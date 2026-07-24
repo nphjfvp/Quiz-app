@@ -1372,6 +1372,77 @@ function chunkText(text, maxLen = 9000) {
   return final.length ? final : [text];
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// "Trick erkennen"-Modus: Mathe-Aufgaben, bei denen der entscheidende Kniff
+// (Umformung/Vereinfachung) erkannt werden muss, bevor man weiterrechnet.
+// Extrahiert Aufgabe + Trick + vollständigen LaTeX-Lösungsweg, prüft dann die
+// Nutzer-Eingabe des erkannten Tricks semantisch (nicht wortgleich).
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TRICK_EXTRACT_PROMPT = `Du bist ein Mathematik-Dozent. Analysiere den gegebenen Text (Übungsblatt, Skript, Klausur) und finde Aufgaben, bei denen ein entscheidender TRICK/KNIFF nötig ist, um effizient zur Lösung zu kommen — z.B.:
+- Quadratische Form in Nullstellenform umschreiben, um einen Bruch zu kürzen
+- Binomische Formel erkennen statt stur auszumultiplizieren
+- Substitution, um eine Gleichung auf bekannte Form zu bringen
+- Erweitern/Kürzen, um eine Definitionslücke zu beheben oder einen Grenzwert zu berechnen
+- Trigonometrische Identität statt direkter Berechnung
+- Partialbruchzerlegung, quadratische Ergänzung, geschicktes Faktorisieren, etc.
+
+Ignoriere reine Rechenaufgaben ohne einen solchen Kniff — nur Aufgaben mit einem klar benennbaren "Aha-Moment" zählen.
+
+Für jede gefundene Aufgabe:
+- "text": vollständige Aufgabenstellung (LaTeX für Formeln, z.B. $...$)
+- "trick_name": kurzer Name des Tricks (z.B. "Nullstellenform statt Faktorisieren", "3. Binomische Formel")
+- "trick_hint": 1 Satz, WARUM/WANN man diesen Trick anwendet (ohne die Lösung zu verraten)
+- "trick_explanation": 2-3 Sätze, die den Trick nach dem Erkennen erklären (LaTeX für Formeln)
+- "steps": Array von Lösungsschritten als LaTeX-Strings, chronologisch. Der Schritt, in dem der Trick angewendet wird, bekommt zusätzlich "isTrickStep": true.
+- "finalAnswer": Endergebnis (LaTeX)
+
+Antworte NUR mit JSON: {"tasks":[{"text":"...","trick_name":"...","trick_hint":"...","trick_explanation":"...","steps":[{"text":"...","isTrickStep":false}],"finalAnswer":"..."}]}`;
+
+export async function extractMathTricks(text, config = {}, onProgress = null) {
+  const { apiKey, model } = await getConfig(config);
+  const chunks = chunkText(text);
+  const all = [];
+  const seen = new Set();
+  for (let i = 0; i < chunks.length; i++) {
+    if (onProgress) onProgress(i + 1, chunks.length, "Tricks erkennen");
+    const raw = await chatCompletion(
+      [{ role: "system", content: TRICK_EXTRACT_PROMPT },
+       { role: "user", content: `Abschnitt ${i + 1}/${chunks.length} des Materials:\n\n${chunks[i]}` }],
+      { apiKey, model }
+    );
+    const parsed = parseJSONLoose(raw);
+    for (const t of (parsed?.tasks ?? [])) {
+      const key = (t.text || "").toLowerCase().replace(/\s+/g, " ").trim();
+      if (key && !seen.has(key)) { seen.add(key); all.push(t); }
+    }
+  }
+  return all;
+}
+
+/** Prüft SEMANTISCH, ob die Nutzer-Eingabe den richtigen Trick trifft (nicht wortgleich). */
+export async function checkTrickGuess(task, userGuess, config = {}) {
+  const { apiKey, model } = await getConfig(config);
+  const raw = await chatCompletion([
+    {
+      role: "system",
+      content: `Du prüfst, ob ein Lernender den entscheidenden Lösungs-Trick einer Mathe-Aufgabe erkannt hat.
+Die Eingabe muss NICHT wortgleich sein — akzeptiere Synonyme, Umgangssprache und unvollständige aber inhaltlich richtige Beschreibungen.
+Sei bei der Kernidee streng: eine vage/falsche Antwort ("irgendwas kürzen") ohne den eigentlichen Kniff zu benennen ist FALSCH.
+Antworte NUR mit JSON: {"correct": true, "feedback": "1-2 Sätze Feedback"}`,
+    },
+    {
+      role: "user",
+      content: `Aufgabe: ${task.text}\nGesuchter Trick: "${task.trick_name}" — ${task.trick_explanation}\n\nEingabe des Lernenden: "${userGuess}"\n\nHat der Lernende den Trick richtig erkannt?`,
+    },
+  ], { apiKey, model, stream: false });
+  const result = parseJSONLoose(raw);
+  if (!result || typeof result.correct !== "boolean") {
+    return { correct: false, feedback: "Antwort konnte nicht geprüft werden — versuch es erneut." };
+  }
+  return result;
+}
+
 export async function extractMathTasks(text, instructions = "", config = {}, onProgress = null) {
   const { apiKey, model } = await getConfig(config);
   const chunks = chunkText(text);
