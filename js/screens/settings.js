@@ -1,7 +1,8 @@
-import { loadSettings, saveSettings, loadMemory, saveMemory, loadMemoryEntries, createMemoryEntry, addMemoryEntry, deleteMemoryEntry, loadQuickActions, saveQuickActions } from "../store.js";
+import { loadSettings, saveSettings, loadMemory, saveMemory, loadMemoryEntries, createMemoryEntry, addMemoryEntry, deleteMemoryEntry, loadQuickActions, saveQuickActions, loadProfile, saveProfile, loadCoins, spendCoins } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount, setAccount, signIn, signUp, pullAll, pushAll, pullBySyncCode } from "../firebase-sync.js";
 import { MODELS } from "../ai-service.js";
+import { THEME_SKINS, applyThemeSkin } from "../shop-catalog.js";
 import { esc, setLatexEnabled } from "../utils.js";
 
 export async function render(root) {
@@ -10,6 +11,8 @@ export async function render(root) {
   const memoryEntries = await loadMemoryEntries();
   const quickActions = await loadQuickActions();
   const account = getAccount();
+  const profile = await loadProfile();
+  const coins = await loadCoins();
 
   const theme = (() => { try { return localStorage.getItem("theme") || "auto"; } catch { return "auto"; } })();
 
@@ -30,6 +33,24 @@ export async function render(root) {
       <div class="btn-row">
         <button class="btn btn-ghost btn-sm" id="latex-toggle">${settings.latexEnabled !== false ? "✅ LaTeX aktiv" : "⬜ LaTeX deaktiviert"}</button>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-desc">Design (Akzentfarbe der App) — von uns ausgewählte Paletten, freischaltbar mit Münzen aus dem Lernen.</div>
+      <div class="design-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:8px">
+        ${THEME_SKINS.map(t => {
+          const owned = t.price === 0 || !!profile.owned[t.id];
+          const equipped = (profile.equipped.theme || "theme_default") === t.id;
+          return `<button class="design-opt ${equipped ? "active" : ""}" data-design-id="${t.id}" data-owned="${owned}" data-price="${t.price}"
+              style="border:2px solid ${equipped ? "var(--primary)" : "var(--border)"};border-radius:10px;padding:8px;background:var(--card-glass-bg,var(--card-bg));cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px">
+            <div style="display:flex;gap:2px">
+              ${t.palette.slice(0, 3).map(c => `<span style="width:14px;height:14px;border-radius:50%;background:${c};display:inline-block"></span>`).join("")}
+            </div>
+            <small style="font-size:0.7rem;text-align:center">${esc(t.name)}</small>
+            <small style="font-size:0.68rem;color:var(--text-light)">${equipped ? "✓ Aktiv" : owned ? "Auswählen" : `🔒 ${t.price} 🪙`}</small>
+          </button>`;
+        }).join("")}
+      </div>
+      <div id="design-msg" style="font-size:0.78rem;color:var(--text-light);margin-top:6px"></div>
     </div>`;
 
   html += `<div class="section-title">Konto</div>`;
@@ -248,6 +269,35 @@ export async function render(root) {
     setLatexEnabled(next);
     const btn = root.querySelector("#latex-toggle");
     btn.textContent = next ? "✅ LaTeX aktiv" : "⬜ LaTeX deaktiviert";
+  });
+
+  // Design-Auswahl (Akzentfarbe)
+  root.querySelectorAll(".design-opt").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.designId;
+      const owned = btn.dataset.owned === "true";
+      const price = Number(btn.dataset.price) || 0;
+      const msg = root.querySelector("#design-msg");
+      const p = await loadProfile();
+
+      if (!owned) {
+        const ok = await spendCoins(price, `design:${id}`);
+        if (!ok) { msg.textContent = `Nicht genug Münzen (${price} 🪙 nötig).`; return; }
+        p.owned[id] = true;
+      }
+      p.equipped.theme = id;
+      await saveProfile(p);
+      applyThemeSkin(id);
+      msg.textContent = "";
+      root.querySelectorAll(".design-opt").forEach(b => {
+        const active = b.dataset.designId === id;
+        b.style.borderColor = active ? "var(--primary)" : "var(--border)";
+        b.classList.toggle("active", active);
+        const label = b.querySelector("small:last-child");
+        if (label) label.textContent = active ? "✓ Aktiv" : (b.dataset.owned === "true" || b.dataset.designId === id ? "Auswählen" : label.textContent);
+      });
+      btn.dataset.owned = "true";
+    });
   });
 
   // KI-Funktionen toggles
