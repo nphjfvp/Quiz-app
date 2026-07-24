@@ -5,6 +5,7 @@ import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
 import { newCard, review as fsrsReview, ratingFromResult } from "../fsrs.js";
 import { openBlackoutEditor } from "../blackout.js";
 import { generateHints, explainWrongAnswers } from "../ai-service.js";
+import { recordVariantAnswer } from "../variant-adaptive.js";
 import { drawDiagram, createDragGhost, moveDragGhost, removeDragGhost, bindChipDrag, drawLabeledPoint, createDiagramChip } from "../diagram.js";
 
 // Registry für document-Listener (Diagram-Label-Drag). Werden pro Frage neu
@@ -310,6 +311,12 @@ function showQuestion(root, quiz, session) {
       }
     } catch (_) { /* FSRS optional */ }
 
+    // Schwierigkeits-Varianten: bei "grün" (Box ≥ 3) ins nächste, schwerere
+    // Level befördern — die Frage erscheint beim nächsten Mal in diesem
+    // Fragetyp statt in der aktuellen (Ordner-Adaptivmodus).
+    let variantPromo = null;
+    try { variantPromo = await recordVariantAnswer(q, result.is_correct); } catch (_) {}
+
     if (session.mode === "single") {
       feedbackShown = true;
       const fb = root.querySelector("#feedback-area");
@@ -342,6 +349,16 @@ function showQuestion(root, quiz, session) {
         if (attempt >= 4) {
           fbHtml += `<div class="adapt-max"><div class="adapt-max-body">🔒 Maximale Versuche erreicht.</div></div>`;
         }
+      }
+
+      if (variantPromo?.promoted) {
+        fbHtml += `<div class="adapt-joker" style="background:var(--success-subtle,var(--primary-subtle));border-color:var(--success)">
+          <div class="adapt-joker-info">🎯 <strong>Grüner Bereich erreicht!</strong> Diese Frage kommt beim nächsten Mal als „${esc(variantPromo.newTypeLabel)}".</div>
+        </div>`;
+      } else if (variantPromo?.mastered && result.is_correct) {
+        fbHtml += `<div class="adapt-joker" style="background:var(--success-subtle,var(--primary-subtle));border-color:var(--success)">
+          <div class="adapt-joker-info">🏆 <strong>Schwerste Stufe gemeistert!</strong></div>
+        </div>`;
       }
 
       fbHtml += `<div class="feedback-actions">
@@ -447,6 +464,7 @@ function showQuestion(root, quiz, session) {
                 let pr = await loadProgress();
                 pr = updateProgress(pr, q.id, true);
                 await saveProgress(pr);
+                try { await recordVariantAnswer(q, true); } catch (_) {}
                 kiBox.innerHTML = `<div class="ki-validate-ok">✓ Als richtig gewertet!</div>`;
               });
             } else {

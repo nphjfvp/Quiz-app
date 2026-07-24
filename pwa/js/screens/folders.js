@@ -1,6 +1,7 @@
 import { loadQuizzes, loadFolders, saveFolders, loadProgress } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, uid } from "../utils.js";
+import { groupVariantQuizzes, buildAdaptiveQuestions, countVariantMastery } from "../variant-adaptive.js";
 
 export async function render(root, params = {}) {
   if (params.folderId) {
@@ -133,15 +134,32 @@ async function renderDetail(root, folderId) {
   const quizMap = Object.fromEntries(quizzes.map(q => [q.id, q]));
   const folderQuizzes = folder.quizIds.map(id => quizMap[id]).filter(Boolean);
 
-  // Count weak questions (box 1-2) across all folder quizzes
+  // Quizze mit Schwierigkeits-Varianten (aus dem Import-Modus) werden NICHT
+  // 1:1 mitgezählt/gespielt — pro Frage wird nur die aktuell passende Stufe
+  // genommen (adaptiv, siehe variant-adaptive.js), statt alle Level gemischt
+  // anzuzeigen (das war das eigentliche Problem: alle Stufen kamen gleichzeitig).
+  const standaloneQuizzes = folderQuizzes.filter(q => !q.variantGroup);
+  const variantGroups = groupVariantQuizzes(folderQuizzes);
+  const variantAdaptiveQuestions = [];
+  const variantMasteryByGroup = new Map();
+  for (const [groupId, levelQuizzes] of variantGroups.entries()) {
+    variantAdaptiveQuestions.push(...await buildAdaptiveQuestions(levelQuizzes));
+    variantMasteryByGroup.set(groupId, await countVariantMastery(levelQuizzes));
+  }
+
+  // Count weak questions (box 1-2 bzw. Varianten-Box 1-2) across all folder quizzes
   let weakCount = 0;
   let totalCount = 0;
-  for (const quiz of folderQuizzes) {
+  for (const quiz of standaloneQuizzes) {
     for (const q of (quiz.questions || [])) {
       totalCount++;
       const box = progress[q.id]?.box ?? 1;
       if (box <= 2) weakCount++;
     }
+  }
+  for (const q of variantAdaptiveQuestions) {
+    totalCount++;
+    if ((q._variantBox ?? 1) <= 2) weakCount++;
   }
 
   // Countdown
@@ -160,6 +178,10 @@ async function renderDetail(root, folderId) {
     </div>
     ${countdown ? `<p style="margin-bottom:12px">${countdown}</p>` : ""}
     <div id="edit-form-container"></div>
+    ${variantGroups.size ? `<p style="font-size:0.82rem;color:var(--text-light);margin:0 0 10px">
+      🎯 Enthält Schwierigkeits-Varianten: Du bekommst pro Frage erst die leichteste Stufe.
+      Sobald eine Frage „grün" ist (Box ≥ 3), wird sie automatisch durch die nächste, schwerere Stufe ersetzt.
+    </p>` : ""}
     <div class="btn-row" style="margin-bottom:16px">
       <button class="btn btn-primary" id="learn-all-btn" ${!totalCount ? "disabled" : ""}>Alle lernen (${totalCount})</button>
       <button class="btn btn-ghost" id="weak-btn" ${!weakCount ? "disabled" : ""}>Schwache Fragen (${weakCount})</button>
@@ -169,7 +191,7 @@ async function renderDetail(root, folderId) {
   if (!folderQuizzes.length) {
     html += `<div class="empty">Keine Quizze in diesem Ordner.</div>`;
   } else {
-    for (const quiz of folderQuizzes) {
+    for (const quiz of standaloneQuizzes) {
       const n = quiz.questions?.length ?? 0;
       html += `<div class="quiz-row">
         <div class="quiz-accent"></div>
@@ -178,6 +200,19 @@ async function renderDetail(root, folderId) {
           <small>${n} Fragen</small>
         </div>
         <button class="btn btn-danger btn-sm" data-remove-id="${quiz.id}" title="Entfernen">✕</button>
+      </div>`;
+    }
+    // Varianten-Gruppen als EINE Zeile (nicht einzeln pro Level) mit Fortschrittsanzeige.
+    for (const [groupId, levelQuizzes] of variantGroups.entries()) {
+      const baseName = (levelQuizzes[0].name || "").split(" · ")[0];
+      const m = variantMasteryByGroup.get(groupId);
+      html += `<div class="quiz-row">
+        <div class="quiz-accent" style="background:var(--primary)"></div>
+        <div class="quiz-info">
+          <h4>🎯 ${esc(baseName)}</h4>
+          <small>${levelQuizzes.length} Schwierigkeitsstufen · ${m.green}/${m.total} grün · ${m.mastered} gemeistert</small>
+        </div>
+        <button class="btn btn-danger btn-sm" data-remove-group="${groupId}" title="Entfernen">✕</button>
       </div>`;
     }
   }
@@ -193,15 +228,16 @@ async function renderDetail(root, folderId) {
 
   root.querySelector("#learn-all-btn").addEventListener("click", () => {
     if (!totalCount) return;
-    const allQs = folderQuizzes.flatMap(q => q.questions || []);
+    const allQs = [...standaloneQuizzes.flatMap(q => q.questions || []), ...variantAdaptiveQuestions];
     const combined = { id: "folder-" + folder.id, name: folder.name, questions: allQs };
     navigate("quiz", { quiz: combined, mode: "single" });
   });
 
   root.querySelector("#weak-btn").addEventListener("click", () => {
     if (!weakCount) return;
-    const weakQs = folderQuizzes.flatMap(q => (q.questions || []).filter(x => (progress[x.id]?.box ?? 1) <= 2));
-    const combined = { id: "folder-weak-" + folder.id, name: folder.name + " (Schwach)", questions: weakQs };
+    const weakStandalone = standaloneQuizzes.flatMap(q => (q.questions || []).filter(x => (progress[x.id]?.box ?? 1) <= 2));
+    const weakVariant = variantAdaptiveQuestions.filter(q => (q._variantBox ?? 1) <= 2);
+    const combined = { id: "folder-weak-" + folder.id, name: folder.name + " (Schwach)", questions: [...weakStandalone, ...weakVariant] };
     navigate("quiz", { quiz: combined, mode: "single" });
   });
 
@@ -214,6 +250,22 @@ async function renderDetail(root, folderId) {
       const f = fresh.find(x => x.id === folderId);
       if (f) {
         f.quizIds = f.quizIds.filter(id => id !== qid);
+        await saveFolders(fresh);
+        navigate("folders", { folderId });
+      }
+    });
+  });
+
+  // Remove an entire variant group (all its level-quizzes) from folder
+  root.querySelectorAll("[data-remove-group]").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const gid = btn.dataset.removeGroup;
+      const idsToRemove = new Set((variantGroups.get(gid) || []).map(q => q.id));
+      const fresh = await loadFolders() || [];
+      const f = fresh.find(x => x.id === folderId);
+      if (f) {
+        f.quizIds = f.quizIds.filter(id => !idsToRemove.has(id));
         await saveFolders(fresh);
         navigate("folders", { folderId });
       }

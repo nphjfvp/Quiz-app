@@ -145,6 +145,17 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   Reihenfolge/Anzahl = Frage an Index i ist über alle Level identisch). **results.js** bietet
   nach einem Level mit ≥80% automatisch einen Sprung ins nächste (schwerere) Level an, bis
   Freitext als schwerste Stufe erreicht ist.
+- **variant-adaptive.js** (Store-Key `variant_progress`) macht die Schwierigkeits-Varianten
+  **pro Frage adaptiv** statt manuell durchzuklicken: `groupVariantQuizzes` gruppiert Quizze
+  nach `variantGroup`, `buildAdaptiveQuestions` wählt für jeden Index NUR die aktuell passende
+  Stufe (Standard: Level 0/leichteste). Frage-ID ist synthetisch `{variantGroup}:{index}` — bleibt
+  über Level-Wechsel stabil (wichtig für FSRS/Markieren/Fehler-Tagebuch). `recordVariantAnswer`
+  (aufgerufen in `quiz.js` nach jeder Antwort) führt eine EIGENE Leitner-Box pro Frage-Index;
+  bei Box ≥ `GREEN_BOX_THRESHOLD` (3, „grün") wird ins nächste Level befördert und die Box setzt
+  frisch auf 1 zurück. **folders.js** nutzt das: Ordner mit variant-getaggten Quizzen zeigen die
+  Level-Quizze als EINE Zeile mit Fortschritt (X/Y grün) statt einzeln, und „Alle lernen"/„Schwache
+  Fragen" bauen die Session über `buildAdaptiveQuestions` (nicht durch stures Zusammenmischen aller
+  Level). Beförderung zeigt in `quiz.js` ein Feedback-Banner „🎯 Grüner Bereich erreicht!".
 - **mock-exam** – Probeklausur-Modus (Store-Key `mock_exams`): Klausur-PDF hochladen →
   Seiten als Bilder gerendert → Vision erkennt ALLE Aufgaben (Nummer, Position für
   Screenshot-Crop, Text, Typ calc/proof/text/draw, gedruckte ODER geschätzte Punkte) →
