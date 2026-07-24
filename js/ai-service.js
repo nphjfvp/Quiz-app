@@ -1497,7 +1497,8 @@ Antworte NUR mit JSON: {"meta":{"subject":"...","title":"...","examType":"...","
       if (!style.durationMin && parsed.meta.durationMin) style.durationMin = parsed.meta.durationMin;
     }
     for (const t of parsed?.tasks || []) {
-      tasks.push({ ...t, page: (t.page || 1) + i }); // Batch-Offset → globaler Seitenindex
+      // Batch-Offset → globaler Seitenindex; points immer als Zahl normalisieren
+      tasks.push({ ...t, page: (t.page || 1) + i, points: Number(t.points) || 1 });
     }
   }
 
