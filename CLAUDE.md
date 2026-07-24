@@ -86,6 +86,14 @@ Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
   10-Regel-Mathe-Systemprompt, 6 Mathe-Vorschläge, Mathe-Tastatur-Integration,
   Modus-Umschalter Allgemein/Mathe, mehrzeilige Texteingabe.
 - **scaffold** – Formel-Training (PDF→KI extrahiert Teilaufgaben→löst Schritt für Schritt).
+- **trick-mode** – "Trick erkennen" (Store-Key `trick_sets`): Mathe-Übungsaufgaben hochladen
+  (PDF/Text) → KI findet Aufgaben mit entscheidendem Kniff (Nullstellenform statt Bruch kürzen,
+  Substitution, binomische Formel, etc.) via `extractMathTricks` und liefert pro Aufgabe
+  Trick-Name, Hinweis, Erklärung und vollständigen LaTeX-Lösungsweg (Schritte, Trick-Schritt
+  markiert). Beim Üben: Trick als Freitext beschreiben, `checkTrickGuess` prüft SEMANTISCH
+  (nicht wortgleich). Bei richtiger Antwort oder Überspringen: Lösungsweg einsehbar, per Toggle
+  entweder nur bis zum Trick-Schritt oder komplett bis zum Ende (inkl. Vereinfachungen).
+  Fortschritt pro Aufgabe wird gespeichert.
 - **cloze** – Lückentext-Generator (KI-Zusammenfassung + Keywords). **study** – Karteikarten-Modus.
 - **pomodoro** – Fokus-Timer.
 - **random** – Zufalls-Modus: mischt Fragen aus ALLEN Quizzen zu einer Lernrunde

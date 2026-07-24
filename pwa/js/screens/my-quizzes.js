@@ -16,6 +16,7 @@ export async function render(root) {
     ["ai-generate", "🤖", "KI-Generator", "Quiz aus Text/PDF/Bild"],
     ["study-plan", "📅", "Lernplan", "Klausurvorbereitung"],
     ["mock-exam", "🎓", "Probeklausur", "Klausur hochladen & üben"],
+    ["trick-mode", "🕵️", "Trick erkennen", "Mathe-Kniffe identifizieren"],
     ["study", "🃏", "Karteikarten", "Spaced Repetition"],
     ["socratic", "🏛️", "Sokrates", "Fragend verstehen"],
     ["deep-learn", "🔬", "Deep Learn", "Geführte Sessions"],

@@ -63,6 +63,7 @@ route("math-tools", async (root, params) => { const m = await import("./screens/
 route("search", async (root) => { const m = await import("./screens/search.js"); return m.render(root); });
 route("study-plan", async (root) => { const m = await import("./screens/study-plan.js"); return m.render(root); });
 route("mock-exam", async (root) => { const m = await import("./screens/mock-exam.js"); return m.render(root); });
+route("trick-mode", async (root) => { const m = await import("./screens/trick-mode.js"); return m.render(root); });
 
 // ── Screen → Tab mapping ───────────────────────────────────────────────
 // 🏠 Home
@@ -96,6 +97,7 @@ setScreenTab("search", "home");
 setScreenTab("onboarding", "home");
 setScreenTab("study-plan", "lernen");
 setScreenTab("mock-exam", "lernen");
+setScreenTab("trick-mode", "lernen");
 
 // 🎮 Games
 setScreenTab("games", "games");

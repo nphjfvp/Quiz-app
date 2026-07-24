@@ -352,6 +352,14 @@ export async function saveMockExams(data) {
   await set("mock_exams", data);
 }
 
+// ── "Trick erkennen"-Sets ───────────────────────────────────────────────────
+export async function loadTrickSets() {
+  return (await get("trick_sets")) ?? [];
+}
+export async function saveTrickSets(data) {
+  await set("trick_sets", data);
+}
+
 // ── Quick Actions ──
 export async function loadQuickActions() {
   return (await get("quick_actions")) ?? [];
