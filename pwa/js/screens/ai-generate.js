@@ -93,8 +93,9 @@ export async function render(root, params = {}) {
 
         <div class="input-group">
           <label>Datei laden (.txt, .pdf, .tex, Bild)</label>
-          <input type="file" id="ai-file" accept=".txt,.pdf,.tex,image/*" class="input">
-          <small class="file-hint">PDF-Text wird automatisch extrahiert. Bilder (Diagramme, Screenshots) werden per Vision-KI analysiert.</small>
+          <input type="file" id="ai-file" accept=".txt,.pdf,.tex,image/*" class="input" multiple>
+          <small class="file-hint" id="ai-file-hint">PDF-Text wird automatisch extrahiert. Bilder (Diagramme, Screenshots) werden per Vision-KI analysiert.
+            Im <strong>Import-Modus</strong> können mehrere Dokumente gleichzeitig gewählt werden (Text wird zusammengeführt).</small>
           <div id="pdf-mode-row" class="visual-toggle-row" style="display:none">
             <label style="font-size:0.85rem;font-weight:600;margin-bottom:4px;display:block">PDF-Verarbeitung</label>
             <div class="detail-presets" id="pdf-mode-presets">
@@ -412,11 +413,67 @@ export async function render(root, params = {}) {
     });
   });
 
+  // Liest mehrere .txt/.pdf/.tex-Dokumente ein und führt den Text zusammen
+  // (Seitenumbruch-Marker \f zwischen Dokumenten, wie beim Lernplan-Multi-Upload).
+  async function handleMultiImport(files) {
+    const skipped = [];
+    const parts = [];
+    fileProgress.style.display = "block";
+    fileBar.style.width = "5%";
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      fileInfo.textContent = `Lade „${file.name}"… (${i + 1}/${files.length})`;
+      try {
+        if (file.name.endsWith(".txt") || file.name.endsWith(".tex")) {
+          const text = await file.text();
+          parts.push(`--- ${file.name} ---\n${text.trim()}`);
+        } else if (file.name.endsWith(".pdf")) {
+          const { getPdfText } = await import("../utils.js");
+          const pageData = await getPdfText(file);
+          const text = pageData.map(p => p.text).join("\n\n").trim();
+          parts.push(`--- ${file.name} ---\n${text}`);
+        } else {
+          skipped.push(file.name);
+        }
+      } catch (err) {
+        skipped.push(`${file.name} (${err.message || "Lesefehler"})`);
+      }
+      fileBar.style.width = (5 + 90 * (i + 1) / files.length) + "%";
+    }
+
+    textArea.value = parts.join("\n\n\f\n\n");
+    uploadedFileType = "text";
+    uploadedImageData = null;
+    pdfPageImages = null; pdfFile = null; pdfPageTexts = []; pdfVisualPages = [];
+    root.querySelector("#pdf-mode-row").style.display = "none";
+    root.querySelector("#img-preview").innerHTML = "";
+
+    fileInfo.textContent = skipped.length
+      ? `✓ ${parts.length} Dokument(e) geladen. Übersprungen (nur .txt/.pdf/.tex unterstützt): ${skipped.join(", ")}`
+      : `✓ ${parts.length} Dokumente geladen und zusammengeführt.`;
+    setTimeout(() => { fileProgress.style.display = "none"; }, skipped.length ? 4000 : 2000);
+    updateModelAvailability();
+  }
+
   fileInput.addEventListener("change", async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
+    const files = Array.from(fileInput.files || []);
+    if (!files.length) return;
     hideError();
 
+    // Import-Modus: mehrere Text-/PDF-Dokumente gleichzeitig zulassen — der
+    // Text aller Dateien wird zusammengeführt (wie beim Multi-Vorlesungen-
+    // Upload im Lernplan). Generate-Modus bleibt bei einer Datei, da Bild-/
+    // Hybrid-PDF-Pfade an genau EINE Datei gekoppelt sind.
+    if (genMode === "import" && files.length > 1) {
+      await handleMultiImport(files);
+      return;
+    }
+    if (files.length > 1) {
+      showError(`Mehrere Dateien werden nur im Import-Modus zusammengeführt — hier wird nur „${files[0].name}" verwendet.`);
+    }
+
+    const file = files[0];
     const isImage = file.type.startsWith("image/") || file.name.match(/\.(png|jpg|jpeg|gif|webp)$/i);
     uploadedFileType = file.name.endsWith(".pdf") ? "pdf" : isImage ? "image" : "text";
     uploadedImageData = null;
