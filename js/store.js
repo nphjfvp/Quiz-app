@@ -360,6 +360,15 @@ export async function saveTrickSets(data) {
   await set("trick_sets", data);
 }
 
+// ── Fortschritt für Schwierigkeits-Varianten (adaptives Level pro Frage) ────
+// Key im Objekt: "{variantGroup}:{index}" → { level, box, times_correct, times_wrong }
+export async function loadVariantProgress() {
+  return (await get("variant_progress")) ?? {};
+}
+export async function saveVariantProgress(data) {
+  await set("variant_progress", data);
+}
+
 // ── Eigene Themen-Profile (Startseiten-Shortcuts, z.B. "Mathe") ─────────────
 export async function loadSubjects() {
   return (await get("subjects")) ?? [];

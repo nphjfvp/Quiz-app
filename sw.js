@@ -1,4 +1,4 @@
-const CACHE = "lerntrainer-v106";
+const CACHE = "lerntrainer-v107";
 // Relative Pfade – werden relativ zum SW-Standort aufgelöst (funktioniert unter / und /Quiz-app/)
 const ASSETS = [
   "./",
@@ -8,6 +8,7 @@ const ASSETS = [
   "js/store.js",
   "js/utils.js",
   "js/quiz-engine.js",
+  "js/variant-adaptive.js",
   "js/fsrs.js",
   "js/firebase-sync.js",
   "js/ai-service.js",
