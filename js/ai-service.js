@@ -225,14 +225,23 @@ const TYPE_RULES = {
   key_points: `- Bei key_points: eine Aufzählungsfrage, bei der mehrere unabhängige Stichpunkte in BELIEBIGER Reihenfolge genannt werden müssen (z.B. "Nenne die Bestandteile von X", "Welche Ursachen hat Y"). Liste jeden Stichpunkt einzeln in "key_points" (Array von Strings). Pro Stichpunkt können Synonyme/alternative Formulierungen mit ';' angehängt werden (z.B. "Kohlensäure;CO2;Kohlendioxid"). Nutze 3-8 Stichpunkte.`,
 };
 
-function buildQuizSystemPrompt(countRule, allowedArr, language) {
+// Baut einen prominent platzierten Block mit frei formulierten Nutzer-Anweisungen
+// (z.B. "beachte nur rot markierte Stellen, lies die Hinweise") — wird an
+// mehreren KI-Aufrufen wiederverwendet, deshalb als eigene Helper-Funktion.
+function buildCustomInstructionsBlock(customInstructions) {
+  const trimmed = (customInstructions || "").trim();
+  if (!trimmed) return "";
+  return `\nWICHTIGE ZUSATZANWEISUNG DES NUTZERS (unbedingt befolgen, hat Vorrang vor allgemeinen Regeln):\n${trimmed}\n`;
+}
+
+function buildQuizSystemPrompt(countRule, allowedArr, language, customInstructions) {
   const typesList = allowedArr.map(t => `"${t}"`).join(", ");
   const typesUnion = allowedArr.map(t => `"${t}"`).join(" | ");
   const typeRules = allowedArr.map(t => TYPE_RULES[t]).filter(Boolean).join("\n") +
     (allowedArr.length > 2 ? "\n- Bevorzuge Choice-/Text-Fragen; nutze Zuordnungs-/Formel-Typen nur, wo es inhaltlich passt." : "");
   return `Du bist ein erfahrener Pädagoge und Prüfungsexperte. Erstelle hochwertige Lernfragen auf Basis des gegebenen Textes.
 WICHTIG: Extrahiere und erstelle Fragen zu ALLEN Inhalten des Textes – jedes Konzept, jede Definition, jeder Fakt soll abgedeckt werden. Überspringe NICHTS.
-
+${buildCustomInstructionsBlock(customInstructions)}
 Qualitätsregeln (entscheidend für gute Prüfungsfragen):
 - Prüfe VERSTÄNDNIS und ANWENDUNG, nicht Wortlaut-Wiedergabe. Mische die Anspruchsniveaus:
   ~1/3 Reproduktion (Definitionen), ~1/3 Verständnis (Warum/Wie/Abgrenzung), ~1/3 Transfer (Anwendung auf neuen Fall).
@@ -286,6 +295,7 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
     : QUIZ_ALL_TYPES;
   const allowedArr = allowed.length ? allowed : QUIZ_ALL_TYPES;
   const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
+  const customInstructions = config.customInstructions || "";
 
   // Wenn eine Chunk-Größe gesetzt ist und der Text größer ist als ein Chunk,
   // verarbeiten wir den Text abschnittsweise (kein Abschneiden bei großen PDFs).
@@ -294,7 +304,7 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
   const useChunking = chunkSize > 0 && text.length > chunkSize;
 
   const runChunk = async (chunkText, perChunkRule, userPrefix) => {
-    const systemPrompt = buildQuizSystemPrompt(perChunkRule, allowedArr, language);
+    const systemPrompt = buildQuizSystemPrompt(perChunkRule, allowedArr, language, customInstructions);
     const messages = [
       { role: "system", content: systemPrompt },
       { role: "user", content: `${userPrefix}\n\n${chunkText}` },
@@ -378,6 +388,7 @@ export async function generateQuiz(text, numQuestions = 5, language = "de", conf
 export async function importQuiz(text, language = "de", config = {}) {
   const { apiKey, model } = await getConfig(config);
   const onProgress = typeof config.onProgress === "function" ? config.onProgress : null;
+  const customInstructions = config.customInstructions || "";
 
   // Optionale Typen-Whitelist: z.B. NUR math_formula aus einem Übungsblatt ziehen.
   const allowedImport = (Array.isArray(config.allowedTypes) && config.allowedTypes.length)
@@ -404,7 +415,7 @@ ${importTypeRule}
 - Bei fill_blank: Lücken mit ___ markieren, Lösungswörter in "blanks".
 - Bei mehreren unabhängigen Gleichungen/Teilaufgaben (a, b, c …): JEDE wird eine EIGENE, eigenständig lösbare Frage.
 - Sprache: ${language === "de" ? "Deutsch" : language}.
-
+${buildCustomInstructionsBlock(customInstructions)}
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
   {
@@ -497,6 +508,7 @@ export const VARIANT_LEVEL_PRESETS = {
 export async function generateDifficultyVariants(baseQuestions, targetType, language = "de", config = {}) {
   const { apiKey, model } = await getConfig(config);
   const typeRule = TYPE_RULES[targetType] || "";
+  const customInstructions = config.customInstructions || "";
 
   const runBatch = async (batch) => {
     const source = batch.map((q, i) => ({
@@ -515,6 +527,7 @@ Der geprüfte Fakt/die Lösung darf sich NICHT ändern — nur das FORMAT der Fr
 ${typeRule}
 KRITISCH: Antworte mit GENAU ${batch.length} Fragen, in DERSELBEN Reihenfolge wie die Eingabe (Feld "nr" beibehalten) — Frage Nr. 1 bleibt Nr. 1, etc.
 Sprache: ${language === "de" ? "Deutsch" : language}.
+${buildCustomInstructionsBlock(customInstructions)}
 Antworte NUR mit JSON: {"questions":[{"nr":1,"question_type":"${targetType}","question_text":"...","title":"...","topic":"...","points":1,"options":[{"text":"...","is_correct":true}],"correct_text":"","blanks":[],"correct_formula":"","explanation":"..."}]}`,
       },
       { role: "user", content: `Wandle diese ${batch.length} Fragen um:\n${JSON.stringify(source, null, 1)}` },
@@ -566,6 +579,7 @@ export async function generateQuizFromImage(imageUrl, numQuestions = 3, language
   }
   const imgTypesList = allowedImg.map(t => `"${t}"`).join(", ");
   const imgTypesUnion = allowedImg.map(t => `"${t}"`).join(" | ");
+  const customInstructions = config.customInstructions || "";
 
   const detail = config.detailLevel || "normal";
   const detailHintImg = detail === "thorough"
@@ -583,7 +597,7 @@ Regeln:
 - Jede Frage braucht eine klare Erklärung.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
 ${imgTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelaufgabe aus dem Bildinhalt. Lösung in "correct_formula" (z.B. "x = 2" oder "a^2 + b^2").\n' : ""}- Sprache: ${language === "de" ? "Deutsch" : language}.
-
+${buildCustomInstructionsBlock(customInstructions)}
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
   {
@@ -665,6 +679,7 @@ export async function generateQuizFromImages(imageUrls, numQuestions = 5, langua
   }
   const imgsTypesList = allowedImgs.map(t => `"${t}"`).join(", ");
   const imgsTypesUnion = allowedImgs.map(t => `"${t}"`).join(" | ");
+  const customInstructions = config.customInstructions || "";
 
   const autoImg = !(numQuestions > 0);
   const detailImg = config.detailLevel || "normal";
@@ -699,7 +714,7 @@ Regeln:
 - Jede Frage muss eine klare Erklärung enthalten.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
 ${imgsTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelaufgabe aus dem Seiteninhalt. Lösung in "correct_formula" (z.B. "x = 2" oder "a^2 + b^2").\n' : ""}- Sprache: ${language === "de" ? "Deutsch" : language}.
-
+${buildCustomInstructionsBlock(customInstructions)}
 Antworte ausschließlich mit einem JSON-Array:
 [{
   "question_type": ${imgsTypesUnion},
@@ -776,7 +791,7 @@ Regeln:
 - Jede Frage muss eine klare Erklärung enthalten.
 - Bei single_choice: genau eine Option korrekt, min. 3 Optionen. Bei multiple_choice: min. 2 korrekt, min. 4 Optionen.
 ${imgsTypesList.includes("math_formula") ? '- Bei math_formula: Rechen-/Formelaufgabe aus dem Seiteninhalt. Lösung in "correct_formula" (z.B. "x = 2" oder "a^2 + b^2").\n' : ""}- Sprache: ${language === "de" ? "Deutsch" : language}.
-
+${buildCustomInstructionsBlock(customInstructions)}
 Antworte ausschließlich mit einem JSON-Array (kein Markdown):
 [
   {
