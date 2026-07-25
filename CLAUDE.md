@@ -166,13 +166,22 @@ Vision-Pfade generateQuizFromImage(s)).
   automatisch und arbeitet genau die falsch beantworteten Fragen auf.
 - **ai-generate** hat zusätzlich einen **Import-Modus** (`importQuiz`): übernimmt vorhandene
   Fragen aus Dokumenten 1:1 (Altklausur/Übungsblatt) statt neue zu generieren – inkl. Chunking.
-  Im Import-Modus außerdem **Schwierigkeits-Varianten** (`generateDifficultyVariants`,
-  `VARIANT_LEVEL_PRESETS`): dieselben 1:1-Fragen werden in 3 oder 4 aufsteigend schwerere
-  Fragetypen umgewandelt (Single Choice → [Multiple Choice] → Lückentext → Freitext) und als
-  SEPARATE Quizze gespeichert (gemeinsame `variantGroup`-ID, `variantLevel`-Index, gleiche
-  Reihenfolge/Anzahl = Frage an Index i ist über alle Level identisch). **results.js** bietet
-  nach einem Level mit ≥80% automatisch einen Sprung ins nächste (schwerere) Level an, bis
-  Freitext als schwerste Stufe erreicht ist.
+  **Schwierigkeits-Varianten** (`generateDifficultyVariants`, `VARIANT_LEVEL_PRESETS`) sind in
+  BEIDEN Modi verfügbar (Toggle „🎯 Schwierigkeits-Varianten erstellen" immer sichtbar, nicht
+  mehr nur beim Import): Im Import-Modus (`runVariantImport`) werden die 1:1-Fragen, im
+  „Neu generieren"-Modus (`runVariantGenerate`) wird zuerst per `generateQuiz` (Basis-Typ
+  `single_choice`) eine frische Basis-Fragenmenge erzeugt. Beide Pfade laufen danach über die
+  gemeinsame `runVariantLevels()`-Helper-Funktion: dieselben Fragen werden in 3 oder 4
+  aufsteigend schwerere Fragetypen umgewandelt (Single Choice → [Multiple Choice] → Lückentext
+  → Freitext) und als SEPARATE Quizze gespeichert (gemeinsame `variantGroup`-ID, `variantLevel`-
+  Index, gleiche Reihenfolge/Anzahl = Frage an Index i ist über alle Level identisch).
+  **results.js** bietet nach einem Level mit ≥80% automatisch einen Sprung ins nächste
+  (schwerere) Level an, bis Freitext als schwerste Stufe erreicht ist.
+- **ai-generate** hat außerdem ein Feld **„Zusätzliche Anweisung an die KI"** (freier Text,
+  z.B. „Beachte nur rot markierte Stellen, lies die Hinweise, erstelle daraus Fragen"). Wird
+  als `config.customInstructions` durch `buildCustomInstructionsBlock()` prominent in ALLE
+  relevanten System-Prompts injiziert: `generateQuiz`, `importQuiz`, `generateQuizFromImage`,
+  `generateQuizFromImages` (Text-, Bild- UND PDF-Pfad) sowie `generateDifficultyVariants`.
 - **variant-adaptive.js** (Store-Key `variant_progress`) macht die Schwierigkeits-Varianten
   **pro Frage adaptiv** statt manuell durchzuklicken: `groupVariantQuizzes` gruppiert Quizze
   nach `variantGroup`, `buildAdaptiveQuestions` wählt für jeden Index NUR die aktuell passende

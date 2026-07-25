@@ -70,11 +70,11 @@ export async function render(root, params = {}) {
           <small class="file-hint" id="gen-mode-hint">Neu generieren: KI erstellt neue Fragen aus dem Stoff. Importieren: übernimmt bereits vorhandene Fragen (Altklausur, Übungsblatt) 1:1.</small>
         </div>
 
-        <div class="input-group" id="variant-group" style="display:none">
+        <div class="input-group" id="variant-group" style="display:block">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
             <input type="checkbox" id="variant-toggle"> 🎯 Schwierigkeits-Varianten erstellen
           </label>
-          <small class="file-hint">Erstellt statt EINEM mehrere Quizze mit derselben Frage in steigendem
+          <small class="file-hint" id="variant-hint">Erstellt statt EINEM mehrere Quizze mit derselben Frage in steigendem
             Schwierigkeitsgrad (z.B. Single Choice → Lückentext → Freitext). Nach jedem Level kannst du bei guter
             Punktzahl direkt ins nächste Level springen.</small>
           <div id="variant-levels-row" style="display:none;margin-top:6px">
@@ -83,6 +83,12 @@ export async function render(root, params = {}) {
               <button type="button" class="detail-preset" data-levels="4">4 Stufen (+ Multiple Choice)</button>
             </div>
           </div>
+        </div>
+
+        <div class="input-group">
+          <label>Zusätzliche Anweisung an die KI (optional)</label>
+          <textarea id="ai-custom-instructions" class="textarea input" rows="2" placeholder="z.B. „Beachte nur die rot markierten Stellen, lies die Hinweise und erstelle daraus Fragen.""></textarea>
+          <small class="file-hint">Wird der KI direkt mitgegeben — z.B. um bestimmte Markierungen, Hinweise oder Schwerpunkte im Material zu beachten.</small>
         </div>
 
         <div class="input-group">
@@ -294,9 +300,18 @@ export async function render(root, params = {}) {
   const variantToggle = root.querySelector("#variant-toggle");
   const variantLevelsRow = root.querySelector("#variant-levels-row");
 
+  const variantHintEl = root.querySelector("#variant-hint");
+  const VARIANT_HINTS = {
+    generate: "Erstellt statt EINEM mehrere Quizze mit neu generierten Fragen zum selben Inhalt in steigendem Schwierigkeitsgrad (z.B. Single Choice → Lückentext → Freitext). Nach jedem Level kannst du bei guter Punktzahl direkt ins nächste Level springen.",
+    import: "Erstellt statt EINEM mehrere Quizze mit derselben (importierten) Frage in steigendem Schwierigkeitsgrad (z.B. Single Choice → Lückentext → Freitext). Nach jedem Level kannst du bei guter Punktzahl direkt ins nächste Level springen.",
+  };
+
   function updateGenBtnLabel() {
-    if (genMode !== "import") { genBtn.textContent = "Quiz generieren"; return; }
-    genBtn.textContent = variantToggle.checked ? "🎯 Varianten importieren" : "Fragen importieren";
+    if (genMode === "import") {
+      genBtn.textContent = variantToggle.checked ? "🎯 Varianten importieren" : "Fragen importieren";
+    } else {
+      genBtn.textContent = variantToggle.checked ? "🎯 Varianten generieren" : "Quiz generieren";
+    }
   }
 
   root.querySelectorAll("#gen-mode-presets .detail-preset").forEach(btn => {
@@ -306,7 +321,7 @@ export async function render(root, params = {}) {
       genMode = btn.dataset.genmode;
       // Beim Import bestimmt das Dokument die Anzahl → Anzahl-Auswahl ausblenden.
       if (numGroup) numGroup.style.display = genMode === "import" ? "none" : "";
-      if (variantGroupEl) variantGroupEl.style.display = genMode === "import" ? "block" : "none";
+      if (variantHintEl) variantHintEl.textContent = VARIANT_HINTS[genMode] || VARIANT_HINTS.generate;
       updateGenBtnLabel();
     });
   });
@@ -613,42 +628,70 @@ export async function render(root, params = {}) {
   // Fragetypen um und speichert JEDES Level als eigenes Quiz. Die Level teilen
   // sich eine variantGroup-ID; results.js bietet nach guter Punktzahl einen
   // Sprung ins nächste Level an (Aufstieg von "grün" zum nächsten Schwierigkeitsgrad).
-  async function runVariantImport(inputText, importName, chunkSize, onProgress) {
+  async function runVariantImport(inputText, importName, chunkSize, onProgress, customInstructions) {
     const levelTypes = VARIANT_LEVEL_PRESETS[variantLevels] || VARIANT_LEVEL_PRESETS[3];
     try {
       genBtn.textContent = "⏳ Importiere Basis-Fragen…";
-      const baseQuestions = await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress });
+      const baseQuestions = await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress, customInstructions });
       if (!baseQuestions.length) throw new Error("Keine Fragen im Dokument gefunden.");
-
-      const variantGroup = uid();
-      const createdQuizzes = [];
-      for (let lvl = 0; lvl < levelTypes.length; lvl++) {
-        const targetType = levelTypes[lvl];
-        genBtn.textContent = `⏳ Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]})…`;
-        const levelQuestions = await generateDifficultyVariants(baseQuestions, targetType, "de", {
-          model: currentModel,
-          onProgress: (i, n) => { genBtn.textContent = `⏳ Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]}) — Batch ${i}/${n}…`; },
-        });
-        createdQuizzes.push({
-          id: uid(),
-          name: `${importName} · Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]})`,
-          description: "Schwierigkeits-Variante",
-          questions: levelQuestions,
-          created: new Date().toISOString(),
-          variantGroup, variantLevel: lvl, variantLevels: levelTypes.length, variantTypeLabel: VARIANT_TYPE_LABELS[targetType],
-          ...(subjectId ? { subject: subjectId } : {}),
-        });
-      }
-
-      const all = await loadQuizzes();
-      all.push(...createdQuizzes);
-      await saveQuizzes(all);
-      showVariantSummary(root, createdQuizzes);
+      await runVariantLevels(baseQuestions, importName, customInstructions);
     } catch (err) {
       showError(err.message || "Beim Erstellen der Varianten ist ein Fehler aufgetreten.");
       genBtn.disabled = false;
       updateGenBtnLabel();
     }
+  }
+
+  // Generiert per KI eine BASIS-Fragenmenge (neue Fragen, kein 1:1-Import) und
+  // wandelt sie danach genau wie beim Import in aufsteigend schwerere Typen um.
+  // Basis-Fragetyp ist immer single_choice, damit generateDifficultyVariants()
+  // (das mit "Fakt + bekannter Lösung" pro Frage arbeitet) eine stabile
+  // Quelle hat, aus der die weiteren Level abgeleitet werden.
+  async function runVariantGenerate(inputText, quizName, numQuestions, chunkSize, onProgress, customInstructions) {
+    const levelTypes = VARIANT_LEVEL_PRESETS[variantLevels] || VARIANT_LEVEL_PRESETS[3];
+    try {
+      genBtn.textContent = "⏳ Generiere Basis-Fragen…";
+      const baseQuestions = await generateQuiz(inputText, numQuestions, "de", {
+        model: currentModel, detailLevel, chunkSize, onProgress, customInstructions,
+        allowedTypes: [levelTypes[0]],
+      });
+      if (!baseQuestions.length) throw new Error("Es konnten keine Basis-Fragen generiert werden.");
+      await runVariantLevels(baseQuestions, quizName, customInstructions);
+    } catch (err) {
+      showError(err.message || "Beim Erstellen der Varianten ist ein Fehler aufgetreten.");
+      genBtn.disabled = false;
+      updateGenBtnLabel();
+    }
+  }
+
+  // Gemeinsame Level-Umwandlung + Speicherung für Import- UND Generate-Varianten.
+  async function runVariantLevels(baseQuestions, baseName, customInstructions) {
+    const levelTypes = VARIANT_LEVEL_PRESETS[variantLevels] || VARIANT_LEVEL_PRESETS[3];
+    const variantGroup = uid();
+    const createdQuizzes = [];
+    for (let lvl = 0; lvl < levelTypes.length; lvl++) {
+      const targetType = levelTypes[lvl];
+      genBtn.textContent = `⏳ Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]})…`;
+      const levelQuestions = await generateDifficultyVariants(baseQuestions, targetType, "de", {
+        model: currentModel,
+        customInstructions,
+        onProgress: (i, n) => { genBtn.textContent = `⏳ Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]}) — Batch ${i}/${n}…`; },
+      });
+      createdQuizzes.push({
+        id: uid(),
+        name: `${baseName} · Stufe ${lvl + 1}/${levelTypes.length} (${VARIANT_TYPE_LABELS[targetType]})`,
+        description: "Schwierigkeits-Variante",
+        questions: levelQuestions,
+        created: new Date().toISOString(),
+        variantGroup, variantLevel: lvl, variantLevels: levelTypes.length, variantTypeLabel: VARIANT_TYPE_LABELS[targetType],
+        ...(subjectId ? { subject: subjectId } : {}),
+      });
+    }
+
+    const all = await loadQuizzes();
+    all.push(...createdQuizzes);
+    await saveQuizzes(all);
+    showVariantSummary(root, createdQuizzes);
   }
 
   // --- Generate ---
@@ -666,6 +709,7 @@ export async function render(root, params = {}) {
     }
     const numQuestions = getNumQuestions();
     const allowedTypes = getAllowedTypes();
+    const customInstructions = root.querySelector("#ai-custom-instructions")?.value.trim() || "";
 
     // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild). Im Import-Modus
     // immer den extrahierten Text nutzen (kein Vision-Pfad).
@@ -675,7 +719,7 @@ export async function render(root, params = {}) {
       genBtn.disabled = true;
       genBtn.textContent = "⏳ Analysiere Bild…";
       try {
-        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes });
+        const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, customInstructions });
         showReview(root, questions, quizName, currentModel, "");
       } catch (err) {
         showError(err.message || "Bild konnte nicht ausgewertet werden.");
@@ -698,7 +742,7 @@ export async function render(root, params = {}) {
           let ctxText = pdfMode === "hybrid" ? text : (text || undefined);
           if (ctxText && ctxText.length > charLimit) ctxText = ctxText.slice(0, charLimit);
           const onProgress = (i, n) => { genBtn.textContent = `⏳ Batch ${i}/${n}…`; };
-          const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize: imgChunkSize, onProgress }, ctxText);
+          const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize: imgChunkSize, onProgress, customInstructions }, ctxText);
           showReview(root, questions, quizName, currentModel, text || "");
         } catch (err) {
           showError(err.message || "PDF konnte nicht ausgewertet werden.");
@@ -738,14 +782,18 @@ export async function render(root, params = {}) {
       const onProgress = (i, n) => { genBtn.textContent = `⏳ Abschnitt ${i}/${n}…`; };
       const importName = nameInput.value.trim() || "Importiertes Quiz";
 
-      if (genMode === "import" && variantToggle.checked) {
-        await runVariantImport(inputText, importName, chunkSize, onProgress);
+      if (variantToggle.checked) {
+        if (genMode === "import") {
+          await runVariantImport(inputText, importName, chunkSize, onProgress, customInstructions);
+        } else {
+          await runVariantGenerate(inputText, quizName, numQuestions, chunkSize, onProgress, customInstructions);
+        }
         return;
       }
 
       const questions = genMode === "import"
-        ? await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress, allowedTypes })
-        : await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize, onProgress });
+        ? await importQuiz(inputText, "de", { model: currentModel, chunkSize, onProgress, allowedTypes, customInstructions })
+        : await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize, onProgress, customInstructions });
       showReview(root, questions, genMode === "import" ? importName : quizName, currentModel, inputText);
     } catch (err) {
       showError(err.message || (genMode === "import" ? "Beim Importieren ist ein Fehler aufgetreten." : "Beim Generieren ist ein Fehler aufgetreten."));
