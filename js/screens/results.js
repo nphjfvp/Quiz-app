@@ -112,15 +112,9 @@ export async function render(root, params) {
     } catch (_) {}
   }
 
-  // Auto-Sync: nach Quiz-Abschluss den Stand still in die Cloud pushen,
-  // wenn ein Account eingeloggt ist (abschaltbar via Setting autoSync).
-  try {
-    const settings = await loadSettings();
-    if (settings.autoSync !== false) {
-      const { getAccount, pushAll } = await import("../firebase-sync.js");
-      if (getAccount()) pushAll().catch(() => { /* offline o.ä. — nächster Abschluss versucht es erneut */ });
-    }
-  } catch (_) {}
+  // Auto-Sync läuft jetzt zentral in store.js (nach jedem saveProgress/
+  // saveStats/saveDailyState) — kein expliziter Push hier mehr nötig, das
+  // deckt auch Retry bei fehlendem Internet ab (store.js hört auf "online").
 
   let html = `
     <div class="result-hero" style="background:${bgColor}">

@@ -48,11 +48,80 @@ export async function clearAll() {
   });
 }
 
+// ── Automatische Cloud-Synchronisierung ─────────────────────────────────────
+// Läuft im Hintergrund NACH jeder relevanten lokalen Änderung (Quiz erstellt/
+// gelöscht, Antwort gegeben, Tagesstatus/FSRS/Statistik aktualisiert) — kein
+// manuelles Hoch-/Runterladen mehr nötig. Debounced (mehrere schnelle
+// Änderungen kurz hintereinander lösen nur EINEN Push aus). Ohne Internet
+// wird der Versuch zurückgestellt und automatisch nachgeholt, sobald die
+// Verbindung zurückkommt ("online"-Event) — kein Datenverlust, nur Verzögerung.
+let _syncTimer = null;
+let _syncPending = false;
+let _syncInFlight = false;
+let _lastSyncAt = null;
+let _lastSyncError = null;
+const _syncListeners = new Set();
+
+/** Abonniert Statusänderungen (für eine Live-Anzeige in den Einstellungen). Gibt eine Unsubscribe-Funktion zurück. */
+export function onAutoSyncChange(fn) {
+  _syncListeners.add(fn);
+  return () => _syncListeners.delete(fn);
+}
+function _notifySync() {
+  const status = getAutoSyncStatus();
+  for (const fn of _syncListeners) { try { fn(status); } catch (_) {} }
+}
+
+export function getAutoSyncStatus() {
+  return { pending: _syncPending, inFlight: _syncInFlight, lastSyncAt: _lastSyncAt, lastError: _lastSyncError };
+}
+
+function scheduleAutoSync() {
+  if (typeof window === "undefined") return; // Sicherheitsnetz für Nicht-Browser-Kontexte
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(runAutoSync, 3000);
+}
+
+async function runAutoSync() {
+  _syncTimer = null;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    _syncPending = true;
+    _notifySync();
+    return;
+  }
+  try {
+    const settings = await loadSettings();
+    if (settings.autoSync === false) return; // Nutzer hat Auto-Sync abgeschaltet
+    // Dynamischer Import vermeidet einen zirkulären Import (firebase-sync.js
+    // importiert seinerseits store.js für loadQuizzes/saveQuizzes etc.).
+    const { getAccount, pushAll } = await import("./firebase-sync.js");
+    if (!getAccount()) return; // nicht eingeloggt — nichts zu synchronisieren
+    _syncInFlight = true;
+    _notifySync();
+    await pushAll();
+    _syncPending = false;
+    _lastSyncError = null;
+    _lastSyncAt = Date.now();
+  } catch (err) {
+    // Netzwerkfehler o.ä. — beim nächsten "online"-Event automatisch erneut versuchen
+    _syncPending = true;
+    _lastSyncError = err?.message || "Synchronisierung fehlgeschlagen";
+  } finally {
+    _syncInFlight = false;
+    _notifySync();
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => { if (_syncPending) runAutoSync(); });
+}
+
 export async function loadQuizzes() {
   return (await get("quizzes")) ?? [];
 }
 export async function saveQuizzes(quizzes) {
   await set("quizzes", quizzes);
+  scheduleAutoSync();
 }
 
 export async function loadProgress() {
@@ -60,6 +129,7 @@ export async function loadProgress() {
 }
 export async function saveProgress(progress) {
   await set("progress", progress);
+  scheduleAutoSync();
 }
 
 export async function loadSettings() {
@@ -74,6 +144,7 @@ export async function loadDailyState() {
 }
 export async function saveDailyState(state) {
   await set("daily", state);
+  scheduleAutoSync();
 }
 
 export async function loadMarked() {
@@ -88,6 +159,7 @@ export async function loadStats() {
 }
 export async function saveStats(stats) {
   await set("stats", stats);
+  scheduleAutoSync();
 }
 
 export async function loadErrorDiary() {
@@ -116,6 +188,7 @@ export async function loadFsrs() {
 }
 export async function saveFsrs(data) {
   await set("fsrs", data);
+  scheduleAutoSync();
 }
 
 // ── Coin / Game Economy ──
