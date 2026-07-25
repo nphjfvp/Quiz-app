@@ -279,7 +279,12 @@ Karteikarten, FSRS, Pomodoro, Deep-Learn/Sokrates, PDF→Quiz, Cloud-Sync,
 **KI-Zusammenfassung**, **„Einfacher erklären"**, **LaTeX-Toggle**, KaTeX self-hosted,
 **Fragetypen-Auswahl** (ausschließen vor Generierung, alle Pfade: Text/Bild/PDF),
 **Text-Chunking** (große Texte abschnittsweise statt abschneiden, Granularität wählbar),
-robustes **parseJSON** (repariert ungültige LaTeX-Escapes wie `\(`/`\sqrt`).
+robustes **parseJSON** (repariert ungültige LaTeX-Escapes wie `\(`/`\sqrt`, rohe
+Kontrollzeichen/Zeilenumbrüche INNERHALB von JSON-Strings via `fixRawControlChars`
+— tritt v.a. bei Vision-Modellen wie Gemini auf), **Roh-KI-Antwort einsehbar**
+bei "kein gültiges JSON"-Fehlern (`parseJSON` hängt `err.rawResponse` an; `ai-generate.js`s
+`showError()` zeigt bei vorhandenem `rawResponse` einen "🔍 KI-Antwort anzeigen"-Toggle
+statt den Fehler nur als Text zu melden).
 
 ### KI-Generierung – Optionen (ai-generate.js + ai-service.js)
 - `generateQuiz/generateQuizFromImage/generateQuizFromImages` akzeptieren `config.allowedTypes`
