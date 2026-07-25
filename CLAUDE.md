@@ -38,6 +38,16 @@ Commit-Messages mit `Co-Authored-By`. NIE das Modell-ID in Commits/Code schreibe
 - `js/ai-service.js` – komplette OpenRouter-Anbindung (s.u.), `MODELS`-Liste mit tier/price/context/vision.
 - `js/fsrs.js` – vollständiger FSRS-4.5-Scheduler (Anki-artig).
 - `js/firebase-sync.js` – Auth + Sync (push/pull/Sync-Code).
+- **Auto-Sync** (in `store.js`, `scheduleAutoSync`/`runAutoSync`): läuft automatisch NACH
+  `saveQuizzes`/`saveProgress`/`saveDailyState`/`saveStats`/`saveFsrs` — kein manuelles
+  Hoch-/Runterladen mehr nötig. Debounced (3s), nur wenn eingeloggt + `settings.autoSync !== false`.
+  Ohne Internet (`navigator.onLine === false` oder Push schlägt fehl) wird der Versuch
+  zurückgestellt (`_syncPending`) und beim `window "online"`-Event automatisch nachgeholt —
+  kein Datenverlust, nur Verzögerung bis zur nächsten Verbindung. Live-Status abonnierbar über
+  `onAutoSyncChange`/`getAutoSyncStatus`; **settings.js** zeigt Toggle + Statuszeile
+  ("⏳ Synchronisiere…" / "📴 Wartet auf Internetverbindung…" / "✓ Zuletzt synchronisiert: …").
+  Manuelles Hoch-/Herunterladen bleibt zusätzlich verfügbar (z.B. zum sofortigen Abgleich
+  auf einem neuen Gerät, oder Pull mit Bestätigungsdialog wegen Überschreib-Gefahr).
 - Utils: `games-util.js` (Quiz-Quelle-Picker für Games), `math-keyboard.js`,
   `editable-formula.js`, `blackout.js` (Bild-Schwärzung zum Abfragen),
   `canvas-util.js` (geteilte Canvas-Helfer: lerp, addFloater, roundRect …),

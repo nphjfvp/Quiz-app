@@ -1,4 +1,4 @@
-import { loadSettings, saveSettings, loadMemory, saveMemory, loadMemoryEntries, createMemoryEntry, addMemoryEntry, deleteMemoryEntry, loadQuickActions, saveQuickActions, loadProfile, saveProfile, loadCoins, spendCoins } from "../store.js";
+import { loadSettings, saveSettings, loadMemory, saveMemory, loadMemoryEntries, createMemoryEntry, addMemoryEntry, deleteMemoryEntry, loadQuickActions, saveQuickActions, loadProfile, saveProfile, loadCoins, spendCoins, getAutoSyncStatus, onAutoSyncChange } from "../store.js";
 import { navigate } from "../router.js";
 import { getAccount, setAccount, signIn, signUp, pullAll, pushAll, pullBySyncCode } from "../firebase-sync.js";
 import { MODELS } from "../ai-service.js";
@@ -6,6 +6,7 @@ import { THEME_SKINS, applyThemeSkin } from "../shop-catalog.js";
 import { esc, setLatexEnabled } from "../utils.js";
 
 export async function render(root) {
+  let _unsubscribeAutoSync = null;
   const settings = await loadSettings();
   const memoryText = await loadMemory();
   const memoryEntries = await loadMemoryEntries();
@@ -59,8 +60,13 @@ export async function render(root) {
     html += `<div class="card">
       <div class="account-label">Angemeldet als</div>
       <div class="account-email">${esc(account.email)}</div>
-      <div class="btn-row">
-        <button class="btn btn-primary btn-sm" id="sync-push">☁️ Hochladen</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;margin-top:10px;cursor:pointer">
+        <input type="checkbox" id="autosync-toggle" ${settings.autoSync !== false ? "checked" : ""}>
+        Automatisch synchronisieren (nach jedem Lernen/Erstellen, im Hintergrund)
+      </label>
+      <div id="autosync-status" class="status-line" style="margin-top:2px"></div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-primary btn-sm" id="sync-push">☁️ Jetzt hochladen</button>
         <button class="btn btn-success btn-sm" id="sync-pull">⬇️ Herunterladen</button>
         <button class="btn btn-ghost btn-sm" id="logout-btn">Abmelden</button>
       </div>
@@ -440,6 +446,24 @@ export async function render(root) {
       } catch (e) { errEl.textContent = e.message; }
     });
   } else {
+    root.querySelector("#autosync-toggle")?.addEventListener("change", async (e) => {
+      const s = await loadSettings();
+      s.autoSync = e.target.checked;
+      await saveSettings(s);
+    });
+
+    // Live-Statuszeile für die automatische Synchronisierung (store.js)
+    const autoSyncStatusEl = root.querySelector("#autosync-status");
+    function renderAutoSyncStatus(status) {
+      if (!autoSyncStatusEl) return;
+      if (status.inFlight) autoSyncStatusEl.textContent = "⏳ Synchronisiere…";
+      else if (status.pending) autoSyncStatusEl.textContent = "📴 Wartet auf Internetverbindung…";
+      else if (status.lastSyncAt) autoSyncStatusEl.textContent = `✓ Zuletzt synchronisiert: ${new Date(status.lastSyncAt).toLocaleTimeString("de")}`;
+      else autoSyncStatusEl.textContent = "Noch nicht synchronisiert.";
+    }
+    renderAutoSyncStatus(getAutoSyncStatus());
+    _unsubscribeAutoSync = onAutoSyncChange(renderAutoSyncStatus);
+
     root.querySelector("#sync-push")?.addEventListener("click", async () => {
       const st = root.querySelector("#sync-status");
       st.textContent = "Lade hoch…";
@@ -616,4 +640,6 @@ export async function render(root) {
       setTimeout(() => navigate("home"), 1500);
     } catch { st.textContent = "Fehler beim Zurücksetzen."; }
   });
+
+  return () => { _unsubscribeAutoSync?.(); };
 }
