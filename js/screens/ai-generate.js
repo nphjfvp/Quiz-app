@@ -711,9 +711,19 @@ export async function render(root, params = {}) {
     const allowedTypes = getAllowedTypes();
     const customInstructions = root.querySelector("#ai-custom-instructions")?.value.trim() || "";
 
+    // Varianten-Modus braucht eine Text-Basis (generateQuiz/importQuiz) – die
+    // Vision-Pfade unten unterstützen keine Varianten-Erzeugung. Ein reines
+    // Bild-Upload ohne extrahierten Text kann daher keine Varianten liefern.
+    if (variantToggle.checked && uploadedImageData && !text) {
+      showError("Schwierigkeits-Varianten funktionieren nicht mit einem reinen Bild-Upload — bitte Text eingeben oder ein PDF/Textdokument hochladen.");
+      return;
+    }
+
     // Bild-Pfad: per Vision-KI auswerten (einzelnes Bild). Im Import-Modus
-    // immer den extrahierten Text nutzen (kein Vision-Pfad).
-    if (genMode !== "import" && uploadedImageData && !text) {
+    // immer den extrahierten Text nutzen (kein Vision-Pfad). Auch im
+    // Varianten-Modus überspringen wir das (siehe oben) — dort wird immer
+    // der (bereits extrahierte) Text als Basis verwendet.
+    if (genMode !== "import" && !variantToggle.checked && uploadedImageData && !text) {
       const quizName = nameInput.value.trim() || `KI-Quiz (Bild)`;
       hideError();
       genBtn.disabled = true;
@@ -729,8 +739,10 @@ export async function render(root, params = {}) {
       return;
     }
 
-    // PDF visuell (alle Seiten) oder hybrid (Volltext + Bildseiten)
-    if (genMode !== "import" && uploadedFileType === "pdf" && (pdfMode === "images" || pdfMode === "hybrid")) {
+    // PDF visuell (alle Seiten) oder hybrid (Volltext + Bildseiten). Im
+    // Varianten-Modus übergehen wir das (kein Vision-Pfad für Varianten) und
+    // nutzen stattdessen unten den extrahierten Text als Basis.
+    if (genMode !== "import" && !variantToggle.checked && uploadedFileType === "pdf" && (pdfMode === "images" || pdfMode === "hybrid")) {
       const haveImages = pdfPageImages && pdfPageImages.length > 0;
       // Images-Modus braucht Bilder; Hybrid ohne Bildseiten fällt in den Textpfad.
       if (pdfMode === "images" || (pdfMode === "hybrid" && haveImages)) {
