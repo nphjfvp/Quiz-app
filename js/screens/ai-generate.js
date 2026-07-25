@@ -636,7 +636,7 @@ export async function render(root, params = {}) {
       if (!baseQuestions.length) throw new Error("Keine Fragen im Dokument gefunden.");
       await runVariantLevels(baseQuestions, importName, customInstructions);
     } catch (err) {
-      showError(err.message || "Beim Erstellen der Varianten ist ein Fehler aufgetreten.");
+      showError(err, "Beim Erstellen der Varianten ist ein Fehler aufgetreten.");
       genBtn.disabled = false;
       updateGenBtnLabel();
     }
@@ -658,7 +658,7 @@ export async function render(root, params = {}) {
       if (!baseQuestions.length) throw new Error("Es konnten keine Basis-Fragen generiert werden.");
       await runVariantLevels(baseQuestions, quizName, customInstructions);
     } catch (err) {
-      showError(err.message || "Beim Erstellen der Varianten ist ein Fehler aufgetreten.");
+      showError(err, "Beim Erstellen der Varianten ist ein Fehler aufgetreten.");
       genBtn.disabled = false;
       updateGenBtnLabel();
     }
@@ -732,7 +732,7 @@ export async function render(root, params = {}) {
         const questions = await generateQuizFromImage(uploadedImageData, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, customInstructions });
         showReview(root, questions, quizName, currentModel, "");
       } catch (err) {
-        showError(err.message || "Bild konnte nicht ausgewertet werden.");
+        showError(err, "Bild konnte nicht ausgewertet werden.");
         genBtn.disabled = false;
         genBtn.textContent = "Quiz generieren";
       }
@@ -757,7 +757,7 @@ export async function render(root, params = {}) {
           const questions = await generateQuizFromImages(pdfPageImages, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize: imgChunkSize, onProgress, customInstructions }, ctxText);
           showReview(root, questions, quizName, currentModel, text || "");
         } catch (err) {
-          showError(err.message || "PDF konnte nicht ausgewertet werden.");
+          showError(err, "PDF konnte nicht ausgewertet werden.");
           genBtn.disabled = false;
           genBtn.textContent = "Quiz generieren";
         }
@@ -808,15 +808,45 @@ export async function render(root, params = {}) {
         : await generateQuiz(inputText, numQuestions, "de", { model: currentModel, detailLevel, allowedTypes, chunkSize, onProgress, customInstructions });
       showReview(root, questions, genMode === "import" ? importName : quizName, currentModel, inputText);
     } catch (err) {
-      showError(err.message || (genMode === "import" ? "Beim Importieren ist ein Fehler aufgetreten." : "Beim Generieren ist ein Fehler aufgetreten."));
+      showError(err, genMode === "import" ? "Beim Importieren ist ein Fehler aufgetreten." : "Beim Generieren ist ein Fehler aufgetreten.");
       genBtn.disabled = false;
       updateGenBtnLabel();
     }
   });
 
   // --- Helpers ---
-  function showError(msg) {
-    errorBox.textContent = msg;
+  // Akzeptiert entweder einen String ODER ein Error-Objekt (dann werden
+  // .message und – falls von parseJSON gesetzt – .rawResponse ausgewertet,
+  // damit der Nutzer bei "kein gültiges JSON"-Fehlern die rohe KI-Antwort
+  // direkt einsehen kann statt blind erneut zu versuchen).
+  function showError(errOrMsg, fallbackMsg) {
+    const isErrObj = errOrMsg && typeof errOrMsg === "object";
+    const msg = (isErrObj ? errOrMsg.message : errOrMsg) || fallbackMsg || "Es ist ein Fehler aufgetreten.";
+    const raw = isErrObj ? errOrMsg.rawResponse : undefined;
+
+    errorBox.innerHTML = "";
+    const textEl = document.createElement("div");
+    textEl.textContent = msg;
+    errorBox.appendChild(textEl);
+
+    if (raw && raw.trim()) {
+      const toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "btn btn-ghost btn-sm";
+      toggleBtn.style.marginTop = "6px";
+      toggleBtn.textContent = "🔍 KI-Antwort anzeigen";
+      const pre = document.createElement("pre");
+      pre.style.cssText = "display:none;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;margin-top:6px;padding:8px;background:var(--bg,#0f172a);border-radius:6px;font-size:0.75rem";
+      pre.textContent = raw;
+      toggleBtn.addEventListener("click", () => {
+        const visible = pre.style.display !== "none";
+        pre.style.display = visible ? "none" : "block";
+        toggleBtn.textContent = visible ? "🔍 KI-Antwort anzeigen" : "🔍 KI-Antwort verbergen";
+      });
+      errorBox.appendChild(toggleBtn);
+      errorBox.appendChild(pre);
+    }
+
     errorBox.style.display = "block";
   }
 

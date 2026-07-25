@@ -123,8 +123,39 @@ function sanitizeJSONEscapes(s) {
   return s.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, "\\\\");
 }
 
+// Manche Vision-Modelle (z.B. Gemini) schreiben rohe Zeilenumbrüche/Tabs
+// INNERHALB von JSON-Strings statt \n/\t — das ist technisch ungültiges JSON
+// ("Bad control character in string literal"). Wir laufen zeichenweise durch
+// und escapen rohe Kontrollzeichen NUR während wir uns innerhalb eines
+// String-Literals befinden (Anführungszeichen-Zustand wird mitgeführt).
+function fixRawControlChars(s) {
+  let out = "";
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) { out += c; esc = false; continue; }
+      if (c === "\\") { out += c; esc = true; continue; }
+      if (c === '"') { inStr = false; out += c; continue; }
+      if (c === "\n") { out += "\\n"; continue; }
+      if (c === "\r") { out += "\\r"; continue; }
+      if (c === "\t") { out += "\\t"; continue; }
+      out += c;
+    } else {
+      if (c === '"') { inStr = true; out += c; continue; }
+      out += c;
+    }
+  }
+  return out;
+}
+
 function parseJSON(text) {
-  if (!text || !text.trim()) throw new SyntaxError("Empty AI response");
+  if (!text || !text.trim()) {
+    const err = new SyntaxError("Leere KI-Antwort erhalten. Bitte erneut versuchen (ggf. anderes Modell wählen).");
+    err.rawResponse = text || "";
+    throw err;
+  }
   let t = text.trim();
   if (t.includes("```json")) t = t.split("```json")[1].split("```")[0];
   else if (t.startsWith("```")) t = t.replace(/^```\w*\s*\n?/, "").replace(/\n?```\s*$/, "");
@@ -133,14 +164,14 @@ function parseJSON(text) {
   // Kandidaten in steigender Reparatur-Aggressivität durchprobieren.
   const candidates = [];
   const addBlock = (str) => {
-    candidates.push(str);
-    candidates.push(sanitizeJSONEscapes(str));
+    const fixed = fixRawControlChars(str);
+    candidates.push(str, sanitizeJSONEscapes(str), fixed, sanitizeJSONEscapes(fixed));
     for (const [open, close] of [["{", "}"], ["[", "]"]]) {
       const a = str.indexOf(open), b = str.lastIndexOf(close);
       if (a !== -1 && b > a) {
         const chunk = str.slice(a, b + 1).replace(/,\s*([}\]])/g, "$1");
-        candidates.push(chunk);
-        candidates.push(sanitizeJSONEscapes(chunk));
+        const fixedChunk = fixRawControlChars(chunk);
+        candidates.push(chunk, sanitizeJSONEscapes(chunk), fixedChunk, sanitizeJSONEscapes(fixedChunk));
       }
     }
   };
@@ -156,7 +187,7 @@ function parseJSON(text) {
   if (objs.length) {
     const out = [];
     for (const o of objs) {
-      for (const variant of [o, sanitizeJSONEscapes(o)]) {
+      for (const variant of [o, sanitizeJSONEscapes(o), fixRawControlChars(o), sanitizeJSONEscapes(fixRawControlChars(o))]) {
         try { out.push(JSON.parse(variant)); break; } catch { /* next */ }
       }
     }
@@ -166,7 +197,9 @@ function parseJSON(text) {
     }
   }
 
-  throw new SyntaxError("KI-Antwort enthält kein gültiges JSON. Bitte erneut versuchen.");
+  const err = new SyntaxError("KI-Antwort enthält kein gültiges JSON. Bitte erneut versuchen.");
+  err.rawResponse = text;
+  throw err;
 }
 
 // Extrahiert alle vollständigen Top-Level-{...}-Objekte und respektiert dabei
