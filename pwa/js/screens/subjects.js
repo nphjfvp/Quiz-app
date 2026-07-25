@@ -21,6 +21,7 @@ export const QUESTION_TYPE_CATALOG = [
   { id: "math_formula", label: "Mathe-Formel" },
   { id: "diagram_label", label: "Diagramm beschriften" },
   { id: "mark_image", label: "Bild markieren" },
+  { id: "key_points", label: "Stichpunkte" },
 ];
 
 export const LEARNING_MODE_CATALOG = [

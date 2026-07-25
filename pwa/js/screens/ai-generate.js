@@ -12,6 +12,7 @@ function getQTypes(enableImages) {
     { id: "drag_drop", label: "Drag & Drop" },
     { id: "drag_category", label: "Kategorie-Zuordnung" },
     { id: "math_formula", label: "Mathe-Formel" },
+    { id: "key_points", label: "Stichpunkte" },
   ];
   if (enableImages) {
     types.push({ id: "diagram_label", label: "Diagramm beschriften" });

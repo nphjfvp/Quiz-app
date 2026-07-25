@@ -55,8 +55,26 @@ Commit-Messages mit `Co-Authored-By`. NIE das Modell-ID in Commits/Code schreibe
 ### Fragetypen (alle in quiz-engine implementiert)
 single_choice, multiple_choice, free_text, fill_blank (Lückentext),
 drag_drop, drag_category, math_formula (mit Toleranz + Formel-Eval),
-diagram_label (Labels auf Diagramm platzieren), mark_image (Region anklicken).
+diagram_label (Labels auf Diagramm platzieren), mark_image (Region anklicken),
+key_points (Stichpunkte).
 Freitext: Levenshtein-Tippfehlertoleranz + optional KI-Validierung.
+
+**key_points ("Stichpunkte"):** Freitext-Aufzählungsfrage — mehrere unabhängige
+Stichpunkte müssen in BELIEBIGER Reihenfolge genannt werden (z.B. "Nenne die
+Zutaten von Cola"). Datenfeld `key_points`: Array von Strings, pro Eintrag
+optional `;`-getrennte Synonyme (z.B. `"Kohlensäure;CO2;Kohlendioxid"`) —
+genau wie bei `free_text`/`fill_blank` über `answerMatches` (Levenshtein-
+toleranz, aus quiz-engine.js exportiert) geprüft, KEIN KI-Aufruf pro Rateversuch.
+Spielablauf (`quiz.js`, `setupKeyPoints`): eigener Rate-Loop INNERHALB der
+Frage — Gesamtzahl Versuche = Anzahl Stichpunkte, jede Nennung (richtig oder
+falsch) verbraucht einen Versuch, Treffer werden sofort aufgedeckt (🔒→✅).
+Rundenende (alle gefunden oder Versuche aufgebraucht) triggert automatisch den
+normalen `#submit-btn`-Klick → reguläre Punkte-/Fortschritts-/FSRS-Logik greift
+unverändert. Teilpunkte nach Trefferquote (wie `fill_blank`). Editor (`editor.js`)
+bietet eine Liste editierbarer Stichpunkt-Zeilen (+ / − Zeilen, min. 2 Pflicht).
+KI-Generierung: Teil von `QUIZ_ALL_TYPES`/`TYPE_RULES` in `ai-service.js` (nur
+Text-Pfad `generateQuiz`/`importQuiz` via `editQuestionWithAI`, NICHT die
+Vision-Pfade generateQuizFromImage(s)).
 
 ### Screens (`js/screens/`) – alle vorhanden
 - **home** – Welcome, Streak-Bar, Daily-Card, 4 Hauptkacheln, "Weitere Tools"-Grid, markiert/Fehler-Rows, zuletzt gelernt.

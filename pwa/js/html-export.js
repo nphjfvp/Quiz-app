@@ -52,6 +52,8 @@ function renderAnswer(q) {
     parts.push(q.correct_text || q.correct_answer);
   } else if (q.blanks?.length) {
     parts.push(q.blanks.join(", "));
+  } else if (q.key_points?.length) {
+    parts.push(q.key_points.map(kp => String(kp).split(";")[0].trim()).join(", "));
   }
   if (!parts.length) return "";
   return `<div class="answer-row"><strong>Richtige Antwort:</strong> ${escHtml(parts.join(" | "))}</div>`;
@@ -88,7 +90,7 @@ export async function quizToHtml(quiz) {
       free_text: "Freitext", fill_blank: "Lückentext",
       drag_drop: "Drag & Drop", drag_category: "Kategorie-Zuordnung",
       math_formula: "Mathe-Formel", diagram_label: "Diagramm beschriften",
-      mark_image: "Bild markieren",
+      mark_image: "Bild markieren", key_points: "Stichpunkte",
     }[q.question_type] || q.question_type || "Frage";
 
     return `<div class="q-card" id="q${i}">

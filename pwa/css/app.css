@@ -717,10 +717,11 @@ input:focus { border-color: var(--primary); }
 }
 .option-edit-row .opt-text, .option-edit-row .blank-text,
 .option-edit-row .pair-src, .option-edit-row .pair-tgt,
-.option-edit-row .label-name { border: none; background: transparent; padding: 6px 8px; }
+.option-edit-row .label-name, .option-edit-row .keypoint-text { border: none; background: transparent; padding: 6px 8px; }
 .option-edit-row .opt-text:focus, .option-edit-row .blank-text:focus,
 .option-edit-row .pair-src:focus, .option-edit-row .pair-tgt:focus,
-.option-edit-row .label-name:focus { box-shadow: none; }
+.option-edit-row .label-name:focus, .option-edit-row .keypoint-text:focus { box-shadow: none; }
+.option-edit-row .keypoint-text { flex: 1; }
 .option-edit-row .opt-text { flex: 1; }
 .option-edit-row .btn-icon { width: 30px; height: 30px; font-size: 0.8rem; border: none; background: transparent; color: var(--text-light); }
 .option-edit-row .btn-icon:hover { color: var(--danger); }
@@ -730,6 +731,19 @@ input:focus { border-color: var(--primary); }
 .label-status { font-size: 0.72rem; min-width: 56px; text-align: center; font-weight: 700; }
 .label-status.placed { color: var(--success); }
 .label-status.open { color: var(--warning); }
+
+/* Stichpunkte-Fragetyp: aufdeckbare Liste im Quiz-Spielmodus */
+.kp-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.kp-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: var(--radius-md); padding: 8px 12px;
+  font-size: 0.9rem; color: var(--text-light);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.kp-item.kp-found { border-color: var(--success); color: var(--text); background: var(--success-subtle, var(--primary-subtle)); }
+.kp-icon { font-size: 1rem; flex-shrink: 0; }
+.kp-text { flex: 1; }
 
 .add-question-bar { text-align: center; margin: 16px 0; }
 .editor-bottom-bar {

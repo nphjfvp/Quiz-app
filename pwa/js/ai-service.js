@@ -191,7 +191,7 @@ function extractCompleteObjects(s) {
 
 // ─── Public API ──────────────────────────────────────────────────────
 
-const QUIZ_ALL_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula"];
+const QUIZ_ALL_TYPES = ["single_choice", "multiple_choice", "free_text", "fill_blank", "drag_drop", "drag_category", "math_formula", "key_points"];
 
 export function normalizeQuizQuestion(q) {
   return {
@@ -207,6 +207,7 @@ export function normalizeQuizQuestion(q) {
     drag_drop_pairs: q.drag_drop_pairs ?? [],
     correct_formula: q.correct_formula ?? "",
     tolerance: q.tolerance ?? 0.001,
+    key_points: q.key_points ?? [],
     explanation: q.explanation ?? "",
   };
 }
@@ -221,6 +222,7 @@ const TYPE_RULES = {
   drag_drop: '- Bei drag_drop: nur wenn 1:1-Zuordnungen (Begriff↔Definition). Liste Paare in "drag_drop_pairs" mit "source" und "target".',
   drag_category: '- Bei drag_category: wenn mehrere Begriffe in Kategorien eingeordnet werden sollen (z.B. 6 Begriffe auf 2 Kategorien). Nutze "drag_drop_pairs" wobei "source" der Begriff und "target" die Kategorie ist. Kategorien dürfen mehrfach vorkommen.',
   math_formula: '- Bei math_formula: Rechen-/Formelaufgabe. Gib die Lösung in "correct_formula" an (z.B. "x = 2" oder "a^2 + b^2").',
+  key_points: `- Bei key_points: eine Aufzählungsfrage, bei der mehrere unabhängige Stichpunkte in BELIEBIGER Reihenfolge genannt werden müssen (z.B. "Nenne die Bestandteile von X", "Welche Ursachen hat Y"). Liste jeden Stichpunkt einzeln in "key_points" (Array von Strings). Pro Stichpunkt können Synonyme/alternative Formulierungen mit ';' angehängt werden (z.B. "Kohlensäure;CO2;Kohlendioxid"). Nutze 3-8 Stichpunkte.`,
 };
 
 function buildQuizSystemPrompt(countRule, allowedArr, language) {
@@ -262,6 +264,7 @@ Antworte ausschließlich mit einem JSON-Array (kein Markdown, kein zusätzlicher
     "blanks": [],
     "drag_drop_pairs": [{"source": "Begriff", "target": "Kategorie"}],
     "correct_formula": "",
+    "key_points": ["Stichpunkt1;Synonym1", "Stichpunkt2"],
     "explanation": "Erklärung"
   }
 ]`;
@@ -1232,7 +1235,8 @@ Fragetypen und ihre Pflichtfelder:
 - "drag_drop": options mit drag_items und drop_targets Arrays
 - "diagram_label": diagram_labels Array
 - "mark_image": mark_regions Array
-- "math_formula": correct_formula, tolerance`;
+- "math_formula": correct_formula, tolerance
+- "key_points": key_points (Array von Stichpunkt-Strings, Synonyme mit ';' trennen)`;
 
   const messages = [
     { role: "system", content: systemPrompt },

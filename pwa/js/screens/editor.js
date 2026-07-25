@@ -35,6 +35,8 @@ function emptyQuestion(type = "single_choice") {
     q.correct_formula = "";
     q.tolerance = 0.001;
     q.formula_sheet = "";
+  } else if (type === "key_points") {
+    q.key_points = ["", ""];
   }
   return q;
 }
@@ -80,7 +82,7 @@ function renderMain(root, quizzes) {
   } else {
     for (let i = 0; i < quiz.questions.length; i++) {
       const q = quiz.questions[i];
-      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke", drag_drop: "D&D", drag_category: "Zuordnung", diagram_label: "Diagramm", mark_image: "Markieren", math_formula: "Mathe" }[q.question_type] || q.question_type;
+      const typeLabel = { single_choice: "SC", multiple_choice: "MC", free_text: "Freitext", fill_blank: "Lücke", drag_drop: "D&D", drag_category: "Zuordnung", diagram_label: "Diagramm", mark_image: "Markieren", math_formula: "Mathe", key_points: "Stichpunkte" }[q.question_type] || q.question_type;
       html += `<div class="question-row" data-qi="${i}">
         <div class="q-num">${i + 1}</div>
         <div class="q-info">
@@ -142,6 +144,7 @@ function showTypeChooser(root, quizzes) {
     { type: "diagram_label", label: "Diagramm", icon: "🏷️", desc: "Bild beschriften" },
     { type: "mark_image", label: "Bild markieren", icon: "📍", desc: "Stelle im Bild markieren" },
     { type: "math_formula", label: "Mathe-Formel", icon: "🔢", desc: "Formel / Berechnung" },
+    { type: "key_points", label: "Stichpunkte", icon: "🗒️", desc: "Mehrere Stichpunkte frei nennen" },
   ];
 
   let html = `<div class="editor-header">
@@ -178,7 +181,7 @@ function renderQuestionEditor(root, quizzes) {
   const q = quiz.questions[editingIndex];
   if (!q) { renderMain(root, quizzes); return; }
 
-  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext", drag_drop: "Drag & Drop", drag_category: "Kategorie-Zuordnung", diagram_label: "Diagramm", mark_image: "Bild markieren", math_formula: "Mathe-Formel" }[q.question_type] || q.question_type;
+  const typeLabel = { single_choice: "Single Choice", multiple_choice: "Multiple Choice", free_text: "Freitext", fill_blank: "Lückentext", drag_drop: "Drag & Drop", drag_category: "Kategorie-Zuordnung", diagram_label: "Diagramm", mark_image: "Bild markieren", math_formula: "Mathe-Formel", key_points: "Stichpunkte" }[q.question_type] || q.question_type;
 
   let html = `<div class="editor-header">
     <button class="btn-icon" id="qe-back">←</button>
@@ -229,6 +232,20 @@ function renderQuestionEditor(root, quizzes) {
     }
     html += `</div>`;
     html += `<button class="btn-secondary btn-sm" id="add-blank" class="mt-sm">+ Lücke</button>`;
+  } else if (q.question_type === "key_points") {
+    const keyPoints = q.key_points || [];
+    html += `<div class="section-title" class="mt-section">Stichpunkte (Reihenfolge egal beim Antworten)</div>`;
+    html += `<small class="hint">Pro Zeile ein Stichpunkt. Synonyme mit „;" trennen, z.B. „Kohlensäure;CO2;Kohlendioxid". Tippfehler werden beim Lernen automatisch toleriert.</small>`;
+    html += `<div id="keypoints-list" style="margin-top:8px">`;
+    for (let i = 0; i < keyPoints.length; i++) {
+      html += `<div class="option-edit-row">
+        <span class="blank-num">${i + 1}.</span>
+        <input type="text" class="input keypoint-text" data-ki="${i}" value="${esc(keyPoints[i])}" placeholder="Stichpunkt ${i + 1}; Synonym1; Synonym2">
+        <button class="btn-icon keypoint-del" data-ki="${i}" ${keyPoints.length <= 2 ? "disabled" : ""}>✕</button>
+      </div>`;
+    }
+    html += `</div>`;
+    html += `<button class="btn-secondary btn-sm" id="add-keypoint" class="mt-sm">+ Stichpunkt</button>`;
   } else if (q.question_type === "drag_drop") {
     html += `<div class="section-title" class="mt-section">Zuordnungspaare</div>`;
     html += `<div id="pairs-list">`;
@@ -359,6 +376,12 @@ function renderQuestionEditor(root, quizzes) {
       q.blanks.push("");
       renderQuestionEditor(root, quizzes);
     });
+  } else if (q.question_type === "key_points") {
+    bindKeyPointEvents(root, q, quizzes);
+    root.querySelector("#add-keypoint")?.addEventListener("click", () => {
+      q.key_points.push("");
+      renderQuestionEditor(root, quizzes);
+    });
   } else if (q.question_type === "drag_drop" || q.question_type === "drag_category") {
     root.querySelectorAll(".pair-src").forEach(input => {
       input.addEventListener("input", e => { q.drag_drop_pairs[parseInt(e.target.dataset.pi)].source = e.target.value; });
@@ -468,6 +491,20 @@ function bindBlankEvents(root, q, quizzes) {
   });
 }
 
+function bindKeyPointEvents(root, q, quizzes) {
+  root.querySelectorAll(".keypoint-text").forEach((input) => {
+    input.addEventListener("input", (e) => {
+      q.key_points[parseInt(e.target.dataset.ki)] = e.target.value;
+    });
+  });
+  root.querySelectorAll(".keypoint-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      q.key_points.splice(parseInt(btn.dataset.ki), 1);
+      renderQuestionEditor(root, quizzes);
+    });
+  });
+}
+
 async function saveQuiz(quizzes) {
   if (!quiz.name.trim()) {
     alert("Bitte gib einen Quiz-Namen ein.");
@@ -497,6 +534,11 @@ async function saveQuiz(quizzes) {
     if (q.question_type === "fill_blank" &&
         (!q.blanks || !q.blanks.length || q.blanks.some((b) => !String(b).trim()))) {
       alert(`Frage ${i + 1}: Lückentext braucht mindestens eine ausgefüllte Lücke.`);
+      return;
+    }
+    if (q.question_type === "key_points" &&
+        (!q.key_points || q.key_points.length < 2 || q.key_points.some((k) => !String(k).trim()))) {
+      alert(`Frage ${i + 1}: Stichpunkte brauchen mindestens 2 ausgefüllte Einträge.`);
       return;
     }
   }
