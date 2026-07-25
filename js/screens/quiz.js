@@ -1,4 +1,4 @@
-import { QuizSession, updateProgress } from "../quiz-engine.js";
+import { QuizSession, updateProgress, answerMatches } from "../quiz-engine.js";
 import { loadProgress, saveProgress, logAnswer, loadMarked, saveMarked, loadErrorDiary, saveErrorDiary, loadFsrs, saveFsrs, addCoins, loadSettings } from "../store.js";
 import { navigate } from "../router.js";
 import { esc, mathEsc, escAttr, CHIP_COLORS } from "../utils.js";
@@ -146,6 +146,17 @@ function showQuestion(root, quiz, session) {
       <input type="file" id="math-photo" accept="image/*" capture="environment" class="input">
       <div id="math-photo-preview" style="margin-top:8px"></div>
     </div>`;
+  } else if (q.question_type === "key_points") {
+    const kpTotal = (q.key_points || []).length;
+    html += `<div class="question-hint">Nenne die Stichpunkte per Freitext, Reihenfolge egal. Du hast ${kpTotal} Versuche insgesamt.</div>`;
+    html += `<div id="kp-list" class="kp-list"></div>`;
+    html += `<div class="input-group" style="margin-top:8px">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="kp-input" class="input" placeholder="Stichpunkt nennen…" style="flex:1" autocomplete="off">
+        <button class="btn btn-secondary" id="kp-guess-btn">Nennen</button>
+      </div>
+      <small id="kp-attempts" class="hint"></small>
+    </div>`;
   } else {
     html += `<div class="input-group">
       <label>Antwort</label>
@@ -226,6 +237,14 @@ function showQuestion(root, quiz, session) {
     mathDrawingData = setupMathCanvas(root);
   }
 
+  // Stichpunkte: eigener Rate-Loop (mehrere Versuche innerhalb derselben Frage,
+  // Aufdecken bei Treffer). keyPointsFound wird beim Klick auf #submit-btn
+  // als "answer" ausgelesen — das Set wird von setupKeyPoints direkt mutiert.
+  const keyPointsFound = new Set();
+  if (q.question_type === "key_points") {
+    setupKeyPoints(root, q, keyPointsFound);
+  }
+
   // Enter/Leertaste löst Klick aus (Tastaturbedienung)
   function onActivateKey(el, handler) {
     el.addEventListener("keydown", (e) => {
@@ -285,7 +304,7 @@ function showQuestion(root, quiz, session) {
     } else if (q.question_type === "math_formula") {
       const textVal = root.querySelector("#math-input")?.value ?? "";
       answer = textVal || (mathDrawingData?.hasDrawn ? "[drawing]" : "") || (mathPhotoData ? "[photo]" : "") || "";
-    }
+    } else if (q.question_type === "key_points") answer = [...keyPointsFound];
     else answer = root.querySelector("#generic-input")?.value ?? "";
 
     const result = session.submit(answer);
@@ -771,6 +790,71 @@ function setupDiagramLabel(root, q, placements) {
     canvas.style.height = "200px";
     draw(); renderChips();
   }
+}
+
+// "Stichpunkte": Rate-Loop mit begrenzten Versuchen (= Anzahl Stichpunkte).
+// Jede Nennung (richtig ODER falsch) verbraucht einen Versuch; Treffer werden
+// sofort aufgedeckt. Reihenfolge egal, Tippfehler/Synonyme über answerMatches
+// (";"-getrennte Alternativen je Stichpunkt, wie bei fill_blank/free_text).
+function setupKeyPoints(root, q, foundSet) {
+  const keyPoints = q.key_points || [];
+  const total = keyPoints.length;
+  let attemptsLeft = total;
+  let ended = false;
+
+  const listEl = root.querySelector("#kp-list");
+  const inputEl = root.querySelector("#kp-input");
+  const guessBtn = root.querySelector("#kp-guess-btn");
+  const attemptsEl = root.querySelector("#kp-attempts");
+  if (!listEl || !inputEl || !guessBtn) return;
+
+  function render() {
+    listEl.innerHTML = keyPoints.map((kp, i) => {
+      const label = String(kp || "").split(";")[0].trim();
+      const found = foundSet.has(i);
+      return `<div class="kp-item${found ? " kp-found" : ""}">
+        <span class="kp-icon">${found ? "✅" : "🔒"}</span>
+        <span class="kp-text">${found ? mathEsc(label) : "?????"}</span>
+      </div>`;
+    }).join("");
+    if (attemptsEl) attemptsEl.textContent = `Versuche übrig: ${attemptsLeft} · Gefunden: ${foundSet.size}/${total}`;
+  }
+  render();
+
+  function endRound() {
+    if (ended) return;
+    ended = true;
+    inputEl.disabled = true;
+    guessBtn.disabled = true;
+    render();
+    root.querySelector("#submit-btn")?.click();
+  }
+
+  function guess() {
+    if (ended || attemptsLeft <= 0) return;
+    const text = inputEl.value.trim();
+    if (!text) return;
+    inputEl.value = "";
+    attemptsLeft--;
+
+    let matchedIdx = -1;
+    for (let i = 0; i < keyPoints.length; i++) {
+      if (foundSet.has(i)) continue;
+      if (answerMatches(text, keyPoints[i])) { matchedIdx = i; break; }
+    }
+    if (matchedIdx >= 0) foundSet.add(matchedIdx);
+    render();
+
+    if (foundSet.size >= total || attemptsLeft <= 0) {
+      setTimeout(endRound, foundSet.size >= total ? 300 : 600);
+    }
+  }
+
+  guessBtn.addEventListener("click", guess);
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); guess(); }
+  });
+  inputEl.focus();
 }
 
 function setupMarkImage(root, q) {

@@ -11,6 +11,7 @@ export function checkAnswer(question, userInput) {
     case "math_formula": return checkMath(question, userInput);
     case "diagram_label": return checkDiagramLabel(question, userInput);
     case "mark_image": return checkMarkImage(question, userInput);
+    case "key_points": return checkKeyPoints(question, userInput);
     default:
       return { question_id: question.id, is_correct: false, score: 0, max_score: question.points, user_answer: String(userInput), correct_answer: "" };
   }
@@ -71,7 +72,9 @@ function levenshtein(a, b) {
 
 // Vergleicht eine Antwort gegen eine Lösung – akzeptiert mehrere mit ';' getrennte
 // Lösungen und erlaubt kleine Tippfehler (1 Zeichen ab Länge 5, 2 ab Länge 9).
-function answerMatches(answer, correct) {
+// Exportiert, damit quiz.js dieselbe Tippfehler-/Synonym-Toleranz für die
+// Live-Prüfung einzelner Stichpunkt-Nennungen wiederverwenden kann.
+export function answerMatches(answer, correct) {
   const a = normText(answer);
   if (a === "") return false;
   const aStripped = stripLatexText(answer);
@@ -104,6 +107,22 @@ function checkFillBlank(q, answers) {
   const ok = hits === total;
   return { question_id: q.id, is_correct: ok, score: Math.round((hits / total) * q.points * 10) / 10,
     max_score: q.points, user_answer: ans.join(" | "), correct_answer: blanks.join(" | ") };
+}
+
+// "Stichpunkte": userInput ist ein Array bereits als gefunden erkannter
+// Indizes (Live-Abgleich passiert in quiz.js über answerMatches, Versuch für
+// Versuch — hier wird nur noch die Endpunktzahl aus dem Endstand berechnet).
+function checkKeyPoints(q, foundIndices) {
+  const keyPoints = q.key_points ?? [];
+  const found = new Set(Array.isArray(foundIndices) ? foundIndices : []);
+  const total = Math.max(keyPoints.length, 1);
+  const hits = [...found].filter((i) => i >= 0 && i < keyPoints.length).length;
+  const ok = hits === total;
+  const label = (kp) => String(kp ?? "").split(";")[0].trim();
+  const userAnswer = keyPoints.filter((_, i) => found.has(i)).map(label).join(", ");
+  const correctAnswer = keyPoints.map(label).join(", ");
+  return { question_id: q.id, is_correct: ok, score: Math.round((hits / total) * q.points * 10) / 10,
+    max_score: q.points, user_answer: userAnswer, correct_answer: correctAnswer };
 }
 
 function checkDragDrop(q, assignments) {
